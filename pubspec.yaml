@@ -1,5 +1,5 @@
 name: gramx
-description: "A new Flutter project."
+description: "An Android client for Telegram channels, laid out as a timeline."
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -10,10 +10,52 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # State management
+  flutter_riverpod: ^3.3.2
+
+  # TDLib wrapper
+  handy_tdlib: ^2.3.9
+
+
+  # Navigation
+  go_router: ^17.2.3
+
+  # Models
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+
+  # Database
+  drift: ^2.34.1
+  drift_flutter: ^0.3.0
+
+  # Security
+  flutter_secure_storage: ^9.2.4
+
+  # UI
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+  qr_flutter: ^4.1.0
+
+  # Utilities
+  intl: ^0.20.2
+  timeago: ^3.7.0
+  uuid: ^4.5.1
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+  # Code generation
+  build_runner: ^2.4.14
+  freezed: ^3.2.5
+  json_serializable: ^6.9.4
+  drift_dev: ^2.27.0
+
+
 
 flutter:
   uses-material-design: true
