@@ -3,6 +3,8 @@ import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/infrastructure/database/database.dart';
+import 'package:gramx/infrastructure/database/database_provider.dart';
 
 /// Provides the list of all channels (non-hidden).
 final channelsProvider = StreamProvider<List<Channel>>((ref) {
@@ -26,4 +28,11 @@ final channelPostsProvider =
   final id = int.tryParse(channelId);
   if (id == null) return const Stream.empty();
   return repo.watchChannelPosts(id);
+});
+
+/// Provides the active authenticated account database record.
+final activeAccountProvider = StreamProvider<Account?>((ref) {
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.accounts)..where((a) => a.isActive.equals(true)))
+      .watchSingleOrNull();
 });

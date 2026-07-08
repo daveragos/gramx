@@ -7,6 +7,7 @@ import 'package:gramx/features/feed/presentation/home_screen.dart';
 import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
+import 'package:gramx/features/settings/presentation/profile_screen.dart';
 
 // Channels list screen (placeholder for the "Channels" tab)
 class _ChannelsListScreen extends StatelessWidget {
@@ -135,6 +136,11 @@ final router = GoRouter(
       path: '/auth',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/profile',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ProfileScreen(),
     ),
   ],
 );

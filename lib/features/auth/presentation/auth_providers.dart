@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/database/database.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// State of the authentication flow.
@@ -71,7 +75,14 @@ class AuthController extends Notifier<AuthState> {
       _authSub?.cancel();
     });
 
-    return AuthState(step: AuthStep.loading);
+    final lastState = _tdlib.currentAuthState;
+    if (lastState != null) {
+      // Map it asynchronously to let state register first
+      Future.microtask(() => _mapTdlibStateToStep(lastState));
+      return AuthState(step: AuthStep.loading);
+    } else {
+      return AuthState(step: AuthStep.loginMethodSelection);
+    }
   }
 
   void _mapTdlibStateToStep(td.AuthorizationState tdState) {
@@ -88,7 +99,62 @@ class AuthController extends Notifier<AuthState> {
         qrCodeLink: tdState.link,
       );
     } else if (tdState is td.AuthorizationStateReady) {
+      _handleAuthReady();
+    }
+  }
+
+  Future<void> _handleAuthReady() async {
+    state = state.copyWith(step: AuthStep.loading);
+    try {
+      final me = await _tdlib.sendRequest(const td.GetMe());
+      if (me is td.User) {
+        final db = ref.read(databaseProvider);
+        
+        // Deactivate all accounts first
+        await db.customStatement('UPDATE accounts SET is_active = 0');
+        
+        final String? username = (me.usernames?.activeUsernames != null && me.usernames!.activeUsernames.isNotEmpty)
+            ? me.usernames!.activeUsernames.first
+            : me.usernames?.editableUsername;
+        
+        final existingAccount = await (db.select(db.accounts)..where((a) => a.telegramUserId.equals(me.id.toString()))).getSingleOrNull();
+        if (existingAccount != null) {
+          // Update existing account
+          await (db.update(db.accounts)..where((a) => a.id.equals(existingAccount.id))).write(
+            AccountsCompanion(
+              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
+              username: Value(username),
+              phoneNumber: Value(me.phoneNumber),
+              avatarPath: Value(me.profilePhoto?.small.local.path.isNotEmpty == true ? me.profilePhoto?.small.local.path : null),
+              isActive: const Value(true),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
+        } else {
+          // Insert new account
+          await db.into(db.accounts).insert(
+            AccountsCompanion.insert(
+              telegramUserId: me.id.toString(),
+              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
+              username: Value(username),
+              phoneNumber: Value(me.phoneNumber),
+              avatarPath: Value(me.profilePhoto?.small.local.path.isNotEmpty == true ? me.profilePhoto?.small.local.path : null),
+              isActive: const Value(true),
+            ),
+          );
+        }
+        
+        // Start full sync in background
+        final syncService = ref.read(syncServiceProvider);
+        await syncService.syncSubscribedChannels();
+        await syncService.syncFeedHistory();
+      }
       state = state.copyWith(step: AuthStep.authenticated);
+    } catch (e) {
+      state = state.copyWith(
+        step: AuthStep.error,
+        errorMessage: 'Failed to retrieve profile: $e',
+      );
     }
   }
 
@@ -166,9 +232,37 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Select Phone login method
+  void selectPhoneLogin() {
+    state = state.copyWith(step: AuthStep.waitPhoneNumber);
+  }
+
   /// Reset state to return to login method selection
   void reset() {
     state = AuthState(step: AuthStep.loginMethodSelection);
+  }
+
+  /// Log out and clean database
+  Future<void> logout() async {
+    state = AuthState(step: AuthStep.loading);
+    try {
+      await _tdlib.sendRequest(const td.LogOut());
+      final db = ref.read(databaseProvider);
+      
+      // Clear database tables
+      await db.customStatement('DELETE FROM bookmark_entries');
+      await db.customStatement('DELETE FROM media_items');
+      await db.customStatement('DELETE FROM posts');
+      await db.customStatement('DELETE FROM channels');
+      await db.customStatement('DELETE FROM accounts');
+      
+      state = AuthState(step: AuthStep.loginMethodSelection);
+    } catch (e) {
+      state = state.copyWith(
+        step: AuthStep.authenticated, // fallback
+        errorMessage: 'Failed to log out: $e',
+      );
+    }
   }
 }
 

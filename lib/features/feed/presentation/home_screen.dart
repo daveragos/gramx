@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +24,8 @@ class HomeScreen extends ConsumerWidget {
         : AppColors.lightTextSecondary;
 
     final channelsAsync = ref.watch(channelsProvider);
+    final accountAsync = ref.watch(activeAccountProvider);
+    final String displayName = accountAsync.value?.displayName ?? 'User';
     final folders = ['All', 'Tech', 'Crypto', 'News', 'Design'];
 
     return channelsAsync.when(
@@ -32,41 +35,8 @@ class HomeScreen extends ConsumerWidget {
         final isEmpty = channels.isEmpty;
 
         if (isEmpty) {
-          return Scaffold(
-            appBar: AppBar(
-              leading: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: GestureDetector(
-                  onTap: () {
-                    Scaffold.of(context).openDrawer();
-                  },
-                  child: CircleAvatar(
-                    radius: AppSpacing.avatarSizeSmall / 2,
-                    backgroundColor: AppColors.accent,
-                    child: const Text(
-                      'D',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              title: Text(
-                'gramX',
-                style: AppTypography.heading(color: primaryTextColor),
-              ),
-              centerTitle: true,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.settings_outlined, color: primaryTextColor),
-                  onPressed: () => context.push('/settings'),
-                ),
-              ],
-            ),
-            body: const _OnboardingView(),
+          return const Scaffold(
+            body: _OnboardingView(),
           );
         }
 
@@ -87,16 +57,28 @@ class HomeScreen extends ConsumerWidget {
                         onTap: () {
                           Scaffold.of(context).openDrawer();
                         },
-                        child: CircleAvatar(
-                          radius: AppSpacing.avatarSizeSmall / 2,
-                          backgroundColor: AppColors.accent,
-                          child: Text(
-                            'D',
-                            style: AppTypography.actionCount(
-                              color: Colors.white,
+                        child: () {
+                          final path = accountAsync.value?.avatarPath;
+                          if (path != null && path.isNotEmpty) {
+                            final file = File(path);
+                            if (file.existsSync()) {
+                              return CircleAvatar(
+                                radius: AppSpacing.avatarSizeSmall / 2,
+                                backgroundImage: FileImage(file),
+                              );
+                            }
+                          }
+                          return CircleAvatar(
+                            radius: AppSpacing.avatarSizeSmall / 2,
+                            backgroundColor: AppColors.accent,
+                            child: Text(
+                              displayName.isNotEmpty ? displayName[0].toUpperCase() : 'R',
+                              style: AppTypography.actionCount(
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        }(),
                       ),
                     ),
                     title: Text(
@@ -167,6 +149,9 @@ class _OnboardingView extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
+    final accountAsync = ref.watch(activeAccountProvider);
+    final isLoggedIn = accountAsync.value != null;
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Center(
@@ -190,44 +175,48 @@ class _OnboardingView extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'One timeline for the Telegram channels you follow. Log in with your Telegram account or add public channels manually to view their feeds.',
+                isLoggedIn
+                    ? 'You haven\'t subscribed to any channels yet. Add public Telegram channels to build your custom feed.'
+                    : 'One timeline for the Telegram channels you follow. Log in with your Telegram account to view your subscribed channels and feeds.',
                 style: AppTypography.body(color: secondaryColor),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+              if (!isLoggedIn) ...[
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  onPressed: () {
+                    context.push('/auth');
+                  },
+                  child: const Text(
+                    'Log in with Telegram',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                onPressed: () {
-                  context.push('/auth');
-                },
-                child: const Text(
-                  'Log in with Telegram',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: primaryColor,
-                  side: BorderSide(color: primaryColor),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+              ] else ...[
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  onPressed: () => _showAddChannelDialog(context, ref),
+                  child: const Text(
+                    'Add Public Channel',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                onPressed: () => _showAddChannelDialog(context, ref),
-                child: const Text(
-                  'Add Public Channel Manually',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
+              ],
             ],
           ),
         ),
@@ -244,14 +233,14 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
       ? AppColors.darkTextSecondary
       : AppColors.lightTextSecondary;
 
+  bool isLoading = false;
+  String? errorMsg;
+
   showDialog(
     context: context,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          bool isLoading = false;
-          String? errorMsg;
-
           return AlertDialog(
             backgroundColor: theme.scaffoldBackgroundColor,
             title: Text(
@@ -263,7 +252,7 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Enter a public Telegram channel username (e.g. techcrunch).',
+                  'Enter a public Telegram channel username (e.g. durov).',
                   style: AppTypography.body(color: secondaryColor),
                 ),
                 const SizedBox(height: 16),
@@ -271,7 +260,7 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
                   controller: controller,
                   decoration: InputDecoration(
                     labelText: 'Channel Username',
-                    hintText: 'ragoose_dumps',
+                    hintText: 'durov',
                     prefixText: '@',
                     errorText: errorMsg,
                     border: const OutlineInputBorder(),
@@ -303,7 +292,9 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
                         try {
                           final syncService = ref.read(syncServiceProvider);
                           await syncService.addPublicChannelByUsername(text);
-                          Navigator.pop(context); // close dialog
+                          if (context.mounted) {
+                            Navigator.pop(context); // close dialog
+                          }
 
                           // Invalidate providers to refresh
                           ref.invalidate(feedPostsProvider);

@@ -167,7 +167,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ),
           onPressed: () {
             // Push to phone login state
-            controller.submitPhoneNumber(''); // triggers parameter wait/phone wait
+            controller.selectPhoneLogin();
           },
           child: const Text('Log in with Phone Number', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
@@ -183,17 +183,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           ),
           onPressed: () => controller.requestQrLogin(),
           child: const Text('Log in via QR Code', style: TextStyle(fontWeight: FontWeight.bold)),
-        ),
-        const SizedBox(height: 24),
-        TextButton(
-          onPressed: () {
-            // Guest Mode - skip authentication and navigate to feed
-            context.go('/home');
-          },
-          child: Text(
-            'Use Offline / Guest Mode',
-            style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
-          ),
         ),
       ],
     );

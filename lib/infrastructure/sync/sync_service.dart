@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -31,16 +30,11 @@ class SyncService {
 
   /// Get or create the local default account database record.
   Future<int> _getOrCreateActiveAccountId() async {
-    final accounts = await _db.select(_db.accounts).get();
+    final accounts = await (_db.select(_db.accounts)..where((a) => a.isActive.equals(true))).get();
     if (accounts.isNotEmpty) {
       return accounts.first.id;
     }
-    return _db.into(_db.accounts).insert(
-      AccountsCompanion.insert(
-        telegramUserId: 'active_user',
-        displayName: const Value('Active User'),
-      ),
-    );
+    throw StateError('No active authenticated account found.');
   }
 
   /// Syncs all subscribed broadcast channels from Telegram.
@@ -135,35 +129,33 @@ class SyncService {
     }
   }
 
-  /// Manually add a public channel by its username (Guest Mode).
+  /// Manually add a public channel by its username.
   Future<void> addPublicChannelByUsername(String username) async {
     final accountId = await _getOrCreateActiveAccountId();
     debugPrint('[Sync] Resolving public chat username: @$username');
 
-    try {
-      // Clean username formatting
-      final cleanUsername = username.replaceAll('@', '').trim();
-      final searchRequest = td.SearchPublicChat(username: cleanUsername);
-      final chatObject = await _tdlib.sendRequest(searchRequest);
+    // Clean username formatting
+    final cleanUsername = username.replaceAll('@', '').trim();
+    if (cleanUsername.isEmpty) {
+      throw Exception('Username cannot be empty.');
+    }
+    final searchRequest = td.SearchPublicChat(username: cleanUsername);
+    final chatObject = await _tdlib.sendRequest(searchRequest);
 
-      if (chatObject is td.Chat) {
-        final type = chatObject.type;
-        if (type is td.ChatTypeSupergroup && type.isChannel) {
-          final companion = TdlibMappers.mapChatToCompanion(chatObject, accountId);
-          final channelDbId = await _db.into(_db.channels).insertOnConflictUpdate(companion);
-          debugPrint('[Sync] Manually added public channel: ${chatObject.title}');
+    if (chatObject is td.Chat) {
+      final type = chatObject.type;
+      if (type is td.ChatTypeSupergroup && type.isChannel) {
+        final companion = TdlibMappers.mapChatToCompanion(chatObject, accountId);
+        final channelDbId = await _db.into(_db.channels).insertOnConflictUpdate(companion);
+        debugPrint('[Sync] Manually added public channel: ${chatObject.title}');
 
-          // Immediately sync history for this channel
-          await syncChannelHistory(channelDbId, chatObject.id);
-        } else {
-          throw Exception('The username @$username is not a public broadcast channel.');
-        }
+        // Immediately sync history for this channel
+        await syncChannelHistory(channelDbId, chatObject.id);
       } else {
-        throw Exception('Chat @$username not found.');
+        throw Exception('The username @$username is not a public broadcast channel.');
       }
-    } catch (e) {
-      debugPrint('[Sync] Error adding public channel: $e');
-      rethrow;
+    } else {
+      throw Exception('Chat @$username not found.');
     }
   }
 

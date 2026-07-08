@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -21,6 +22,28 @@ class PostCard extends StatelessWidget {
     this.onBookmarkTap,
     this.onLikeTap,
   });
+
+  Widget _buildAvatar(Post post) {
+    if (post.channelAvatarUrl != null && post.channelAvatarUrl!.isNotEmpty) {
+      final file = File(post.channelAvatarUrl!);
+      if (file.existsSync()) {
+        return CircleAvatar(
+          radius: AppSpacing.avatarSize / 2,
+          backgroundImage: FileImage(file),
+        );
+      }
+    }
+    return CircleAvatar(
+      radius: AppSpacing.avatarSize / 2,
+      backgroundColor: post.channelAvatarColor != null
+          ? _parseColor(post.channelAvatarColor!)
+          : AppColors.accent,
+      child: Text(
+        post.channelTitle.isNotEmpty ? post.channelTitle[0].toUpperCase() : '?',
+        style: AppTypography.displayName(color: Colors.white),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,18 +69,7 @@ class PostCard extends StatelessWidget {
                 // Avatar
                 GestureDetector(
                   onTap: onChannelTap,
-                  child: CircleAvatar(
-                    radius: AppSpacing.avatarSize / 2,
-                    backgroundColor: post.channelAvatarColor != null
-                        ? _parseColor(post.channelAvatarColor!)
-                        : AppColors.accent,
-                    child: Text(
-                      post.channelTitle.isNotEmpty
-                          ? post.channelTitle[0].toUpperCase()
-                          : '?',
-                      style: AppTypography.displayName(color: Colors.white),
-                    ),
-                  ),
+                  child: _buildAvatar(post),
                 ),
                 const SizedBox(width: AppSpacing.avatarGap),
                 // Content

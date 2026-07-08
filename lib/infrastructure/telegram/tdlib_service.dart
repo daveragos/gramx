@@ -11,6 +11,7 @@ import 'package:gramx/core/config/app_config.dart';
 /// Service wrapper around native TDLib (handy_tdlib) using a background Isolate.
 class TdlibService {
   int? _clientId;
+  Future<void>? _initializeMemoizer;
   Isolate? _updatesIsolate;
   final _updatesController = StreamController<td.TdObject>.broadcast();
   final _invokesController = StreamController<Map<String, dynamic>>.broadcast();
@@ -22,67 +23,105 @@ class TdlibService {
   TdlibService(Ref ref);
 
   /// Stream of all incoming TDLib updates (excluding invoke results).
-  Stream<td.TdObject> get updatesStream => _updatesController.stream;
+  Stream<td.TdObject> get updatesStream {
+    if (_clientId == null) {
+      initialize().catchError((e) {
+        debugPrint('[TDLib] Lazy initialization error on updatesStream: $e');
+      });
+    }
+    return _updatesController.stream;
+  }
 
   /// Stream of authorization state updates.
-  Stream<td.AuthorizationState> get authStateStream => _authEventController.stream;
+  Stream<td.AuthorizationState> get authStateStream {
+    if (_clientId == null) {
+      initialize().catchError((e) {
+        debugPrint('[TDLib] Lazy initialization error on authStateStream: $e');
+      });
+    }
+    return _authEventController.stream;
+  }
+
+  td.AuthorizationState? _currentAuthState;
+  td.AuthorizationState? get currentAuthState => _currentAuthState;
 
   /// Retrieves the active client ID.
   int? get clientId => _clientId;
 
   /// Initialize TDLib and spawn the updates listener isolate.
   Future<void> initialize() async {
-    if (_clientId != null) return; // already initialized
+    if (_initializeMemoizer != null) {
+      return _initializeMemoizer;
+    }
+    final completer = Completer<void>();
+    _initializeMemoizer = completer.future;
 
-    // Create client ID (must run on the main/invoker thread)
-    _clientId = TdPlugin.instance.tdCreateClientId();
-    debugPrint('[TDLib] Created Client ID: $_clientId');
+    try {
+      if (_clientId != null) {
+        completer.complete();
+        return;
+      }
 
-    // Setup ports
-    _updatesReceivePort = ReceivePort();
-    
-    // Spawn background isolate to run the blocking tdReceive loop
-    _updatesIsolate = await Isolate.spawn(
-      _updatesIsolateLoop,
-      _UpdatesIsolateParams(
-        sendPort: _updatesReceivePort!.sendPort,
-      ),
-    );
+      // Initialize the plugin instance
+      await TdPlugin.initialize();
 
-    // Listen for updates from the isolate
-    _updatesReceivePort!.listen((message) {
-      if (message is String) {
-        try {
-          final map = jsonDecode(message) as Map<String, dynamic>;
-          if (map.containsKey('@extra')) {
-            // This is a response to an invocation
-            _invokesController.add(map);
-          } else {
-            // This is a general update from Telegram
-            final object = convertJsonToObject(message);
-            if (object != null) {
-              _handleIncomingUpdate(object);
+      // Create client ID (must run on the main/invoker thread)
+      _clientId = TdPlugin.instance.tdCreateClientId();
+      debugPrint('[TDLib] Created Client ID: $_clientId');
+
+      // Setup ports
+      _updatesReceivePort = ReceivePort();
+      
+      // Spawn background isolate to run the blocking tdReceive loop
+      _updatesIsolate = await Isolate.spawn(
+        _updatesIsolateLoop,
+        _UpdatesIsolateParams(
+          sendPort: _updatesReceivePort!.sendPort,
+        ),
+      );
+
+      // Listen for updates from the isolate
+      _updatesReceivePort!.listen((message) {
+        if (message is String) {
+          try {
+            final map = jsonDecode(message) as Map<String, dynamic>;
+            if (map.containsKey('@extra')) {
+              // This is a response to an invocation
+              _invokesController.add(map);
+            } else {
+              // This is a general update from Telegram
+              final object = convertJsonToObject(message);
+              if (object != null) {
+                _handleIncomingUpdate(object);
+              }
             }
+          } catch (e) {
+            debugPrint('[TDLib] JSON decode error on update: $e');
           }
-        } catch (e) {
-          debugPrint('[TDLib] JSON decode error on update: $e');
         }
-      }
-    });
+      });
 
-    // Start authorization parameters setting
-    updatesStream.listen((event) {
-      if (event is td.UpdateAuthorizationState) {
-        _authEventController.add(event.authorizationState);
-        _handleAuthorizationState(event.authorizationState);
-      }
-    });
+      // Start authorization parameters setting
+      _updatesController.stream.listen((event) {
+        if (event is td.UpdateAuthorizationState) {
+          _currentAuthState = event.authorizationState;
+          _authEventController.add(event.authorizationState);
+          _handleAuthorizationState(event.authorizationState);
+        }
+      });
+
+      completer.complete();
+    } catch (e, stack) {
+      _initializeMemoizer = null; // Reset to allow retry
+      completer.completeError(e, stack);
+      rethrow;
+    }
   }
 
   /// Send a TDLib request and return the deserialized response.
   Future<td.TdObject> sendRequest(td.TdFunction function, {int? extraId}) async {
     if (_clientId == null) {
-      throw Exception('TDLib client not initialized.');
+      await initialize();
     }
 
     final completer = Completer<td.TdObject>();
@@ -176,7 +215,9 @@ class _UpdatesIsolateParams {
 
 /// Background loop running in the spawned Isolate.
 /// It continuously calls tdReceive and sends raw JSON strings to the main port.
-void _updatesIsolateLoop(_UpdatesIsolateParams params) {
+void _updatesIsolateLoop(_UpdatesIsolateParams params) async {
+  debugPrint('[TDLib Isolate] Initializing TdPlugin');
+  await TdPlugin.initialize();
   debugPrint('[TDLib Isolate] Starting receive loop');
   while (true) {
     // tdReceive is blocking with a 1-second timeout

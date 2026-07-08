@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class AppShell extends ConsumerWidget {
@@ -14,7 +16,9 @@ class AppShell extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final isVisible = ref.watch(bottomNavVisibilityProvider);
+    final channelsAsync = ref.watch(channelsProvider);
+    final isDatabaseEmpty = channelsAsync.value?.isEmpty ?? true;
+    final isVisible = ref.watch(bottomNavVisibilityProvider) && !isDatabaseEmpty;
 
     return Scaffold(
       body: navigationShell,
@@ -65,17 +69,27 @@ class AppShell extends ConsumerWidget {
   }
 }
 
-class _XDrawer extends StatelessWidget {
+class _XDrawer extends ConsumerWidget {
   const _XDrawer();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final secondaryColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
+
+    final accountAsync = ref.watch(activeAccountProvider);
+    final channelsAsync = ref.watch(channelsProvider);
+
+    final String displayName = accountAsync.value?.displayName ?? 'Telegram User';
+    final String username = accountAsync.value?.username != null 
+        ? '@${accountAsync.value!.username}' 
+        : '';
+    final int channelsCount = channelsAsync.value?.length ?? 0;
+    const int foldersCount = 5; // All, Tech, Crypto, News, Design
 
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -92,20 +106,32 @@ class _XDrawer extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AppColors.accent,
-                        child: const Text(
-                          'D',
-                          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      () {
+                        final path = accountAsync.value?.avatarPath;
+                        if (path != null && path.isNotEmpty) {
+                          final file = File(path);
+                          if (file.existsSync()) {
+                            return CircleAvatar(
+                              radius: 24,
+                              backgroundImage: FileImage(file),
+                            );
+                          }
+                        }
+                        return CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.accent,
+                          child: Text(
+                            displayName.isNotEmpty ? displayName[0].toUpperCase() : 'R',
+                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                        );
+                      }(),
                       Icon(Icons.more_vert, color: secondaryColor),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Demo User',
+                    displayName,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -114,7 +140,7 @@ class _XDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '@demo_user',
+                    username,
                     style: TextStyle(
                       fontSize: 14,
                       color: secondaryColor,
@@ -124,7 +150,7 @@ class _XDrawer extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '5',
+                        channelsCount.toString(),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -141,7 +167,7 @@ class _XDrawer extends StatelessWidget {
                       ),
                       const SizedBox(width: 16),
                       Text(
-                        '4',
+                        foldersCount.toString(),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -168,6 +194,7 @@ class _XDrawer extends StatelessWidget {
               title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(context);
+                GoRouter.of(context).push('/profile');
               },
             ),
             ListTile(
