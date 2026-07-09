@@ -77,26 +77,42 @@ class AuthController extends Notifier<AuthState> {
 
     final lastState = _tdlib.currentAuthState;
     if (lastState != null) {
-      // Map it asynchronously to let state register first
-      Future.microtask(() => _mapTdlibStateToStep(lastState));
-      return AuthState(step: AuthStep.loading);
-    } else {
-      return AuthState(step: AuthStep.loginMethodSelection);
+      if (lastState is td.AuthorizationStateWaitPhoneNumber) {
+        return AuthState(step: AuthStep.loginMethodSelection);
+      } else if (lastState is td.AuthorizationStateWaitCode) {
+        return AuthState(step: AuthStep.waitCode);
+      } else if (lastState is td.AuthorizationStateWaitPassword) {
+        return AuthState(step: AuthStep.waitPassword);
+      } else if (lastState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
+        return AuthState(
+          step: AuthStep.waitQrCode,
+          qrCodeLink: lastState.link,
+        );
+      } else if (lastState is td.AuthorizationStateReady) {
+        Future.microtask(() => _handleAuthReady());
+        return AuthState(step: AuthStep.loading);
+      }
     }
+    return AuthState(step: AuthStep.loading);
   }
 
   void _mapTdlibStateToStep(td.AuthorizationState tdState) {
     debugPrint('[AuthCtrl] Mapping TDLib State: ${tdState.runtimeType}');
     if (tdState is td.AuthorizationStateWaitPhoneNumber) {
-      state = AuthState(step: AuthStep.waitPhoneNumber);
+      if (state.step == AuthStep.loading) {
+        state = AuthState(step: AuthStep.loginMethodSelection);
+      } else if (state.step != AuthStep.loginMethodSelection && state.step != AuthStep.waitPhoneNumber) {
+        state = state.copyWith(step: AuthStep.waitPhoneNumber);
+      }
     } else if (tdState is td.AuthorizationStateWaitCode) {
-      state = state.copyWith(step: AuthStep.waitCode);
+      state = state.copyWith(step: AuthStep.waitCode, isSubmitting: false);
     } else if (tdState is td.AuthorizationStateWaitPassword) {
-      state = state.copyWith(step: AuthStep.waitPassword);
+      state = state.copyWith(step: AuthStep.waitPassword, isSubmitting: false);
     } else if (tdState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
       state = state.copyWith(
         step: AuthStep.waitQrCode,
         qrCodeLink: tdState.link,
+        isSubmitting: false,
       );
     } else if (tdState is td.AuthorizationStateReady) {
       _handleAuthReady();
@@ -173,8 +189,8 @@ class AuthController extends Notifier<AuthState> {
           authenticationTokens: [],
         ),
       );
-      // Send directly via TDLib service
-      _tdlib.sendRequest(request);
+      // Await directly via TDLib service
+      await _tdlib.sendRequest(request);
       state = state.copyWith(phoneNumber: phone, isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -188,11 +204,8 @@ class AuthController extends Notifier<AuthState> {
   Future<void> requestQrLogin() async {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      // In TDLib, requestQrCodeAuthentication has type TdFunction
-      // It initiates the other device confirmation flow
-      // We pass empty other_user_ids
       final request = td.RequestQrCodeAuthentication(otherUserIds: []);
-      _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(request);
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -207,7 +220,7 @@ class AuthController extends Notifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final request = td.CheckAuthenticationCode(code: code);
-      _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(request);
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -222,7 +235,7 @@ class AuthController extends Notifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final request = td.CheckAuthenticationPassword(password: password);
-      _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(request);
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(

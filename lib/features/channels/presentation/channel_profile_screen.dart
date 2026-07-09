@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,17 +7,90 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
-class ChannelProfileScreen extends ConsumerWidget {
+class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
 
   const ChannelProfileScreen({super.key, required this.channelId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final channelAsync = ref.watch(channelDetailProvider(channelId));
-    final channelPostsAsync = ref.watch(channelPostsProvider(channelId));
+  ConsumerState<ChannelProfileScreen> createState() => _ChannelProfileScreenState();
+}
+
+class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore) return;
+    _isLoadingMore = true;
+
+    try {
+      final channel = ref.read(channelDetailProvider(widget.channelId)).value;
+      if (channel != null) {
+        await ref.read(
+          loadMoreChannelHistoryProvider((
+            channelDbId: int.parse(channel.id),
+            chatId: channel.chatId,
+          )).future,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ChannelScreen] Error loading more history: $e');
+    } finally {
+      _isLoadingMore = false;
+    }
+  }
+
+  Color _parseColor(String hex) {
+    final hexCode = hex.replaceAll('#', '');
+    return Color(int.parse('FF$hexCode', radix: 16));
+  }
+
+  Widget _buildHeaderAvatar(dynamic channel, Color bannerColor) {
+    if (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty) {
+      final file = File(channel.avatarUrl!);
+      if (file.existsSync()) {
+        return CircleAvatar(
+          radius: 32,
+          backgroundImage: FileImage(file),
+        );
+      }
+    }
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: bannerColor,
+      child: Text(
+        channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
+        style: AppTypography.heading(color: Colors.white),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
+    final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
     final theme = Theme.of(context);
     final secondaryColor = theme.brightness == Brightness.dark
         ? AppColors.darkTextSecondary
@@ -35,6 +109,7 @@ class ChannelProfileScreen extends ConsumerWidget {
               : AppColors.accent;
 
           return CustomScrollView(
+            controller: _scrollController,
             slivers: [
               // Banner
               SliverAppBar(
@@ -63,14 +138,7 @@ class ChannelProfileScreen extends ConsumerWidget {
                               width: 4,
                             ),
                           ),
-                          child: CircleAvatar(
-                            radius: 32,
-                            backgroundColor: bannerColor,
-                            child: Text(
-                              channel.title[0].toUpperCase(),
-                              style: AppTypography.heading(color: Colors.white),
-                            ),
-                          ),
+                          child: _buildHeaderAvatar(channel, bannerColor),
                         ),
                       ),
                       Transform.translate(
@@ -115,10 +183,19 @@ class ChannelProfileScreen extends ConsumerWidget {
                 ),
                 data: (posts) => SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => PostCard(
-                      post: posts[index],
-                      onTap: () => context.push('/post/${posts[index].id}'),
-                    ),
+                    (context, index) {
+                      final post = posts[index];
+                      return PostCard(
+                        post: post,
+                        onTap: () {
+                          final id = int.tryParse(post.id);
+                          if (id != null) {
+                            ref.read(markPostAsReadProvider(id));
+                          }
+                          context.push('/post/${post.id}');
+                        },
+                      );
+                    },
                     childCount: posts.length,
                   ),
                 ),
@@ -128,10 +205,5 @@ class ChannelProfileScreen extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  Color _parseColor(String hex) {
-    final hexCode = hex.replaceAll('#', '');
-    return Color(int.parse('FF$hexCode', radix: 16));
   }
 }

@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 
@@ -11,6 +13,33 @@ class PostDetailScreen extends ConsumerWidget {
   final String postId;
 
   const PostDetailScreen({super.key, required this.postId});
+
+  Color _parseColor(String hex) {
+    final hexCode = hex.replaceAll('#', '');
+    return Color(int.parse('FF$hexCode', radix: 16));
+  }
+
+  Widget _buildAvatar(Post post) {
+    if (post.channelAvatarUrl != null && post.channelAvatarUrl!.isNotEmpty) {
+      final file = File(post.channelAvatarUrl!);
+      if (file.existsSync()) {
+        return CircleAvatar(
+          radius: AppSpacing.avatarSizeLarge / 2,
+          backgroundImage: FileImage(file),
+        );
+      }
+    }
+    return CircleAvatar(
+      radius: AppSpacing.avatarSizeLarge / 2,
+      backgroundColor: post.channelAvatarColor != null
+          ? _parseColor(post.channelAvatarColor!)
+          : AppColors.accent,
+      child: Text(
+        post.channelTitle.isNotEmpty ? post.channelTitle[0].toUpperCase() : '?',
+        style: AppTypography.heading(color: Colors.white),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,6 +49,13 @@ class PostDetailScreen extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
+
+    final id = int.tryParse(postId);
+    if (id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(markPostAsReadProvider(id));
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -45,16 +81,7 @@ class PostDetailScreen extends ConsumerWidget {
                       // Channel header
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: AppSpacing.avatarSizeLarge / 2,
-                            backgroundColor: post.channelAvatarColor != null
-                                ? _parseColor(post.channelAvatarColor!)
-                                : AppColors.accent,
-                            child: Text(
-                              post.channelTitle[0].toUpperCase(),
-                              style: AppTypography.heading(color: Colors.white),
-                            ),
-                          ),
+                          _buildAvatar(post),
                           const SizedBox(width: AppSpacing.avatarGap),
                           Expanded(
                             child: Column(
@@ -170,8 +197,4 @@ class PostDetailScreen extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String hex) {
-    final hexCode = hex.replaceAll('#', '');
-    return Color(int.parse('FF$hexCode', radix: 16));
-  }
 }

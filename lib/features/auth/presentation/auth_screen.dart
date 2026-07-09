@@ -143,15 +143,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       case AuthStep.waitQrCode:
         return _buildQrCodeStep(authState, controller, primaryColor, secondaryColor);
       default:
-        return _buildSelectionStep(controller, primaryColor, secondaryColor);
+        return _buildSelectionStep(authState, controller, primaryColor, secondaryColor);
     }
   }
 
   Widget _buildSelectionStep(
+    AuthState authState,
     AuthController controller,
     Color primaryColor,
     Color secondaryColor,
   ) {
+    final isSubmitting = authState.isSubmitting;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -165,10 +167,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               borderRadius: BorderRadius.circular(24),
             ),
           ),
-          onPressed: () {
-            // Push to phone login state
-            controller.selectPhoneLogin();
-          },
+          onPressed: isSubmitting
+              ? null
+              : () {
+                  controller.selectPhoneLogin();
+                },
           child: const Text('Log in with Phone Number', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 12),
@@ -181,8 +184,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               borderRadius: BorderRadius.circular(24),
             ),
           ),
-          onPressed: () => controller.requestQrLogin(),
-          child: const Text('Log in via QR Code', style: TextStyle(fontWeight: FontWeight.bold)),
+          onPressed: isSubmitting ? null : () => controller.requestQrLogin(),
+          child: isSubmitting
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                )
+              : const Text('Log in via QR Code', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );

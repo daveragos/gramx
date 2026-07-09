@@ -119,18 +119,18 @@ class TdlibService {
   }
 
   /// Send a TDLib request and return the deserialized response.
-  Future<td.TdObject> sendRequest(td.TdFunction function, {int? extraId}) async {
+  Future<td.TdObject> sendRequest(td.TdFunction function, {String? extraId}) async {
     if (_clientId == null) {
       await initialize();
     }
 
     final completer = Completer<td.TdObject>();
-    final extra = extraId ?? DateTime.now().microsecondsSinceEpoch;
+    final extra = extraId ?? DateTime.now().microsecondsSinceEpoch.toString();
 
     // Listen to updates to find the response matching this request's extra id
     late StreamSubscription sub;
     sub = _invokesController.stream.listen((map) {
-      if (map['@extra'] == extra) {
+      if (map['@extra']?.toString() == extra) {
         sub.cancel();
         final object = convertJsonToObject(jsonEncode(map));
         if (object != null) {

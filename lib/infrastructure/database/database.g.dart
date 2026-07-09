@@ -737,6 +737,17 @@ class $ChannelsTable extends Channels
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _lastReadInboxMessageIdMeta =
+      const VerificationMeta('lastReadInboxMessageId');
+  @override
+  late final GeneratedColumn<int> lastReadInboxMessageId = GeneratedColumn<int>(
+    'last_read_inbox_message_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _lastPostAtMeta = const VerificationMeta(
     'lastPostAt',
   );
@@ -787,6 +798,7 @@ class $ChannelsTable extends Channels
     isFavorite,
     isMuted,
     isHidden,
+    lastReadInboxMessageId,
     lastPostAt,
     createdAt,
     updatedAt,
@@ -893,6 +905,15 @@ class $ChannelsTable extends Channels
         isHidden.isAcceptableOrUnknown(data['is_hidden']!, _isHiddenMeta),
       );
     }
+    if (data.containsKey('last_read_inbox_message_id')) {
+      context.handle(
+        _lastReadInboxMessageIdMeta,
+        lastReadInboxMessageId.isAcceptableOrUnknown(
+          data['last_read_inbox_message_id']!,
+          _lastReadInboxMessageIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_post_at')) {
       context.handle(
         _lastPostAtMeta,
@@ -979,6 +1000,10 @@ class $ChannelsTable extends Channels
         DriftSqlType.bool,
         data['${effectivePrefix}is_hidden'],
       )!,
+      lastReadInboxMessageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_read_inbox_message_id'],
+      )!,
       lastPostAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_post_at'],
@@ -1014,6 +1039,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
   final bool isFavorite;
   final bool isMuted;
   final bool isHidden;
+  final int lastReadInboxMessageId;
   final DateTime? lastPostAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -1031,6 +1057,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
     required this.isFavorite,
     required this.isMuted,
     required this.isHidden,
+    required this.lastReadInboxMessageId,
     this.lastPostAt,
     required this.createdAt,
     required this.updatedAt,
@@ -1059,6 +1086,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
     map['is_favorite'] = Variable<bool>(isFavorite);
     map['is_muted'] = Variable<bool>(isMuted);
     map['is_hidden'] = Variable<bool>(isHidden);
+    map['last_read_inbox_message_id'] = Variable<int>(lastReadInboxMessageId);
     if (!nullToAbsent || lastPostAt != null) {
       map['last_post_at'] = Variable<DateTime>(lastPostAt);
     }
@@ -1090,6 +1118,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
       isFavorite: Value(isFavorite),
       isMuted: Value(isMuted),
       isHidden: Value(isHidden),
+      lastReadInboxMessageId: Value(lastReadInboxMessageId),
       lastPostAt: lastPostAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPostAt),
@@ -1117,6 +1146,9 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
       isFavorite: serializer.fromJson<bool>(json['isFavorite']),
       isMuted: serializer.fromJson<bool>(json['isMuted']),
       isHidden: serializer.fromJson<bool>(json['isHidden']),
+      lastReadInboxMessageId: serializer.fromJson<int>(
+        json['lastReadInboxMessageId'],
+      ),
       lastPostAt: serializer.fromJson<DateTime?>(json['lastPostAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -1139,6 +1171,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
       'isFavorite': serializer.toJson<bool>(isFavorite),
       'isMuted': serializer.toJson<bool>(isMuted),
       'isHidden': serializer.toJson<bool>(isHidden),
+      'lastReadInboxMessageId': serializer.toJson<int>(lastReadInboxMessageId),
       'lastPostAt': serializer.toJson<DateTime?>(lastPostAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -1159,6 +1192,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
     bool? isFavorite,
     bool? isMuted,
     bool? isHidden,
+    int? lastReadInboxMessageId,
     Value<DateTime?> lastPostAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -1176,6 +1210,8 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
     isFavorite: isFavorite ?? this.isFavorite,
     isMuted: isMuted ?? this.isMuted,
     isHidden: isHidden ?? this.isHidden,
+    lastReadInboxMessageId:
+        lastReadInboxMessageId ?? this.lastReadInboxMessageId,
     lastPostAt: lastPostAt.present ? lastPostAt.value : this.lastPostAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -1205,6 +1241,9 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
           : this.isFavorite,
       isMuted: data.isMuted.present ? data.isMuted.value : this.isMuted,
       isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
+      lastReadInboxMessageId: data.lastReadInboxMessageId.present
+          ? data.lastReadInboxMessageId.value
+          : this.lastReadInboxMessageId,
       lastPostAt: data.lastPostAt.present
           ? data.lastPostAt.value
           : this.lastPostAt,
@@ -1229,6 +1268,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
           ..write('isFavorite: $isFavorite, ')
           ..write('isMuted: $isMuted, ')
           ..write('isHidden: $isHidden, ')
+          ..write('lastReadInboxMessageId: $lastReadInboxMessageId, ')
           ..write('lastPostAt: $lastPostAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -1251,6 +1291,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
     isFavorite,
     isMuted,
     isHidden,
+    lastReadInboxMessageId,
     lastPostAt,
     createdAt,
     updatedAt,
@@ -1272,6 +1313,7 @@ class ChannelEntry extends DataClass implements Insertable<ChannelEntry> {
           other.isFavorite == this.isFavorite &&
           other.isMuted == this.isMuted &&
           other.isHidden == this.isHidden &&
+          other.lastReadInboxMessageId == this.lastReadInboxMessageId &&
           other.lastPostAt == this.lastPostAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -1291,6 +1333,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
   final Value<bool> isFavorite;
   final Value<bool> isMuted;
   final Value<bool> isHidden;
+  final Value<int> lastReadInboxMessageId;
   final Value<DateTime?> lastPostAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -1308,6 +1351,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
     this.isFavorite = const Value.absent(),
     this.isMuted = const Value.absent(),
     this.isHidden = const Value.absent(),
+    this.lastReadInboxMessageId = const Value.absent(),
     this.lastPostAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1326,6 +1370,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
     this.isFavorite = const Value.absent(),
     this.isMuted = const Value.absent(),
     this.isHidden = const Value.absent(),
+    this.lastReadInboxMessageId = const Value.absent(),
     this.lastPostAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1346,6 +1391,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
     Expression<bool>? isFavorite,
     Expression<bool>? isMuted,
     Expression<bool>? isHidden,
+    Expression<int>? lastReadInboxMessageId,
     Expression<DateTime>? lastPostAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1364,6 +1410,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
       if (isFavorite != null) 'is_favorite': isFavorite,
       if (isMuted != null) 'is_muted': isMuted,
       if (isHidden != null) 'is_hidden': isHidden,
+      if (lastReadInboxMessageId != null)
+        'last_read_inbox_message_id': lastReadInboxMessageId,
       if (lastPostAt != null) 'last_post_at': lastPostAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -1384,6 +1432,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
     Value<bool>? isFavorite,
     Value<bool>? isMuted,
     Value<bool>? isHidden,
+    Value<int>? lastReadInboxMessageId,
     Value<DateTime?>? lastPostAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -1402,6 +1451,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
       isFavorite: isFavorite ?? this.isFavorite,
       isMuted: isMuted ?? this.isMuted,
       isHidden: isHidden ?? this.isHidden,
+      lastReadInboxMessageId:
+          lastReadInboxMessageId ?? this.lastReadInboxMessageId,
       lastPostAt: lastPostAt ?? this.lastPostAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1450,6 +1501,11 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
     if (isHidden.present) {
       map['is_hidden'] = Variable<bool>(isHidden.value);
     }
+    if (lastReadInboxMessageId.present) {
+      map['last_read_inbox_message_id'] = Variable<int>(
+        lastReadInboxMessageId.value,
+      );
+    }
     if (lastPostAt.present) {
       map['last_post_at'] = Variable<DateTime>(lastPostAt.value);
     }
@@ -1478,6 +1534,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelEntry> {
           ..write('isFavorite: $isFavorite, ')
           ..write('isMuted: $isMuted, ')
           ..write('isHidden: $isHidden, ')
+          ..write('lastReadInboxMessageId: $lastReadInboxMessageId, ')
           ..write('lastPostAt: $lastPostAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -3742,6 +3799,581 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
   }
 }
 
+class $FoldersTable extends Folders with TableInfo<$FoldersTable, FolderEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<int> accountId = GeneratedColumn<int>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES accounts (id)',
+    ),
+  );
+  static const VerificationMeta _folderIdMeta = const VerificationMeta(
+    'folderId',
+  );
+  @override
+  late final GeneratedColumn<int> folderId = GeneratedColumn<int>(
+    'folder_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, accountId, folderId, title];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'folders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FolderEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('folder_id')) {
+      context.handle(
+        _folderIdMeta,
+        folderId.isAcceptableOrUnknown(data['folder_id']!, _folderIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_folderIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {accountId, folderId},
+  ];
+  @override
+  FolderEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FolderEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}account_id'],
+      )!,
+      folderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}folder_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+    );
+  }
+
+  @override
+  $FoldersTable createAlias(String alias) {
+    return $FoldersTable(attachedDatabase, alias);
+  }
+}
+
+class FolderEntry extends DataClass implements Insertable<FolderEntry> {
+  final int id;
+  final int accountId;
+  final int folderId;
+  final String title;
+  const FolderEntry({
+    required this.id,
+    required this.accountId,
+    required this.folderId,
+    required this.title,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['account_id'] = Variable<int>(accountId);
+    map['folder_id'] = Variable<int>(folderId);
+    map['title'] = Variable<String>(title);
+    return map;
+  }
+
+  FoldersCompanion toCompanion(bool nullToAbsent) {
+    return FoldersCompanion(
+      id: Value(id),
+      accountId: Value(accountId),
+      folderId: Value(folderId),
+      title: Value(title),
+    );
+  }
+
+  factory FolderEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FolderEntry(
+      id: serializer.fromJson<int>(json['id']),
+      accountId: serializer.fromJson<int>(json['accountId']),
+      folderId: serializer.fromJson<int>(json['folderId']),
+      title: serializer.fromJson<String>(json['title']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'accountId': serializer.toJson<int>(accountId),
+      'folderId': serializer.toJson<int>(folderId),
+      'title': serializer.toJson<String>(title),
+    };
+  }
+
+  FolderEntry copyWith({
+    int? id,
+    int? accountId,
+    int? folderId,
+    String? title,
+  }) => FolderEntry(
+    id: id ?? this.id,
+    accountId: accountId ?? this.accountId,
+    folderId: folderId ?? this.folderId,
+    title: title ?? this.title,
+  );
+  FolderEntry copyWithCompanion(FoldersCompanion data) {
+    return FolderEntry(
+      id: data.id.present ? data.id.value : this.id,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      folderId: data.folderId.present ? data.folderId.value : this.folderId,
+      title: data.title.present ? data.title.value : this.title,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FolderEntry(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('folderId: $folderId, ')
+          ..write('title: $title')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, accountId, folderId, title);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FolderEntry &&
+          other.id == this.id &&
+          other.accountId == this.accountId &&
+          other.folderId == this.folderId &&
+          other.title == this.title);
+}
+
+class FoldersCompanion extends UpdateCompanion<FolderEntry> {
+  final Value<int> id;
+  final Value<int> accountId;
+  final Value<int> folderId;
+  final Value<String> title;
+  const FoldersCompanion({
+    this.id = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.folderId = const Value.absent(),
+    this.title = const Value.absent(),
+  });
+  FoldersCompanion.insert({
+    this.id = const Value.absent(),
+    required int accountId,
+    required int folderId,
+    required String title,
+  }) : accountId = Value(accountId),
+       folderId = Value(folderId),
+       title = Value(title);
+  static Insertable<FolderEntry> custom({
+    Expression<int>? id,
+    Expression<int>? accountId,
+    Expression<int>? folderId,
+    Expression<String>? title,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (accountId != null) 'account_id': accountId,
+      if (folderId != null) 'folder_id': folderId,
+      if (title != null) 'title': title,
+    });
+  }
+
+  FoldersCompanion copyWith({
+    Value<int>? id,
+    Value<int>? accountId,
+    Value<int>? folderId,
+    Value<String>? title,
+  }) {
+    return FoldersCompanion(
+      id: id ?? this.id,
+      accountId: accountId ?? this.accountId,
+      folderId: folderId ?? this.folderId,
+      title: title ?? this.title,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<int>(accountId.value);
+    }
+    if (folderId.present) {
+      map['folder_id'] = Variable<int>(folderId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FoldersCompanion(')
+          ..write('id: $id, ')
+          ..write('accountId: $accountId, ')
+          ..write('folderId: $folderId, ')
+          ..write('title: $title')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FolderChannelsTable extends FolderChannels
+    with TableInfo<$FolderChannelsTable, FolderChannel> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FolderChannelsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _folderDbIdMeta = const VerificationMeta(
+    'folderDbId',
+  );
+  @override
+  late final GeneratedColumn<int> folderDbId = GeneratedColumn<int>(
+    'folder_db_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES folders (id)',
+    ),
+  );
+  static const VerificationMeta _channelDbIdMeta = const VerificationMeta(
+    'channelDbId',
+  );
+  @override
+  late final GeneratedColumn<int> channelDbId = GeneratedColumn<int>(
+    'channel_db_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES channels (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, folderDbId, channelDbId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'folder_channels';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FolderChannel> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('folder_db_id')) {
+      context.handle(
+        _folderDbIdMeta,
+        folderDbId.isAcceptableOrUnknown(
+          data['folder_db_id']!,
+          _folderDbIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_folderDbIdMeta);
+    }
+    if (data.containsKey('channel_db_id')) {
+      context.handle(
+        _channelDbIdMeta,
+        channelDbId.isAcceptableOrUnknown(
+          data['channel_db_id']!,
+          _channelDbIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_channelDbIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {folderDbId, channelDbId},
+  ];
+  @override
+  FolderChannel map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FolderChannel(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      folderDbId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}folder_db_id'],
+      )!,
+      channelDbId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channel_db_id'],
+      )!,
+    );
+  }
+
+  @override
+  $FolderChannelsTable createAlias(String alias) {
+    return $FolderChannelsTable(attachedDatabase, alias);
+  }
+}
+
+class FolderChannel extends DataClass implements Insertable<FolderChannel> {
+  final int id;
+  final int folderDbId;
+  final int channelDbId;
+  const FolderChannel({
+    required this.id,
+    required this.folderDbId,
+    required this.channelDbId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['folder_db_id'] = Variable<int>(folderDbId);
+    map['channel_db_id'] = Variable<int>(channelDbId);
+    return map;
+  }
+
+  FolderChannelsCompanion toCompanion(bool nullToAbsent) {
+    return FolderChannelsCompanion(
+      id: Value(id),
+      folderDbId: Value(folderDbId),
+      channelDbId: Value(channelDbId),
+    );
+  }
+
+  factory FolderChannel.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FolderChannel(
+      id: serializer.fromJson<int>(json['id']),
+      folderDbId: serializer.fromJson<int>(json['folderDbId']),
+      channelDbId: serializer.fromJson<int>(json['channelDbId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'folderDbId': serializer.toJson<int>(folderDbId),
+      'channelDbId': serializer.toJson<int>(channelDbId),
+    };
+  }
+
+  FolderChannel copyWith({int? id, int? folderDbId, int? channelDbId}) =>
+      FolderChannel(
+        id: id ?? this.id,
+        folderDbId: folderDbId ?? this.folderDbId,
+        channelDbId: channelDbId ?? this.channelDbId,
+      );
+  FolderChannel copyWithCompanion(FolderChannelsCompanion data) {
+    return FolderChannel(
+      id: data.id.present ? data.id.value : this.id,
+      folderDbId: data.folderDbId.present
+          ? data.folderDbId.value
+          : this.folderDbId,
+      channelDbId: data.channelDbId.present
+          ? data.channelDbId.value
+          : this.channelDbId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FolderChannel(')
+          ..write('id: $id, ')
+          ..write('folderDbId: $folderDbId, ')
+          ..write('channelDbId: $channelDbId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, folderDbId, channelDbId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FolderChannel &&
+          other.id == this.id &&
+          other.folderDbId == this.folderDbId &&
+          other.channelDbId == this.channelDbId);
+}
+
+class FolderChannelsCompanion extends UpdateCompanion<FolderChannel> {
+  final Value<int> id;
+  final Value<int> folderDbId;
+  final Value<int> channelDbId;
+  const FolderChannelsCompanion({
+    this.id = const Value.absent(),
+    this.folderDbId = const Value.absent(),
+    this.channelDbId = const Value.absent(),
+  });
+  FolderChannelsCompanion.insert({
+    this.id = const Value.absent(),
+    required int folderDbId,
+    required int channelDbId,
+  }) : folderDbId = Value(folderDbId),
+       channelDbId = Value(channelDbId);
+  static Insertable<FolderChannel> custom({
+    Expression<int>? id,
+    Expression<int>? folderDbId,
+    Expression<int>? channelDbId,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (folderDbId != null) 'folder_db_id': folderDbId,
+      if (channelDbId != null) 'channel_db_id': channelDbId,
+    });
+  }
+
+  FolderChannelsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? folderDbId,
+    Value<int>? channelDbId,
+  }) {
+    return FolderChannelsCompanion(
+      id: id ?? this.id,
+      folderDbId: folderDbId ?? this.folderDbId,
+      channelDbId: channelDbId ?? this.channelDbId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (folderDbId.present) {
+      map['folder_db_id'] = Variable<int>(folderDbId.value);
+    }
+    if (channelDbId.present) {
+      map['channel_db_id'] = Variable<int>(channelDbId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FolderChannelsCompanion(')
+          ..write('id: $id, ')
+          ..write('folderDbId: $folderDbId, ')
+          ..write('channelDbId: $channelDbId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3752,6 +4384,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BookmarkEntriesTable bookmarkEntries = $BookmarkEntriesTable(
     this,
   );
+  late final $FoldersTable folders = $FoldersTable(this);
+  late final $FolderChannelsTable folderChannels = $FolderChannelsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3762,6 +4396,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     posts,
     mediaItems,
     bookmarkEntries,
+    folders,
+    folderChannels,
   ];
 }
 
@@ -3846,6 +4482,24 @@ final class $$AccountsTableReferences
     final cache = $_typedResult.readTableOrNull(
       _bookmarkEntriesRefsTable($_db),
     );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FoldersTable, List<FolderEntry>>
+  _foldersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.folders,
+    aliasName: 'accounts__id__folders__account_id',
+  );
+
+  $$FoldersTableProcessedTableManager get foldersRefs {
+    final manager = $$FoldersTableTableManager(
+      $_db,
+      $_db.folders,
+    ).filter((f) => f.accountId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_foldersRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -3972,6 +4626,31 @@ class $$AccountsTableFilterComposer
           }) => $$BookmarkEntriesTableFilterComposer(
             $db: $db,
             $table: $db.bookmarkEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> foldersRefs(
+    Expression<bool> Function($$FoldersTableFilterComposer f) f,
+  ) {
+    final $$FoldersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableFilterComposer(
+            $db: $db,
+            $table: $db.folders,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4155,6 +4834,31 @@ class $$AccountsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> foldersRefs<T extends Object>(
+    Expression<T> Function($$FoldersTableAnnotationComposer a) f,
+  ) {
+    final $$FoldersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.accountId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$AccountsTableTableManager
@@ -4174,6 +4878,7 @@ class $$AccountsTableTableManager
             bool channelsRefs,
             bool postsRefs,
             bool bookmarkEntriesRefs,
+            bool foldersRefs,
           })
         > {
   $$AccountsTableTableManager(_$AppDatabase db, $AccountsTable table)
@@ -4244,6 +4949,7 @@ class $$AccountsTableTableManager
                 channelsRefs = false,
                 postsRefs = false,
                 bookmarkEntriesRefs = false,
+                foldersRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -4251,6 +4957,7 @@ class $$AccountsTableTableManager
                     if (channelsRefs) db.channels,
                     if (postsRefs) db.posts,
                     if (bookmarkEntriesRefs) db.bookmarkEntries,
+                    if (foldersRefs) db.folders,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4318,6 +5025,27 @@ class $$AccountsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (foldersRefs)
+                        await $_getPrefetchedData<
+                          Account,
+                          $AccountsTable,
+                          FolderEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$AccountsTableReferences
+                              ._foldersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$AccountsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).foldersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.accountId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4342,6 +5070,7 @@ typedef $$AccountsTableProcessedTableManager =
         bool channelsRefs,
         bool postsRefs,
         bool bookmarkEntriesRefs,
+        bool foldersRefs,
       })
     >;
 typedef $$ChannelsTableCreateCompanionBuilder =
@@ -4359,6 +5088,7 @@ typedef $$ChannelsTableCreateCompanionBuilder =
       Value<bool> isFavorite,
       Value<bool> isMuted,
       Value<bool> isHidden,
+      Value<int> lastReadInboxMessageId,
       Value<DateTime?> lastPostAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -4378,6 +5108,7 @@ typedef $$ChannelsTableUpdateCompanionBuilder =
       Value<bool> isFavorite,
       Value<bool> isMuted,
       Value<bool> isHidden,
+      Value<int> lastReadInboxMessageId,
       Value<DateTime?> lastPostAt,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -4418,6 +5149,24 @@ final class $$ChannelsTableReferences
     ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_postsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$FolderChannelsTable, List<FolderChannel>>
+  _folderChannelsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.folderChannels,
+    aliasName: 'channels__id__folder_channels__channel_db_id',
+  );
+
+  $$FolderChannelsTableProcessedTableManager get folderChannelsRefs {
+    final manager = $$FolderChannelsTableTableManager(
+      $_db,
+      $_db.folderChannels,
+    ).filter((f) => f.channelDbId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_folderChannelsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -4493,6 +5242,11 @@ class $$ChannelsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get lastReadInboxMessageId => $composableBuilder(
+    column: $table.lastReadInboxMessageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get lastPostAt => $composableBuilder(
     column: $table.lastPostAt,
     builder: (column) => ColumnFilters(column),
@@ -4547,6 +5301,31 @@ class $$ChannelsTableFilterComposer
           }) => $$PostsTableFilterComposer(
             $db: $db,
             $table: $db.posts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> folderChannelsRefs(
+    Expression<bool> Function($$FolderChannelsTableFilterComposer f) f,
+  ) {
+    final $$FolderChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folderChannels,
+      getReferencedColumn: (t) => t.channelDbId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FolderChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.folderChannels,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4623,6 +5402,11 @@ class $$ChannelsTableOrderingComposer
 
   ColumnOrderings<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastReadInboxMessageId => $composableBuilder(
+    column: $table.lastReadInboxMessageId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -4720,6 +5504,11 @@ class $$ChannelsTableAnnotationComposer
   GeneratedColumn<bool> get isHidden =>
       $composableBuilder(column: $table.isHidden, builder: (column) => column);
 
+  GeneratedColumn<int> get lastReadInboxMessageId => $composableBuilder(
+    column: $table.lastReadInboxMessageId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get lastPostAt => $composableBuilder(
     column: $table.lastPostAt,
     builder: (column) => column,
@@ -4778,6 +5567,31 @@ class $$ChannelsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> folderChannelsRefs<T extends Object>(
+    Expression<T> Function($$FolderChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FolderChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folderChannels,
+      getReferencedColumn: (t) => t.channelDbId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FolderChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.folderChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChannelsTableTableManager
@@ -4793,7 +5607,11 @@ class $$ChannelsTableTableManager
           $$ChannelsTableUpdateCompanionBuilder,
           (ChannelEntry, $$ChannelsTableReferences),
           ChannelEntry,
-          PrefetchHooks Function({bool accountId, bool postsRefs})
+          PrefetchHooks Function({
+            bool accountId,
+            bool postsRefs,
+            bool folderChannelsRefs,
+          })
         > {
   $$ChannelsTableTableManager(_$AppDatabase db, $ChannelsTable table)
     : super(
@@ -4821,6 +5639,7 @@ class $$ChannelsTableTableManager
                 Value<bool> isFavorite = const Value.absent(),
                 Value<bool> isMuted = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
+                Value<int> lastReadInboxMessageId = const Value.absent(),
                 Value<DateTime?> lastPostAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -4838,6 +5657,7 @@ class $$ChannelsTableTableManager
                 isFavorite: isFavorite,
                 isMuted: isMuted,
                 isHidden: isHidden,
+                lastReadInboxMessageId: lastReadInboxMessageId,
                 lastPostAt: lastPostAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -4857,6 +5677,7 @@ class $$ChannelsTableTableManager
                 Value<bool> isFavorite = const Value.absent(),
                 Value<bool> isMuted = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
+                Value<int> lastReadInboxMessageId = const Value.absent(),
                 Value<DateTime?> lastPostAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -4874,6 +5695,7 @@ class $$ChannelsTableTableManager
                 isFavorite: isFavorite,
                 isMuted: isMuted,
                 isHidden: isHidden,
+                lastReadInboxMessageId: lastReadInboxMessageId,
                 lastPostAt: lastPostAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -4886,63 +5708,98 @@ class $$ChannelsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({accountId = false, postsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (postsRefs) db.posts],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (accountId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.accountId,
-                                referencedTable: $$ChannelsTableReferences
-                                    ._accountIdTable(db),
-                                referencedColumn: $$ChannelsTableReferences
-                                    ._accountIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({
+                accountId = false,
+                postsRefs = false,
+                folderChannelsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (postsRefs) db.posts,
+                    if (folderChannelsRefs) db.folderChannels,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$ChannelsTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn: $$ChannelsTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (postsRefs)
+                        await $_getPrefetchedData<
+                          ChannelEntry,
+                          $ChannelsTable,
+                          PostEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences
+                              ._postsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).postsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.channelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (folderChannelsRefs)
+                        await $_getPrefetchedData<
+                          ChannelEntry,
+                          $ChannelsTable,
+                          FolderChannel
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences
+                              ._folderChannelsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).folderChannelsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.channelDbId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (postsRefs)
-                    await $_getPrefetchedData<
-                      ChannelEntry,
-                      $ChannelsTable,
-                      PostEntry
-                    >(
-                      currentTable: table,
-                      referencedTable: $$ChannelsTableReferences
-                          ._postsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$ChannelsTableReferences(db, table, p0).postsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.channelId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -4959,7 +5816,11 @@ typedef $$ChannelsTableProcessedTableManager =
       $$ChannelsTableUpdateCompanionBuilder,
       (ChannelEntry, $$ChannelsTableReferences),
       ChannelEntry,
-      PrefetchHooks Function({bool accountId, bool postsRefs})
+      PrefetchHooks Function({
+        bool accountId,
+        bool postsRefs,
+        bool folderChannelsRefs,
+      })
     >;
 typedef $$PostsTableCreateCompanionBuilder =
     PostsCompanion Function({
@@ -6735,6 +7596,758 @@ typedef $$BookmarkEntriesTableProcessedTableManager =
       BookmarkEntry,
       PrefetchHooks Function({bool accountId, bool postId})
     >;
+typedef $$FoldersTableCreateCompanionBuilder =
+    FoldersCompanion Function({
+      Value<int> id,
+      required int accountId,
+      required int folderId,
+      required String title,
+    });
+typedef $$FoldersTableUpdateCompanionBuilder =
+    FoldersCompanion Function({
+      Value<int> id,
+      Value<int> accountId,
+      Value<int> folderId,
+      Value<String> title,
+    });
+
+final class $$FoldersTableReferences
+    extends BaseReferences<_$AppDatabase, $FoldersTable, FolderEntry> {
+  $$FoldersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $AccountsTable _accountIdTable(_$AppDatabase db) =>
+      db.accounts.createAlias('folders__account_id__accounts__id');
+
+  $$AccountsTableProcessedTableManager get accountId {
+    final $_column = $_itemColumn<int>('account_id')!;
+
+    final manager = $$AccountsTableTableManager(
+      $_db,
+      $_db.accounts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_accountIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$FolderChannelsTable, List<FolderChannel>>
+  _folderChannelsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.folderChannels,
+    aliasName: 'folders__id__folder_channels__folder_db_id',
+  );
+
+  $$FolderChannelsTableProcessedTableManager get folderChannelsRefs {
+    final manager = $$FolderChannelsTableTableManager(
+      $_db,
+      $_db.folderChannels,
+    ).filter((f) => f.folderDbId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_folderChannelsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$FoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AccountsTableFilterComposer get accountId {
+    final $$AccountsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableFilterComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> folderChannelsRefs(
+    Expression<bool> Function($$FolderChannelsTableFilterComposer f) f,
+  ) {
+    final $$FolderChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folderChannels,
+      getReferencedColumn: (t) => t.folderDbId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FolderChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.folderChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AccountsTableOrderingComposer get accountId {
+    final $$AccountsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableOrderingComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FoldersTable> {
+  $$FoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get folderId =>
+      $composableBuilder(column: $table.folderId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  $$AccountsTableAnnotationComposer get accountId {
+    final $$AccountsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.accountId,
+      referencedTable: $db.accounts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AccountsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.accounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> folderChannelsRefs<T extends Object>(
+    Expression<T> Function($$FolderChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FolderChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.folderChannels,
+      getReferencedColumn: (t) => t.folderDbId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FolderChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.folderChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$FoldersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FoldersTable,
+          FolderEntry,
+          $$FoldersTableFilterComposer,
+          $$FoldersTableOrderingComposer,
+          $$FoldersTableAnnotationComposer,
+          $$FoldersTableCreateCompanionBuilder,
+          $$FoldersTableUpdateCompanionBuilder,
+          (FolderEntry, $$FoldersTableReferences),
+          FolderEntry,
+          PrefetchHooks Function({bool accountId, bool folderChannelsRefs})
+        > {
+  $$FoldersTableTableManager(_$AppDatabase db, $FoldersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> accountId = const Value.absent(),
+                Value<int> folderId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+              }) => FoldersCompanion(
+                id: id,
+                accountId: accountId,
+                folderId: folderId,
+                title: title,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int accountId,
+                required int folderId,
+                required String title,
+              }) => FoldersCompanion.insert(
+                id: id,
+                accountId: accountId,
+                folderId: folderId,
+                title: title,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FoldersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({accountId = false, folderChannelsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (folderChannelsRefs) db.folderChannels,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (accountId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.accountId,
+                                    referencedTable: $$FoldersTableReferences
+                                        ._accountIdTable(db),
+                                    referencedColumn: $$FoldersTableReferences
+                                        ._accountIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (folderChannelsRefs)
+                        await $_getPrefetchedData<
+                          FolderEntry,
+                          $FoldersTable,
+                          FolderChannel
+                        >(
+                          currentTable: table,
+                          referencedTable: $$FoldersTableReferences
+                              ._folderChannelsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$FoldersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).folderChannelsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.folderDbId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$FoldersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FoldersTable,
+      FolderEntry,
+      $$FoldersTableFilterComposer,
+      $$FoldersTableOrderingComposer,
+      $$FoldersTableAnnotationComposer,
+      $$FoldersTableCreateCompanionBuilder,
+      $$FoldersTableUpdateCompanionBuilder,
+      (FolderEntry, $$FoldersTableReferences),
+      FolderEntry,
+      PrefetchHooks Function({bool accountId, bool folderChannelsRefs})
+    >;
+typedef $$FolderChannelsTableCreateCompanionBuilder =
+    FolderChannelsCompanion Function({
+      Value<int> id,
+      required int folderDbId,
+      required int channelDbId,
+    });
+typedef $$FolderChannelsTableUpdateCompanionBuilder =
+    FolderChannelsCompanion Function({
+      Value<int> id,
+      Value<int> folderDbId,
+      Value<int> channelDbId,
+    });
+
+final class $$FolderChannelsTableReferences
+    extends BaseReferences<_$AppDatabase, $FolderChannelsTable, FolderChannel> {
+  $$FolderChannelsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $FoldersTable _folderDbIdTable(_$AppDatabase db) =>
+      db.folders.createAlias('folder_channels__folder_db_id__folders__id');
+
+  $$FoldersTableProcessedTableManager get folderDbId {
+    final $_column = $_itemColumn<int>('folder_db_id')!;
+
+    final manager = $$FoldersTableTableManager(
+      $_db,
+      $_db.folders,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_folderDbIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ChannelsTable _channelDbIdTable(_$AppDatabase db) =>
+      db.channels.createAlias('folder_channels__channel_db_id__channels__id');
+
+  $$ChannelsTableProcessedTableManager get channelDbId {
+    final $_column = $_itemColumn<int>('channel_db_id')!;
+
+    final manager = $$ChannelsTableTableManager(
+      $_db,
+      $_db.channels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelDbIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$FolderChannelsTableFilterComposer
+    extends Composer<_$AppDatabase, $FolderChannelsTable> {
+  $$FolderChannelsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$FoldersTableFilterComposer get folderDbId {
+    final $$FoldersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderDbId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableFilterComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableFilterComposer get channelDbId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelDbId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FolderChannelsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FolderChannelsTable> {
+  $$FolderChannelsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$FoldersTableOrderingComposer get folderDbId {
+    final $$FoldersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderDbId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableOrderingComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableOrderingComposer get channelDbId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelDbId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FolderChannelsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FolderChannelsTable> {
+  $$FolderChannelsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  $$FoldersTableAnnotationComposer get folderDbId {
+    final $$FoldersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.folderDbId,
+      referencedTable: $db.folders,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FoldersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.folders,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableAnnotationComposer get channelDbId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelDbId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FolderChannelsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FolderChannelsTable,
+          FolderChannel,
+          $$FolderChannelsTableFilterComposer,
+          $$FolderChannelsTableOrderingComposer,
+          $$FolderChannelsTableAnnotationComposer,
+          $$FolderChannelsTableCreateCompanionBuilder,
+          $$FolderChannelsTableUpdateCompanionBuilder,
+          (FolderChannel, $$FolderChannelsTableReferences),
+          FolderChannel,
+          PrefetchHooks Function({bool folderDbId, bool channelDbId})
+        > {
+  $$FolderChannelsTableTableManager(
+    _$AppDatabase db,
+    $FolderChannelsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FolderChannelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FolderChannelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FolderChannelsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> folderDbId = const Value.absent(),
+                Value<int> channelDbId = const Value.absent(),
+              }) => FolderChannelsCompanion(
+                id: id,
+                folderDbId: folderDbId,
+                channelDbId: channelDbId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int folderDbId,
+                required int channelDbId,
+              }) => FolderChannelsCompanion.insert(
+                id: id,
+                folderDbId: folderDbId,
+                channelDbId: channelDbId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FolderChannelsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({folderDbId = false, channelDbId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (folderDbId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.folderDbId,
+                                referencedTable: $$FolderChannelsTableReferences
+                                    ._folderDbIdTable(db),
+                                referencedColumn:
+                                    $$FolderChannelsTableReferences
+                                        ._folderDbIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (channelDbId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.channelDbId,
+                                referencedTable: $$FolderChannelsTableReferences
+                                    ._channelDbIdTable(db),
+                                referencedColumn:
+                                    $$FolderChannelsTableReferences
+                                        ._channelDbIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FolderChannelsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FolderChannelsTable,
+      FolderChannel,
+      $$FolderChannelsTableFilterComposer,
+      $$FolderChannelsTableOrderingComposer,
+      $$FolderChannelsTableAnnotationComposer,
+      $$FolderChannelsTableCreateCompanionBuilder,
+      $$FolderChannelsTableUpdateCompanionBuilder,
+      (FolderChannel, $$FolderChannelsTableReferences),
+      FolderChannel,
+      PrefetchHooks Function({bool folderDbId, bool channelDbId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6749,4 +8362,8 @@ class $AppDatabaseManager {
       $$MediaItemsTableTableManager(_db, _db.mediaItems);
   $$BookmarkEntriesTableTableManager get bookmarkEntries =>
       $$BookmarkEntriesTableTableManager(_db, _db.bookmarkEntries);
+  $$FoldersTableTableManager get folders =>
+      $$FoldersTableTableManager(_db, _db.folders);
+  $$FolderChannelsTableTableManager get folderChannels =>
+      $$FolderChannelsTableTableManager(_db, _db.folderChannels);
 }

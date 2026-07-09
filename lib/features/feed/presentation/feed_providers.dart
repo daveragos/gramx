@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/infrastructure/database/database.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 /// Provides the full feed of posts (all channels), sorted by publishedAt desc.
 final feedPostsProvider = StreamProvider<List<Post>>((ref) {
@@ -43,31 +45,71 @@ class BottomNavVisibilityNotifier extends Notifier<bool> {
 final bottomNavVisibilityProvider =
     NotifierProvider<BottomNavVisibilityNotifier, bool>(BottomNavVisibilityNotifier.new);
 
-/// Filtered posts by folder/category
-final filteredFeedPostsProvider =
-    Provider.family<AsyncValue<List<Post>>, String>((ref, folder) {
-  final postsAsync = ref.watch(feedPostsProvider);
-  return postsAsync.whenData((posts) {
-    if (folder == 'All') return posts;
-    final folderLower = folder.toLowerCase();
-    return posts.where((post) {
-      final title = post.channelTitle.toLowerCase();
-      final username = post.channelUsername?.toLowerCase() ?? '';
-      
-      if (folderLower == 'tech') {
-        return title.contains('tech') ||
-            title.contains('flutter') ||
-            username.contains('tech') ||
-            username.contains('flutter');
-      } else if (folderLower == 'crypto') {
-        return title.contains('crypto') || username.contains('crypto');
-      } else if (folderLower == 'news') {
-        return title.contains('news') || username.contains('news');
-      } else if (folderLower == 'design') {
-        return title.contains('design') || username.contains('design');
-      }
-      return false;
-    }).toList();
+/// Provider to mark post as read
+final markPostAsReadProvider =
+    FutureProvider.family<void, int>((ref, postDbId) async {
+  final repo = ref.watch(feedRepositoryProvider);
+  await repo.markPostAsRead(postDbId, ref);
+  ref.invalidate(feedPostsProvider);
+});
+
+/// Provider to trigger loading more history for pagination
+final loadMoreChannelHistoryProvider =
+    FutureProvider.family<void, ({int channelDbId, int chatId})>((ref, arg) async {
+  final syncService = ref.read(syncServiceProvider);
+  await syncService.loadMoreChannelHistory(arg.channelDbId, arg.chatId);
+  ref.invalidate(feedPostsProvider);
+});
+
+/// Provides user's dynamic folders synced from Telegram
+final foldersProvider = StreamProvider<List<FolderEntry>>((ref) {
+  final repo = ref.watch(feedRepositoryProvider);
+  return repo.db.select(repo.db.folders).watch();
+});
+
+/// Provides the mapping of folder ID to its channel database IDs
+final folderChannelsMapProvider = StreamProvider<Map<int, List<int>>>((ref) {
+  final repo = ref.watch(feedRepositoryProvider);
+  final select = repo.db.select(repo.db.folderChannels);
+  return select.watch().map((rows) {
+    final map = <int, List<int>>{};
+    for (final row in rows) {
+      map.putIfAbsent(row.folderDbId, () => []).add(row.channelDbId);
+    }
+    return map;
   });
 });
 
+/// Filtered posts by folder/category (watching dynamic folder list)
+final filteredFeedPostsProvider =
+    Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
+  final postsAsync = ref.watch(feedPostsProvider);
+
+  if (folderIdStr == 'All') {
+    return postsAsync;
+  }
+
+  final folderId = int.tryParse(folderIdStr);
+  if (folderId == null) {
+    return postsAsync;
+  }
+
+  final folderChannelsMapAsync = ref.watch(folderChannelsMapProvider);
+  return postsAsync.when(
+    data: (posts) {
+      return folderChannelsMapAsync.when(
+        data: (map) {
+          final allowedChannelIds = map[folderId] ?? [];
+          final allowedChannelIdsStr = allowedChannelIds.map((id) => id.toString()).toSet();
+          return AsyncValue.data(
+            posts.where((post) => allowedChannelIdsStr.contains(post.channelId)).toList(),
+          );
+        },
+        loading: () => const AsyncValue.loading(),
+        error: (err, stack) => AsyncValue.error(err, stack),
+      );
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (err, stack) => AsyncValue.error(err, stack),
+  );
+});

@@ -1,17 +1,49 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// Repository for feed/post operations backed by Drift.
 class FeedRepository {
   final AppDatabase db;
 
   FeedRepository(this.db);
+
+  /// Mark post as read in local database and synchronise to Telegram.
+  Future<void> markPostAsRead(int postDbId, Ref ref) async {
+    final post = await getPostById(postDbId);
+    if (post == null || post.isRead) return;
+
+    // 1. Mark read locally in DB
+    await (db.update(db.posts)..where((p) => p.id.equals(postDbId)))
+        .write(const PostsCompanion(isRead: Value(true)));
+
+    // 2. Synchronise to Telegram via ViewMessages in background
+    try {
+      final channel = await (db.select(db.channels)
+            ..where((c) => c.id.equals(int.parse(post.channelId))))
+          .getSingleOrNull();
+
+      if (channel != null) {
+        final tdlib = ref.read(tdlibServiceProvider);
+        await tdlib.sendRequest(td.ViewMessages(
+          chatId: channel.chatId,
+          messageIds: [post.messageId],
+          forceRead: true,
+        ));
+        debugPrint('[Feed] Post ${post.messageId} marked as read on Telegram.');
+      }
+    } catch (e) {
+      debugPrint('[Feed] Error marking message as read on Telegram: $e');
+    }
+  }
 
   /// Watch all posts sorted by publishedAt desc, joined with channel data.
   Stream<List<Post>> watchFeedPosts() {

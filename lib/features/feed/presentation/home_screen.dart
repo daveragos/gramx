@@ -26,7 +26,14 @@ class HomeScreen extends ConsumerWidget {
     final channelsAsync = ref.watch(channelsProvider);
     final accountAsync = ref.watch(activeAccountProvider);
     final String displayName = accountAsync.value?.displayName ?? 'User';
-    final folders = ['All', 'Tech', 'Crypto', 'News', 'Design'];
+
+    final foldersAsync = ref.watch(foldersProvider);
+    final dynamicFolders = foldersAsync.value ?? [];
+
+    final tabItems = [
+      (title: 'All', id: 'All'),
+      ...dynamicFolders.map((f) => (title: f.title, id: f.id.toString())),
+    ];
 
     return channelsAsync.when(
       loading: () => const Scaffold(body: FeedSkeleton()),
@@ -41,7 +48,7 @@ class HomeScreen extends ConsumerWidget {
         }
 
         return DefaultTabController(
-          length: folders.length,
+          length: tabItems.length,
           child: Scaffold(
             body: NestedScrollView(
               headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
@@ -102,7 +109,7 @@ class HomeScreen extends ConsumerWidget {
                       labelColor: primaryTextColor,
                       unselectedLabelColor: secondaryTextColor,
                       dividerColor: Colors.transparent,
-                      tabs: folders.map((folder) => Tab(text: folder)).toList(),
+                      tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
                     ),
                   ),
                 ];
@@ -124,8 +131,8 @@ class HomeScreen extends ConsumerWidget {
                   return false;
                 },
                 child: TabBarView(
-                  children: folders.map((folder) {
-                    return _FolderFeed(folder: folder);
+                  children: tabItems.map((item) {
+                    return _FolderFeed(folderTitle: item.title, folderId: item.id);
                   }).toList(),
                 ),
               ),
@@ -329,13 +336,14 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
 }
 
 class _FolderFeed extends ConsumerWidget {
-  final String folder;
+  final String folderTitle;
+  final String folderId;
 
-  const _FolderFeed({required this.folder});
+  const _FolderFeed({required this.folderTitle, required this.folderId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final feedAsync = ref.watch(filteredFeedPostsProvider(folder));
+    final feedAsync = ref.watch(filteredFeedPostsProvider(folderId));
     final theme = Theme.of(context);
 
     return feedAsync.when(
@@ -373,7 +381,7 @@ class _FolderFeed extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'No posts in $folder',
+                  'No posts in $folderTitle',
                   style: AppTypography.subheading(
                     color: theme.colorScheme.onSurface,
                   ),
@@ -395,7 +403,13 @@ class _FolderFeed extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
-                onTap: () => context.push('/post/${post.id}'),
+                onTap: () {
+                  final id = int.tryParse(post.id);
+                  if (id != null) {
+                    ref.read(markPostAsReadProvider(id));
+                  }
+                  context.push('/post/${post.id}');
+                },
                 onChannelTap: () => context.push('/channel/${post.channelId}'),
                 onBookmarkTap: () {
                   ref.read(bookmarkToggleProvider(post.id));

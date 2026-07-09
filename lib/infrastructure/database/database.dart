@@ -4,7 +4,7 @@ import 'package:gramx/infrastructure/database/tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Accounts, Channels, Posts, MediaItems, BookmarkEntries])
+@DriftDatabase(tables: [Accounts, Channels, Posts, MediaItems, BookmarkEntries, Folders, FolderChannels])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 

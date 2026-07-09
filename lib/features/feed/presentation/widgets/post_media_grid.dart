@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -126,6 +127,68 @@ class _MediaPlaceholder extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
     final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    Widget? mediaWidget;
+
+    // 1. If it's a photo, try to load the local photo
+    if (item.type == MediaType.photo) {
+      if (item.localPath != null && item.localPath!.startsWith('/')) {
+        final file = File(item.localPath!);
+        if (file.existsSync()) {
+          mediaWidget = Image.file(
+            file,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          );
+        }
+      }
+    } 
+    // 2. If it's a video or gif, try to load the local thumbnail
+    else if (item.type == MediaType.video || item.type == MediaType.gif) {
+      String? path;
+      if (item.thumbnailUrl != null && item.thumbnailUrl!.startsWith('/')) {
+        path = item.thumbnailUrl;
+      } else if (item.localPath != null && item.localPath!.startsWith('/')) {
+        path = item.localPath;
+      }
+      
+      if (path != null) {
+        final file = File(path);
+        if (file.existsSync()) {
+          mediaWidget = Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                file,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+              if (item.type == MediaType.video)
+                Center(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(
+                      Icons.play_arrow,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
+      }
+    }
+
+    if (mediaWidget != null) {
+      return mediaWidget;
+    }
 
     return Container(
       color: bgColor,

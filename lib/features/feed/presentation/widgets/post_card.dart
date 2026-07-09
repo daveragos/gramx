@@ -91,6 +91,17 @@ class PostCard extends StatelessWidget {
                                     maxLines: 1,
                                   ),
                                 ),
+                                if (!post.isRead) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.accent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
                                 if (post.isChannelVerified) ...[
                                   const SizedBox(width: 2),
                                   const Icon(

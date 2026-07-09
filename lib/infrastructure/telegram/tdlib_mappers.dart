@@ -6,31 +6,29 @@ import 'package:gramx/infrastructure/database/database.dart';
 
 class TdlibMappers {
   /// Map TDLib Chat model to Drift ChannelsCompanion
-  static ChannelsCompanion mapChatToCompanion(td.Chat chat, int accountDbId) {
-    String? username;
-    String? description;
-    bool isVerified = false;
-    int subscriberCount = 0;
-
-    final type = chat.type;
-    if (type is td.ChatTypeSupergroup) {
-      isVerified = false;
-      // Note: subscriberCount and description are fetched via getSupergroupFullInfo or similar queries,
-      // we'll default or retrieve them if available.
-    }
-
+  static ChannelsCompanion mapChatToCompanion(
+    td.Chat chat, 
+    int accountDbId, {
+    String? username,
+    String? description,
+    bool isVerified = false,
+    int subscriberCount = 0,
+  }) {
     return ChannelsCompanion.insert(
       accountId: accountDbId,
       chatId: chat.id,
       title: chat.title,
       username: Value(username),
       description: Value(description),
-      avatarUrl: Value(chat.photo?.small.local.path.isNotEmpty == true 
-          ? chat.photo?.small.local.path 
+      avatarUrl: Value(chat.photo != null
+          ? (chat.photo!.small.local.path.isNotEmpty == true
+              ? chat.photo!.small.local.path
+              : chat.photo!.small.remote.id)
           : null),
       avatarColor: Value(_generateRandomHexColor(chat.id)),
       subscriberCount: Value(subscriberCount),
       isVerified: Value(isVerified),
+      lastReadInboxMessageId: Value(chat.lastReadInboxMessageId),
       isFavorite: const Value(false),
       isMuted: const Value(false),
       isHidden: const Value(false),
@@ -119,7 +117,7 @@ class TdlibMappers {
 
     if (content is td.MessagePhoto) {
       final photo = content.photo;
-      // Get the highest resolution size size
+      // Get the highest resolution size
       final bestSize = photo.sizes.last;
       list.add(MediaItemsCompanion.insert(
         postId: postDbId,
@@ -127,12 +125,12 @@ class TdlibMappers {
         url: Value(bestSize.photo.remote.id),
         thumbnailUrl: Value(photo.sizes.first.photo.local.path.isNotEmpty == true 
             ? photo.sizes.first.photo.local.path 
-            : null),
+            : photo.sizes.first.photo.remote.id),
         width: Value(bestSize.width),
         height: Value(bestSize.height),
         localPath: Value(bestSize.photo.local.path.isNotEmpty == true 
             ? bestSize.photo.local.path 
-            : null),
+            : bestSize.photo.remote.id),
       ));
     } else if (content is td.MessageVideo) {
       final video = content.video;
@@ -140,8 +138,10 @@ class TdlibMappers {
         postId: postDbId,
         type: MediaType.video.name,
         url: Value(video.video.remote.id),
-        thumbnailUrl: Value(video.thumbnail?.file.local.path.isNotEmpty == true 
-            ? video.thumbnail?.file.local.path 
+        thumbnailUrl: Value(video.thumbnail != null
+            ? (video.thumbnail!.file.local.path.isNotEmpty == true
+                ? video.thumbnail!.file.local.path
+                : video.thumbnail!.file.remote.id)
             : null),
         width: Value(video.width),
         height: Value(video.height),
@@ -151,7 +151,7 @@ class TdlibMappers {
         mimeType: Value(video.mimeType),
         localPath: Value(video.video.local.path.isNotEmpty == true 
             ? video.video.local.path 
-            : null),
+            : video.video.remote.id),
       ));
     } else if (content is td.MessageAnimation) {
       final anim = content.animation;
@@ -159,15 +159,17 @@ class TdlibMappers {
         postId: postDbId,
         type: MediaType.gif.name,
         url: Value(anim.animation.remote.id),
-        thumbnailUrl: Value(anim.thumbnail?.file.local.path.isNotEmpty == true 
-            ? anim.thumbnail?.file.local.path 
+        thumbnailUrl: Value(anim.thumbnail != null
+            ? (anim.thumbnail!.file.local.path.isNotEmpty == true
+                ? anim.thumbnail!.file.local.path
+                : anim.thumbnail!.file.remote.id)
             : null),
         width: Value(anim.width),
         height: Value(anim.height),
         duration: Value(anim.duration),
         localPath: Value(anim.animation.local.path.isNotEmpty == true 
             ? anim.animation.local.path 
-            : null),
+            : anim.animation.remote.id),
       ));
     }
 

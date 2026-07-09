@@ -27,12 +27,33 @@ class Channels extends Table {
   BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
   BoolColumn get isMuted => boolean().withDefault(const Constant(false))();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
+  IntColumn get lastReadInboxMessageId => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastPostAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   List<Set<Column>> get uniqueKeys => [{accountId, chatId}];
+}
+
+@DataClassName('FolderEntry')
+class Folders extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get accountId => integer().references(Accounts, #id)();
+  IntColumn get folderId => integer()();
+  TextColumn get title => text()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [{accountId, folderId}];
+}
+
+class FolderChannels extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get folderDbId => integer().references(Folders, #id)();
+  IntColumn get channelDbId => integer().references(Channels, #id)();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [{folderDbId, channelDbId}];
 }
 
 @DataClassName('PostEntry')
