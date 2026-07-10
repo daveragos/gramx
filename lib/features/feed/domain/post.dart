@@ -1,5 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 
 part 'post.freezed.dart';
 part 'post.g.dart';
@@ -30,6 +32,8 @@ abstract class Post with _$Post {
     String? linkPreviewImageUrl,
     String? forwardedFromTitle,
     String? forwardedFromUsername,
+    @Default([]) List<TextEntity> entities,
+    Poll? poll,
   }) = _Post;
 
   factory Post.fromJson(Map<String, dynamic> json) => _$PostFromJson(json);

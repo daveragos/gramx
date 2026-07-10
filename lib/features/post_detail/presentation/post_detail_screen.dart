@@ -5,9 +5,11 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
 class PostDetailScreen extends ConsumerWidget {
   final String postId;
@@ -105,8 +107,22 @@ class PostDetailScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       // Post text
-                      if (post.text != null && post.text!.isNotEmpty)
-                        Text(post.text!, style: AppTypography.bodyLarge(color: primaryColor)),
+                      if (post.text != null && post.text!.isNotEmpty) ...[
+                        TextEntityRenderer(
+                          text: post.text!,
+                          entities: post.entities,
+                          style: AppTypography.bodyLarge(color: primaryColor),
+                        ),
+                      ],
+                      // Poll display
+                      if (post.poll != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        PollCard(
+                          poll: post.poll!,
+                          channelId: post.channelId,
+                          messageId: post.messageId,
+                        ),
+                      ],
                       // Media
                       if (post.media.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.md),

@@ -148,9 +148,9 @@ class SyncService {
   /// Syncs user's Telegram folders (chat filters) based on chatFolders list from update
   Future<void> _syncFoldersList(List<td.ChatFolderInfo> chatFolders, int accountId) async {
     try {
-      // Clear existing folders and maps
-      await _db.customStatement('DELETE FROM folder_channels');
-      await _db.customStatement('DELETE FROM folders');
+      // Clear existing folders and maps using Drift APIs
+      await _db.delete(_db.folderChannels).go();
+      await _db.delete(_db.folders).go();
 
       for (final folderInfo in chatFolders) {
         // Fetch full folder filter details
@@ -418,6 +418,39 @@ class SyncService {
       } catch (e) {
         debugPrint('[Sync] Failed to sync folders on UpdateChatFolders: $e');
       }
+    } else if (update is td.UpdatePoll) {
+      final poll = update.poll;
+      debugPrint('[Sync] Received live UpdatePoll for pollId ${poll.id}');
+      try {
+        final postsToUpdate = await (_db.select(_db.posts)
+              ..where((p) => p.pollJson.like('%"id":"${poll.id}"%')))
+            .get();
+        for (final post in postsToUpdate) {
+          final updatedPollJson = TdlibMappers.serializePoll(poll);
+          await (_db.update(_db.posts)..where((p) => p.id.equals(post.id)))
+              .write(PostsCompanion(pollJson: Value(updatedPollJson)));
+        }
+      } catch (e) {
+        debugPrint('[Sync] Error handling UpdatePoll: $e');
+      }
+    }
+  }
+
+  /// Set poll answers (vote) in TDLib and sync back.
+  Future<void> voteInPoll({
+    required int chatId,
+    required int messageId,
+    required List<int> optionIds,
+  }) async {
+    try {
+      await _tdlib.sendRequest(td.SetPollAnswer(
+        chatId: chatId,
+        messageId: messageId,
+        optionIds: optionIds,
+      ));
+    } catch (e) {
+      debugPrint('[Sync] Failed to vote in poll: $e');
+      rethrow;
     }
   }
 

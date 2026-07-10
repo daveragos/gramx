@@ -2,60 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/channels/presentation/channel_profile_screen.dart';
+import 'package:gramx/features/channels/presentation/channels_list_screen.dart';
 import 'package:gramx/features/feed/presentation/home_screen.dart';
+import 'package:gramx/features/folders/presentation/folders_screen.dart';
 import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
 import 'package:gramx/features/settings/presentation/profile_screen.dart';
-
-// Channels list screen (placeholder for the "Channels" tab)
-class _ChannelsListScreen extends StatelessWidget {
-  const _ChannelsListScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Channels',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.list_alt, color: theme.iconTheme.color, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              'Channels',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your subscribed channels will appear here\nafter Telegram login.',
-              style: TextStyle(
-                fontSize: 15,
-                color: theme.iconTheme.color,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // Navigation keys for each branch
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -99,7 +54,7 @@ final router = GoRouter(
           routes: [
             GoRoute(
               path: '/channels',
-              builder: (context, state) => const _ChannelsListScreen(),
+              builder: (context, state) => const ChannelsListScreen(),
             ),
           ],
         ),
@@ -141,6 +96,16 @@ final router = GoRouter(
       path: '/profile',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: '/bookmarks',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const BookmarksScreen(),
+    ),
+    GoRoute(
+      path: '/folders',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const FoldersScreen(),
     ),
   ],
 );

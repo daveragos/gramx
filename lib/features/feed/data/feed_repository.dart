@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -157,6 +159,26 @@ class FeedRepository {
       }
     } catch (_) {}
 
+    List<TextEntity> entities = [];
+    if (postEntry.textEntitiesJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(postEntry.textEntitiesJson!);
+        entities = decoded.map((e) => TextEntity.fromJson(e as Map<String, dynamic>)).toList();
+      } catch (e) {
+        debugPrint('[FeedRepo] Error parsing text entities: $e');
+      }
+    }
+
+    Poll? poll;
+    if (postEntry.pollJson != null) {
+      try {
+        final decoded = jsonDecode(postEntry.pollJson!);
+        poll = Poll.fromJson(decoded as Map<String, dynamic>);
+      } catch (e) {
+        debugPrint('[FeedRepo] Error parsing poll: $e');
+      }
+    }
+
     return Post(
       id: postEntry.id.toString(),
       channelId: channelEntry.id.toString(),
@@ -181,6 +203,8 @@ class FeedRepository {
       linkPreviewImageUrl: postEntry.linkPreviewImageUrl,
       forwardedFromTitle: postEntry.forwardedFromTitle,
       forwardedFromUsername: postEntry.forwardedFromUsername,
+      entities: entities,
+      poll: poll,
     );
   }
 

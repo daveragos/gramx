@@ -8,18 +8,38 @@ import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// State of the authentication flow.
+// ---------------------------------------------------------------------------
+// Auth step enum — each value maps to a distinct UI page.
+// ---------------------------------------------------------------------------
 enum AuthStep {
+  /// TDLib is still initializing or we haven't received a user-facing state.
   loading,
-  loginMethodSelection, // Phone vs QR selection
+
+  /// User picks between phone-number login and QR-code login.
+  loginMethodSelection,
+
+  /// Phone number input page.
   waitPhoneNumber,
+
+  /// Verification code input page.
   waitCode,
+
+  /// Two-step verification (cloud password) page.
   waitPassword,
+
+  /// QR code display page.
   waitQrCode,
+
+  /// Fully authenticated — redirect to home.
   authenticated,
+
+  /// An unrecoverable error occurred.
   error,
 }
 
+// ---------------------------------------------------------------------------
+// Immutable auth state.
+// ---------------------------------------------------------------------------
 class AuthState {
   final AuthStep step;
   final String? phoneNumber;
@@ -27,7 +47,7 @@ class AuthState {
   final String? errorMessage;
   final bool isSubmitting;
 
-  AuthState({
+  const AuthState({
     required this.step,
     this.phoneNumber,
     this.qrCodeLink,
@@ -50,59 +70,103 @@ class AuthState {
       isSubmitting: isSubmitting ?? this.isSubmitting,
     );
   }
+
+  /// Returns a copy with errorMessage explicitly set to null.
+  AuthState clearError() {
+    return AuthState(
+      step: step,
+      phoneNumber: phoneNumber,
+      qrCodeLink: qrCodeLink,
+      errorMessage: null,
+      isSubmitting: isSubmitting,
+    );
+  }
 }
 
-/// Provides the current raw TDLib AuthorizationState stream.
+// ---------------------------------------------------------------------------
+// Raw TDLib auth stream (kept for anything that needs it directly).
+// ---------------------------------------------------------------------------
 final telegramAuthStateProvider = StreamProvider<td.AuthorizationState>((ref) {
   final tdlib = ref.watch(tdlibServiceProvider);
   return tdlib.authStateStream;
 });
 
+// ---------------------------------------------------------------------------
+// AuthController — drives the entire login flow.
+// ---------------------------------------------------------------------------
 class AuthController extends Notifier<AuthState> {
-  late final TdlibService _tdlib;
+  late TdlibService _tdlib;
   StreamSubscription? _authSub;
 
   @override
   AuthState build() {
     _tdlib = ref.watch(tdlibServiceProvider);
-    
-    // Automatically listen to auth updates
-    _authSub = _tdlib.authStateStream.listen((tdState) {
-      _mapTdlibStateToStep(tdState);
-    });
-    
+
+    // Subscribe to future auth-state events from TDLib.
+    _authSub = _tdlib.authStateStream.listen(_onTdlibAuthState);
+
     ref.onDispose(() {
       _authSub?.cancel();
     });
 
-    final lastState = _tdlib.currentAuthState;
-    if (lastState != null) {
-      if (lastState is td.AuthorizationStateWaitPhoneNumber) {
-        return AuthState(step: AuthStep.loginMethodSelection);
-      } else if (lastState is td.AuthorizationStateWaitCode) {
-        return AuthState(step: AuthStep.waitCode);
-      } else if (lastState is td.AuthorizationStateWaitPassword) {
-        return AuthState(step: AuthStep.waitPassword);
-      } else if (lastState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
-        return AuthState(
-          step: AuthStep.waitQrCode,
-          qrCodeLink: lastState.link,
-        );
-      } else if (lastState is td.AuthorizationStateReady) {
-        Future.microtask(() => _handleAuthReady());
-        return AuthState(step: AuthStep.loading);
-      }
+    // Attempt to resolve an initial step from the cached TDLib state.
+    final cached = _tdlib.currentAuthState;
+    if (cached != null) {
+      final resolved = _tdlibStateToStep(cached);
+      if (resolved != null) return resolved;
+
+      // Cached state is an intermediate one (e.g. WaitTdlibParameters).
+      // Stay on loading — the stream listener will move us forward.
+      debugPrint(
+        '[AuthCtrl] Cached state is intermediate: ${cached.runtimeType}. '
+        'Waiting for stream…',
+      );
     }
-    return AuthState(step: AuthStep.loading);
+
+    return const AuthState(step: AuthStep.loading);
   }
 
-  void _mapTdlibStateToStep(td.AuthorizationState tdState) {
-    debugPrint('[AuthCtrl] Mapping TDLib State: ${tdState.runtimeType}');
+  // -----------------------------------------------------------------------
+  // TDLib state → AuthState mapping (pure, no side-effects).
+  // Returns null for intermediate/unhandled states.
+  // -----------------------------------------------------------------------
+  AuthState? _tdlibStateToStep(td.AuthorizationState tdState) {
     if (tdState is td.AuthorizationStateWaitPhoneNumber) {
-      if (state.step == AuthStep.loading) {
-        state = AuthState(step: AuthStep.loginMethodSelection);
-      } else if (state.step != AuthStep.loginMethodSelection && state.step != AuthStep.waitPhoneNumber) {
-        state = state.copyWith(step: AuthStep.waitPhoneNumber);
+      return const AuthState(step: AuthStep.loginMethodSelection);
+    } else if (tdState is td.AuthorizationStateWaitCode) {
+      return AuthState(
+        step: AuthStep.waitCode,
+        phoneNumber: state.phoneNumber,
+      );
+    } else if (tdState is td.AuthorizationStateWaitPassword) {
+      return AuthState(
+        step: AuthStep.waitPassword,
+        phoneNumber: state.phoneNumber,
+      );
+    } else if (tdState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
+      return AuthState(
+        step: AuthStep.waitQrCode,
+        qrCodeLink: tdState.link,
+      );
+    } else if (tdState is td.AuthorizationStateReady) {
+      // Return loading — the caller triggers _handleAuthReady().
+      return const AuthState(step: AuthStep.loading);
+    }
+    return null; // intermediate / unhandled
+  }
+
+  // -----------------------------------------------------------------------
+  // Stream callback — maps every incoming TDLib auth event to a UI step.
+  // -----------------------------------------------------------------------
+  void _onTdlibAuthState(td.AuthorizationState tdState) {
+    debugPrint('[AuthCtrl] TDLib auth event: ${tdState.runtimeType}');
+
+    if (tdState is td.AuthorizationStateWaitPhoneNumber) {
+      // Only jump to selection if we're currently loading (first arrival)
+      // or in an unexpected step. If the user is already on the phone-input
+      // page, leave them there.
+      if (state.step == AuthStep.loading || state.step == AuthStep.error) {
+        state = const AuthState(step: AuthStep.loginMethodSelection);
       }
     } else if (tdState is td.AuthorizationStateWaitCode) {
       state = state.copyWith(step: AuthStep.waitCode, isSubmitting: false);
@@ -117,55 +181,82 @@ class AuthController extends Notifier<AuthState> {
     } else if (tdState is td.AuthorizationStateReady) {
       _handleAuthReady();
     }
+    // All other states (WaitTdlibParameters, Closing, etc.) are ignored —
+    // TdlibService handles them internally.
   }
 
+  // -----------------------------------------------------------------------
+  // Post-authentication: store account info & kick off background sync.
+  // -----------------------------------------------------------------------
   Future<void> _handleAuthReady() async {
-    state = state.copyWith(step: AuthStep.loading);
+    state = state.copyWith(step: AuthStep.loading, isSubmitting: false);
     try {
       final me = await _tdlib.sendRequest(const td.GetMe());
       if (me is td.User) {
         final db = ref.read(databaseProvider);
-        
-        // Deactivate all accounts first
-        await db.customStatement('UPDATE accounts SET is_active = 0');
-        
-        final String? username = (me.usernames?.activeUsernames != null && me.usernames!.activeUsernames.isNotEmpty)
-            ? me.usernames!.activeUsernames.first
-            : me.usernames?.editableUsername;
-        
-        final existingAccount = await (db.select(db.accounts)..where((a) => a.telegramUserId.equals(me.id.toString()))).getSingleOrNull();
+
+        // Deactivate all accounts first.
+        await (db.update(db.accounts)).write(
+          const AccountsCompanion(isActive: Value(false)),
+        );
+
+        final String? username =
+            (me.usernames?.activeUsernames != null &&
+                    me.usernames!.activeUsernames.isNotEmpty)
+                ? me.usernames!.activeUsernames.first
+                : me.usernames?.editableUsername;
+
+        final existingAccount = await (db.select(db.accounts)
+              ..where((a) => a.telegramUserId.equals(me.id.toString())))
+            .getSingleOrNull();
+
         if (existingAccount != null) {
-          // Update existing account
-          await (db.update(db.accounts)..where((a) => a.id.equals(existingAccount.id))).write(
+          await (db.update(db.accounts)
+                ..where((a) => a.id.equals(existingAccount.id)))
+              .write(
             AccountsCompanion(
-              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
+              displayName:
+                  Value('${me.firstName} ${me.lastName}'.trim()),
               username: Value(username),
               phoneNumber: Value(me.phoneNumber),
-              avatarPath: Value(me.profilePhoto?.small.local.path.isNotEmpty == true ? me.profilePhoto?.small.local.path : null),
+              avatarPath: Value(
+                me.profilePhoto?.small.local.path.isNotEmpty == true
+                    ? me.profilePhoto?.small.local.path
+                    : null,
+              ),
               isActive: const Value(true),
               updatedAt: Value(DateTime.now()),
             ),
           );
         } else {
-          // Insert new account
           await db.into(db.accounts).insert(
-            AccountsCompanion.insert(
-              telegramUserId: me.id.toString(),
-              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
-              username: Value(username),
-              phoneNumber: Value(me.phoneNumber),
-              avatarPath: Value(me.profilePhoto?.small.local.path.isNotEmpty == true ? me.profilePhoto?.small.local.path : null),
-              isActive: const Value(true),
-            ),
-          );
+                AccountsCompanion.insert(
+                  telegramUserId: me.id.toString(),
+                  displayName:
+                      Value('${me.firstName} ${me.lastName}'.trim()),
+                  username: Value(username),
+                  phoneNumber: Value(me.phoneNumber),
+                  avatarPath: Value(
+                    me.profilePhoto?.small.local.path.isNotEmpty == true
+                        ? me.profilePhoto?.small.local.path
+                        : null,
+                  ),
+                  isActive: const Value(true),
+                ),
+              );
         }
-        
-        // Start full sync in background
-        final syncService = ref.read(syncServiceProvider);
-        await syncService.syncSubscribedChannels();
-        await syncService.syncFeedHistory();
       }
+
+      // Transition to authenticated IMMEDIATELY.
       state = state.copyWith(step: AuthStep.authenticated);
+
+      // Kick off background sync (fire-and-forget).
+      final syncService = ref.read(syncServiceProvider);
+      syncService.syncSubscribedChannels().then((_) {
+        return syncService.syncFeedHistory();
+      }).catchError((e) {
+        debugPrint('[Auth] Background sync error: $e');
+      });
     } catch (e) {
       state = state.copyWith(
         step: AuthStep.error,
@@ -174,38 +265,48 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Start Phone Number login flow
+  // -----------------------------------------------------------------------
+  // User actions
+  // -----------------------------------------------------------------------
+
+  /// Navigate to the phone-number input page.
+  void selectPhoneLogin() {
+    state = state.clearError().copyWith(step: AuthStep.waitPhoneNumber);
+  }
+
+  /// Submit a phone number to TDLib.
   Future<void> submitPhoneNumber(String phone) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.clearError().copyWith(isSubmitting: true);
     try {
-      final request = td.SetAuthenticationPhoneNumber(
-        phoneNumber: phone,
-        settings: td.PhoneNumberAuthenticationSettings(
-          allowFlashCall: false,
-          allowMissedCall: false,
-          isCurrentPhoneNumber: false,
-          allowSmsRetrieverApi: false,
-          hasUnknownPhoneNumber: false,
-          authenticationTokens: [],
+      await _tdlib.sendRequest(
+        td.SetAuthenticationPhoneNumber(
+          phoneNumber: phone,
+          settings: td.PhoneNumberAuthenticationSettings(
+            allowFlashCall: false,
+            allowMissedCall: false,
+            isCurrentPhoneNumber: false,
+            allowSmsRetrieverApi: false,
+            hasUnknownPhoneNumber: false,
+            authenticationTokens: [],
+          ),
         ),
       );
-      // Await directly via TDLib service
-      await _tdlib.sendRequest(request);
       state = state.copyWith(phoneNumber: phone, isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
-        isSubmitting: false, 
+        isSubmitting: false,
         errorMessage: 'Failed to submit phone number: $e',
       );
     }
   }
 
-  /// Start QR Code login flow
+  /// Start QR-code login flow.
   Future<void> requestQrLogin() async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.clearError().copyWith(isSubmitting: true);
     try {
-      final request = td.RequestQrCodeAuthentication(otherUserIds: []);
-      await _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(
+        td.RequestQrCodeAuthentication(otherUserIds: []),
+      );
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -215,12 +316,11 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Submit verification code
+  /// Submit verification code.
   Future<void> submitCode(String code) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.clearError().copyWith(isSubmitting: true);
     try {
-      final request = td.CheckAuthenticationCode(code: code);
-      await _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(td.CheckAuthenticationCode(code: code));
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -230,12 +330,13 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Submit 2FA password
+  /// Submit 2FA password.
   Future<void> submitPassword(String password) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    state = state.clearError().copyWith(isSubmitting: true);
     try {
-      final request = td.CheckAuthenticationPassword(password: password);
-      await _tdlib.sendRequest(request);
+      await _tdlib.sendRequest(
+        td.CheckAuthenticationPassword(password: password),
+      );
       state = state.copyWith(isSubmitting: false);
     } catch (e) {
       state = state.copyWith(
@@ -245,38 +346,33 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Select Phone login method
-  void selectPhoneLogin() {
-    state = state.copyWith(step: AuthStep.waitPhoneNumber);
-  }
-
-  /// Reset state to return to login method selection
+  /// Reset to method-selection page.
   void reset() {
-    state = AuthState(step: AuthStep.loginMethodSelection);
+    state = const AuthState(step: AuthStep.loginMethodSelection);
   }
 
-  /// Log out and clean database
+  /// Log out, clear database, return to login.
   Future<void> logout() async {
-    state = AuthState(step: AuthStep.loading);
+    state = const AuthState(step: AuthStep.loading);
     try {
       await _tdlib.sendRequest(const td.LogOut());
       final db = ref.read(databaseProvider);
-      
-      // Clear database tables
-      await db.customStatement('DELETE FROM bookmark_entries');
-      await db.customStatement('DELETE FROM media_items');
-      await db.customStatement('DELETE FROM posts');
-      await db.customStatement('DELETE FROM channels');
-      await db.customStatement('DELETE FROM accounts');
-      
-      state = AuthState(step: AuthStep.loginMethodSelection);
+
+      await db.delete(db.bookmarkEntries).go();
+      await db.delete(db.mediaItems).go();
+      await db.delete(db.posts).go();
+      await db.delete(db.channels).go();
+      await db.delete(db.accounts).go();
+
+      state = const AuthState(step: AuthStep.loginMethodSelection);
     } catch (e) {
       state = state.copyWith(
-        step: AuthStep.authenticated, // fallback
+        step: AuthStep.authenticated,
         errorMessage: 'Failed to log out: $e',
       );
     }
   }
 }
 
-final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider =
+    NotifierProvider<AuthController, AuthState>(AuthController.new);

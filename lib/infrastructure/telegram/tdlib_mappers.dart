@@ -47,10 +47,13 @@ class TdlibMappers {
     String? linkPreviewTitle;
     String? linkPreviewDescription;
     String? linkPreviewImageUrl;
+    String? textEntitiesJson;
+    String? pollJson;
 
     final content = message.content;
     if (content is td.MessageText) {
       bodyText = content.text.text;
+      textEntitiesJson = serializeEntities(content.text.entities);
       if (content.linkPreview != null) {
         linkPreviewUrl = content.linkPreview!.url;
         linkPreviewTitle = content.linkPreview!.title;
@@ -65,12 +68,19 @@ class TdlibMappers {
       }
     } else if (content is td.MessagePhoto) {
       bodyText = content.caption.text;
+      textEntitiesJson = serializeEntities(content.caption.entities);
     } else if (content is td.MessageVideo) {
       bodyText = content.caption.text;
+      textEntitiesJson = serializeEntities(content.caption.entities);
     } else if (content is td.MessageAnimation) {
       bodyText = content.caption.text;
+      textEntitiesJson = serializeEntities(content.caption.entities);
     } else if (content is td.MessageDocument) {
       bodyText = content.caption.text;
+      textEntitiesJson = serializeEntities(content.caption.entities);
+    } else if (content is td.MessagePoll) {
+      bodyText = content.poll.question.text;
+      pollJson = serializePoll(content.poll);
     }
 
     // Map reactions
@@ -104,7 +114,103 @@ class TdlibMappers {
           : message.forwardInfo?.origin is td.MessageOriginChannel
               ? (message.forwardInfo!.origin as td.MessageOriginChannel).chatId.toString()
               : null),
+      textEntitiesJson: Value(textEntitiesJson),
+      pollJson: Value(pollJson),
     );
+  }
+
+  static String? serializeEntities(List<td.TextEntity>? entities) {
+    if (entities == null || entities.isEmpty) return null;
+    try {
+      final list = entities.map((entity) {
+        final type = entity.type;
+        String typeStr = 'unknown';
+        String? url;
+        String? customEmojiId;
+
+        if (type is td.TextEntityTypeBold) {
+          typeStr = 'bold';
+        } else if (type is td.TextEntityTypeItalic) {
+          typeStr = 'italic';
+        } else if (type is td.TextEntityTypeUnderline) {
+          typeStr = 'underline';
+        } else if (type is td.TextEntityTypeStrikethrough) {
+          typeStr = 'strikethrough';
+        } else if (type is td.TextEntityTypeCode) {
+          typeStr = 'code';
+        } else if (type is td.TextEntityTypePre) {
+          typeStr = 'codeBlock';
+        } else if (type is td.TextEntityTypePreCode) {
+          typeStr = 'codeBlock';
+        } else if (type is td.TextEntityTypeUrl) {
+          typeStr = 'url';
+        } else if (type is td.TextEntityTypeTextUrl) {
+          typeStr = 'textUrl';
+          url = type.url;
+        } else if (type is td.TextEntityTypeMention) {
+          typeStr = 'mention';
+        } else if (type is td.TextEntityTypeHashtag) {
+          typeStr = 'hashtag';
+        } else if (type is td.TextEntityTypeSpoiler) {
+          typeStr = 'spoiler';
+        } else if (type is td.TextEntityTypeCustomEmoji) {
+          typeStr = 'customEmoji';
+          customEmojiId = type.customEmojiId.toString();
+        }
+
+        return {
+          'offset': entity.offset,
+          'length': entity.length,
+          'type': typeStr,
+          if (url != null) 'url': url,
+          if (customEmojiId != null) 'customEmojiId': customEmojiId,
+        };
+      }).toList();
+      return jsonEncode(list);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static String? serializePoll(td.Poll? poll) {
+    if (poll == null) return null;
+    try {
+      final isQuiz = poll.type is td.PollTypeQuiz;
+      final int? correctOptionId = isQuiz ? (poll.type as td.PollTypeQuiz).correctOptionId : null;
+
+      final options = poll.options.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final opt = entry.value;
+        final isCorrect = isQuiz && (idx == correctOptionId);
+        return {
+          'text': opt.text,
+          'voterCount': opt.voterCount,
+          'votePercentage': opt.votePercentage.toDouble(),
+          'isChosen': opt.isChosen,
+          'isCorrect': isCorrect,
+        };
+      }).toList();
+
+      final map = {
+        'id': poll.id.toString(),
+        'question': poll.question.text,
+        'options': options,
+        'totalVoterCount': poll.totalVoterCount,
+        'isAnonymous': poll.isAnonymous,
+        'isClosed': poll.isClosed,
+        'isQuiz': isQuiz,
+        if (correctOptionId != null) 'correctOptionId': correctOptionId,
+        'chosenOptionIds': poll.options
+            .asMap()
+            .entries
+            .where((entry) => entry.value.isChosen)
+            .map((entry) => entry.key)
+            .toList(),
+      };
+      return jsonEncode(map);
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Extracts MediaItemEntry companions from a TDLib Message

@@ -15,7 +15,8 @@ class TdlibService {
   Isolate? _updatesIsolate;
   final _updatesController = StreamController<td.TdObject>.broadcast();
   final _invokesController = StreamController<Map<String, dynamic>>.broadcast();
-  final _authEventController = StreamController<td.AuthorizationState>.broadcast();
+  final _authEventController =
+      StreamController<td.AuthorizationState>.broadcast();
 
   // Ports for isolate communication
   ReceivePort? _updatesReceivePort;
@@ -33,11 +34,35 @@ class TdlibService {
   }
 
   /// Stream of authorization state updates.
+  /// Replays the last known auth state to new subscribers so late listeners
+  /// (e.g. AuthController) don't miss the initial auth state event.
   Stream<td.AuthorizationState> get authStateStream {
     if (_clientId == null) {
       initialize().catchError((e) {
         debugPrint('[TDLib] Lazy initialization error on authStateStream: $e');
       });
+    }
+    // If we already have a cached auth state, create a stream that first
+    // emits the cached value, then forwards all future broadcast events.
+    final cached = _currentAuthState;
+    if (cached != null) {
+      late StreamController<td.AuthorizationState> controller;
+      StreamSubscription<td.AuthorizationState>? sub;
+      controller = StreamController<td.AuthorizationState>(
+        onListen: () {
+          controller.add(cached);
+          sub = _authEventController.stream.listen(
+            controller.add,
+            onError: controller.addError,
+            onDone: controller.close,
+          );
+        },
+        onCancel: () {
+          sub?.cancel();
+          controller.close();
+        },
+      );
+      return controller.stream;
     }
     return _authEventController.stream;
   }
@@ -71,18 +96,28 @@ class TdlibService {
 
       // Setup ports
       _updatesReceivePort = ReceivePort();
-      
+
       // Spawn background isolate to run the blocking tdReceive loop
       _updatesIsolate = await Isolate.spawn(
         _updatesIsolateLoop,
-        _UpdatesIsolateParams(
-          sendPort: _updatesReceivePort!.sendPort,
-        ),
+        _UpdatesIsolateParams(sendPort: _updatesReceivePort!.sendPort),
       );
+
+      // Listen for uncaught errors in the background isolate
+      final isolateErrorPort = ReceivePort();
+      isolateErrorPort.listen((error) {
+        debugPrint('[TDLib Isolate Uncaught Error] $error');
+      });
+      _updatesIsolate!.addErrorListener(isolateErrorPort.sendPort);
 
       // Listen for updates from the isolate
       _updatesReceivePort!.listen((message) {
         if (message is String) {
+          if (message.startsWith('INIT_ERROR:') ||
+              message.startsWith('CRITICAL_ERROR:')) {
+            debugPrint('[TDLib Isolate ERROR Received in Main] $message');
+            return;
+          }
           try {
             final map = jsonDecode(message) as Map<String, dynamic>;
             if (map.containsKey('@extra')) {
@@ -101,15 +136,6 @@ class TdlibService {
         }
       });
 
-      // Start authorization parameters setting
-      _updatesController.stream.listen((event) {
-        if (event is td.UpdateAuthorizationState) {
-          _currentAuthState = event.authorizationState;
-          _authEventController.add(event.authorizationState);
-          _handleAuthorizationState(event.authorizationState);
-        }
-      });
-
       completer.complete();
     } catch (e, stack) {
       _initializeMemoizer = null; // Reset to allow retry
@@ -119,7 +145,10 @@ class TdlibService {
   }
 
   /// Send a TDLib request and return the deserialized response.
-  Future<td.TdObject> sendRequest(td.TdFunction function, {String? extraId}) async {
+  Future<td.TdObject> sendRequest(
+    td.TdFunction function, {
+    String? extraId,
+  }) async {
     if (_clientId == null) {
       await initialize();
     }
@@ -148,13 +177,21 @@ class TdlibService {
     final map = function.toJson();
     map['@extra'] = extra;
     final json = jsonEncode(map);
-    
+
     TdPlugin.instance.tdSend(_clientId!, json);
 
     return completer.future;
   }
 
   void _handleIncomingUpdate(td.TdObject object) {
+    // Process auth state changes synchronously BEFORE broadcasting,
+    // ensuring _currentAuthState is always up-to-date and
+    // _authEventController emits before any broadcast listener races.
+    if (object is td.UpdateAuthorizationState) {
+      _currentAuthState = object.authorizationState;
+      _authEventController.add(object.authorizationState);
+      _handleAuthorizationState(object.authorizationState);
+    }
     _updatesController.add(object);
   }
 
@@ -208,23 +245,29 @@ class TdlibService {
 class _UpdatesIsolateParams {
   final SendPort sendPort;
 
-  _UpdatesIsolateParams({
-    required this.sendPort,
-  });
+  _UpdatesIsolateParams({required this.sendPort});
 }
 
 /// Background loop running in the spawned Isolate.
 /// It continuously calls tdReceive and sends raw JSON strings to the main port.
-void _updatesIsolateLoop(_UpdatesIsolateParams params) async {
-  debugPrint('[TDLib Isolate] Initializing TdPlugin');
-  await TdPlugin.initialize();
-  debugPrint('[TDLib Isolate] Starting receive loop');
-  while (true) {
-    // tdReceive is blocking with a 1-second timeout
-    final String? response = TdPlugin.instance.tdReceive(1.0);
-    if (response != null && response.isNotEmpty) {
-      params.sendPort.send(response);
+Future<void> _updatesIsolateLoop(_UpdatesIsolateParams params) async {
+  try {
+    try {
+      await TdPlugin.initialize();
+    } catch (initError) {
+      params.sendPort.send('INIT_ERROR: $initError');
+      return;
     }
+
+    while (true) {
+      // tdReceive is blocking with a 1-second timeout
+      final String? response = TdPlugin.instance.tdReceive(1.0);
+      if (response != null && response.isNotEmpty) {
+        params.sendPort.send(response);
+      }
+    }
+  } catch (e, stack) {
+    params.sendPort.send('CRITICAL_ERROR: $e\n$stack');
   }
 }
 

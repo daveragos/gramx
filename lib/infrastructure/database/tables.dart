@@ -77,6 +77,8 @@ class Posts extends Table {
   TextColumn get linkPreviewImageUrl => text().nullable()();
   TextColumn get forwardedFromTitle => text().nullable()();
   TextColumn get forwardedFromUsername => text().nullable()();
+  TextColumn get textEntitiesJson => text().nullable()();
+  TextColumn get pollJson => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 

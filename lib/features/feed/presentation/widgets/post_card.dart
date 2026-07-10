@@ -4,8 +4,10 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
@@ -142,9 +144,19 @@ class PostCard extends StatelessWidget {
                       // Body text
                       if (post.text != null && post.text!.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          post.text!,
+                        TextEntityRenderer(
+                          text: post.text!,
+                          entities: post.entities,
                           style: AppTypography.body(color: primaryTextColor),
+                        ),
+                      ],
+                      // Poll display
+                      if (post.poll != null) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        PollCard(
+                          poll: post.poll!,
+                          channelId: post.channelId,
+                          messageId: post.messageId,
                         ),
                       ],
                       // Media

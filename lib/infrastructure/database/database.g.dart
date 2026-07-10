@@ -1777,6 +1777,28 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostEntry> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _textEntitiesJsonMeta = const VerificationMeta(
+    'textEntitiesJson',
+  );
+  @override
+  late final GeneratedColumn<String> textEntitiesJson = GeneratedColumn<String>(
+    'text_entities_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pollJsonMeta = const VerificationMeta(
+    'pollJson',
+  );
+  @override
+  late final GeneratedColumn<String> pollJson = GeneratedColumn<String>(
+    'poll_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1822,6 +1844,8 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostEntry> {
     linkPreviewImageUrl,
     forwardedFromTitle,
     forwardedFromUsername,
+    textEntitiesJson,
+    pollJson,
     createdAt,
     updatedAt,
   ];
@@ -1986,6 +2010,21 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostEntry> {
         ),
       );
     }
+    if (data.containsKey('text_entities_json')) {
+      context.handle(
+        _textEntitiesJsonMeta,
+        textEntitiesJson.isAcceptableOrUnknown(
+          data['text_entities_json']!,
+          _textEntitiesJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('poll_json')) {
+      context.handle(
+        _pollJsonMeta,
+        pollJson.isAcceptableOrUnknown(data['poll_json']!, _pollJsonMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -2087,6 +2126,14 @@ class $PostsTable extends Posts with TableInfo<$PostsTable, PostEntry> {
         DriftSqlType.string,
         data['${effectivePrefix}forwarded_from_username'],
       ),
+      textEntitiesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text_entities_json'],
+      ),
+      pollJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}poll_json'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -2124,6 +2171,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
   final String? linkPreviewImageUrl;
   final String? forwardedFromTitle;
   final String? forwardedFromUsername;
+  final String? textEntitiesJson;
+  final String? pollJson;
   final DateTime createdAt;
   final DateTime updatedAt;
   const PostEntry({
@@ -2146,6 +2195,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
     this.linkPreviewImageUrl,
     this.forwardedFromTitle,
     this.forwardedFromUsername,
+    this.textEntitiesJson,
+    this.pollJson,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -2187,6 +2238,12 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
     if (!nullToAbsent || forwardedFromUsername != null) {
       map['forwarded_from_username'] = Variable<String>(forwardedFromUsername);
     }
+    if (!nullToAbsent || textEntitiesJson != null) {
+      map['text_entities_json'] = Variable<String>(textEntitiesJson);
+    }
+    if (!nullToAbsent || pollJson != null) {
+      map['poll_json'] = Variable<String>(pollJson);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -2225,6 +2282,12 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
       forwardedFromUsername: forwardedFromUsername == null && nullToAbsent
           ? const Value.absent()
           : Value(forwardedFromUsername),
+      textEntitiesJson: textEntitiesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(textEntitiesJson),
+      pollJson: pollJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pollJson),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -2263,6 +2326,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
       forwardedFromUsername: serializer.fromJson<String?>(
         json['forwardedFromUsername'],
       ),
+      textEntitiesJson: serializer.fromJson<String?>(json['textEntitiesJson']),
+      pollJson: serializer.fromJson<String?>(json['pollJson']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -2294,6 +2359,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
       'forwardedFromUsername': serializer.toJson<String?>(
         forwardedFromUsername,
       ),
+      'textEntitiesJson': serializer.toJson<String?>(textEntitiesJson),
+      'pollJson': serializer.toJson<String?>(pollJson),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -2319,6 +2386,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
     Value<String?> linkPreviewImageUrl = const Value.absent(),
     Value<String?> forwardedFromTitle = const Value.absent(),
     Value<String?> forwardedFromUsername = const Value.absent(),
+    Value<String?> textEntitiesJson = const Value.absent(),
+    Value<String?> pollJson = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => PostEntry(
@@ -2353,6 +2422,10 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
     forwardedFromUsername: forwardedFromUsername.present
         ? forwardedFromUsername.value
         : this.forwardedFromUsername,
+    textEntitiesJson: textEntitiesJson.present
+        ? textEntitiesJson.value
+        : this.textEntitiesJson,
+    pollJson: pollJson.present ? pollJson.value : this.pollJson,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -2399,6 +2472,10 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
       forwardedFromUsername: data.forwardedFromUsername.present
           ? data.forwardedFromUsername.value
           : this.forwardedFromUsername,
+      textEntitiesJson: data.textEntitiesJson.present
+          ? data.textEntitiesJson.value
+          : this.textEntitiesJson,
+      pollJson: data.pollJson.present ? data.pollJson.value : this.pollJson,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -2426,6 +2503,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
           ..write('linkPreviewImageUrl: $linkPreviewImageUrl, ')
           ..write('forwardedFromTitle: $forwardedFromTitle, ')
           ..write('forwardedFromUsername: $forwardedFromUsername, ')
+          ..write('textEntitiesJson: $textEntitiesJson, ')
+          ..write('pollJson: $pollJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -2453,6 +2532,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
     linkPreviewImageUrl,
     forwardedFromTitle,
     forwardedFromUsername,
+    textEntitiesJson,
+    pollJson,
     createdAt,
     updatedAt,
   ]);
@@ -2479,6 +2560,8 @@ class PostEntry extends DataClass implements Insertable<PostEntry> {
           other.linkPreviewImageUrl == this.linkPreviewImageUrl &&
           other.forwardedFromTitle == this.forwardedFromTitle &&
           other.forwardedFromUsername == this.forwardedFromUsername &&
+          other.textEntitiesJson == this.textEntitiesJson &&
+          other.pollJson == this.pollJson &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -2503,6 +2586,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
   final Value<String?> linkPreviewImageUrl;
   final Value<String?> forwardedFromTitle;
   final Value<String?> forwardedFromUsername;
+  final Value<String?> textEntitiesJson;
+  final Value<String?> pollJson;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const PostsCompanion({
@@ -2525,6 +2610,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
     this.linkPreviewImageUrl = const Value.absent(),
     this.forwardedFromTitle = const Value.absent(),
     this.forwardedFromUsername = const Value.absent(),
+    this.textEntitiesJson = const Value.absent(),
+    this.pollJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -2548,6 +2635,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
     this.linkPreviewImageUrl = const Value.absent(),
     this.forwardedFromTitle = const Value.absent(),
     this.forwardedFromUsername = const Value.absent(),
+    this.textEntitiesJson = const Value.absent(),
+    this.pollJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : accountId = Value(accountId),
@@ -2574,6 +2663,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
     Expression<String>? linkPreviewImageUrl,
     Expression<String>? forwardedFromTitle,
     Expression<String>? forwardedFromUsername,
+    Expression<String>? textEntitiesJson,
+    Expression<String>? pollJson,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -2601,6 +2692,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
         'forwarded_from_title': forwardedFromTitle,
       if (forwardedFromUsername != null)
         'forwarded_from_username': forwardedFromUsername,
+      if (textEntitiesJson != null) 'text_entities_json': textEntitiesJson,
+      if (pollJson != null) 'poll_json': pollJson,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -2626,6 +2719,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
     Value<String?>? linkPreviewImageUrl,
     Value<String?>? forwardedFromTitle,
     Value<String?>? forwardedFromUsername,
+    Value<String?>? textEntitiesJson,
+    Value<String?>? pollJson,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -2651,6 +2746,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
       forwardedFromTitle: forwardedFromTitle ?? this.forwardedFromTitle,
       forwardedFromUsername:
           forwardedFromUsername ?? this.forwardedFromUsername,
+      textEntitiesJson: textEntitiesJson ?? this.textEntitiesJson,
+      pollJson: pollJson ?? this.pollJson,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -2722,6 +2819,12 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
         forwardedFromUsername.value,
       );
     }
+    if (textEntitiesJson.present) {
+      map['text_entities_json'] = Variable<String>(textEntitiesJson.value);
+    }
+    if (pollJson.present) {
+      map['poll_json'] = Variable<String>(pollJson.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2753,6 +2856,8 @@ class PostsCompanion extends UpdateCompanion<PostEntry> {
           ..write('linkPreviewImageUrl: $linkPreviewImageUrl, ')
           ..write('forwardedFromTitle: $forwardedFromTitle, ')
           ..write('forwardedFromUsername: $forwardedFromUsername, ')
+          ..write('textEntitiesJson: $textEntitiesJson, ')
+          ..write('pollJson: $pollJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -5843,6 +5948,8 @@ typedef $$PostsTableCreateCompanionBuilder =
       Value<String?> linkPreviewImageUrl,
       Value<String?> forwardedFromTitle,
       Value<String?> forwardedFromUsername,
+      Value<String?> textEntitiesJson,
+      Value<String?> pollJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -5867,6 +5974,8 @@ typedef $$PostsTableUpdateCompanionBuilder =
       Value<String?> linkPreviewImageUrl,
       Value<String?> forwardedFromTitle,
       Value<String?> forwardedFromUsername,
+      Value<String?> textEntitiesJson,
+      Value<String?> pollJson,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -6038,6 +6147,16 @@ class $$PostsTableFilterComposer extends Composer<_$AppDatabase, $PostsTable> {
 
   ColumnFilters<String> get forwardedFromUsername => $composableBuilder(
     column: $table.forwardedFromUsername,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get textEntitiesJson => $composableBuilder(
+    column: $table.textEntitiesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pollJson => $composableBuilder(
+    column: $table.pollJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6242,6 +6361,16 @@ class $$PostsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get textEntitiesJson => $composableBuilder(
+    column: $table.textEntitiesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pollJson => $composableBuilder(
+    column: $table.pollJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -6380,6 +6509,14 @@ class $$PostsTableAnnotationComposer
     column: $table.forwardedFromUsername,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get textEntitiesJson => $composableBuilder(
+    column: $table.textEntitiesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pollJson =>
+      $composableBuilder(column: $table.pollJson, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -6536,6 +6673,8 @@ class $$PostsTableTableManager
                 Value<String?> linkPreviewImageUrl = const Value.absent(),
                 Value<String?> forwardedFromTitle = const Value.absent(),
                 Value<String?> forwardedFromUsername = const Value.absent(),
+                Value<String?> textEntitiesJson = const Value.absent(),
+                Value<String?> pollJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => PostsCompanion(
@@ -6558,6 +6697,8 @@ class $$PostsTableTableManager
                 linkPreviewImageUrl: linkPreviewImageUrl,
                 forwardedFromTitle: forwardedFromTitle,
                 forwardedFromUsername: forwardedFromUsername,
+                textEntitiesJson: textEntitiesJson,
+                pollJson: pollJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -6582,6 +6723,8 @@ class $$PostsTableTableManager
                 Value<String?> linkPreviewImageUrl = const Value.absent(),
                 Value<String?> forwardedFromTitle = const Value.absent(),
                 Value<String?> forwardedFromUsername = const Value.absent(),
+                Value<String?> textEntitiesJson = const Value.absent(),
+                Value<String?> pollJson = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => PostsCompanion.insert(
@@ -6604,6 +6747,8 @@ class $$PostsTableTableManager
                 linkPreviewImageUrl: linkPreviewImageUrl,
                 forwardedFromTitle: forwardedFromTitle,
                 forwardedFromUsername: forwardedFromUsername,
+                textEntitiesJson: textEntitiesJson,
+                pollJson: pollJson,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),

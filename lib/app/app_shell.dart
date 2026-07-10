@@ -83,13 +83,14 @@ class _XDrawer extends ConsumerWidget {
 
     final accountAsync = ref.watch(activeAccountProvider);
     final channelsAsync = ref.watch(channelsProvider);
+    final foldersAsync = ref.watch(foldersProvider);
 
     final String displayName = accountAsync.value?.displayName ?? 'Telegram User';
     final String username = accountAsync.value?.username != null 
         ? '@${accountAsync.value!.username}' 
         : '';
     final int channelsCount = channelsAsync.value?.length ?? 0;
-    const int foldersCount = 5; // All, Tech, Crypto, News, Design
+    final int foldersCount = foldersAsync.value?.length ?? 0;
 
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -202,6 +203,7 @@ class _XDrawer extends ConsumerWidget {
               title: const Text('Bookmarks', style: TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(context);
+                GoRouter.of(context).push('/bookmarks');
               },
             ),
             ListTile(
@@ -209,6 +211,7 @@ class _XDrawer extends ConsumerWidget {
               title: const Text('Folders / Lists', style: TextStyle(fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(context);
+                GoRouter.of(context).push('/folders');
               },
             ),
             ListTile(
