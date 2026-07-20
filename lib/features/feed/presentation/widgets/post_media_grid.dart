@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
 
 class PostMediaGrid extends StatelessWidget {
   final List<MediaItem> media;
@@ -25,60 +27,60 @@ class PostMediaGrid extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.mediaRadius - 1),
-          child: _buildGrid(items, borderColor),
+          child: _buildGrid(context, items, borderColor),
         ),
       ),
     );
   }
 
-  Widget _buildGrid(List<MediaItem> items, Color borderColor) {
+  Widget _buildGrid(BuildContext context, List<MediaItem> items, Color borderColor) {
     switch (items.length) {
       case 1:
-        return _buildSingleMedia(items[0]);
+        return _buildSingleMedia(context, items[0]);
       case 2:
-        return _buildTwoMedia(items);
+        return _buildTwoMedia(context, items);
       case 3:
-        return _buildThreeMedia(items);
+        return _buildThreeMedia(context, items);
       default:
-        return _buildFourMedia(items);
+        return _buildFourMedia(context, items);
     }
   }
 
-  Widget _buildSingleMedia(MediaItem item) {
+  Widget _buildSingleMedia(BuildContext context, MediaItem item) {
     return AspectRatio(
       aspectRatio: item.width > 0 && item.height > 0
           ? (item.width / item.height).clamp(0.5, 2.0)
           : 16 / 9,
-      child: _MediaPlaceholder(item: item),
+      child: _MediaTile(item: item, index: 0),
     );
   }
 
-  Widget _buildTwoMedia(List<MediaItem> items) {
+  Widget _buildTwoMedia(BuildContext context, List<MediaItem> items) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaPlaceholder(item: items[0])),
+          Expanded(child: _MediaTile(item: items[0], index: 0)),
           const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(child: _MediaPlaceholder(item: items[1])),
+          Expanded(child: _MediaTile(item: items[1], index: 1)),
         ],
       ),
     );
   }
 
-  Widget _buildThreeMedia(List<MediaItem> items) {
+  Widget _buildThreeMedia(BuildContext context, List<MediaItem> items) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaPlaceholder(item: items[0])),
+          Expanded(child: _MediaTile(item: items[0], index: 0)),
           const SizedBox(width: AppSpacing.mediaGap),
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MediaPlaceholder(item: items[1])),
+                Expanded(child: _MediaTile(item: items[1], index: 1)),
                 const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(child: _MediaPlaceholder(item: items[2])),
+                Expanded(child: _MediaTile(item: items[2], index: 2)),
               ],
             ),
           ),
@@ -87,7 +89,7 @@ class PostMediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildFourMedia(List<MediaItem> items) {
+  Widget _buildFourMedia(BuildContext context, List<MediaItem> items) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Column(
@@ -95,9 +97,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaPlaceholder(item: items[0])),
+                Expanded(child: _MediaTile(item: items[0], index: 0)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaPlaceholder(item: items[1])),
+                Expanded(child: _MediaTile(item: items[1], index: 1)),
               ],
             ),
           ),
@@ -105,9 +107,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaPlaceholder(item: items[2])),
+                Expanded(child: _MediaTile(item: items[2], index: 2)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaPlaceholder(item: items[3])),
+                Expanded(child: _MediaTile(item: items[3], index: 3)),
               ],
             ),
           ),
@@ -117,90 +119,101 @@ class PostMediaGrid extends StatelessWidget {
   }
 }
 
-class _MediaPlaceholder extends StatelessWidget {
+class _MediaTile extends ConsumerWidget {
   final MediaItem item;
+  final int index;
 
-  const _MediaPlaceholder({required this.item});
+  const _MediaTile({required this.item, required this.index});
+
+  String? _findValidFilePath() {
+    if (item.localPath != null && item.localPath!.isNotEmpty) {
+      final file = File(item.localPath!);
+      if (file.existsSync()) return item.localPath;
+    }
+    if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty) {
+      final file = File(item.thumbnailUrl!);
+      if (file.existsSync()) return item.thumbnailUrl;
+    }
+    return null;
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
     final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    Widget? mediaWidget;
+    final filePath = _findValidFilePath();
+    final heroTag = 'media_${item.id}_$index';
 
-    // 1. If it's a photo, try to load the local photo
-    if (item.type == MediaType.photo) {
-      if (item.localPath != null && item.localPath!.startsWith('/')) {
-        final file = File(item.localPath!);
-        if (file.existsSync()) {
-          mediaWidget = Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          );
-        }
-      }
-    } 
-    // 2. If it's a video or gif, try to load the local thumbnail
-    else if (item.type == MediaType.video || item.type == MediaType.gif) {
-      String? path;
-      if (item.thumbnailUrl != null && item.thumbnailUrl!.startsWith('/')) {
-        path = item.thumbnailUrl;
-      } else if (item.localPath != null && item.localPath!.startsWith('/')) {
-        path = item.localPath;
-      }
-      
-      if (path != null) {
-        final file = File(path);
-        if (file.existsSync()) {
-          mediaWidget = Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(
-                file,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-              ),
-              if (item.type == MediaType.video)
-                Center(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(
-                      Icons.play_arrow,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
-            ],
-          );
-        }
-      }
-    }
+    Widget? contentWidget;
 
-    if (mediaWidget != null) {
-      return mediaWidget;
-    }
-
-    return Container(
-      color: bgColor,
-      child: Center(
-        child: Icon(
-          item.type == MediaType.video ? Icons.play_circle_outline
-              : item.type == MediaType.document ? Icons.insert_drive_file_outlined
-              : Icons.image_outlined,
-          color: iconColor,
-          size: 32,
+    if (filePath != null) {
+      contentWidget = Hero(
+        tag: heroTag,
+        child: Image.file(
+          File(filePath),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
         ),
-      ),
+      );
+
+      if (item.type == MediaType.video) {
+        contentWidget = Stack(
+          fit: StackFit.expand,
+          children: [
+            contentWidget,
+            Center(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black45,
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(10),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+    } else {
+      contentWidget = Container(
+        color: bgColor,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                item.type == MediaType.video
+                    ? Icons.play_circle_outline_rounded
+                    : item.type == MediaType.document
+                        ? Icons.insert_drive_file_outlined
+                        : Icons.image_outlined,
+                color: iconColor,
+                size: 32,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (filePath != null) {
+          FullScreenImageViewer.show(
+            context,
+            imagePath: filePath,
+            tag: heroTag,
+          );
+        }
+      },
+      child: contentWidget,
     );
   }
 }

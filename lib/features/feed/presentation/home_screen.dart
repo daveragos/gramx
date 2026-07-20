@@ -25,6 +25,7 @@ class HomeScreen extends ConsumerWidget {
 
     final channelsAsync = ref.watch(channelsProvider);
     final accountAsync = ref.watch(activeAccountProvider);
+    final isSyncing = ref.watch(isSyncingProvider).value;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
     final foldersAsync = ref.watch(foldersProvider);
@@ -40,8 +41,36 @@ class HomeScreen extends ConsumerWidget {
       error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
       data: (channels) {
         final isEmpty = channels.isEmpty;
+        final isLoggedIn = accountAsync.value != null;
 
+        // If logged in and channels are syncing or empty initially, show sync view
         if (isEmpty) {
+          if (isLoggedIn || isSyncing) {
+            return Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xxl),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(color: AppColors.accent),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Syncing Telegram Feed',
+                        style: AppTypography.heading(color: primaryTextColor),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Fetching your subscribed channels and history from Telegram...',
+                        style: AppTypography.body(color: secondaryTextColor),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           return const Scaffold(
             body: _OnboardingView(),
           );
@@ -93,15 +122,6 @@ class HomeScreen extends ConsumerWidget {
                       style: AppTypography.heading(color: primaryTextColor),
                     ),
                     centerTitle: true,
-                    actions: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.settings_outlined,
-                          color: primaryTextColor,
-                        ),
-                        onPressed: () => context.push('/settings'),
-                      ),
-                    ],
                     bottom: TabBar(
                       isScrollable: true,
                       tabAlignment: TabAlignment.start,
@@ -300,10 +320,9 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
                           final syncService = ref.read(syncServiceProvider);
                           await syncService.addPublicChannelByUsername(text);
                           if (context.mounted) {
-                            Navigator.pop(context); // close dialog
+                            Navigator.pop(context);
                           }
 
-                          // Invalidate providers to refresh
                           ref.invalidate(feedPostsProvider);
                           ref.invalidate(channelsProvider);
                         } catch (e) {
@@ -335,15 +354,63 @@ void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
   );
 }
 
-class _FolderFeed extends ConsumerWidget {
+class _FolderFeed extends ConsumerStatefulWidget {
   final String folderTitle;
   final String folderId;
 
   const _FolderFeed({required this.folderTitle, required this.folderId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final feedAsync = ref.watch(filteredFeedPostsProvider(folderId));
+  ConsumerState<_FolderFeed> createState() => _FolderFeedState();
+}
+
+class _FolderFeedState extends ConsumerState<_FolderFeed> {
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() async {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      if (!_isLoadingMore) {
+        setState(() => _isLoadingMore = true);
+        try {
+          final channels = ref.read(channelsProvider).value ?? [];
+          for (final channel in channels) {
+            final channelDbId = int.tryParse(channel.id);
+            if (channelDbId != null) {
+              await ref.read(
+                loadMoreChannelHistoryProvider((
+                  channelDbId: channelDbId,
+                  chatId: channel.chatId,
+                )).future,
+              );
+            }
+          }
+        } catch (_) {
+        } finally {
+          if (mounted) setState(() => _isLoadingMore = false);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
+    final isSyncing = ref.watch(isSyncingProvider).value;
     final theme = Theme.of(context);
 
     return feedAsync.when(
@@ -370,6 +437,9 @@ class _FolderFeed extends ConsumerWidget {
       ),
       data: (posts) {
         if (posts.isEmpty) {
+          if (isSyncing) {
+            return const FeedSkeleton();
+          }
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -381,7 +451,7 @@ class _FolderFeed extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'No posts in $folderTitle',
+                  'No posts in ${widget.folderTitle}',
                   style: AppTypography.subheading(
                     color: theme.colorScheme.onSurface,
                   ),
@@ -394,12 +464,28 @@ class _FolderFeed extends ConsumerWidget {
         return RefreshIndicator(
           color: AppColors.accent,
           onRefresh: () async {
+            final syncService = ref.read(syncServiceProvider);
+            await syncService.syncSubscribedChannels();
+            await syncService.syncFeedHistory();
             ref.invalidate(feedPostsProvider);
           },
           child: ListView.builder(
+            controller: _scrollController,
             padding: EdgeInsets.zero,
-            itemCount: posts.length,
+            itemCount: posts.length + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
+              if (index == posts.length) {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.accent,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                );
+              }
+
               final post = posts[index];
               return PostCard(
                 post: post,

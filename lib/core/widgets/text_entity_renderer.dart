@@ -131,7 +131,7 @@ class TextEntityRenderer extends StatelessWidget {
         final tapUrl = entity.url ?? entityText;
         return TextSpan(
           text: entityText,
-          style: accentStyle.copyWith(decoration: TextDecoration.underline),
+          style: accentStyle.copyWith(decoration: TextDecoration.none),
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(context, tapUrl),
         );

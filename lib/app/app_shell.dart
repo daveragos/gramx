@@ -6,6 +6,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
+import 'package:gramx/features/search/presentation/search_screen.dart';
+
 class AppShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -34,6 +36,9 @@ class AppShell extends ConsumerWidget {
                   currentIndex: navigationShell.currentIndex,
                   onTap: (index) {
                     ref.read(bottomNavVisibilityProvider.notifier).show();
+                    if (index == 1 && navigationShell.currentIndex == 1) {
+                      ref.read(searchFocusTriggerProvider.notifier).trigger();
+                    }
                     navigationShell.goBranch(
                       index,
                       initialLocation: index == navigationShell.currentIndex,

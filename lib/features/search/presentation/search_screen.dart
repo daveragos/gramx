@@ -24,6 +24,16 @@ class SearchNotifier extends Notifier<String> {
 final searchQueryProvider =
     NotifierProvider<SearchNotifier, String>(SearchNotifier.new);
 
+class SearchFocusNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void trigger() => state++;
+}
+
+final searchFocusTriggerProvider =
+    NotifierProvider<SearchFocusNotifier, int>(SearchFocusNotifier.new);
+
 /// Filtered posts based on search query.
 final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final query = ref.watch(searchQueryProvider).toLowerCase().trim();
@@ -97,6 +107,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(searchFocusTriggerProvider, (previous, next) {
+      if (next > 0) {
+        _focusNode.requestFocus();
+      }
+    });
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final secondaryColor =

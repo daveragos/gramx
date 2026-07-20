@@ -17,10 +17,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  // Feed Preferences stubs state
+  // Feed Preferences state
   bool _autoPlayVideos = false;
-  bool _smartReadTracking = false;
-  bool _snapScrolling = false;
 
   @override
   Widget build(BuildContext context) {
@@ -34,296 +32,274 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Settings', style: AppTypography.heading(color: primaryColor)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Settings and privacy', style: AppTypography.heading(color: primaryColor)),
+            accountAsync.when(
+              data: (acc) => acc != null && acc.username != null
+                  ? Text('@${acc.username}', style: AppTypography.actionCount(color: secondaryColor))
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (err, st) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Divider(height: 1, thickness: 0.5, color: borderColor),
+        ),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         children: [
-          // 1. Account Section Card
           accountAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-            error: (err, _) => Padding(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Center(child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2)),
+            ),
+            error: (err, stack) => Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text('Error: $err', style: TextStyle(color: AppColors.error)),
+              child: Text('Error loading account: $err', style: const TextStyle(color: AppColors.error)),
             ),
             data: (account) {
               final isLoggedIn = account != null;
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  border: Border.all(color: borderColor, width: 0.5),
-                  borderRadius: BorderRadius.circular(16),
-                  color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                ),
-                child: isLoggedIn
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              () {
-                                final path = account.avatarPath;
-                                if (path != null && path.isNotEmpty) {
-                                  final file = File(path);
-                                  if (file.existsSync()) {
-                                    return CircleAvatar(
-                                      radius: 24,
-                                      backgroundImage: FileImage(file),
-                                    );
-                                  }
-                                }
-                                return CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: AppColors.accent,
-                                  child: Text(
-                                    account.displayName?.isNotEmpty ?? false
-                                        ? account.displayName![0].toUpperCase()
-                                        : 'U',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                );
-                              }(),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      account.displayName ?? 'Telegram User',
-                                      style: AppTypography.displayName(color: primaryColor),
-                                    ),
-                                    if (account.username != null)
-                                      Text(
-                                        '@${account.username}',
-                                        style: AppTypography.username(color: secondaryColor),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          const Divider(height: 1),
-                          const SizedBox(height: AppSpacing.md),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Phone Number', style: AppTypography.actionCount(color: secondaryColor)),
-                                  const SizedBox(height: 2),
-                                  Text(account.phoneNumber ?? 'Not provided', style: AppTypography.body(color: primaryColor)),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('Telegram ID', style: AppTypography.actionCount(color: secondaryColor)),
-                                  const SizedBox(height: 2),
-                                  Text(account.telegramUserId, style: AppTypography.body(color: primaryColor)),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: () => _confirmLogout(context, ref),
-                            child: const Text(
-                              'Log out from gramX',
-                              style: TextStyle(
-                                color: AppColors.error,
+              if (isLoggedIn) {
+                return InkWell(
+                  onTap: () => context.push('/profile'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        () {
+                          final path = account.avatarPath;
+                          if (path != null && path.isNotEmpty) {
+                            final file = File(path);
+                            if (file.existsSync()) {
+                              return CircleAvatar(
+                                radius: 24,
+                                backgroundImage: FileImage(file),
+                              );
+                            }
+                          }
+                          return CircleAvatar(
+                            radius: 24,
+                            backgroundColor: AppColors.accent,
+                            child: Text(
+                              account.displayName?.isNotEmpty ?? false
+                                  ? account.displayName![0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontSize: 18,
                               ),
                             ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Connect to Telegram',
-                            style: AppTypography.subheading(color: primaryColor),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            'Log in with your phone number or QR code to sync your channel folders and post timeline.',
-                            style: AppTypography.body(color: secondaryColor),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accent,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
+                          );
+                        }(),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                account.displayName ?? 'Telegram User',
+                                style: AppTypography.displayName(color: primaryColor).copyWith(fontSize: 16),
                               ),
-                            ),
-                            onPressed: () => context.push('/auth'),
-                            child: const Text('Log In with Telegram', style: TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '@${account.username ?? 'user'}',
+                                style: AppTypography.username(color: secondaryColor),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
+                        Icon(Icons.chevron_right, color: secondaryColor),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return InkWell(
+                onTap: () => context.push('/auth'),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 22,
+                        backgroundColor: AppColors.accent,
+                        child: Icon(Icons.login_rounded, color: Colors.white, size: 20),
                       ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Log in to Telegram',
+                              style: AppTypography.subheading(color: primaryColor),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Sync your channels, folders, and timeline',
+                              style: AppTypography.actionCount(color: secondaryColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: AppColors.accent),
+                    ],
+                  ),
+                ),
               );
             },
           ),
-          const SizedBox(height: AppSpacing.xl),
 
-          // 2. Appearance Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Appearance', style: AppTypography.subheading(color: secondaryColor)),
+          // 2. YOUR ACCOUNT SECTION
+          _SectionHeader(title: 'YOUR ACCOUNT', secondaryColor: secondaryColor),
+          ListTile(
+            leading: Icon(Icons.person_outline, color: primaryColor),
+            title: Text('Account Information', style: AppTypography.body(color: primaryColor)),
+            subtitle: Text('See your Telegram account details, ID, and phone number', style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: Icon(Icons.chevron_right, color: secondaryColor),
+            onTap: () => context.push('/profile'),
           ),
-          const SizedBox(height: AppSpacing.md),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+
+          _SectionHeader(title: 'DISPLAY AND SOUND', secondaryColor: secondaryColor),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+            child: Text(
+              'Dark mode appearance',
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Row(
               children: [
                 Expanded(
-                  child: _ThemePreviewCard(
+                  child: _XThemeSegmentTile(
                     title: 'Light',
                     mode: AppThemeMode.light,
                     currentMode: currentTheme,
-                    previewColor: AppColors.lightBackground,
+                    bgColor: AppColors.lightBackground,
+                    borderColor: borderColor,
+                    tileTextColor: AppColors.lightTextPrimary,
                     onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.light),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: _ThemePreviewCard(
-                    title: 'Dim',
-                    mode: AppThemeMode.dim,
-                    currentMode: currentTheme,
-                    previewColor: AppColors.dimBackground,
-                    onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.dim),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: _ThemePreviewCard(
-                    title: 'Dark',
+                  child: _XThemeSegmentTile(
+                    title: 'Lights out',
                     mode: AppThemeMode.dark,
                     currentMode: currentTheme,
-                    previewColor: AppColors.darkBackground,
+                    bgColor: AppColors.darkBackground,
+                    borderColor: borderColor,
+                    tileTextColor: AppColors.darkTextPrimary,
                     onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.dark),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // 3. Feed Preferences Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Feed Preferences', style: AppTypography.subheading(color: secondaryColor)),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          // 4. PREFERENCES SECTION
+          _SectionHeader(title: 'PREFERENCES', secondaryColor: secondaryColor),
           SwitchListTile(
+            secondary: Icon(Icons.play_circle_outline, color: primaryColor),
             title: Text('Auto-play videos', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('Play videos automatically in feed', style: AppTypography.actionCount(color: secondaryColor)),
+            subtitle: Text('Videos play automatically in your feed', style: AppTypography.actionCount(color: secondaryColor)),
+            activeThumbColor: AppColors.accent,
             value: _autoPlayVideos,
             onChanged: (val) => setState(() => _autoPlayVideos = val),
           ),
-          SwitchListTile(
-            title: Text('Smart read tracking', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('Mark posts as read based on viewing time', style: AppTypography.actionCount(color: secondaryColor)),
-            value: _smartReadTracking,
-            onChanged: (val) => setState(() => _smartReadTracking = val),
-          ),
-          SwitchListTile(
-            title: Text('Snap scrolling', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('Posts snap into view when scrolling', style: AppTypography.actionCount(color: secondaryColor)),
-            value: _snapScrolling,
-            onChanged: (val) => setState(() => _snapScrolling = val),
-          ),
-          const SizedBox(height: AppSpacing.xl),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // 4. Storage & Data Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('Storage & Data', style: AppTypography.subheading(color: secondaryColor)),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              border: Border.all(color: borderColor, width: 0.5),
-              borderRadius: BorderRadius.circular(12),
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Local Storage Cache', style: AppTypography.body(color: primaryColor)),
-                    Text('Calculating...', style: AppTypography.actionCount(color: secondaryColor)),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                const LinearProgressIndicator(
-                  value: 0.0,
-                  backgroundColor: Colors.grey,
-                  color: AppColors.accent,
-                  minHeight: 6,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  leading: const Icon(Icons.delete_outline, color: AppColors.error),
-                  title: const Text('Clear cache', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Storage clearing will be fully wired up in Phase 6.',
-                          style: AppTypography.body(color: Colors.white),
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-
-          // 5. About Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Text('About & Support', style: AppTypography.subheading(color: secondaryColor)),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+          // 5. DATA AND STORAGE SECTION
+          _SectionHeader(title: 'DATA AND STORAGE', secondaryColor: secondaryColor),
           ListTile(
+            leading: Icon(Icons.storage_outlined, color: primaryColor),
+            title: Text('Media Storage & Cache', style: AppTypography.body(color: primaryColor)),
+            subtitle: Text('Manage offline media and data cache', style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: const Text('Clear', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 14)),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Storage cache cleared.',
+                    style: AppTypography.body(color: Colors.white),
+                  ),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+
+          // 6. ABOUT & SUPPORT SECTION
+          _SectionHeader(title: 'ABOUT & SUPPORT', secondaryColor: secondaryColor),
+          ListTile(
+            leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text('Version', style: AppTypography.body(color: primaryColor)),
             trailing: Text('v0.1.0', style: AppTypography.actionCount(color: secondaryColor)),
           ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
+            leading: Icon(Icons.shield_outlined, color: primaryColor),
             title: Text('Privacy Policy', style: AppTypography.body(color: primaryColor)),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () {},
           ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
+            leading: Icon(Icons.help_outline, color: primaryColor),
             title: Text('Help Center', style: AppTypography.body(color: primaryColor)),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () {},
           ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+
+          accountAsync.when(
+            data: (acc) => acc != null
+                ? Column(
+                    children: [
+                      const SizedBox(height: AppSpacing.md),
+                      ListTile(
+                        leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+                        title: const Text(
+                          'Log out',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        onTap: () => _confirmLogout(context, ref),
+                      ),
+                      Divider(height: 1, thickness: 0.5, color: borderColor),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (err, stack) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
@@ -333,8 +309,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out from gramX? This will clear all offline synced feeds and accounts.'),
+        title: const Text('Log out of gramX?'),
+        content: const Text('You will need to re-login to access your synced Telegram timeline and channels.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -342,7 +319,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Log Out', style: TextStyle(color: AppColors.error)),
+            child: const Text('Log out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -357,77 +334,90 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
-class _ThemePreviewCard extends StatelessWidget {
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final Color secondaryColor;
+
+  const _SectionHeader({
+    required this.title,
+    required this.secondaryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+        bottom: AppSpacing.sm,
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: secondaryColor,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+}
+
+class _XThemeSegmentTile extends StatelessWidget {
   final String title;
   final AppThemeMode mode;
   final AppThemeMode currentMode;
-  final Color previewColor;
+  final Color bgColor;
+  final Color borderColor;
+  final Color tileTextColor;
   final VoidCallback onTap;
 
-  const _ThemePreviewCard({
+  const _XThemeSegmentTile({
     required this.title,
     required this.mode,
     required this.currentMode,
-    required this.previewColor,
+    required this.bgColor,
+    required this.borderColor,
+    required this.tileTextColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isSelected = mode == currentMode;
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.onSurface;
-    final isDarkTheme = theme.brightness == Brightness.dark;
-    final customBorderColor = isDarkTheme ? AppColors.darkBorder : AppColors.lightBorder;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.xs),
         decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.accent : customBorderColor,
+            color: isSelected ? AppColors.accent : borderColor,
             width: isSelected ? 2.0 : 1.0,
           ),
-          borderRadius: BorderRadius.circular(12),
-          color: theme.brightness == Brightness.dark ? AppColors.darkSurface : AppColors.lightSurface,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Preview Swatch Box
-            Container(
-              height: 40,
-              width: 60,
-              decoration: BoxDecoration(
-                color: previewColor,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: customBorderColor, width: 0.5),
-              ),
-              child: Center(
-                child: Container(
-                  height: 3,
-                  width: 20,
-                  color: AppColors.accent,
-                ),
-              ),
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? AppColors.accent : tileTextColor.withValues(alpha: 0.6),
+              size: 16,
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(width: 6),
             Text(
               title,
-              style: AppTypography.body(color: primaryColor).copyWith(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              style: AppTypography.body(color: isSelected ? AppColors.accent : tileTextColor).copyWith(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                fontSize: 14,
               ),
             ),
-            if (isSelected) ...[
-              const SizedBox(height: 4),
-              const Icon(
-                Icons.check_circle,
-                color: AppColors.accent,
-                size: 16,
-              ),
-            ],
           ],
         ),
       ),

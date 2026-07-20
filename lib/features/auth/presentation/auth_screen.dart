@@ -1,21 +1,14 @@
+import 'package:country_picker/country_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
-// ============================================================================
-// AuthScreen — page‑driven Telegram login flow.
-//
-// Each AuthStep maps to its own full‑screen page. Transitions between pages
-// are animated with a horizontal slide. The screen listens to
-// [authControllerProvider] and reacts to step changes automatically.
-// ============================================================================
-
+/// Fully reimagined page-driven Telegram connection and login workflow.
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
@@ -24,40 +17,21 @@ class AuthScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthScreenState extends ConsumerState<AuthScreen>
-    with TickerProviderStateMixin {
-  // Text controllers — one per input field. They survive page transitions
-  // because ConsumerStatefulWidget keeps state alive as long as the route is.
+    with SingleTickerProviderStateMixin {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
-  // Page animation
-  late final AnimationController _pageAnimController;
-  late final Animation<Offset> _slideIn;
-  late final Animation<double> _fadeIn;
-
-  AuthStep _previousStep = AuthStep.loading;
+  late final AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-    _pageAnimController = AnimationController(
+    _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _slideIn = Tween<Offset>(
-      begin: const Offset(0.15, 0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _pageAnimController,
-      curve: Curves.easeOutCubic,
-    ));
-    _fadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
-      parent: _pageAnimController,
-      curve: Curves.easeOut,
-    ));
-    _pageAnimController.forward();
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -65,12 +39,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
-    _pageAnimController.dispose();
+    _pulseController.dispose();
     super.dispose();
-  }
-
-  void _animateStepChange() {
-    _pageAnimController.forward(from: 0);
   }
 
   @override
@@ -82,49 +52,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final secondaryColor =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    // Animate when step changes.
-    if (authState.step != _previousStep) {
-      _previousStep = authState.step;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _animateStepChange();
-      });
-    }
-
-    // Navigate home on authentication.
-    if (authState.step == AuthStep.authenticated) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/home');
-      });
-    }
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ────────────────────────────────────────────────
+            // Top Bar
             _buildTopBar(authState, controller, theme),
 
-            // ── Content ────────────────────────────────────────────────
+            // Main Content Body
             Expanded(
-              child: SlideTransition(
-                position: _slideIn,
-                child: FadeTransition(
-                  opacity: _fadeIn,
-                  child: _buildPage(authState, controller, theme),
-                ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: _buildPage(authState, controller, theme),
               ),
             ),
 
-            // ── Footer ─────────────────────────────────────────────────
+            // Footer Notice
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xxl, 0, AppSpacing.xxl, AppSpacing.lg,
               ),
               child: Text(
-                'By signing in, you agree to our Terms of Service and Privacy Policy.\n'
-                'This is an unofficial client powered by TDLib.',
-                style: AppTypography.actionCount(color: secondaryColor),
+                'gramX • Powered by official TDLib MTProto engine\n'
+                'No third-party push • No tracking',
+                style: AppTypography.actionCount(color: secondaryColor.withValues(alpha: 0.7)),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -134,9 +88,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
-  // ==========================================================================
-  // Top bar
-  // ==========================================================================
   Widget _buildTopBar(
     AuthState authState,
     AuthController controller,
@@ -147,47 +98,52 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
+        horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
       child: Row(
         children: [
           if (showBack)
             IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back_rounded),
               onPressed: () => controller.reset(),
               tooltip: 'Back',
             )
           else
-            const SizedBox(width: 48), // balance the row
+            const SizedBox(width: 48),
 
           Expanded(
             child: Center(
               child: Text(
-                'Log in to gramX',
+                'gramX',
                 style: AppTypography.heading(
-                  color: theme.colorScheme.onSurface,
+                  color: AppColors.accent,
+                ).copyWith(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(width: 48), // balance
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
 
-  // ==========================================================================
-  // Page router — picks the right page for the current step.
-  // ==========================================================================
   Widget _buildPage(
     AuthState authState,
     AuthController controller,
     ThemeData theme,
   ) {
     return switch (authState.step) {
-      AuthStep.loading => _LoadingPage(),
+      AuthStep.loading => _ReimaginedLoadingPage(
+          authState: authState,
+          pulseController: _pulseController,
+          controller: controller,
+        ),
       AuthStep.loginMethodSelection => _SelectionPage(
           authState: authState,
           controller: controller,
@@ -214,61 +170,239 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           authState: authState,
           controller: controller,
         ),
-      AuthStep.error => _ErrorPage(
+      AuthStep.error => _ReimaginedErrorPage(
           authState: authState,
           controller: controller,
         ),
-      AuthStep.authenticated => _LoadingPage(), // brief flash before redirect
+      AuthStep.authenticated => _ReimaginedLoadingPage(
+          authState: authState,
+          pulseController: _pulseController,
+          controller: controller,
+        ),
     };
   }
 }
 
 // ============================================================================
-// LOADING PAGE
+// REIMAGINED CONNECTING & LOADING PAGE
 // ============================================================================
-class _LoadingPage extends StatelessWidget {
+class _ReimaginedLoadingPage extends StatelessWidget {
+  final AuthState authState;
+  final AnimationController pulseController;
+  final AuthController controller;
+
+  const _ReimaginedLoadingPage({
+    required this.authState,
+    required this.pulseController,
+    required this.controller,
+  });
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondaryColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'gramX',
-            style: AppTypography.heading(color: AppColors.accent).copyWith(
-              fontSize: 36,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pulsing Brand Icon Glow
+            AnimatedBuilder(
+              animation: pulseController,
+              builder: (context, child) {
+                final scale = 1.0 + (pulseController.value * 0.08);
+                return Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.accent,
+                          AppColors.accent.withValues(alpha: 0.7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.accent.withValues(
+                            alpha: 0.3 + (pulseController.value * 0.25),
+                          ),
+                          blurRadius: 24,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 44,
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'A Telegram feed client with a timeline UI',
-            style: AppTypography.body(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
+            const SizedBox(height: 36),
+
+            Text(
+              'Connecting to Telegram',
+              style: AppTypography.heading(color: theme.colorScheme.onSurface).copyWith(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-          const SizedBox(height: 48),
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: AppColors.accent,
+            const SizedBox(height: 12),
+
+            // Live status message text
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                authState.statusMessage,
+                key: ValueKey(authState.statusMessage),
+                style: AppTypography.body(color: secondaryColor),
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Connecting to Telegram…',
-            style: AppTypography.actionCount(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? AppColors.darkTextSecondary
-                  : AppColors.lightTextSecondary,
+            const SizedBox(height: 36),
+
+            const SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: AppColors.accent,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 48),
+
+            // Fallback retry button if stuck
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: secondaryColor,
+                side: BorderSide(
+                  color: secondaryColor.withValues(alpha: 0.3),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              onPressed: () => controller.resetSession(),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text(
+                'Reset Connection',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// REIMAGINED ERROR PAGE
+// ============================================================================
+class _ReimaginedErrorPage extends StatelessWidget {
+  final AuthState authState;
+  final AuthController controller;
+
+  const _ReimaginedErrorPage({
+    required this.authState,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.onSurface;
+    final secondaryColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                color: AppColors.error,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            Text(
+              'Connection Error',
+              style: AppTypography.heading(color: primaryColor).copyWith(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            Text(
+              authState.errorMessage ?? 'Unable to establish connection with Telegram.',
+              style: AppTypography.body(color: secondaryColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: () => controller.retryConnection(),
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                label: const Text(
+                  'Try Again',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: secondaryColor,
+                ),
+                onPressed: () => controller.resetSession(),
+                icon: const Icon(Icons.cleaning_services_rounded, size: 18),
+                label: const Text(
+                  'Clean Session & Restart',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -301,31 +435,51 @@ class _SelectionPage extends StatelessWidget {
         children: [
           const Spacer(flex: 2),
 
-          // Logo
+          // Logo & Hero
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.accent,
+                  AppColors.accent.withValues(alpha: 0.8),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.accent.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 44,
+            ),
+          ),
+          const SizedBox(height: 20),
+
           Text(
-            'gramX',
-            style: AppTypography.heading(color: AppColors.accent).copyWith(
-              fontSize: 40,
+            'Welcome to gramX',
+            style: AppTypography.heading(color: primaryColor).copyWith(
+              fontSize: 28,
               fontWeight: FontWeight.w900,
-              letterSpacing: -1.0,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'A Telegram feed client with a timeline UI',
-            style: AppTypography.body(color: secondaryColor),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Log in with your Telegram account\nto get started.',
+            'Your Telegram channels, as one timeline.',
             style: AppTypography.body(color: secondaryColor),
             textAlign: TextAlign.center,
           ),
 
           const Spacer(flex: 3),
 
-          // Error banner
           if (authState.errorMessage != null) ...[
             _ErrorBanner(message: authState.errorMessage!),
             const SizedBox(height: 16),
@@ -334,18 +488,18 @@ class _SelectionPage extends StatelessWidget {
           // Phone login button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(26),
                 ),
                 elevation: 0,
               ),
               onPressed: isSubmitting ? null : () => controller.selectPhoneLogin(),
-              icon: const Icon(Icons.phone, size: 20),
+              icon: const Icon(Icons.phone_android_rounded, size: 20),
               label: const Text(
                 'Continue with Phone Number',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
@@ -357,15 +511,16 @@ class _SelectionPage extends StatelessWidget {
           // QR code button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: primaryColor,
                 side: BorderSide(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  width: 1.2,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(26),
                 ),
               ),
               onPressed: isSubmitting ? null : () => controller.requestQrLogin(),
@@ -378,9 +533,9 @@ class _SelectionPage extends StatelessWidget {
                         color: AppColors.accent,
                       ),
                     )
-                  : const Icon(Icons.qr_code_2, size: 20),
+                  : const Icon(Icons.qr_code_scanner_rounded, size: 20),
               label: Text(
-                isSubmitting ? 'Connecting…' : 'Log in via QR Code',
+                isSubmitting ? 'Generating QR...' : 'Log in via QR Code',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
               ),
             ),
@@ -393,10 +548,7 @@ class _SelectionPage extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// PHONE INPUT PAGE
-// ============================================================================
-class _PhoneInputPage extends StatelessWidget {
+class _PhoneInputPage extends StatefulWidget {
   final AuthState authState;
   final AuthController controller;
   final TextEditingController phoneController;
@@ -406,6 +558,46 @@ class _PhoneInputPage extends StatelessWidget {
     required this.controller,
     required this.phoneController,
   });
+
+  @override
+  State<_PhoneInputPage> createState() => _PhoneInputPageState();
+}
+
+class _PhoneInputPageState extends State<_PhoneInputPage> {
+  String _selectedCountryCode = '+1';
+  String _selectedCountryFlag = '🇺🇸';
+  String _selectedCountryName = 'United States';
+
+  void _showCountryPicker() {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: true,
+      countryListTheme: CountryListThemeData(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        inputDecoration: InputDecoration(
+          labelText: 'Search Country',
+          hintText: 'Start typing country name or code...',
+          prefixIcon: const Icon(Icons.search_rounded),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      onSelect: (Country country) {
+        setState(() {
+          _selectedCountryCode = '+${country.phoneCode}';
+          _selectedCountryFlag = country.flagEmoji;
+          _selectedCountryName = country.name;
+
+          final currentText = widget.phoneController.text.trim();
+          if (!currentText.startsWith('+')) {
+            widget.phoneController.text = '+${country.phoneCode} $currentText';
+          }
+        });
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -423,42 +615,85 @@ class _PhoneInputPage extends StatelessWidget {
         children: [
           const Spacer(),
 
-          // Header
           Text(
-            'Enter your\nphone number',
+            'Enter your phone number',
             style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
-              height: 1.15,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Please enter your phone number in international format. '
-            'We\'ll send a verification code to your Telegram account.',
+            'Select your country and enter your phone number. We will send a login code to your Telegram app.',
             style: AppTypography.body(color: secondaryColor),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          // Phone input
+          // Country Selector Button
+          GestureDetector(
+            onTap: _showCountryPicker,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderColor, width: 1),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(_selectedCountryFlag, style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Text(
+                        _selectedCountryName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        _selectedCountryCode,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.keyboard_arrow_down_rounded, color: secondaryColor),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           TextField(
-            controller: phoneController,
+            controller: widget.phoneController,
             keyboardType: TextInputType.phone,
             autofocus: true,
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: primaryColor,
             ),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[\d\s\+\-\(\)]')),
             ],
             decoration: InputDecoration(
-              hintText: '+1 555 123 4567',
-              hintStyle: TextStyle(color: secondaryColor.withOpacity(0.5)),
+              hintText: '$_selectedCountryCode 123 456 7890',
+              hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.4)),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),
-                child: Icon(Icons.phone_outlined, color: AppColors.accent, size: 22),
+                child: Icon(Icons.phone_rounded, color: AppColors.accent, size: 22),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0),
               contentPadding: const EdgeInsets.symmetric(
@@ -470,50 +705,51 @@ class _PhoneInputPage extends StatelessWidget {
                   ? AppColors.darkSurface
                   : AppColors.lightSurfaceVariant,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 0.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: borderColor, width: 1),
               ),
             ),
           ),
           const SizedBox(height: 24),
 
-          // Error
-          if (authState.errorMessage != null) ...[
-            _ErrorBanner(message: authState.errorMessage!),
+          if (widget.authState.errorMessage != null) ...[
+            _ErrorBanner(message: widget.authState.errorMessage!),
             const SizedBox(height: 16),
           ],
 
-          // Submit button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withOpacity(0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(26),
                 ),
                 elevation: 0,
               ),
-              onPressed: authState.isSubmitting
+              onPressed: widget.authState.isSubmitting
                   ? null
                   : () {
-                      final phone = phoneController.text.trim();
+                      var phone = widget.phoneController.text.trim();
+                      if (!phone.startsWith('+')) {
+                        phone = '$_selectedCountryCode$phone';
+                      }
                       if (phone.isNotEmpty) {
-                        controller.submitPhoneNumber(phone);
+                        widget.controller.submitPhoneNumber(phone);
                       }
                     },
-              child: authState.isSubmitting
+              child: widget.authState.isSubmitting
                   ? const SizedBox(
                       width: 22,
                       height: 22,
@@ -523,7 +759,7 @@ class _PhoneInputPage extends StatelessWidget {
                       ),
                     )
                   : const Text(
-                      'Next',
+                      'Continue',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
@@ -569,16 +805,15 @@ class _CodeInputPage extends StatelessWidget {
         children: [
           const Spacer(),
 
-          // Animated checkmark icon
           Container(
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
+              color: AppColors.accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.message_outlined,
+              Icons.mark_email_read_rounded,
               color: AppColors.accent,
               size: 28,
             ),
@@ -586,21 +821,20 @@ class _CodeInputPage extends StatelessWidget {
           const SizedBox(height: 20),
 
           Text(
-            'Enter the code',
+            'Check your Telegram app',
             style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'We sent a verification code to your Telegram account'
+            'We sent a login code to your Telegram app'
             '${authState.phoneNumber != null ? ' (${authState.phoneNumber})' : ''}.',
             style: AppTypography.body(color: secondaryColor),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
-          // Code input
           TextField(
             controller: codeController,
             keyboardType: TextInputType.number,
@@ -610,17 +844,17 @@ class _CodeInputPage extends StatelessWidget {
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w700,
-              letterSpacing: 12,
+              letterSpacing: 10,
               color: primaryColor,
             ),
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               counterText: '',
-              hintText: '• • • • • •',
+              hintText: '••••••',
               hintStyle: TextStyle(
-                color: secondaryColor.withOpacity(0.3),
+                color: secondaryColor.withValues(alpha: 0.3),
                 fontSize: 28,
-                letterSpacing: 12,
+                letterSpacing: 10,
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -631,16 +865,16 @@ class _CodeInputPage extends StatelessWidget {
                   ? AppColors.darkSurface
                   : AppColors.lightSurfaceVariant,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 0.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: borderColor, width: 1),
               ),
             ),
           ),
@@ -653,14 +887,14 @@ class _CodeInputPage extends StatelessWidget {
 
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withOpacity(0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(26),
                 ),
                 elevation: 0,
               ),
@@ -682,7 +916,7 @@ class _CodeInputPage extends StatelessWidget {
                       ),
                     )
                   : const Text(
-                      'Verify',
+                      'Verify Code',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
@@ -699,7 +933,7 @@ class _CodeInputPage extends StatelessWidget {
 }
 
 // ============================================================================
-// PASSWORD INPUT PAGE
+// PASSWORD INPUT PAGE (2FA)
 // ============================================================================
 class _PasswordInputPage extends StatelessWidget {
   final AuthState authState;
@@ -736,11 +970,11 @@ class _PasswordInputPage extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.1),
+              color: AppColors.accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.lock_outline,
+              Icons.lock_outline_rounded,
               color: AppColors.accent,
               size: 28,
             ),
@@ -748,19 +982,18 @@ class _PasswordInputPage extends StatelessWidget {
           const SizedBox(height: 20),
 
           Text(
-            'Two-step verification',
+            'Enter your 2FA password',
             style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Your account is protected with a cloud password. '
-            'Enter it below to continue.',
+            'Your account is protected with a cloud password.',
             style: AppTypography.body(color: secondaryColor),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
           TextField(
             controller: passwordController,
@@ -773,17 +1006,17 @@ class _PasswordInputPage extends StatelessWidget {
             ),
             decoration: InputDecoration(
               hintText: 'Cloud password',
-              hintStyle: TextStyle(color: secondaryColor.withOpacity(0.5)),
+              hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.5)),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),
-                child: Icon(Icons.lock_outline, color: AppColors.accent, size: 22),
+                child: Icon(Icons.lock_rounded, color: AppColors.accent, size: 22),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0),
               suffixIcon: IconButton(
                 icon: Icon(
                   obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
                   color: secondaryColor,
                   size: 22,
                 ),
@@ -798,16 +1031,16 @@ class _PasswordInputPage extends StatelessWidget {
                   ? AppColors.darkSurface
                   : AppColors.lightSurfaceVariant,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppColors.accent, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 0.5),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: borderColor, width: 1),
               ),
             ),
           ),
@@ -820,23 +1053,23 @@ class _PasswordInputPage extends StatelessWidget {
 
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withOpacity(0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(26),
                 ),
                 elevation: 0,
               ),
               onPressed: authState.isSubmitting
                   ? null
                   : () {
-                      final pw = passwordController.text.trim();
-                      if (pw.isNotEmpty) {
-                        controller.submitPassword(pw);
+                      final pwd = passwordController.text.trim();
+                      if (pwd.isNotEmpty) {
+                        controller.submitPassword(pwd);
                       }
                     },
               child: authState.isSubmitting
@@ -884,7 +1117,7 @@ class _QrCodePage extends StatelessWidget {
     final primaryColor = theme.colorScheme.onSurface;
     final secondaryColor =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final qrLink = authState.qrCodeLink;
+    final link = authState.qrCodeLink;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
@@ -895,187 +1128,102 @@ class _QrCodePage extends StatelessWidget {
           Text(
             'Scan QR Code',
             style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w800,
             ),
-            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'Open Telegram on your phone →\n'
+            'Open Telegram on your mobile device:\n'
             'Settings → Devices → Link Desktop Device',
             style: AppTypography.body(color: secondaryColor),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
 
-          // QR code
-          if (qrLink != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accent.withOpacity(0.08),
-                    blurRadius: 24,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
-              child: QrImageView(
-                data: qrLink,
-                version: QrVersions.auto,
-                size: 200.0,
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.circle,
-                  color: Color(0xFF1D1F23),
-                ),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.circle,
-                  color: Color(0xFF1D1F23),
-                ),
-              ),
-            )
-          else
-            const SizedBox(
-              width: 200,
-              height: 200,
-              child: Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppColors.accent,
-                ),
-              ),
-            ),
-          const SizedBox(height: 32),
-
-          TextButton(
-            onPressed: () => controller.reset(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                color: secondaryColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
-            ),
-          ),
-
-          const Spacer(),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// ERROR PAGE
-// ============================================================================
-class _ErrorPage extends StatelessWidget {
-  final AuthState authState;
-  final AuthController controller;
-
-  const _ErrorPage({
-    required this.authState,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.onSurface;
-    final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
           Container(
-            width: 64,
-            height: 64,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.error_outline,
-              color: AppColors.error,
-              size: 32,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Something went wrong',
-            style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            authState.errorMessage ?? 'An unknown error occurred.',
-            style: AppTypography.body(color: secondaryColor),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-                elevation: 0,
-              ),
-              onPressed: () => controller.reset(),
-              child: const Text(
-                'Try Again',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-              ),
+              ],
             ),
+            child: link != null && link.isNotEmpty
+                ? QrImageView(
+                    data: link,
+                    version: QrVersions.auto,
+                    size: 200,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Colors.black,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Colors.black,
+                    ),
+                  )
+                : const SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.accent),
+                    ),
+                  ),
           ),
+
+          const SizedBox(height: 24),
+
+          if (authState.errorMessage != null) ...[
+            _ErrorBanner(message: authState.errorMessage!),
+            const SizedBox(height: 16),
+          ],
+
+          TextButton.icon(
+            onPressed: () => controller.requestQrLogin(),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Refresh QR Code'),
+          ),
+
+          const Spacer(flex: 2),
         ],
       ),
     );
   }
 }
 
-// ============================================================================
-// SHARED: Error banner
-// ============================================================================
 class _ErrorBanner extends StatelessWidget {
   final String message;
+
   const _ErrorBanner({required this.message});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 2,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withOpacity(0.25), width: 0.5),
+        color: AppColors.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 18),
-          const SizedBox(width: 8),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: AppTypography.actionCount(color: AppColors.error),
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

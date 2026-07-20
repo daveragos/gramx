@@ -12,6 +12,9 @@ class SyncService {
   final AppDatabase _db;
   final TdlibService _tdlib;
   StreamSubscription? _updateSub;
+  List<td.ChatFolderInfo>? _cachedFolders;
+
+  final isSyncingNotifier = ValueNotifier<bool>(false);
 
   SyncService(this._db, this._tdlib);
 
@@ -50,7 +53,7 @@ class SyncService {
         synchronous: false,
       ));
     } catch (e) {
-      debugPrint('[Sync] DownloadFile request failed for fileId $fileId: $e');
+      debugPrint('[Sync] DownloadFile failed for fileId $fileId: $e');
     }
   }
 
@@ -76,12 +79,22 @@ class SyncService {
 
   /// Syncs all subscribed broadcast channels from Telegram.
   Future<void> syncSubscribedChannels() async {
-    final accountId = await _getOrCreateActiveAccountId();
-    debugPrint('[Sync] Syncing subscribed channels...');
-
+    isSyncingNotifier.value = true;
     try {
-      // 1. Fetch main chat list from TDLib
-      // In TDLib, GetChats is used.
+      final accountId = await _getOrCreateActiveAccountId();
+      debugPrint('[Sync] Syncing subscribed channels...');
+
+      // 1. Load main chats in TDLib memory first
+      try {
+        await _tdlib.sendRequest(const td.LoadChats(
+          chatList: td.ChatListMain(),
+          limit: 100,
+        ));
+      } catch (e) {
+        debugPrint('[Sync] LoadChats note: $e');
+      }
+
+      // 2. Fetch chat list from TDLib
       final getChatsFunction = td.GetChats(
         chatList: const td.ChatListMain(),
         limit: 100,
@@ -90,12 +103,10 @@ class SyncService {
 
       if (chatsObject is td.Chats) {
         for (final chatId in chatsObject.chatIds) {
-          // 2. Fetch full chat info for each ID
           final getChatFunction = td.GetChat(chatId: chatId);
           final chatObject = await _tdlib.sendRequest(getChatFunction);
 
           if (chatObject is td.Chat) {
-            // 3. Filter broadcast channels only
             final type = chatObject.type;
             if (type is td.ChatTypeSupergroup && type.isChannel) {
               String? username;
@@ -117,7 +128,7 @@ class SyncService {
                   subscriberCount = fullInfoObj.memberCount;
                 }
               } catch (e) {
-                debugPrint('[Sync] Error fetching supergroup info for ${chatObject.title}: $e');
+                debugPrint('[Sync] Error fetching supergroup info: $e');
               }
 
               final companion = TdlibMappers.mapChatToCompanion(
@@ -128,11 +139,8 @@ class SyncService {
                 isVerified: isVerified,
                 subscriberCount: subscriberCount,
               );
-              // Insert or update chat in local DB
               await _db.into(_db.channels).insertOnConflictUpdate(companion);
-              debugPrint('[Sync] Subscribed channel added/updated: ${chatObject.title}');
 
-              // Trigger background download for the channel avatar
               if (chatObject.photo != null) {
                 _downloadFile(chatObject.photo!.small.id);
               }
@@ -140,25 +148,30 @@ class SyncService {
           }
         }
       }
+
+      // 3. Re-sync folder channel mappings now that all channels are in local DB
+      if (_cachedFolders != null) {
+        await _syncFoldersList(_cachedFolders!, accountId);
+      }
     } catch (e, stack) {
       debugPrint('[Sync] Error syncing subscribed channels: $e\n$stack');
+    } finally {
+      isSyncingNotifier.value = false;
     }
   }
 
   /// Syncs user's Telegram folders (chat filters) based on chatFolders list from update
   Future<void> _syncFoldersList(List<td.ChatFolderInfo> chatFolders, int accountId) async {
+    _cachedFolders = chatFolders;
     try {
-      // Clear existing folders and maps using Drift APIs
       await _db.delete(_db.folderChannels).go();
       await _db.delete(_db.folders).go();
 
       for (final folderInfo in chatFolders) {
-        // Fetch full folder filter details
         final getFilterFunc = td.GetChatFolder(chatFolderId: folderInfo.id);
         final filter = await _tdlib.sendRequest(getFilterFunc);
 
         if (filter is td.ChatFolder) {
-          // Save folder definition
           final folderDbId = await _db.into(_db.folders).insertOnConflictUpdate(
             FoldersCompanion.insert(
               accountId: accountId,
@@ -167,7 +180,6 @@ class SyncService {
             ),
           );
 
-          // Load and page chats inside this folder in TDLib
           final chatList = td.ChatListFolder(chatFolderId: folderInfo.id);
           try {
             await _tdlib.sendRequest(td.LoadChats(chatList: chatList, limit: 100));
@@ -227,24 +239,19 @@ class SyncService {
       if (messagesObject is td.Messages) {
         await _db.transaction(() async {
           for (final message in messagesObject.messages) {
-            // Create post companion
             final postCompanion = TdlibMappers.mapMessageToCompanion(
               message,
               accountId,
               channelDbId,
             );
-            // Upsert post
             final postDbId = await _db.into(_db.posts).insertOnConflictUpdate(postCompanion);
 
-            // Extract and upsert media items
             final mediaCompanions = TdlibMappers.extractMediaCompanions(message, postDbId);
-            // Delete old media for this post to avoid duplicates on rebuild
             await (_db.delete(_db.mediaItems)..where((m) => m.postId.equals(postDbId))).go();
             for (final media in mediaCompanions) {
               await _db.into(_db.mediaItems).insert(media);
             }
 
-            // Trigger background downloads of media
             _downloadMessageMedia(message);
           }
         });
@@ -258,7 +265,6 @@ class SyncService {
   Future<void> loadMoreChannelHistory(int channelDbId, int chatId) async {
     final accountId = await _getOrCreateActiveAccountId();
     
-    // Find the oldest message ID we have locally for this channel
     final oldestPost = await (_db.select(_db.posts)
           ..where((p) => p.channelId.equals(channelDbId))
           ..orderBy([(p) => OrderingTerm.asc(p.publishedAt)])
@@ -289,7 +295,6 @@ class SyncService {
             final postDbId = await _db.into(_db.posts).insertOnConflictUpdate(postCompanion);
 
             final mediaCompanions = TdlibMappers.extractMediaCompanions(message, postDbId);
-            // Delete old media for this post to avoid duplicates on rebuild
             await (_db.delete(_db.mediaItems)..where((m) => m.postId.equals(postDbId))).go();
             for (final media in mediaCompanions) {
               await _db.into(_db.mediaItems).insert(media);
@@ -309,7 +314,6 @@ class SyncService {
     final accountId = await _getOrCreateActiveAccountId();
     debugPrint('[Sync] Resolving public chat username: @$username');
 
-    // Clean username formatting
     final cleanUsername = username.replaceAll('@', '').trim();
     if (cleanUsername.isEmpty) {
       throw Exception('Username cannot be empty.');
@@ -351,14 +355,11 @@ class SyncService {
           subscriberCount: subscriberCount,
         );
         final channelDbId = await _db.into(_db.channels).insertOnConflictUpdate(companion);
-        debugPrint('[Sync] Manually added public channel: ${chatObject.title}');
 
-        // Trigger background download of avatar
         if (chatObject.photo != null) {
           _downloadFile(chatObject.photo!.small.id);
         }
 
-        // Immediately sync history for this channel
         await syncChannelHistory(channelDbId, chatObject.id);
       } else {
         throw Exception('The username @$username is not a public broadcast channel.');
@@ -372,15 +373,12 @@ class SyncService {
   Future<void> _handleLiveUpdate(td.TdObject update) async {
     if (update is td.UpdateNewMessage) {
       final message = update.message;
-      // Check if message belongs to a channel we sync
       final channel = await (_db.select(_db.channels)
             ..where((c) => c.chatId.equals(message.chatId)))
           .getSingleOrNull();
 
       if (channel != null) {
-        debugPrint('[Sync] Received live new message for channel: ${channel.title}');
         final accountId = await _getOrCreateActiveAccountId();
-
         await _db.transaction(() async {
           final postCompanion = TdlibMappers.mapMessageToCompanion(
             message,
@@ -394,33 +392,27 @@ class SyncService {
             await _db.into(_db.mediaItems).insert(media);
           }
         });
-
-        // Trigger media downloads
         _downloadMessageMedia(message);
       }
     } else if (update is td.UpdateFile) {
       final file = update.file;
       if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty) {
-        debugPrint('[Sync] File download completed: ${file.remote.id} -> ${file.local.path}');
         await _updateFileLocalPath(file.remote.id, file.local.path);
       }
     } else if (update is td.UpdateChatReadInbox) {
-      debugPrint('[Sync] Read cursor updated for chat ${update.chatId}: ${update.lastReadInboxMessageId}');
       await (_db.update(_db.channels)..where((c) => c.chatId.equals(update.chatId)))
           .write(ChannelsCompanion(
         lastReadInboxMessageId: Value(update.lastReadInboxMessageId),
       ));
     } else if (update is td.UpdateChatFolders) {
-      debugPrint('[Sync] Received chat folders update: ${update.chatFolders.length} folders.');
       try {
         final accountId = await _getOrCreateActiveAccountId();
         await _syncFoldersList(update.chatFolders, accountId);
       } catch (e) {
-        debugPrint('[Sync] Failed to sync folders on UpdateChatFolders: $e');
+        debugPrint('[Sync] Failed to sync folders: $e');
       }
     } else if (update is td.UpdatePoll) {
       final poll = update.poll;
-      debugPrint('[Sync] Received live UpdatePoll for pollId ${poll.id}');
       try {
         final postsToUpdate = await (_db.select(_db.posts)
               ..where((p) => p.pollJson.like('%"id":"${poll.id}"%')))
@@ -455,18 +447,15 @@ class SyncService {
   }
 
   Future<void> _updateFileLocalPath(String remoteId, String localPath) async {
-    // 1. Update Channels matching avatarUrl
     await (_db.update(_db.channels)..where((c) => c.avatarUrl.equals(remoteId)))
         .write(ChannelsCompanion(avatarUrl: Value(localPath)));
 
-    // 2. Update MediaItems matching url or thumbnailUrl
     await (_db.update(_db.mediaItems)..where((m) => m.url.equals(remoteId)))
         .write(MediaItemsCompanion(localPath: Value(localPath)));
 
     await (_db.update(_db.mediaItems)..where((m) => m.thumbnailUrl.equals(remoteId)))
         .write(MediaItemsCompanion(thumbnailUrl: Value(localPath)));
 
-    // 3. Update Accounts matching avatarPath
     await (_db.update(_db.accounts)..where((a) => a.avatarPath.equals(remoteId)))
         .write(AccountsCompanion(avatarPath: Value(localPath)));
   }
@@ -478,9 +467,13 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   final tdlib = ref.watch(tdlibServiceProvider);
   final service = SyncService(db, tdlib);
 
-  // Start updates listener
   service.startListening();
   ref.onDispose(() => service.stopListening());
 
   return service;
+});
+
+final isSyncingProvider = Provider<ValueNotifier<bool>>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  return syncService.isSyncingNotifier;
 });
