@@ -5,6 +5,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
+import 'package:gramx/features/feed/presentation/widgets/full_screen_video_viewer.dart';
 
 class PostMediaGrid extends StatelessWidget {
   final List<MediaItem> media;
@@ -125,7 +126,14 @@ class _MediaTile extends ConsumerWidget {
 
   const _MediaTile({required this.item, required this.index});
 
-  String? _findValidFilePath() {
+  String? _findValidImagePath() {
+    if (item.type == MediaType.video) {
+      if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty) {
+        final file = File(item.thumbnailUrl!);
+        if (file.existsSync()) return item.thumbnailUrl;
+      }
+      return null;
+    }
     if (item.localPath != null && item.localPath!.isNotEmpty) {
       final file = File(item.localPath!);
       if (file.existsSync()) return item.localPath;
@@ -143,16 +151,16 @@ class _MediaTile extends ConsumerWidget {
     final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
     final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    final filePath = _findValidFilePath();
+    final imagePath = _findValidImagePath();
     final heroTag = 'media_${item.id}_$index';
 
     Widget? contentWidget;
 
-    if (filePath != null) {
+    if (imagePath != null) {
       contentWidget = Hero(
         tag: heroTag,
         child: Image.file(
-          File(filePath),
+          File(imagePath),
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
@@ -205,15 +213,33 @@ class _MediaTile extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () {
-        if (filePath != null) {
-          FullScreenImageViewer.show(
-            context,
-            imagePath: filePath,
-            tag: heroTag,
-          );
+        if (item.type == MediaType.video) {
+          final videoPath = (item.localPath != null && File(item.localPath!).existsSync())
+              ? item.localPath!
+              : (item.url != null && File(item.url!).existsSync() ? item.url! : null);
+          if (videoPath != null) {
+            FullScreenVideoViewer.show(context, videoPath: videoPath);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Video is still downloading...'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          if (imagePath != null) {
+            FullScreenImageViewer.show(
+              context,
+              imagePath: imagePath,
+              tag: heroTag,
+            );
+          }
         }
       },
       child: contentWidget,
     );
   }
 }
+

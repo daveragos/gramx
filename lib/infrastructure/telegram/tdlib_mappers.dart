@@ -23,7 +23,9 @@ class TdlibMappers {
       avatarUrl: Value(chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true
               ? chat.photo!.small.local.path
-              : chat.photo!.small.remote.id)
+              : (chat.photo!.small.remote.id.isNotEmpty
+                  ? chat.photo!.small.remote.id
+                  : chat.photo!.small.id.toString()))
           : null),
       avatarColor: Value(_generateRandomHexColor(chat.id)),
       subscriberCount: Value(subscriberCount),
@@ -55,15 +57,38 @@ class TdlibMappers {
       bodyText = content.text.text;
       textEntitiesJson = serializeEntities(content.text.entities);
       if (content.linkPreview != null) {
-        linkPreviewUrl = content.linkPreview!.url;
-        linkPreviewTitle = content.linkPreview!.title;
-        linkPreviewDescription = content.linkPreview!.description.text;
+        final lp = content.linkPreview!;
+        linkPreviewUrl = lp.url.isNotEmpty ? lp.url : null;
+        linkPreviewTitle = lp.title.isNotEmpty ? lp.title : (lp.displayUrl.isNotEmpty ? lp.displayUrl : null);
+        linkPreviewDescription = lp.description.text.isNotEmpty ? lp.description.text : null;
         
-        final previewType = content.linkPreview!.type;
+        final previewType = lp.type;
+        td.Photo? photo;
+        td.Thumbnail? thumbnail;
+
         if (previewType is td.LinkPreviewTypePhoto) {
-          linkPreviewImageUrl = previewType.photo.sizes.first.photo.local.path;
+          photo = previewType.photo;
         } else if (previewType is td.LinkPreviewTypeArticle) {
-          linkPreviewImageUrl = previewType.photo?.sizes.first.photo.local.path;
+          photo = previewType.photo;
+        } else if (previewType is td.LinkPreviewTypeApp) {
+          photo = previewType.photo;
+        } else if (previewType is td.LinkPreviewTypeVideo) {
+          thumbnail = previewType.video.thumbnail;
+        } else if (previewType is td.LinkPreviewTypeAnimation) {
+          thumbnail = previewType.animation.thumbnail;
+        } else if (previewType is td.LinkPreviewTypeDocument) {
+          thumbnail = previewType.document.thumbnail;
+        }
+
+        if (photo != null && photo.sizes.isNotEmpty) {
+          final best = photo.sizes.last;
+          linkPreviewImageUrl = best.photo.local.path.isNotEmpty == true
+              ? best.photo.local.path
+              : (best.photo.remote.id.isNotEmpty ? best.photo.remote.id : best.photo.id.toString());
+        } else if (thumbnail != null) {
+          linkPreviewImageUrl = thumbnail.file.local.path.isNotEmpty == true
+              ? thumbnail.file.local.path
+              : (thumbnail.file.remote.id.isNotEmpty ? thumbnail.file.remote.id : thumbnail.file.id.toString());
         }
       }
     } else if (content is td.MessagePhoto) {
@@ -225,57 +250,66 @@ class TdlibMappers {
       final photo = content.photo;
       // Get the highest resolution size
       final bestSize = photo.sizes.last;
+      final bestPhotoPath = bestSize.photo.local.path.isNotEmpty == true 
+          ? bestSize.photo.local.path 
+          : (bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString());
+      final thumbPath = photo.sizes.first.photo.local.path.isNotEmpty == true 
+          ? photo.sizes.first.photo.local.path 
+          : (photo.sizes.first.photo.remote.id.isNotEmpty ? photo.sizes.first.photo.remote.id : photo.sizes.first.photo.id.toString());
+
       list.add(MediaItemsCompanion.insert(
         postId: postDbId,
         type: MediaType.photo.name,
-        url: Value(bestSize.photo.remote.id),
-        thumbnailUrl: Value(photo.sizes.first.photo.local.path.isNotEmpty == true 
-            ? photo.sizes.first.photo.local.path 
-            : photo.sizes.first.photo.remote.id),
+        url: Value(bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString()),
+        thumbnailUrl: Value(thumbPath),
         width: Value(bestSize.width),
         height: Value(bestSize.height),
-        localPath: Value(bestSize.photo.local.path.isNotEmpty == true 
-            ? bestSize.photo.local.path 
-            : bestSize.photo.remote.id),
+        localPath: Value(bestPhotoPath),
       ));
     } else if (content is td.MessageVideo) {
       final video = content.video;
+      final videoPath = video.video.local.path.isNotEmpty == true 
+          ? video.video.local.path 
+          : (video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString());
+      final thumbPath = video.thumbnail != null
+          ? (video.thumbnail!.file.local.path.isNotEmpty == true
+              ? video.thumbnail!.file.local.path
+              : (video.thumbnail!.file.remote.id.isNotEmpty ? video.thumbnail!.file.remote.id : video.thumbnail!.file.id.toString()))
+          : null;
+
       list.add(MediaItemsCompanion.insert(
         postId: postDbId,
         type: MediaType.video.name,
-        url: Value(video.video.remote.id),
-        thumbnailUrl: Value(video.thumbnail != null
-            ? (video.thumbnail!.file.local.path.isNotEmpty == true
-                ? video.thumbnail!.file.local.path
-                : video.thumbnail!.file.remote.id)
-            : null),
+        url: Value(video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString()),
+        thumbnailUrl: Value(thumbPath),
         width: Value(video.width),
         height: Value(video.height),
         duration: Value(video.duration),
         fileSize: Value(video.video.expectedSize),
         fileName: Value(video.fileName),
         mimeType: Value(video.mimeType),
-        localPath: Value(video.video.local.path.isNotEmpty == true 
-            ? video.video.local.path 
-            : video.video.remote.id),
+        localPath: Value(videoPath),
       ));
     } else if (content is td.MessageAnimation) {
       final anim = content.animation;
+      final animPath = anim.animation.local.path.isNotEmpty == true 
+          ? anim.animation.local.path 
+          : (anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString());
+      final thumbPath = anim.thumbnail != null
+          ? (anim.thumbnail!.file.local.path.isNotEmpty == true
+              ? anim.thumbnail!.file.local.path
+              : (anim.thumbnail!.file.remote.id.isNotEmpty ? anim.thumbnail!.file.remote.id : anim.thumbnail!.file.id.toString()))
+          : null;
+
       list.add(MediaItemsCompanion.insert(
         postId: postDbId,
         type: MediaType.gif.name,
-        url: Value(anim.animation.remote.id),
-        thumbnailUrl: Value(anim.thumbnail != null
-            ? (anim.thumbnail!.file.local.path.isNotEmpty == true
-                ? anim.thumbnail!.file.local.path
-                : anim.thumbnail!.file.remote.id)
-            : null),
+        url: Value(anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString()),
+        thumbnailUrl: Value(thumbPath),
         width: Value(anim.width),
         height: Value(anim.height),
         duration: Value(anim.duration),
-        localPath: Value(anim.animation.local.path.isNotEmpty == true 
-            ? anim.animation.local.path 
-            : anim.animation.remote.id),
+        localPath: Value(animPath),
       ));
     }
 

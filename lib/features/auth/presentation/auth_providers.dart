@@ -212,6 +212,26 @@ class AuthController extends Notifier<AuthState> {
                 ? me.usernames!.activeUsernames.first
                 : me.usernames?.editableUsername;
 
+        if (me.profilePhoto != null) {
+          try {
+            await _tdlib.sendRequest(td.DownloadFile(
+              fileId: me.profilePhoto!.small.id,
+              priority: 1,
+              offset: 0,
+              limit: 0,
+              synchronous: false,
+            ));
+          } catch (e) {
+            debugPrint('[Auth] Failed to request user avatar download: $e');
+          }
+        }
+
+        final avatarPathValue = me.profilePhoto?.small.local.path.isNotEmpty == true
+            ? me.profilePhoto?.small.local.path
+            : (me.profilePhoto?.small.remote.id.isNotEmpty == true
+                ? me.profilePhoto?.small.remote.id
+                : me.profilePhoto?.small.id.toString());
+
         final existingAccount = await (db.select(db.accounts)
               ..where((a) => a.telegramUserId.equals(me.id.toString())))
             .getSingleOrNull();
@@ -225,11 +245,7 @@ class AuthController extends Notifier<AuthState> {
                   Value('${me.firstName} ${me.lastName}'.trim()),
               username: Value(username),
               phoneNumber: Value(me.phoneNumber),
-              avatarPath: Value(
-                me.profilePhoto?.small.local.path.isNotEmpty == true
-                    ? me.profilePhoto?.small.local.path
-                    : null,
-              ),
+              avatarPath: Value(avatarPathValue),
               isActive: const Value(true),
               updatedAt: Value(DateTime.now()),
             ),
@@ -242,11 +258,7 @@ class AuthController extends Notifier<AuthState> {
                       Value('${me.firstName} ${me.lastName}'.trim()),
                   username: Value(username),
                   phoneNumber: Value(me.phoneNumber),
-                  avatarPath: Value(
-                    me.profilePhoto?.small.local.path.isNotEmpty == true
-                        ? me.profilePhoto?.small.local.path
-                        : null,
-                  ),
+                  avatarPath: Value(avatarPathValue),
                   isActive: const Value(true),
                 ),
               );

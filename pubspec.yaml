@@ -36,6 +36,7 @@ dependencies:
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
   qr_flutter: ^4.1.0
+  video_player: ^2.9.2
 
   # Utilities
   intl: ^0.20.2
@@ -43,6 +44,7 @@ dependencies:
   uuid: ^4.5.1
   path_provider: ^2.1.5
   path: ^1.9.1
+  url_launcher: ^6.3.1
   country_picker: ^2.0.28
 
 dev_dependencies:

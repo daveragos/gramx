@@ -9,6 +9,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
@@ -27,6 +28,21 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchInitialHistory();
+    });
+  }
+
+  Future<void> _fetchInitialHistory() async {
+    try {
+      final channel = ref.read(channelDetailProvider(widget.channelId)).value;
+      if (channel != null) {
+        final syncService = ref.read(syncServiceProvider);
+        await syncService.syncChannelHistory(int.parse(channel.id), channel.chatId);
+      }
+    } catch (e) {
+      debugPrint('[ChannelScreen] Error fetching initial history: $e');
+    }
   }
 
   @override
