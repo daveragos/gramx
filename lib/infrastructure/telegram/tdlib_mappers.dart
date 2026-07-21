@@ -187,7 +187,9 @@ class TdlibMappers {
           'offset': entity.offset,
           'length': entity.length,
           'type': typeStr,
+          // ignore: use_null_aware_elements
           if (url != null) 'url': url,
+          // ignore: use_null_aware_elements
           if (customEmojiId != null) 'customEmojiId': customEmojiId,
         };
       }).toList();
@@ -224,6 +226,7 @@ class TdlibMappers {
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
+        // ignore: use_null_aware_elements
         if (correctOptionId != null) 'correctOptionId': correctOptionId,
         'chosenOptionIds': poll.options
             .asMap()

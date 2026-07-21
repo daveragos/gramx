@@ -4,9 +4,9 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PollCard extends ConsumerStatefulWidget {
@@ -41,7 +41,6 @@ class _PollCardState extends ConsumerState<PollCard> {
           messageId: widget.messageId,
           optionIds: [optionIndex],
         );
-        // Refresh feed to show updated vote
         ref.invalidate(feedPostsProvider);
       }
     } catch (e) {
@@ -80,14 +79,11 @@ class _PollCardState extends ConsumerState<PollCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Question text
           Text(
             widget.poll.question,
             style: AppTypography.subheading(color: primaryColor),
           ),
           const SizedBox(height: AppSpacing.md),
-
-          // Options list
           ...widget.poll.options.asMap().entries.map((entry) {
             final idx = entry.key;
             final option = entry.value;
@@ -100,10 +96,7 @@ class _PollCardState extends ConsumerState<PollCard> {
                   : _buildInteractiveOption(idx, option, primaryColor),
             );
           }),
-
           const SizedBox(height: AppSpacing.sm),
-
-          // Voter metadata
           Row(
             children: [
               Text(
@@ -140,7 +133,7 @@ class _PollCardState extends ConsumerState<PollCard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.accent.withOpacity(0.5)),
+          border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
@@ -174,23 +167,23 @@ class _PollCardState extends ConsumerState<PollCard> {
     final pct = option.votePercentage;
     final displayPercent = '${pct.toStringAsFixed(0)}%';
 
-    Color barColor = AppColors.accent.withOpacity(0.15);
+    Color barColor = AppColors.accent.withValues(alpha: 0.15);
     Color textColor = primaryColor;
     IconData? optionIcon;
 
     if (widget.poll.isQuiz) {
       final isCorrect = index == widget.poll.correctOptionId;
       if (isCorrect) {
-        barColor = Colors.green.withOpacity(0.2);
+        barColor = Colors.green.withValues(alpha: 0.2);
         textColor = Colors.green[700]!;
         optionIcon = Icons.check_circle_outline;
       } else if (isChosen) {
-        barColor = AppColors.error.withOpacity(0.15);
+        barColor = AppColors.error.withValues(alpha: 0.15);
         textColor = AppColors.error;
         optionIcon = Icons.highlight_off;
       }
     } else if (isChosen) {
-      barColor = AppColors.accent.withOpacity(0.3);
+      barColor = AppColors.accent.withValues(alpha: 0.3);
       textColor = AppColors.accent;
       optionIcon = Icons.check;
     }
@@ -201,12 +194,11 @@ class _PollCardState extends ConsumerState<PollCard> {
 
         return Stack(
           children: [
-            // Background Container (Border and rounded corners)
             Container(
               height: 44,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: isChosen ? AppColors.accent.withOpacity(0.5) : Colors.transparent,
+                  color: isChosen ? AppColors.accent.withValues(alpha: 0.5) : Colors.transparent,
                 ),
                 borderRadius: BorderRadius.circular(8),
                 color: Theme.of(context).brightness == Brightness.dark
@@ -214,7 +206,6 @@ class _PollCardState extends ConsumerState<PollCard> {
                     : Colors.grey[100],
               ),
             ),
-            // Progress Bar Animation fill
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut,
@@ -225,7 +216,6 @@ class _PollCardState extends ConsumerState<PollCard> {
                 color: barColor,
               ),
             ),
-            // Content Row (Text + Percent)
             Positioned.fill(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,12 +5,14 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
-import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
-import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
+import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PostCard extends ConsumerWidget {
@@ -31,28 +32,6 @@ class PostCard extends ConsumerWidget {
     this.onLikeTap,
     this.onShareTap,
   });
-
-  Widget _buildAvatar(Post post) {
-    if (post.channelAvatarUrl != null && post.channelAvatarUrl!.isNotEmpty) {
-      final file = File(post.channelAvatarUrl!);
-      if (file.existsSync()) {
-        return CircleAvatar(
-          radius: AppSpacing.avatarSize / 2,
-          backgroundImage: FileImage(file),
-        );
-      }
-    }
-    return CircleAvatar(
-      radius: AppSpacing.avatarSize / 2,
-      backgroundColor: post.channelAvatarColor != null
-          ? _parseColor(post.channelAvatarColor!)
-          : AppColors.accent,
-      child: Text(
-        post.channelTitle.isNotEmpty ? post.channelTitle[0].toUpperCase() : '?',
-        style: AppTypography.displayName(color: Colors.white),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -107,18 +86,17 @@ class PostCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Channel Avatar
-                  GestureDetector(
+                  ChannelAvatar(
+                    title: post.channelTitle,
+                    avatarPath: post.channelAvatarUrl,
+                    avatarColorHex: post.channelAvatarColor,
                     onTap: onChannelTap ?? () => context.push('/channel/${post.channelId}'),
-                    child: _buildAvatar(post),
                   ),
                   const SizedBox(width: AppSpacing.md),
-                  // Content column
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Post Header
                         Row(
                           children: [
                             Flexible(
@@ -161,7 +139,6 @@ class PostCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        // Forwarded banner
                         if (post.forwardedFromTitle != null) ...[
                           const SizedBox(height: 2),
                           Row(
@@ -175,7 +152,6 @@ class PostCard extends ConsumerWidget {
                             ],
                           ),
                         ],
-                        // Post Text Body
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
                           TextEntityRenderer(
@@ -184,7 +160,6 @@ class PostCard extends ConsumerWidget {
                             style: AppTypography.body(color: primaryTextColor),
                           ),
                         ],
-                        // Link Preview Card
                         if (post.linkPreviewUrl != null && post.linkPreviewUrl!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           LinkPreviewCard(
@@ -194,7 +169,6 @@ class PostCard extends ConsumerWidget {
                             imageUrl: post.linkPreviewImageUrl,
                           ),
                         ],
-                        // Poll display
                         if (post.poll != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           PollCard(
@@ -203,14 +177,12 @@ class PostCard extends ConsumerWidget {
                             messageId: post.messageId,
                           ),
                         ],
-                        // Media
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           PostMediaGrid(media: post.media),
                         ],
-                        // Action bar
                         const SizedBox(height: AppSpacing.md),
-                        _ActionBar(
+                        PostActionBar(
                           post: post,
                           secondaryColor: secondaryColor,
                           onBookmarkTap: defaultBookmarkHandler,
@@ -227,130 +199,6 @@ class PostCard extends ConsumerWidget {
             Divider(color: theme.dividerTheme.color, height: 0.5, thickness: 0.5),
           ],
         ),
-      ),
-    );
-  }
-
-  Color _parseColor(String hex) {
-    final hexCode = hex.replaceAll('#', '');
-    return Color(int.parse('FF$hexCode', radix: 16));
-  }
-}
-
-class _ActionBar extends StatelessWidget {
-  final Post post;
-  final Color secondaryColor;
-  final VoidCallback onBookmarkTap;
-  final VoidCallback onLikeTap;
-  final VoidCallback onReplyTap;
-  final VoidCallback onShareTap;
-
-  const _ActionBar({
-    required this.post,
-    required this.secondaryColor,
-    required this.onBookmarkTap,
-    required this.onLikeTap,
-    required this.onReplyTap,
-    required this.onShareTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Reply
-        _ActionButton(
-          icon: Icons.chat_bubble_outline,
-          count: post.replyCount,
-          color: secondaryColor,
-          activeColor: AppColors.reply,
-          onTap: onReplyTap,
-        ),
-        // Repost/Forward
-        _ActionButton(
-          icon: Icons.repeat,
-          count: post.forwardCount,
-          color: secondaryColor,
-          activeColor: AppColors.repost,
-          onTap: onShareTap,
-        ),
-        // Like
-        _ActionButton(
-          icon: totalReactions > 0 ? Icons.favorite : Icons.favorite_border,
-          count: totalReactions,
-          color: totalReactions > 0 ? AppColors.like : secondaryColor,
-          activeColor: AppColors.like,
-          onTap: onLikeTap,
-        ),
-        // Views
-        _ActionButton(
-          icon: Icons.bar_chart,
-          count: post.viewCount,
-          color: secondaryColor,
-          activeColor: secondaryColor,
-        ),
-        // Bookmark + Share row
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: onBookmarkTap,
-              child: Icon(
-                post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                color: post.isBookmarked ? AppColors.accent : secondaryColor,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            GestureDetector(
-              onTap: onShareTap,
-              child: Icon(
-                Icons.ios_share,
-                color: secondaryColor,
-                size: 18,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final int count;
-  final Color color;
-  final Color activeColor;
-  final VoidCallback? onTap;
-
-  const _ActionButton({
-    required this.icon,
-    required this.count,
-    required this.color,
-    required this.activeColor,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          if (count > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              TimeUtils.formatCount(count),
-              style: AppTypography.actionCount(color: color),
-            ),
-          ],
-        ],
       ),
     );
   }

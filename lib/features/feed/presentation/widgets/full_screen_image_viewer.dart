@@ -14,12 +14,17 @@ class FullScreenImageViewer extends StatefulWidget {
     required this.tag,
   });
 
-  static void show(BuildContext context, {String? imagePath, String? imageUrl, required String tag}) {
+  static void show(
+    BuildContext context, {
+    String? imagePath,
+    String? imageUrl,
+    required String tag,
+  }) {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Colors.black.withOpacity(0.9),
-        pageBuilder: (context, _, __) {
+        barrierColor: Colors.black.withValues(alpha: 0.9),
+        pageBuilder: (context, animation, secondaryAnimation) {
           return FullScreenImageViewer(
             imagePath: imagePath,
             imageUrl: imageUrl,
@@ -48,9 +53,10 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
     } else {
       final position = _doubleTapDetails?.localPosition;
       if (position != null) {
-        _transformationController.value = Matrix4.identity()
-          ..translate(-position.dx * 1.5, -position.dy * 1.5)
-          ..scale(2.5);
+        final matrix = Matrix4.identity();
+        matrix.translateByDouble(-position.dx * 1.5, -position.dy * 1.5, 0.0, 0.0);
+        matrix.scaleByDouble(2.5, 2.5, 1.0, 1.0);
+        _transformationController.value = matrix;
       }
     }
   }
@@ -81,7 +87,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
       imageWidget = Image.network(
         widget.imageUrl!,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Center(
+        errorBuilder: (context, error, stackTrace) => const Center(
           child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
         ),
       );
@@ -110,7 +116,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
               ),
             ),
           ),
-          // Top bar close button
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
