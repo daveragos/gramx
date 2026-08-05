@@ -1,75 +1,67 @@
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/channels/domain/channel.dart';
-import 'package:gramx/infrastructure/database/database.dart';
-import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Repository for channel operations backed by Drift.
 class ChannelRepository {
-  final AppDatabase db;
+  final TdlibService _tdlib;
 
-  ChannelRepository(this.db);
+  ChannelRepository(this._tdlib);
 
-  /// Watch all non-hidden channels sorted by lastPostAt desc.
-  Stream<List<Channel>> watchChannels() {
-    final query = db.select(db.channels)
-      ..where((c) => c.isHidden.equals(false))
-      ..orderBy([(c) => OrderingTerm.desc(c.lastPostAt)]);
+  /// Get all subscribed broadcast channels.
+  Future<List<Channel>> getSubscribedChannels() async {
+    final chatsObj = await _tdlib.sendRequest(const td.GetChats(chatList: td.ChatListMain(), limit: 200));
+    if (chatsObj is! td.Chats) return [];
+    
+    final channels = <Channel>[];
+    for (final chatId in chatsObj.chatIds) {
+      final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      if (chatObj is td.Chat) {
+        final type = chatObj.type;
+        if (type is td.ChatTypeSupergroup && type.isChannel) {
+          td.Supergroup? supergroup;
+          td.SupergroupFullInfo? fullInfo;
+          
+          try {
+            final sgObj = await _tdlib.sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+            if (sgObj is td.Supergroup) supergroup = sgObj;
+            
+            final fiObj = await _tdlib.sendRequest(td.GetSupergroupFullInfo(supergroupId: type.supergroupId));
+            if (fiObj is td.SupergroupFullInfo) fullInfo = fiObj;
+          } catch (_) {}
 
-    return query.watch().map((rows) => rows.map(_mapToChannel).toList());
+          channels.add(TdlibMappers.mapChatToChannel(chatObj, supergroup: supergroup, fullInfo: fullInfo));
+        }
+      }
+    }
+    return channels;
   }
 
-  /// Get a channel by its database ID.
-  Future<Channel?> getChannelById(int channelDbId) async {
-    final entry = await (db.select(db.channels)
-          ..where((c) => c.id.equals(channelDbId)))
-        .getSingleOrNull();
-    if (entry == null) return null;
-    return _mapToChannel(entry);
-  }
+  /// Get a channel by its TDLib chatId.
+  Future<Channel?> getChannelByChatId(int chatId) async {
+    final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+    if (chatObj is td.Chat) {
+      final type = chatObj.type;
+      if (type is td.ChatTypeSupergroup && type.isChannel) {
+        td.Supergroup? supergroup;
+        td.SupergroupFullInfo? fullInfo;
+        
+        try {
+          final sgObj = await _tdlib.sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+          if (sgObj is td.Supergroup) supergroup = sgObj;
+          
+          final fiObj = await _tdlib.sendRequest(td.GetSupergroupFullInfo(supergroupId: type.supergroupId));
+          if (fiObj is td.SupergroupFullInfo) fullInfo = fiObj;
+        } catch (_) {}
 
-  /// Toggle favorite status.
-  Future<void> toggleFavorite(int channelDbId) async {
-    final channel = await (db.select(db.channels)
-          ..where((c) => c.id.equals(channelDbId)))
-        .getSingleOrNull();
-    if (channel == null) return;
-
-    await (db.update(db.channels)..where((c) => c.id.equals(channelDbId)))
-        .write(ChannelsCompanion(isFavorite: Value(!channel.isFavorite)));
-  }
-
-  /// Toggle muted status.
-  Future<void> toggleMuted(int channelDbId) async {
-    final channel = await (db.select(db.channels)
-          ..where((c) => c.id.equals(channelDbId)))
-        .getSingleOrNull();
-    if (channel == null) return;
-
-    await (db.update(db.channels)..where((c) => c.id.equals(channelDbId)))
-        .write(ChannelsCompanion(isMuted: Value(!channel.isMuted)));
-  }
-
-  Channel _mapToChannel(ChannelEntry entry) {
-    return Channel(
-      id: entry.id.toString(),
-      chatId: entry.chatId,
-      title: entry.title,
-      username: entry.username,
-      description: entry.description,
-      avatarUrl: entry.avatarUrl,
-      avatarColor: entry.avatarColor,
-      subscriberCount: entry.subscriberCount,
-      isVerified: entry.isVerified,
-      isFavorite: entry.isFavorite,
-      isMuted: entry.isMuted,
-      isHidden: entry.isHidden,
-      lastPostAt: entry.lastPostAt,
-    );
+        return TdlibMappers.mapChatToChannel(chatObj, supergroup: supergroup, fullInfo: fullInfo);
+      }
+    }
+    return null;
   }
 }
 
-/// Riverpod provider for ChannelRepository.
 final channelRepositoryProvider = Provider<ChannelRepository>((ref) {
-  return ChannelRepository(ref.watch(databaseProvider));
+  return ChannelRepository(ref.watch(tdlibServiceProvider));
 });

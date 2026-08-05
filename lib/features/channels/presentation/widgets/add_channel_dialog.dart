@@ -4,7 +4,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
 void showAddChannelDialog(BuildContext context, WidgetRef ref) {
   showDialog(
@@ -43,8 +44,8 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
     });
 
     try {
-      final syncService = widget.ref.read(syncServiceProvider);
-      await syncService.addPublicChannelByUsername(text);
+      final tdlibService = widget.ref.read(tdlibServiceProvider);
+      await tdlibService.sendRequest(td.SearchPublicChat(username: text));
       if (mounted && context.mounted) {
         Navigator.pop(context);
       }

@@ -10,8 +10,10 @@ part 'post.g.dart';
 abstract class Post with _$Post {
   const factory Post({
     required String id,
+    required int chatId,
     required String channelId,
     required int messageId,
+    @Default(0) int mediaAlbumId,
     required String channelTitle,
     String? channelUsername,
     String? channelAvatarUrl,
@@ -32,6 +34,7 @@ abstract class Post with _$Post {
     String? linkPreviewImageUrl,
     String? forwardedFromTitle,
     String? forwardedFromUsername,
+    String? forwardedFromChatId,
     @Default([]) List<TextEntity> entities,
     Poll? poll,
   }) = _Post;

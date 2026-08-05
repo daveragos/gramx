@@ -201,7 +201,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.light),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: _XThemeSegmentTile(
+                    title: 'Dim',
+                    mode: AppThemeMode.dim,
+                    currentMode: currentTheme,
+                    bgColor: AppColors.dimBackground,
+                    borderColor: borderColor,
+                    tileTextColor: AppColors.dimTextPrimary,
+                    onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.dim),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _XThemeSegmentTile(
                     title: 'Lights out',

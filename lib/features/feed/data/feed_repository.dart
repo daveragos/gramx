@@ -1,234 +1,148 @@
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
-import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
-import 'package:gramx/features/feed/domain/text_entity.dart';
-import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Repository for feed/post operations backed by Drift.
 class FeedRepository {
-  final AppDatabase db;
+  final TdlibService _tdlib;
+  final AppDatabase _db;
 
-  FeedRepository(this.db);
+  FeedRepository(this._tdlib, this._db);
 
-  /// Mark post as read in local database and synchronise to Telegram.
-  Future<void> markPostAsRead(int postDbId, Ref ref) async {
-    final post = await getPostById(postDbId);
-    if (post == null || post.isRead) return;
-
-    // 1. Mark read locally in DB
-    await (db.update(db.posts)..where((p) => p.id.equals(postDbId)))
-        .write(const PostsCompanion(isRead: Value(true)));
-
-    // 2. Synchronise to Telegram via ViewMessages in background
-    try {
-      final channel = await (db.select(db.channels)
-            ..where((c) => c.id.equals(int.parse(post.channelId))))
-          .getSingleOrNull();
-
-      if (channel != null) {
-        final tdlib = ref.read(tdlibServiceProvider);
-        await tdlib.sendRequest(td.ViewMessages(
-          chatId: channel.chatId,
-          messageIds: [post.messageId],
-          forceRead: true,
-        ));
-        debugPrint('[Feed] Post ${post.messageId} marked as read on Telegram.');
+  /// Fetch feed posts from all subscribed channels.
+  /// Gets recent messages from TDLib's cache, groups albums, marks bookmarks.
+  Future<List<Post>> fetchFeedPosts() async {
+    // 1. Get all chats from TDLib
+    final chatsObj = await _tdlib.sendRequest(const td.GetChats(chatList: td.ChatListMain(), limit: 100));
+    if (chatsObj is! td.Chats) return [];
+    
+    // 2. For each channel chat, get recent messages
+    final allMessages = <td.Message>[];
+    final chatMap = <int, td.Chat>{};
+    for (final chatId in chatsObj.chatIds) {
+      final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      if (chatObj is td.Chat) {
+        final type = chatObj.type;
+        if (type is td.ChatTypeSupergroup && type.isChannel) {
+          chatMap[chatId] = chatObj;
+          final history = await _tdlib.sendRequest(td.GetChatHistory(
+            chatId: chatId, fromMessageId: 0, offset: 0, limit: 30, onlyLocal: false,
+          ));
+          if (history is td.Messages) {
+            allMessages.addAll(history.messages);
+          }
+        }
       }
-    } catch (e) {
-      debugPrint('[Feed] Error marking message as read on Telegram: $e');
     }
-  }
-
-  /// Watch all posts sorted by publishedAt desc, joined with channel data.
-  Stream<List<Post>> watchFeedPosts() {
-    final query = (db.select(db.posts)
-          ..where((p) => p.isDeleted.equals(false))
-          ..orderBy([
-            (p) => OrderingTerm.desc(p.publishedAt),
-          ]))
-        .join([
-      innerJoin(
-        db.channels,
-        db.channels.id.equalsExp(db.posts.channelId),
-      ),
-    ]);
-
-    return query.watch().asyncMap((rows) async {
-      final posts = <Post>[];
-      for (final row in rows) {
-        final postEntry = row.readTable(db.posts);
-        final channelEntry = row.readTable(db.channels);
-
-        // Fetch media items for this post
-        final mediaEntries = await (db.select(db.mediaItems)
-              ..where((m) => m.postId.equals(postEntry.id))
-              ..orderBy([(m) => OrderingTerm.asc(m.sortOrder)]))
-            .get();
-
-        posts.add(_mapToPost(postEntry, channelEntry, mediaEntries));
+    
+    // 3. Get bookmark keys
+    final bookmarks = await _db.select(_db.bookmarkEntries).get();
+    final bookmarkKeys = bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
+    
+    // 4. Group albums and map to Posts
+    // Group messages by chatId first, then merge albums within each chat
+    final postsByChatId = <int, List<Post>>{};
+    final messagesByChatId = <int, List<td.Message>>{};
+    for (final msg in allMessages) {
+      messagesByChatId.putIfAbsent(msg.chatId, () => []).add(msg);
+    }
+    for (final entry in messagesByChatId.entries) {
+      final chat = chatMap[entry.key];
+      if (chat != null) {
+        postsByChatId[entry.key] = TdlibMappers.mergeAlbumMessages(
+          entry.value, chat, bookmarkedKeys: bookmarkKeys,
+        );
       }
-      return posts;
-    });
+    }
+    
+    // 5. Flatten, sort by date desc
+    final allPosts = postsByChatId.values.expand((e) => e).toList()
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    
+    return allPosts;
   }
 
-  /// Watch posts for a specific channel.
-  Stream<List<Post>> watchChannelPosts(int channelDbId) {
-    final query = (db.select(db.posts)
-          ..where((p) =>
-              p.channelId.equals(channelDbId) & p.isDeleted.equals(false))
-          ..orderBy([(p) => OrderingTerm.desc(p.publishedAt)]))
-        .join([
-      innerJoin(
-        db.channels,
-        db.channels.id.equalsExp(db.posts.channelId),
-      ),
-    ]);
+  /// Fetch posts for a single channel.
+  Future<List<Post>> fetchChannelPosts(int chatId, {int fromMessageId = 0, int limit = 50}) async {
+    final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+    if (chatObj is! td.Chat) return [];
 
-    return query.watch().asyncMap((rows) async {
-      final posts = <Post>[];
-      for (final row in rows) {
-        final postEntry = row.readTable(db.posts);
-        final channelEntry = row.readTable(db.channels);
+    final history = await _tdlib.sendRequest(td.GetChatHistory(
+      chatId: chatId, fromMessageId: fromMessageId, offset: 0, limit: limit, onlyLocal: false,
+    ));
+    if (history is! td.Messages) return [];
 
-        final mediaEntries = await (db.select(db.mediaItems)
-              ..where((m) => m.postId.equals(postEntry.id))
-              ..orderBy([(m) => OrderingTerm.asc(m.sortOrder)]))
-            .get();
+    final bookmarks = await _db.select(_db.bookmarkEntries).get();
+    final bookmarkKeys = bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
 
-        posts.add(_mapToPost(postEntry, channelEntry, mediaEntries));
-      }
-      return posts;
-    });
+    return TdlibMappers.mergeAlbumMessages(
+      history.messages, chatObj, bookmarkedKeys: bookmarkKeys,
+    );
   }
 
-  /// Get a single post by its database ID.
-  Future<Post?> getPostById(int postDbId) async {
-    final query = (db.select(db.posts)
-          ..where((p) => p.id.equals(postDbId)))
-        .join([
-      innerJoin(
-        db.channels,
-        db.channels.id.equalsExp(db.posts.channelId),
-      ),
-    ]);
-
-    final rows = await query.get();
-    if (rows.isEmpty) return null;
-
-    final row = rows.first;
-    final postEntry = row.readTable(db.posts);
-    final channelEntry = row.readTable(db.channels);
-
-    final mediaEntries = await (db.select(db.mediaItems)
-          ..where((m) => m.postId.equals(postEntry.id))
-          ..orderBy([(m) => OrderingTerm.asc(m.sortOrder)]))
-        .get();
-
-    return _mapToPost(postEntry, channelEntry, mediaEntries);
-  }
-
-  /// Toggle bookmark on a post.
-  Future<void> toggleBookmark(int postDbId) async {
-    final post = await (db.select(db.posts)
-          ..where((p) => p.id.equals(postDbId)))
+  /// Toggle bookmark using chatId + messageId.
+  Future<void> toggleBookmark(int chatId, int messageId) async {
+    final existing = await (_db.select(_db.bookmarkEntries)
+          ..where((b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
         .getSingleOrNull();
-    if (post == null) return;
 
-    await (db.update(db.posts)..where((p) => p.id.equals(postDbId)))
-        .write(PostsCompanion(isBookmarked: Value(!post.isBookmarked)));
+    if (existing != null) {
+      await (_db.delete(_db.bookmarkEntries)
+            ..where((b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
+          .go();
+    } else {
+      final accounts = await (_db.select(_db.accounts)..where((a) => a.isActive.equals(true))).get();
+      final accountId = accounts.isNotEmpty ? accounts.first.id : 1;
+      
+      await _db.into(_db.bookmarkEntries).insert(BookmarkEntriesCompanion.insert(
+        accountId: accountId,
+        chatId: chatId,
+        messageId: messageId,
+      ));
+    }
   }
 
-  Post _mapToPost(
-    PostEntry postEntry,
-    ChannelEntry channelEntry,
-    List<MediaItemEntry> mediaEntries,
-  ) {
-    Map<String, int> reactions = {};
-    try {
-      final decoded = jsonDecode(postEntry.reactionsJson);
-      if (decoded is Map) {
-        reactions = decoded.map((k, v) => MapEntry(k.toString(), v as int));
-      }
-    } catch (_) {}
-
-    List<TextEntity> entities = [];
-    if (postEntry.textEntitiesJson != null) {
-      try {
-        final List<dynamic> decoded = jsonDecode(postEntry.textEntitiesJson!);
-        entities = decoded.map((e) => TextEntity.fromJson(e as Map<String, dynamic>)).toList();
-      } catch (e) {
-        debugPrint('[FeedRepo] Error parsing text entities: $e');
-      }
-    }
-
-    Poll? poll;
-    if (postEntry.pollJson != null) {
-      try {
-        final decoded = jsonDecode(postEntry.pollJson!);
-        poll = Poll.fromJson(decoded as Map<String, dynamic>);
-      } catch (e) {
-        debugPrint('[FeedRepo] Error parsing poll: $e');
-      }
-    }
-
-    return Post(
-      id: postEntry.id.toString(),
-      channelId: channelEntry.id.toString(),
-      messageId: postEntry.messageId,
-      channelTitle: channelEntry.title,
-      channelUsername: channelEntry.username,
-      channelAvatarUrl: channelEntry.avatarUrl,
-      channelAvatarColor: channelEntry.avatarColor,
-      isChannelVerified: channelEntry.isVerified,
-      text: postEntry.body,
-      media: mediaEntries.map(_mapMediaItem).toList(),
-      publishedAt: postEntry.publishedAt,
-      viewCount: postEntry.viewCount,
-      replyCount: postEntry.replyCount,
-      forwardCount: postEntry.forwardCount,
-      reactions: reactions,
-      isBookmarked: postEntry.isBookmarked,
-      isRead: postEntry.isRead,
-      linkPreviewUrl: postEntry.linkPreviewUrl,
-      linkPreviewTitle: postEntry.linkPreviewTitle,
-      linkPreviewDescription: postEntry.linkPreviewDescription,
-      linkPreviewImageUrl: postEntry.linkPreviewImageUrl,
-      forwardedFromTitle: postEntry.forwardedFromTitle,
-      forwardedFromUsername: postEntry.forwardedFromUsername,
-      entities: entities,
-      poll: poll,
-    );
+  /// Check if a post is bookmarked.
+  Future<bool> isBookmarked(int chatId, int messageId) async {
+    final existing = await (_db.select(_db.bookmarkEntries)
+          ..where((b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
+        .getSingleOrNull();
+    return existing != null;
   }
 
-  MediaItem _mapMediaItem(MediaItemEntry entry) {
-    return MediaItem(
-      id: entry.id.toString(),
-      type: MediaType.values.firstWhere(
-        (t) => t.name == entry.type,
-        orElse: () => MediaType.photo,
-      ),
-      url: entry.url,
-      thumbnailUrl: entry.thumbnailUrl,
-      width: entry.width,
-      height: entry.height,
-      duration: entry.duration,
-      fileSize: entry.fileSize,
-      fileName: entry.fileName,
-      mimeType: entry.mimeType,
-      localPath: entry.localPath,
-    );
+  /// Mark post as read via TDLib.
+  Future<void> markPostAsRead(int chatId, int messageId) async {
+    await _tdlib.sendRequest(td.ViewMessages(
+      chatId: chatId,
+      messageIds: [messageId],
+      forceRead: true,
+    ));
+  }
+
+  /// Get available reactions for a chat
+  Future<List<String>> getAvailableReactions(int chatId) async {
+    final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+    if (chatObj is td.Chat) {
+      final available = chatObj.availableReactions;
+      if (available is td.ChatAvailableReactionsSome) {
+        final emojis = <String>[];
+        for (final r in available.reactions) {
+          if (r is td.ReactionTypeEmoji) {
+            emojis.add(r.emoji);
+          }
+        }
+        if (emojis.isNotEmpty) return emojis;
+      }
+    }
+    // Default fallback emojis if not specifically restricted
+    return ['👍', '❤️', '🔥', '🥰', '👏'];
   }
 }
 
-/// Riverpod provider for FeedRepository.
 final feedRepositoryProvider = Provider<FeedRepository>((ref) {
-  return FeedRepository(ref.watch(databaseProvider));
+  return FeedRepository(ref.watch(tdlibServiceProvider), ref.watch(databaseProvider));
 });

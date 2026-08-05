@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
-import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PostCard extends ConsumerWidget {
@@ -20,7 +21,7 @@ class PostCard extends ConsumerWidget {
   final VoidCallback? onTap;
   final VoidCallback? onChannelTap;
   final VoidCallback? onBookmarkTap;
-  final VoidCallback? onLikeTap;
+  final ValueChanged<String>? onLikeEmojiTap;
   final VoidCallback? onShareTap;
 
   const PostCard({
@@ -29,9 +30,44 @@ class PostCard extends ConsumerWidget {
     this.onTap,
     this.onChannelTap,
     this.onBookmarkTap,
-    this.onLikeTap,
+    this.onLikeEmojiTap,
     this.onShareTap,
   });
+
+  Future<void> _handleForwardedTap(BuildContext context, WidgetRef ref) async {
+    if (post.forwardedFromChatId != null) {
+      context.push('/channel/${post.forwardedFromChatId}');
+      return;
+    }
+
+    final title = post.forwardedFromTitle;
+    final username = post.forwardedFromUsername;
+
+    // Fallback to launching Telegram link or web
+    if (username != null && username.isNotEmpty) {
+      final telegramUrl = 'https://t.me/$username';
+      try {
+        final uri = Uri.parse(telegramUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // Graceful toast if private / inaccessible
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Channel "${title ?? username ?? 'Original'}" is private or inaccessible.',
+            style: const TextStyle(color: Colors.white),
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,23 +79,21 @@ class PostCard extends ConsumerWidget {
         : AppColors.lightTextSecondary;
 
     final defaultBookmarkHandler = onBookmarkTap ?? () {
-      final dbId = int.tryParse(post.id);
-      if (dbId != null) {
-        ref.read(syncServiceProvider).toggleBookmark(dbId, post.isBookmarked);
-      }
+      ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
     };
 
-    final defaultLikeHandler = onLikeTap ?? () {
-      final channel = ref.read(channelDetailProvider(post.channelId)).value;
-      if (channel != null) {
-        ref.read(syncServiceProvider).togglePostReaction(
-          chatId: channel.chatId,
-          messageId: post.messageId,
-          reactionEmoji: '👍',
-          isCurrentlyLiked: post.reactions.containsKey('👍'),
-        );
+    void defaultReactionHandler(String emoji) {
+      if (onLikeEmojiTap != null) {
+        onLikeEmojiTap!(emoji);
+        return;
       }
-    };
+      ref.read(syncServiceProvider).togglePostReaction(
+        chatId: post.chatId,
+        messageId: post.messageId,
+        reactionEmoji: emoji,
+        isCurrentlyLiked: post.reactions.containsKey(emoji),
+      );
+    }
 
     void defaultReplyHandler() {
       context.push('/post/${post.id}');
@@ -75,6 +109,8 @@ class PostCard extends ConsumerWidget {
       );
     };
 
+    final forwardedText = post.forwardedFromTitle ?? post.forwardedFromUsername ?? (post.forwardedFromChatId != null ? 'Original Channel' : null);
+
     return InkWell(
       onTap: onTap ?? defaultReplyHandler,
       child: Container(
@@ -86,6 +122,7 @@ class PostCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Circular avatar on top left
                   ChannelAvatar(
                     title: post.channelTitle,
                     avatarPath: post.channelAvatarUrl,
@@ -97,6 +134,7 @@ class PostCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Title + Username + Timestamp Header Row
                         Row(
                           children: [
                             Flexible(
@@ -139,19 +177,31 @@ class PostCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        if (post.forwardedFromTitle != null) ...[
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(Icons.repeat, size: 12, color: secondaryColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Forwarded from ${post.forwardedFromTitle}',
-                                style: AppTypography.actionCount(color: secondaryColor),
-                              ),
-                            ],
+
+                        // Clickable Forwarded Banner Header
+                        if (forwardedText != null && forwardedText.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          GestureDetector(
+                            onTap: () => _handleForwardedTap(context, ref),
+                            child: Row(
+                              children: [
+                                Icon(Icons.repeat, size: 13, color: AppColors.repost),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'Forwarded from $forwardedText',
+                                    style: AppTypography.actionCount(color: AppColors.accent).copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
+
+                        // Text content with link launcher
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
                           TextEntityRenderer(
@@ -160,6 +210,8 @@ class PostCard extends ConsumerWidget {
                             style: AppTypography.body(color: primaryTextColor),
                           ),
                         ],
+
+                        // Link preview
                         if (post.linkPreviewUrl != null && post.linkPreviewUrl!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           LinkPreviewCard(
@@ -169,6 +221,8 @@ class PostCard extends ConsumerWidget {
                             imageUrl: post.linkPreviewImageUrl,
                           ),
                         ],
+
+                        // Poll
                         if (post.poll != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           PollCard(
@@ -177,16 +231,21 @@ class PostCard extends ConsumerWidget {
                             messageId: post.messageId,
                           ),
                         ],
+
+                        // Media Grid
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           PostMediaGrid(media: post.media),
                         ],
+
                         const SizedBox(height: AppSpacing.md),
+
+                        // Action Bar
                         PostActionBar(
                           post: post,
                           secondaryColor: secondaryColor,
                           onBookmarkTap: defaultBookmarkHandler,
-                          onLikeTap: defaultLikeHandler,
+                          onSelectReaction: defaultReactionHandler,
                           onReplyTap: defaultReplyHandler,
                           onShareTap: defaultShareHandler,
                         ),

@@ -1,31 +1,39 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
-import 'package:gramx/infrastructure/database/database.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/features/folders/data/folder_repository.dart';
 
 /// Provides the full feed of posts (all channels), sorted by publishedAt desc.
-final feedPostsProvider = StreamProvider<List<Post>>((ref) {
+final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final repo = ref.watch(feedRepositoryProvider);
-  return repo.watchFeedPosts();
+  return repo.fetchFeedPosts();
 });
 
-/// Provides a single post by its database ID.
+/// Provides a single post by its composite ID (chatId_messageId).
 final postDetailProvider =
     FutureProvider.family<Post?, String>((ref, postId) async {
+  final parts = postId.split('_');
+  if (parts.length != 2) return null;
+  final chatId = int.tryParse(parts[0]);
+  if (chatId == null) return null;
+  
   final repo = ref.watch(feedRepositoryProvider);
-  final id = int.tryParse(postId);
-  if (id == null) return null;
-  return repo.getPostById(id);
+  final posts = await repo.fetchChannelPosts(chatId);
+  return posts.where((p) => p.id == postId).firstOrNull;
 });
 
 /// Toggle bookmark action — call this to flip bookmark state.
 final bookmarkToggleProvider =
     FutureProvider.family<void, String>((ref, postId) async {
-  final repo = ref.watch(feedRepositoryProvider);
-  final id = int.tryParse(postId);
-  if (id == null) return;
-  await repo.toggleBookmark(id);
+  final repo = ref.read(feedRepositoryProvider);
+  final parts = postId.split('_');
+  if (parts.length != 2) return;
+  final chatId = int.tryParse(parts[0]);
+  final messageId = int.tryParse(parts[1]);
+  if (chatId == null || messageId == null) return;
+  
+  await repo.toggleBookmark(chatId, messageId);
   // Invalidate feed to reflect change
   ref.invalidate(feedPostsProvider);
 });
@@ -47,69 +55,49 @@ final bottomNavVisibilityProvider =
 
 /// Provider to mark post as read
 final markPostAsReadProvider =
-    FutureProvider.family<void, int>((ref, postDbId) async {
-  final repo = ref.watch(feedRepositoryProvider);
-  await repo.markPostAsRead(postDbId, ref);
+    FutureProvider.family<void, String>((ref, postId) async {
+  final repo = ref.read(feedRepositoryProvider);
+  final parts = postId.split('_');
+  if (parts.length != 2) return;
+  final chatId = int.tryParse(parts[0]);
+  final messageId = int.tryParse(parts[1]);
+  if (chatId == null || messageId == null) return;
+  
+  await repo.markPostAsRead(chatId, messageId);
   ref.invalidate(feedPostsProvider);
 });
 
 /// Provider to trigger loading more history for pagination
 final loadMoreChannelHistoryProvider =
-    FutureProvider.family<void, ({int channelDbId, int chatId})>((ref, arg) async {
-  final syncService = ref.read(syncServiceProvider);
-  await syncService.loadMoreChannelHistory(arg.channelDbId, arg.chatId);
+    FutureProvider.family<void, ({int chatId, int fromMessageId})>((ref, arg) async {
+  final repo = ref.read(feedRepositoryProvider);
+  await repo.fetchChannelPosts(arg.chatId, fromMessageId: arg.fromMessageId);
   ref.invalidate(feedPostsProvider);
 });
 
 /// Provides user's dynamic folders synced from Telegram
-final foldersProvider = StreamProvider<List<FolderEntry>>((ref) {
-  final repo = ref.watch(feedRepositoryProvider);
-  return repo.db.select(repo.db.folders).watch();
+final foldersProvider = FutureProvider<List<td.ChatFolderInfo>>((ref) async {
+  final repo = ref.watch(folderRepositoryProvider);
+  return repo.getFolders();
 });
 
-/// Provides the mapping of folder ID to its channel database IDs
-final folderChannelsMapProvider = StreamProvider<Map<int, List<int>>>((ref) {
-  final repo = ref.watch(feedRepositoryProvider);
-  final select = repo.db.select(repo.db.folderChannels);
-  return select.watch().map((rows) {
-    final map = <int, List<int>>{};
-    for (final row in rows) {
-      map.putIfAbsent(row.folderDbId, () => []).add(row.channelDbId);
-    }
-    return map;
-  });
-});
-
-/// Filtered posts by folder/category (watching dynamic folder list)
+/// Filtered posts by folder/category
 final filteredFeedPostsProvider =
-    Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
-  final postsAsync = ref.watch(feedPostsProvider);
+    FutureProvider.family<List<Post>, String>((ref, folderIdStr) async {
+  final posts = await ref.watch(feedPostsProvider.future);
 
   if (folderIdStr == 'All') {
-    return postsAsync;
+    return posts;
   }
 
   final folderId = int.tryParse(folderIdStr);
   if (folderId == null) {
-    return postsAsync;
+    return posts;
   }
 
-  final folderChannelsMapAsync = ref.watch(folderChannelsMapProvider);
-  return postsAsync.when(
-    data: (posts) {
-      return folderChannelsMapAsync.when(
-        data: (map) {
-          final allowedChannelIds = map[folderId] ?? [];
-          final allowedChannelIdsStr = allowedChannelIds.map((id) => id.toString()).toSet();
-          return AsyncValue.data(
-            posts.where((post) => allowedChannelIdsStr.contains(post.channelId)).toList(),
-          );
-        },
-        loading: () => const AsyncValue.loading(),
-        error: (err, stack) => AsyncValue.error(err, stack),
-      );
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (err, stack) => AsyncValue.error(err, stack),
-  );
+  final folderRepo = ref.watch(folderRepositoryProvider);
+  final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
+  final allowedChannelIdsStr = allowedChannelIds.map((id) => id.toString()).toSet();
+  
+  return posts.where((post) => allowedChannelIdsStr.contains(post.channelId)).toList();
 });

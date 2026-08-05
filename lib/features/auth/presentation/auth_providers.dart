@@ -269,11 +269,9 @@ class AuthController extends Notifier<AuthState> {
 
       // Trigger background channel & feed sync
       final syncService = ref.read(syncServiceProvider);
-      syncService.syncSubscribedChannels().then((_) {
-        return syncService.syncFeedHistory();
-      }).catchError((e) {
-        debugPrint('[Auth] Background sync error: $e');
-      });
+      syncService.markAuthReady();
+      syncService.startListening();
+      syncService.triggerInitialSync();
     } catch (e) {
       state = state.copyWith(
         step: AuthStep.error,
@@ -287,11 +285,15 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> submitPhoneNumber(String phone) async {
+    var formattedPhone = phone.trim();
+    if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+$formattedPhone';
+    }
     state = state.clearError().copyWith(isSubmitting: true);
     try {
       final res = await _tdlib.sendRequest(
         td.SetAuthenticationPhoneNumber(
-          phoneNumber: phone,
+          phoneNumber: formattedPhone,
           settings: td.PhoneNumberAuthenticationSettings(
             allowFlashCall: false,
             allowMissedCall: false,
@@ -308,7 +310,7 @@ class AuthController extends Notifier<AuthState> {
           errorMessage: res.message,
         );
       } else {
-        state = state.copyWith(phoneNumber: phone, isSubmitting: false);
+        state = state.copyWith(phoneNumber: formattedPhone, isSubmitting: false);
       }
     } catch (e) {
       state = state.copyWith(
@@ -410,9 +412,6 @@ class AuthController extends Notifier<AuthState> {
       final db = ref.read(databaseProvider);
 
       await db.delete(db.bookmarkEntries).go();
-      await db.delete(db.mediaItems).go();
-      await db.delete(db.posts).go();
-      await db.delete(db.channels).go();
       await db.delete(db.accounts).go();
 
       state = const AuthState(step: AuthStep.loginMethodSelection);

@@ -28,10 +28,62 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
   String _selectedCountryFlag = '🇺🇸';
   String _selectedCountryName = 'United States';
 
+  @override
+  void initState() {
+    super.initState();
+    widget.phoneController.addListener(_onPhoneChanged);
+    _onPhoneChanged();
+  }
+
+  @override
+  void didUpdateWidget(AuthPhonePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.phoneController != widget.phoneController) {
+      oldWidget.phoneController.removeListener(_onPhoneChanged);
+      widget.phoneController.addListener(_onPhoneChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.phoneController.removeListener(_onPhoneChanged);
+    super.dispose();
+  }
+
+  void _onPhoneChanged() {
+    final text = widget.phoneController.text.trim();
+    if (text.isEmpty) return;
+
+    final digits = text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) return;
+
+    Country? matchedCountry;
+    for (int len = digits.length < 4 ? digits.length : 4; len >= 1; len--) {
+      final codeCandidate = digits.substring(0, len);
+      final country = CountryParser.tryParsePhoneCode(codeCandidate);
+      if (country != null) {
+        matchedCountry = country;
+        break;
+      }
+    }
+
+    if (matchedCountry != null) {
+      final newCode = '+${matchedCountry.phoneCode}';
+      if (_selectedCountryCode != newCode) {
+        setState(() {
+          _selectedCountryCode = newCode;
+          _selectedCountryFlag = matchedCountry!.flagEmoji;
+          _selectedCountryName = matchedCountry.name;
+        });
+      }
+    }
+  }
+
   void _showCountryPicker() {
     showCountryPicker(
       context: context,
       showPhoneCode: true,
+      searchAutofocus: true,
       countryListTheme: CountryListThemeData(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -196,10 +248,15 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
                   ? null
                   : () {
                       var phone = widget.phoneController.text.trim();
-                      if (!phone.startsWith('+')) {
-                        phone = '$_selectedCountryCode$phone';
-                      }
                       if (phone.isNotEmpty) {
+                        if (!phone.startsWith('+')) {
+                          final rawCc = _selectedCountryCode.replaceAll('+', '');
+                          if (phone.startsWith(rawCc)) {
+                            phone = '+$phone';
+                          } else {
+                            phone = '$_selectedCountryCode$phone';
+                          }
+                        }
                         widget.controller.submitPhoneNumber(phone);
                       }
                     },

@@ -1,61 +1,50 @@
 import 'dart:convert';
-import 'package:drift/drift.dart';
+import 'dart:math' as math;
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
-import 'package:gramx/infrastructure/database/database.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
+import 'package:gramx/features/channels/domain/channel.dart';
 
 class TdlibMappers {
-  /// Map TDLib Chat model to Drift ChannelsCompanion
-  static ChannelsCompanion mapChatToCompanion(
-    td.Chat chat, 
-    int accountDbId, {
-    String? username,
-    String? description,
-    bool isVerified = false,
-    int subscriberCount = 0,
-  }) {
-    return ChannelsCompanion.insert(
-      accountId: accountDbId,
+  static Channel mapChatToChannel(td.Chat chat, {td.Supergroup? supergroup, td.SupergroupFullInfo? fullInfo}) {
+    return Channel(
+      id: chat.id.toString(),
       chatId: chat.id,
       title: chat.title,
-      username: Value(username),
-      description: Value(description),
-      avatarUrl: Value(chat.photo != null
+      username: supergroup?.usernames?.activeUsernames.isNotEmpty == true ? supergroup!.usernames!.activeUsernames.first : null,
+      description: fullInfo?.description,
+      avatarUrl: chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true
               ? chat.photo!.small.local.path
               : (chat.photo!.small.remote.id.isNotEmpty
                   ? chat.photo!.small.remote.id
                   : chat.photo!.small.id.toString()))
-          : null),
-      avatarColor: Value(_generateRandomHexColor(chat.id)),
-      subscriberCount: Value(subscriberCount),
-      isVerified: Value(isVerified),
-      lastReadInboxMessageId: Value(chat.lastReadInboxMessageId),
-      isFavorite: const Value(false),
-      isMuted: const Value(false),
-      isHidden: const Value(false),
-      lastPostAt: Value(DateTime.now()), // default placeholder
+          : null,
+      avatarColor: _generateRandomHexColor(chat.id),
+      subscriberCount: supergroup?.memberCount ?? 0,
+      isVerified: supergroup?.isVerified ?? false,
+            isFavorite: false,
+      isMuted: false,
+      isHidden: false,
     );
   }
 
-  /// Map TDLib Message to Drift PostsCompanion
-  static PostsCompanion mapMessageToCompanion(
-    td.Message message, 
-    int accountDbId, 
-    int channelDbId
-  ) {
+  static Post mapMessageToPost(td.Message message, td.Chat chat, {bool isBookmarked = false}) {
     String? bodyText;
     String? linkPreviewUrl;
     String? linkPreviewTitle;
     String? linkPreviewDescription;
     String? linkPreviewImageUrl;
-    String? textEntitiesJson;
-    String? pollJson;
+    List<TextEntity> textEntities = [];
+    Poll? pollObj;
 
     final content = message.content;
     if (content is td.MessageText) {
       bodyText = content.text.text;
-      textEntitiesJson = serializeEntities(content.text.entities);
+      final parsed = _parseEntities(content.text.entities);
+      if (parsed != null) textEntities = parsed;
       if (content.linkPreview != null) {
         final lp = content.linkPreview!;
         linkPreviewUrl = lp.url.isNotEmpty ? lp.url : null;
@@ -93,22 +82,25 @@ class TdlibMappers {
       }
     } else if (content is td.MessagePhoto) {
       bodyText = content.caption.text;
-      textEntitiesJson = serializeEntities(content.caption.entities);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageVideo) {
       bodyText = content.caption.text;
-      textEntitiesJson = serializeEntities(content.caption.entities);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageAnimation) {
       bodyText = content.caption.text;
-      textEntitiesJson = serializeEntities(content.caption.entities);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageDocument) {
       bodyText = content.caption.text;
-      textEntitiesJson = serializeEntities(content.caption.entities);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
     } else if (content is td.MessagePoll) {
       bodyText = content.poll.question.text;
-      pollJson = serializePoll(content.poll);
+      pollObj = _parsePoll(content.poll);
     }
 
-    // Map reactions
     final Map<String, int> reactionsMap = {};
     for (final reaction in message.interactionInfo?.reactions?.reactions ?? <td.MessageReaction>[]) {
       final type = reaction.type;
@@ -117,31 +109,210 @@ class TdlibMappers {
       }
     }
 
-    return PostsCompanion.insert(
-      accountId: accountDbId,
-      channelId: channelDbId,
+    String? forwardedFromTitle;
+    String? forwardedFromUsername;
+    String? forwardedFromChatId;
+    final fwdOrigin = message.forwardInfo?.origin;
+    if (fwdOrigin is td.MessageOriginChannel) {
+      forwardedFromChatId = fwdOrigin.chatId.toString();
+      forwardedFromTitle = fwdOrigin.authorSignature.isNotEmpty ? fwdOrigin.authorSignature : null;
+    } else if (fwdOrigin is td.MessageOriginChat) {
+      forwardedFromChatId = fwdOrigin.senderChatId.toString();
+    } else if (fwdOrigin is td.MessageOriginUser) {
+      // User ID could be used to resolve user, but not channel ID.
+      // We will skip for now or resolve async.
+    } else if (fwdOrigin is td.MessageOriginHiddenUser) {
+      forwardedFromTitle = fwdOrigin.senderName;
+    }
+
+    return Post(
+      id: '${chat.id}_${message.id}',
+      chatId: chat.id,
+      channelId: chat.id.toString(),
       messageId: message.id,
-      body: Value(bodyText),
+      mediaAlbumId: message.mediaAlbumId.toInt(),
+      channelTitle: chat.title,
+      channelAvatarUrl: chat.photo != null
+          ? (chat.photo!.small.local.path.isNotEmpty == true
+              ? chat.photo!.small.local.path
+              : (chat.photo!.small.remote.id.isNotEmpty
+                  ? chat.photo!.small.remote.id
+                  : chat.photo!.small.id.toString()))
+          : null,
+      channelAvatarColor: _generateRandomHexColor(chat.id),
+      text: bodyText,
+      media: extractMediaItems(message),
       publishedAt: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
-      viewCount: Value(message.interactionInfo?.viewCount ?? 0),
-      replyCount: Value(message.interactionInfo?.replyInfo?.replyCount ?? 0),
-      forwardCount: Value(message.interactionInfo?.forwardCount ?? 0),
-      reactionsJson: Value(jsonEncode(reactionsMap)),
-      isBookmarked: const Value(false),
-      isRead: Value(message.isOutgoing == false ? false : true),
-      isDeleted: const Value(false),
-      linkPreviewUrl: Value(linkPreviewUrl),
-      linkPreviewTitle: Value(linkPreviewTitle),
-      linkPreviewDescription: Value(linkPreviewDescription),
-      linkPreviewImageUrl: Value(linkPreviewImageUrl),
-      forwardedFromTitle: Value(message.forwardInfo?.origin is td.MessageOriginChat
-          ? (message.forwardInfo!.origin as td.MessageOriginChat).senderChatId.toString()
-          : message.forwardInfo?.origin is td.MessageOriginChannel
-              ? (message.forwardInfo!.origin as td.MessageOriginChannel).chatId.toString()
-              : null),
-      textEntitiesJson: Value(textEntitiesJson),
-      pollJson: Value(pollJson),
+      viewCount: message.interactionInfo?.viewCount ?? 0,
+      replyCount: message.interactionInfo?.replyInfo?.replyCount ?? 0,
+      forwardCount: message.interactionInfo?.forwardCount ?? 0,
+      reactions: reactionsMap,
+      isBookmarked: isBookmarked,
+      isRead: message.isOutgoing ? true : false,
+      linkPreviewUrl: linkPreviewUrl,
+      linkPreviewTitle: linkPreviewTitle,
+      linkPreviewDescription: linkPreviewDescription,
+      linkPreviewImageUrl: linkPreviewImageUrl,
+      forwardedFromTitle: forwardedFromTitle,
+      forwardedFromUsername: forwardedFromUsername,
+      forwardedFromChatId: forwardedFromChatId,
+      entities: textEntities,
+      poll: pollObj,
     );
+  }
+
+  static List<MediaItem> extractMediaItems(td.Message message) {
+    final list = <MediaItem>[];
+    final content = message.content;
+
+    if (content is td.MessagePhoto) {
+      final photo = content.photo;
+      final bestSize = photo.sizes.last;
+      final bestPhotoPath = bestSize.photo.local.path.isNotEmpty == true 
+          ? bestSize.photo.local.path 
+          : (bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString());
+      final thumbPath = photo.sizes.first.photo.local.path.isNotEmpty == true 
+          ? photo.sizes.first.photo.local.path 
+          : (photo.sizes.first.photo.remote.id.isNotEmpty ? photo.sizes.first.photo.remote.id : photo.sizes.first.photo.id.toString());
+
+      list.add(MediaItem(
+        id: bestPhotoPath,
+        type: MediaType.photo,
+        url: bestPhotoPath,
+        thumbnailUrl: thumbPath,
+        width: bestSize.width,
+        height: bestSize.height,
+      ));
+    } else if (content is td.MessageVideo) {
+      final video = content.video;
+      final videoPath = video.video.local.path.isNotEmpty == true 
+          ? video.video.local.path 
+          : (video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString());
+      final thumbPath = video.thumbnail != null
+          ? (video.thumbnail!.file.local.path.isNotEmpty == true
+              ? video.thumbnail!.file.local.path
+              : (video.thumbnail!.file.remote.id.isNotEmpty ? video.thumbnail!.file.remote.id : video.thumbnail!.file.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: videoPath,
+        type: MediaType.video,
+        url: videoPath,
+        thumbnailUrl: thumbPath,
+        width: video.width,
+        height: video.height,
+        duration: video.duration,
+        fileSize: video.video.expectedSize,
+        fileName: video.fileName,
+        mimeType: video.mimeType,
+      ));
+    } else if (content is td.MessageAnimation) {
+      final anim = content.animation;
+      final animPath = anim.animation.local.path.isNotEmpty == true 
+          ? anim.animation.local.path 
+          : (anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString());
+      final thumbPath = anim.thumbnail != null
+          ? (anim.thumbnail!.file.local.path.isNotEmpty == true
+              ? anim.thumbnail!.file.local.path
+              : (anim.thumbnail!.file.remote.id.isNotEmpty ? anim.thumbnail!.file.remote.id : anim.thumbnail!.file.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: animPath,
+        type: MediaType.gif,
+        url: animPath,
+        thumbnailUrl: thumbPath,
+        width: anim.width,
+        height: anim.height,
+        duration: anim.duration,
+      ));
+    } else if (content is td.MessageDocument) {
+      final doc = content.document;
+      final docPath = doc.document.local.path.isNotEmpty == true 
+          ? doc.document.local.path 
+          : (doc.document.remote.id.isNotEmpty ? doc.document.remote.id : doc.document.id.toString());
+      final thumbPath = doc.thumbnail != null
+          ? (doc.thumbnail!.file.local.path.isNotEmpty == true
+              ? doc.thumbnail!.file.local.path
+              : (doc.thumbnail!.file.remote.id.isNotEmpty ? doc.thumbnail!.file.remote.id : doc.thumbnail!.file.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: docPath,
+        type: MediaType.document,
+        url: docPath,
+        thumbnailUrl: thumbPath,
+        fileSize: doc.document.expectedSize,
+        fileName: doc.fileName,
+        mimeType: doc.mimeType,
+      ));
+    }
+
+    return list;
+  }
+
+  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}}) {
+    final grouped = <int, List<td.Message>>{};
+    final result = <Post>[];
+
+    for (final m in messages) {
+      final albumId = m.mediaAlbumId.toInt();
+      if (albumId == 0) {
+        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}')));
+      } else {
+        grouped.putIfAbsent(albumId, () => []).add(m);
+      }
+    }
+
+    for (final group in grouped.values) {
+      group.sort((a, b) => a.id.compareTo(b.id));
+      final anchor = group.first;
+      
+      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'));
+      
+      final allMedia = <MediaItem>[];
+      int maxViews = 0;
+      String? caption;
+      List<TextEntity> captionEntities = [];
+      
+      for (final m in group) {
+        allMedia.addAll(extractMediaItems(m));
+        if (m.interactionInfo?.viewCount != null) {
+          maxViews = math.max(maxViews, m.interactionInfo!.viewCount);
+        }
+        if (caption == null) {
+          if (m.content is td.MessagePhoto && (m.content as td.MessagePhoto).caption.text.isNotEmpty) {
+            caption = (m.content as td.MessagePhoto).caption.text;
+            captionEntities = _parseEntities((m.content as td.MessagePhoto).caption.entities) ?? [];
+          } else if (m.content is td.MessageVideo && (m.content as td.MessageVideo).caption.text.isNotEmpty) {
+            caption = (m.content as td.MessageVideo).caption.text;
+            captionEntities = _parseEntities((m.content as td.MessageVideo).caption.entities) ?? [];
+          }
+        }
+      }
+
+      result.add(post.copyWith(
+        media: allMedia,
+        viewCount: maxViews > 0 ? maxViews : post.viewCount,
+        text: caption ?? post.text,
+        entities: captionEntities.isNotEmpty ? captionEntities : post.entities,
+      ));
+    }
+
+    return result;
+  }
+
+  static List<TextEntity>? _parseEntities(List<td.TextEntity>? entities) {
+    final serialized = serializeEntities(entities);
+    if (serialized == null) return null;
+    final List<dynamic> list = jsonDecode(serialized);
+    return list.map((e) => TextEntity.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static Poll? _parsePoll(td.Poll? poll) {
+    final serialized = serializePoll(poll);
+    if (serialized == null) return null;
+    return Poll.fromJson(jsonDecode(serialized));
   }
 
   static String? serializeEntities(List<td.TextEntity>? entities) {
@@ -187,9 +358,7 @@ class TdlibMappers {
           'offset': entity.offset,
           'length': entity.length,
           'type': typeStr,
-          // ignore: use_null_aware_elements
           if (url != null) 'url': url,
-          // ignore: use_null_aware_elements
           if (customEmojiId != null) 'customEmojiId': customEmojiId,
         };
       }).toList();
@@ -226,7 +395,6 @@ class TdlibMappers {
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
-        // ignore: use_null_aware_elements
         if (correctOptionId != null) 'correctOptionId': correctOptionId,
         'chosenOptionIds': poll.options
             .asMap()
@@ -239,84 +407,6 @@ class TdlibMappers {
     } catch (e) {
       return null;
     }
-  }
-
-  /// Extracts MediaItemEntry companions from a TDLib Message
-  static List<MediaItemsCompanion> extractMediaCompanions(
-    td.Message message, 
-    int postDbId
-  ) {
-    final list = <MediaItemsCompanion>[];
-    final content = message.content;
-
-    if (content is td.MessagePhoto) {
-      final photo = content.photo;
-      // Get the highest resolution size
-      final bestSize = photo.sizes.last;
-      final bestPhotoPath = bestSize.photo.local.path.isNotEmpty == true 
-          ? bestSize.photo.local.path 
-          : (bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString());
-      final thumbPath = photo.sizes.first.photo.local.path.isNotEmpty == true 
-          ? photo.sizes.first.photo.local.path 
-          : (photo.sizes.first.photo.remote.id.isNotEmpty ? photo.sizes.first.photo.remote.id : photo.sizes.first.photo.id.toString());
-
-      list.add(MediaItemsCompanion.insert(
-        postId: postDbId,
-        type: MediaType.photo.name,
-        url: Value(bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString()),
-        thumbnailUrl: Value(thumbPath),
-        width: Value(bestSize.width),
-        height: Value(bestSize.height),
-        localPath: Value(bestPhotoPath),
-      ));
-    } else if (content is td.MessageVideo) {
-      final video = content.video;
-      final videoPath = video.video.local.path.isNotEmpty == true 
-          ? video.video.local.path 
-          : (video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString());
-      final thumbPath = video.thumbnail != null
-          ? (video.thumbnail!.file.local.path.isNotEmpty == true
-              ? video.thumbnail!.file.local.path
-              : (video.thumbnail!.file.remote.id.isNotEmpty ? video.thumbnail!.file.remote.id : video.thumbnail!.file.id.toString()))
-          : null;
-
-      list.add(MediaItemsCompanion.insert(
-        postId: postDbId,
-        type: MediaType.video.name,
-        url: Value(video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString()),
-        thumbnailUrl: Value(thumbPath),
-        width: Value(video.width),
-        height: Value(video.height),
-        duration: Value(video.duration),
-        fileSize: Value(video.video.expectedSize),
-        fileName: Value(video.fileName),
-        mimeType: Value(video.mimeType),
-        localPath: Value(videoPath),
-      ));
-    } else if (content is td.MessageAnimation) {
-      final anim = content.animation;
-      final animPath = anim.animation.local.path.isNotEmpty == true 
-          ? anim.animation.local.path 
-          : (anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString());
-      final thumbPath = anim.thumbnail != null
-          ? (anim.thumbnail!.file.local.path.isNotEmpty == true
-              ? anim.thumbnail!.file.local.path
-              : (anim.thumbnail!.file.remote.id.isNotEmpty ? anim.thumbnail!.file.remote.id : anim.thumbnail!.file.id.toString()))
-          : null;
-
-      list.add(MediaItemsCompanion.insert(
-        postId: postDbId,
-        type: MediaType.gif.name,
-        url: Value(anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString()),
-        thumbnailUrl: Value(thumbPath),
-        width: Value(anim.width),
-        height: Value(anim.height),
-        duration: Value(anim.duration),
-        localPath: Value(animPath),
-      ));
-    }
-
-    return list;
   }
 
   static String _generateRandomHexColor(int seedId) {

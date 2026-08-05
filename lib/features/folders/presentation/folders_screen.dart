@@ -16,7 +16,7 @@ class FoldersScreen extends ConsumerWidget {
     final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     final foldersAsync = ref.watch(foldersProvider);
-    final folderChannelsMapAsync = ref.watch(folderChannelsMapProvider);
+    final folderChannelsMapAsync = const AsyncValue.data(<String, List<int>>{});
 
     return Scaffold(
       appBar: AppBar(
@@ -76,7 +76,7 @@ class FoldersScreen extends ConsumerWidget {
                 separatorBuilder: (context, index) => const Divider(),
                 itemBuilder: (context, index) {
                   final folder = folders[index];
-                  final channelIds = folderChannelsMap[folder.id] ?? [];
+                  final channelIds = folderChannelsMap[folder.id.toString()] ?? [];
                   final channelCount = channelIds.length;
 
                   return ListTile(

@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
@@ -175,25 +175,45 @@ class TextEntityRenderer extends StatelessWidget {
     }
   }
 
-  void _handleLinkTap(BuildContext context, String url) {
-    Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Link copied to clipboard: $url'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _handleLinkTap(BuildContext context, String rawUrl) async {
+    try {
+      String formattedUrl = rawUrl;
+      if (!formattedUrl.startsWith('http://') &&
+          !formattedUrl.startsWith('https://') &&
+          !formattedUrl.startsWith('tg://')) {
+        formattedUrl = 'https://$formattedUrl';
+      }
+      final uri = Uri.parse(formattedUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      debugPrint('[TextEntityRenderer] Could not launch URL $rawUrl: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open link: $rawUrl'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
-  void _handleMentionTap(BuildContext context, String mention) {
+  Future<void> _handleMentionTap(BuildContext context, String mention) async {
     final username = mention.replaceFirst('@', '').trim();
     if (username.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Opening user/channel mention: @$username'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      final telegramUrl = 'https://t.me/$username';
+      try {
+        final uri = Uri.parse(telegramUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } catch (e) {
+        debugPrint('[TextEntityRenderer] Could not open mention @$username: $e');
+      }
     }
   }
 }

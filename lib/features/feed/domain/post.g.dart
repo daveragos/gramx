@@ -8,8 +8,10 @@ part of 'post.dart';
 
 _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   id: json['id'] as String,
+  chatId: (json['chatId'] as num).toInt(),
   channelId: json['channelId'] as String,
   messageId: (json['messageId'] as num).toInt(),
+  mediaAlbumId: (json['mediaAlbumId'] as num?)?.toInt() ?? 0,
   channelTitle: json['channelTitle'] as String,
   channelUsername: json['channelUsername'] as String?,
   channelAvatarUrl: json['channelAvatarUrl'] as String?,
@@ -38,6 +40,7 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   linkPreviewImageUrl: json['linkPreviewImageUrl'] as String?,
   forwardedFromTitle: json['forwardedFromTitle'] as String?,
   forwardedFromUsername: json['forwardedFromUsername'] as String?,
+  forwardedFromChatId: json['forwardedFromChatId'] as String?,
   entities:
       (json['entities'] as List<dynamic>?)
           ?.map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
@@ -50,8 +53,10 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
 
 Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'id': instance.id,
+  'chatId': instance.chatId,
   'channelId': instance.channelId,
   'messageId': instance.messageId,
+  'mediaAlbumId': instance.mediaAlbumId,
   'channelTitle': instance.channelTitle,
   'channelUsername': instance.channelUsername,
   'channelAvatarUrl': instance.channelAvatarUrl,
@@ -72,6 +77,7 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'linkPreviewImageUrl': instance.linkPreviewImageUrl,
   'forwardedFromTitle': instance.forwardedFromTitle,
   'forwardedFromUsername': instance.forwardedFromUsername,
+  'forwardedFromChatId': instance.forwardedFromChatId,
   'entities': instance.entities,
   'poll': instance.poll,
 };

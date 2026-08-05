@@ -274,10 +274,7 @@ class _SearchResults extends ConsumerWidget {
                   return PostCard(
                     post: post,
                     onTap: () {
-                      final id = int.tryParse(post.id);
-                      if (id != null) {
-                        ref.read(markPostAsReadProvider(id));
-                      }
+                      ref.read(markPostAsReadProvider(post.id));
                       context.push('/post/${post.id}');
                     },
                     onChannelTap: () =>
@@ -452,10 +449,7 @@ class _ExploreView extends ConsumerWidget {
                   return PostCard(
                     post: post,
                     onTap: () {
-                      final id = int.tryParse(post.id);
-                      if (id != null) {
-                        ref.read(markPostAsReadProvider(id));
-                      }
+                      ref.read(markPostAsReadProvider(post.id));
                       context.push('/post/${post.id}');
                     },
                     onChannelTap: () =>

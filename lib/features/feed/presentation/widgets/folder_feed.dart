@@ -7,6 +7,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
@@ -48,16 +49,16 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         setState(() => _isLoadingMore = true);
         try {
           final channels = ref.read(channelsProvider).value ?? [];
+          final currentPosts = ref.read(feedPostsProvider).value ?? [];
           for (final channel in channels) {
-            final channelDbId = int.tryParse(channel.id);
-            if (channelDbId != null) {
-              await ref.read(
-                loadMoreChannelHistoryProvider((
-                  channelDbId: channelDbId,
-                  chatId: channel.chatId,
-                )).future,
-              );
-            }
+            final channelPosts = currentPosts.where((p) => p.channelId == channel.id).toList();
+            final lastMsgId = channelPosts.isNotEmpty ? channelPosts.last.messageId : 0;
+            await ref.read(
+              loadMoreChannelHistoryProvider((
+                chatId: channel.chatId,
+                fromMessageId: lastMsgId,
+              )).future,
+            );
           }
         } catch (_) {
         } finally {
@@ -70,7 +71,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   @override
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
-    final isSyncing = ref.watch(isSyncingProvider).value;
+    final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
 
     return feedAsync.when(
@@ -124,10 +125,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         return RefreshIndicator(
           color: AppColors.accent,
           onRefresh: () async {
-            final syncService = ref.read(syncServiceProvider);
-            await syncService.syncSubscribedChannels();
-            await syncService.syncFeedHistory();
             ref.invalidate(feedPostsProvider);
+            await ref.read(feedPostsProvider.future);
           },
           child: ListView.builder(
             controller: _scrollController,
@@ -150,10 +149,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               return PostCard(
                 post: post,
                 onTap: () {
-                  final id = int.tryParse(post.id);
-                  if (id != null) {
-                    ref.read(markPostAsReadProvider(id));
-                  }
+                  ref.read(markPostAsReadProvider(post.id));
                   context.push('/post/${post.id}');
                 },
                 onChannelTap: () => context.push('/channel/${post.channelId}'),

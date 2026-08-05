@@ -9,8 +9,8 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
-
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:handy_tdlib/api.dart' as td;
 class ChannelsListScreen extends ConsumerWidget {
   const ChannelsListScreen({super.key});
 
@@ -251,8 +251,8 @@ class ChannelsListScreen extends ConsumerWidget {
                           });
 
                           try {
-                            final syncService = ref.read(syncServiceProvider);
-                            await syncService.addPublicChannelByUsername(text);
+                            final tdlibService = ref.read(tdlibServiceProvider);
+                            await tdlibService.sendRequest(td.SearchPublicChat(username: text));
                             if (context.mounted) {
                               Navigator.pop(context); // close dialog
                             }

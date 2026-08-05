@@ -37,8 +37,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     try {
       final channel = ref.read(channelDetailProvider(widget.channelId)).value;
       if (channel != null) {
-        final syncService = ref.read(syncServiceProvider);
-        await syncService.syncChannelHistory(int.parse(channel.id), channel.chatId);
+        await ref.read(loadMoreChannelHistoryProvider((chatId: channel.chatId, fromMessageId: 0)).future);
       }
     } catch (e) {
       debugPrint('[ChannelScreen] Error fetching initial history: $e');
@@ -66,8 +65,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
       if (channel != null) {
         await ref.read(
           loadMoreChannelHistoryProvider((
-            channelDbId: int.parse(channel.id),
             chatId: channel.chatId,
+            fromMessageId: 0,
           )).future,
         );
       }
@@ -116,9 +115,25 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     return Scaffold(
       body: channelAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (err, _) => Scaffold(
+          appBar: AppBar(title: const Text('Channel')),
+          body: Center(child: Text('Error: $err')),
+        ),
         data: (channel) {
-          if (channel == null) return const Center(child: Text('Channel not found'));
+          if (channel == null) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Channel Not Found')),
+              body: const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.xl),
+                  child: Text(
+                    'This channel is private or inaccessible.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            );
+          }
 
           final bannerColor = channel.avatarColor != null
               ? _parseColor(channel.avatarColor!)
@@ -204,10 +219,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                       return PostCard(
                         post: post,
                         onTap: () {
-                          final id = int.tryParse(post.id);
-                          if (id != null) {
-                            ref.read(markPostAsReadProvider(id));
-                          }
+                          ref.read(markPostAsReadProvider(post.id));
                           context.push('/post/${post.id}');
                         },
                       );

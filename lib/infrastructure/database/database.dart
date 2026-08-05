@@ -4,12 +4,12 @@ import 'package:gramx/infrastructure/database/tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Accounts, Channels, Posts, MediaItems, BookmarkEntries, Folders, FolderChannels])
+@DriftDatabase(tables: [Accounts, BookmarkEntries])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -18,7 +18,6 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (m, from, to) async {
-        // Drop and recreate all tables in development to handle schema modifications easily
         for (final table in allTables) {
           await m.drop(table);
         }

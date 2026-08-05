@@ -52,12 +52,9 @@ class PostDetailScreen extends ConsumerWidget {
         : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
 
-    final id = int.tryParse(postId);
-    if (id != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(markPostAsReadProvider(id));
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(markPostAsReadProvider(postId));
+    });
 
     return Scaffold(
       appBar: AppBar(

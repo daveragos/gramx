@@ -9,7 +9,7 @@ import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.dart';
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
+
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -25,7 +25,7 @@ class HomeScreen extends ConsumerWidget {
 
     final channelsAsync = ref.watch(channelsProvider);
     final accountAsync = ref.watch(activeAccountProvider);
-    final isSyncing = ref.watch(isSyncingProvider).value;
+    final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
     final foldersAsync = ref.watch(foldersProvider);
