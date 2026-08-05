@@ -14,6 +14,7 @@ import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PostCard extends ConsumerWidget {
@@ -87,6 +88,9 @@ class PostCard extends ConsumerWidget {
         onLikeEmojiTap!(emoji);
         return;
       }
+      // Optimistic instant UI update
+      ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
+
       ref.read(syncServiceProvider).togglePostReaction(
         chatId: post.chatId,
         messageId: post.messageId,
@@ -202,6 +206,57 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
+                        // Quoted Reply Preview Card (Telegram Style)
+                        if (post.replyToText != null || post.replyToAuthorTitle != null || post.replyToMessageId != null) ...[
+                          const SizedBox(height: 6),
+                          GestureDetector(
+                            onTap: () {
+                              if (post.replyToMessageId != null) {
+                                context.push('/post/${post.chatId}_${post.replyToMessageId}');
+                              }
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1E2530)
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                                border: const Border(
+                                  left: BorderSide(color: AppColors.accent, width: 3),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    post.replyToAuthorTitle ?? post.channelTitle,
+                                    style: const TextStyle(
+                                      color: AppColors.accent,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    post.replyToText ?? 'Original post',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.body(color: secondaryColor).copyWith(
+                                      fontSize: 13,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+
                         // Text content with link launcher
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
@@ -244,6 +299,8 @@ class PostCard extends ConsumerWidget {
                           const SizedBox(height: AppSpacing.sm),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics()),
                             child: Row(
                               children: post.reactions.entries.map((entry) {
                                 final emoji = entry.key;

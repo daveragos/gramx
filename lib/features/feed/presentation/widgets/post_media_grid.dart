@@ -58,7 +58,7 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: item.width > 0 && item.height > 0
           ? (item.width / item.height).clamp(0.5, 2.0)
           : 16 / 9,
-      child: _MediaTile(item: item, index: 0),
+      child: _MediaTile(item: item, index: 0, allMedia: media),
     );
   }
 
@@ -67,9 +67,9 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
           const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(child: _MediaTile(item: items[1], index: 1)),
+          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
         ],
       ),
     );
@@ -80,14 +80,14 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
           const SizedBox(width: AppSpacing.mediaGap),
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MediaTile(item: items[1], index: 1)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
                 const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[2], index: 2)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: media)),
               ],
             ),
           ),
@@ -104,9 +104,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[0], index: 0)),
+                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[1], index: 1)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
               ],
             ),
           ),
@@ -114,9 +114,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[2], index: 2)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: media)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[3], index: 3)),
+                Expanded(child: _MediaTile(item: items[3], index: 3, allMedia: media)),
               ],
             ),
           ),
@@ -129,8 +129,13 @@ class PostMediaGrid extends StatelessWidget {
 class _MediaTile extends ConsumerWidget {
   final MediaItem item;
   final int index;
+  final List<MediaItem> allMedia;
 
-  const _MediaTile({required this.item, required this.index});
+  const _MediaTile({
+    required this.item,
+    required this.index,
+    required this.allMedia,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -290,10 +295,20 @@ class _MediaTile extends ConsumerWidget {
         );
       }
     } else {
-      if (resolvedPath != null && resolvedPath.isNotEmpty) {
+      final imageItems = allMedia
+          .where((m) => m.type == MediaType.photo)
+          .map((m) => m.localPath ?? m.url)
+          .where((p) => p != null && p.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      final initialIndex = allMedia.indexOf(item);
+
+      if (imageItems.isNotEmpty) {
         FullScreenImageViewer.show(
           context,
-          imagePath: resolvedPath,
+          items: imageItems,
+          initialIndex: initialIndex >= 0 && initialIndex < imageItems.length ? initialIndex : 0,
           tag: heroTag,
         );
       }

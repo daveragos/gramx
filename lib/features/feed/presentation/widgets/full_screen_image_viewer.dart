@@ -1,33 +1,36 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-/// Full-screen image viewer modal with smooth pinch-to-zoom, pan, and double-tap zoom.
+/// Full-screen multi-image gallery viewer modal with immersive system UI hiding,
+/// unconstrained zoom, swipe page view, and bottom counter pill.
 class FullScreenImageViewer extends StatefulWidget {
-  final String? imagePath;
-  final String? imageUrl;
+  final List<String> items;
+  final int initialIndex;
   final String tag;
 
   const FullScreenImageViewer({
     super.key,
-    this.imagePath,
-    this.imageUrl,
+    required this.items,
+    this.initialIndex = 0,
     required this.tag,
   });
 
   static void show(
     BuildContext context, {
-    String? imagePath,
-    String? imageUrl,
+    required List<String> items,
+    int initialIndex = 0,
     required String tag,
   }) {
+    if (items.isEmpty) return;
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Colors.black.withValues(alpha: 0.9),
+        barrierColor: Colors.black.withValues(alpha: 0.95),
         pageBuilder: (context, animation, secondaryAnimation) {
           return FullScreenImageViewer(
-            imagePath: imagePath,
-            imageUrl: imageUrl,
+            items: items,
+            initialIndex: initialIndex,
             tag: tag,
           );
         },
@@ -42,80 +45,103 @@ class FullScreenImageViewer extends StatefulWidget {
   State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
 }
 
-class _FullScreenImageViewerState extends State<FullScreenImageViewer>
-    with SingleTickerProviderStateMixin {
-  final TransformationController _transformationController = TransformationController();
-  TapDownDetails? _doubleTapDetails;
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+  final Map<int, TransformationController> _transformControllers = {};
 
-  void _handleDoubleTap() {
-    if (_transformationController.value != Matrix4.identity()) {
-      _transformationController.value = Matrix4.identity();
-    } else {
-      final position = _doubleTapDetails?.localPosition;
-      if (position != null) {
-        final matrix = Matrix4.identity();
-        matrix.translateByDouble(-position.dx * 1.5, -position.dy * 1.5, 0.0, 0.0);
-        matrix.scaleByDouble(2.5, 2.5, 1.0, 1.0);
-        _transformationController.value = matrix;
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+    // Hide BNB and system status bars in full screen mode
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
   void dispose() {
-    _transformationController.dispose();
+    // Restore edge-to-edge system UI when exiting full screen
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _pageController.dispose();
+    for (final controller in _transformControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    Widget imageWidget;
+  TransformationController _getController(int index) {
+    return _transformControllers.putIfAbsent(
+      index,
+      () => TransformationController(),
+    );
+  }
 
-    if (widget.imagePath != null && widget.imagePath!.isNotEmpty) {
-      final file = File(widget.imagePath!);
-      if (file.existsSync()) {
-        imageWidget = Image.file(
-          file,
-          fit: BoxFit.contain,
-        );
-      } else {
-        imageWidget = const Center(
-          child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
-        );
-      }
-    } else if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) {
-      imageWidget = Image.network(
-        widget.imageUrl!,
+  Widget _buildImage(String pathOrUrl) {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return Image.network(
+        pathOrUrl,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) => const Center(
           child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
         ),
       );
-    } else {
-      imageWidget = const Center(
-        child: Icon(Icons.image_not_supported_rounded, color: Colors.white54, size: 64),
+    }
+    final file = File(pathOrUrl);
+    if (file.existsSync()) {
+      return Image.file(
+        file,
+        fit: BoxFit.contain,
       );
     }
+    return const Center(
+      child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
+    );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          GestureDetector(
-            onDoubleTapDown: (details) => _doubleTapDetails = details,
-            onDoubleTap: _handleDoubleTap,
-            child: Center(
-              child: Hero(
-                tag: widget.tag,
-                child: InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: 0.8,
-                  maxScale: 4.5,
-                  child: imageWidget,
+          // Swipeable Multi-Image PageView
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.items.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              final item = widget.items[index];
+              final transformController = _getController(index);
+
+              return GestureDetector(
+                onDoubleTap: () {
+                  if (transformController.value != Matrix4.identity()) {
+                    transformController.value = Matrix4.identity();
+                  } else {
+                    transformController.value = Matrix4.identity()
+                      ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
+                  }
+                },
+                child: Center(
+                  child: Hero(
+                    tag: index == widget.initialIndex ? widget.tag : '${widget.tag}_$index',
+                    child: InteractiveViewer(
+                      transformationController: transformController,
+                      clipBehavior: Clip.none,
+                      minScale: 0.8,
+                      maxScale: 5.0,
+                      child: _buildImage(item),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
+
+          // Top Header Bar
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -156,6 +182,31 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
               ),
             ),
           ),
+
+          // Bottom Page Counter Pill (if multiple images)
+          if (widget.items.length > 1)
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.items.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

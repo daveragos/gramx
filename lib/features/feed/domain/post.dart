@@ -36,6 +36,10 @@ abstract class Post with _$Post {
     String? forwardedFromTitle,
     String? forwardedFromUsername,
     String? forwardedFromChatId,
+    String? replyToText,
+    String? replyToAuthorTitle,
+    int? replyToMessageId,
+    @Default(false) bool hasDiscussionGroup,
     @Default([]) List<TextEntity> entities,
     Poll? poll,
   }) = _Post;

@@ -42,6 +42,10 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   forwardedFromTitle: json['forwardedFromTitle'] as String?,
   forwardedFromUsername: json['forwardedFromUsername'] as String?,
   forwardedFromChatId: json['forwardedFromChatId'] as String?,
+  replyToText: json['replyToText'] as String?,
+  replyToAuthorTitle: json['replyToAuthorTitle'] as String?,
+  replyToMessageId: (json['replyToMessageId'] as num?)?.toInt(),
+  hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
   entities:
       (json['entities'] as List<dynamic>?)
           ?.map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
@@ -80,6 +84,10 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'forwardedFromTitle': instance.forwardedFromTitle,
   'forwardedFromUsername': instance.forwardedFromUsername,
   'forwardedFromChatId': instance.forwardedFromChatId,
+  'replyToText': instance.replyToText,
+  'replyToAuthorTitle': instance.replyToAuthorTitle,
+  'replyToMessageId': instance.replyToMessageId,
+  'hasDiscussionGroup': instance.hasDiscussionGroup,
   'entities': instance.entities,
   'poll': instance.poll,
 };

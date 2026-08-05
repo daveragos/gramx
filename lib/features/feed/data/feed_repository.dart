@@ -253,10 +253,10 @@ class FeedRepository {
             emojis.add(r.emoji);
           }
         }
-        if (emojis.isNotEmpty) return emojis;
+        return emojis;
       }
     }
-    // Default fallback emojis if not specifically restricted
+    // Default fallback emojis if all reactions are allowed
     return ['👍', '❤️', '🔥', '🥰', '👏'];
   }
 }

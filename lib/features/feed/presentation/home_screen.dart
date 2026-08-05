@@ -11,11 +11,49 @@ import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.da
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
 
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
+  bool _showGoToTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final isScrolledDown = _scrollController.offset > 300;
+      if (isScrolledDown != _showGoToTop) {
+        setState(() => _showGoToTop = isScrolledDown);
+      }
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryTextColor = theme.colorScheme.onSurface;
@@ -78,64 +116,114 @@ class HomeScreen extends ConsumerWidget {
         return DefaultTabController(
           length: tabItems.length,
           child: Scaffold(
-            body: NestedScrollView(
-              headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
-                return [
-                  SliverAppBar(
-                    floating: true,
-                    snap: true,
-                    pinned: false,
-                    forceElevated: innerBoxIsScrolled,
-                    leading: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: ChannelAvatar(
-                        title: displayName,
-                        avatarPath: accountAsync.value?.avatarPath,
-                        radius: AppSpacing.avatarSizeSmall / 2,
-                        onTap: () {
-                          Scaffold.of(context).openDrawer();
-                        },
+            body: Stack(
+              children: [
+                NestedScrollView(
+                  controller: _scrollController,
+                  headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
+                    return [
+                      SliverAppBar(
+                        floating: true,
+                        snap: true,
+                        pinned: false,
+                        forceElevated: innerBoxIsScrolled,
+                        leading: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          child: ChannelAvatar(
+                            title: displayName,
+                            avatarPath: accountAsync.value?.avatarPath,
+                            radius: AppSpacing.avatarSizeSmall / 2,
+                            onTap: () {
+                              Scaffold.of(context).openDrawer();
+                            },
+                          ),
+                        ),
+                        title: Text(
+                          'gramX',
+                          style: AppTypography.heading(color: primaryTextColor),
+                        ),
+                        centerTitle: true,
+                        bottom: TabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          indicatorColor: AppColors.accent,
+                          labelColor: primaryTextColor,
+                          unselectedLabelColor: secondaryTextColor,
+                          dividerColor: Colors.transparent,
+                          tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      'gramX',
-                      style: AppTypography.heading(color: primaryTextColor),
-                    ),
-                    centerTitle: true,
-                    bottom: TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      indicatorColor: AppColors.accent,
-                      labelColor: primaryTextColor,
-                      unselectedLabelColor: secondaryTextColor,
-                      dividerColor: Colors.transparent,
-                      tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
+                    ];
+                  },
+                  body: NotificationListener<ScrollNotification>(
+                    onNotification: (ScrollNotification notification) {
+                      if (notification is ScrollUpdateNotification) {
+                        final delta = notification.scrollDelta ?? 0;
+                        if (delta > 2.0) {
+                          ref
+                              .read(bottomNavVisibilityProvider.notifier)
+                              .setVisible(false);
+                        } else if (delta < -2.0) {
+                          ref
+                              .read(bottomNavVisibilityProvider.notifier)
+                              .setVisible(true);
+                        }
+                      }
+                      return false;
+                    },
+                    child: TabBarView(
+                      children: tabItems.map((item) {
+                        return FolderFeed(folderTitle: item.title, folderId: item.id);
+                      }).toList(),
                     ),
                   ),
-                ];
-              },
-              body: NotificationListener<ScrollNotification>(
-                onNotification: (ScrollNotification notification) {
-                  if (notification is ScrollUpdateNotification) {
-                    final delta = notification.scrollDelta ?? 0;
-                    if (delta > 2.0) {
-                      ref
-                          .read(bottomNavVisibilityProvider.notifier)
-                          .setVisible(false);
-                    } else if (delta < -2.0) {
-                      ref
-                          .read(bottomNavVisibilityProvider.notifier)
-                          .setVisible(true);
-                    }
-                  }
-                  return false;
-                },
-                child: TabBarView(
-                  children: tabItems.map((item) {
-                    return FolderFeed(folderTitle: item.title, folderId: item.id);
-                  }).toList(),
                 ),
-              ),
+
+                // Floating Top Center "Go to Top / New Posts" Pill
+                if (_showGoToTop)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 95,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _scrollToTop,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.arrow_upward_rounded,
+                                  color: Colors.white, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'Top',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );

@@ -63,6 +63,43 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       return posts;
     });
   }
+
+  /// Optimistically toggle bookmark on a post without re-fetching the feed.
+  void toggleBookmarkOptimistic(String postId) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId) {
+        return p.copyWith(isBookmarked: !p.isBookmarked);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
+
+  /// Optimistically toggle reaction emoji on a post without re-fetching the feed.
+  void toggleReactionOptimistic(String postId, String emoji) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId) {
+        final newReactions = Map<String, int>.from(p.reactions);
+        if (newReactions.containsKey(emoji)) {
+          final count = newReactions[emoji]! - 1;
+          if (count <= 0) {
+            newReactions.remove(emoji);
+          } else {
+            newReactions[emoji] = count;
+          }
+        } else {
+          newReactions[emoji] = (newReactions[emoji] ?? 0) + 1;
+        }
+        return p.copyWith(reactions: newReactions);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
 }
 
 /// Main feed posts provider — uses AsyncNotifier for stateful pagination.
@@ -92,10 +129,32 @@ final bookmarkToggleProvider =
   final messageId = int.tryParse(parts[1]);
   if (chatId == null || messageId == null) return;
 
+  // Optimistic local state update
+  ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(postId);
+
+  // Persist asynchronously
   await repo.toggleBookmark(chatId, messageId);
-  // Refresh feed to reflect bookmark change
-  await ref.read(feedPostsProvider.notifier).refresh();
 });
+
+/// Provider managing muted channel IDs
+class MutedChannelsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => {};
+
+  void toggleMute(String channelId) {
+    if (state.contains(channelId)) {
+      state = {...state}..remove(channelId);
+    } else {
+      state = {...state, channelId};
+    }
+  }
+
+  bool isMuted(String channelId) => state.contains(channelId);
+}
+
+final mutedChannelsProvider =
+    NotifierProvider<MutedChannelsNotifier, Set<String>>(
+        MutedChannelsNotifier.new);
 
 /// Bottom navigation visibility state provider
 class BottomNavVisibilityNotifier extends Notifier<bool> {
@@ -132,10 +191,16 @@ final foldersProvider = FutureProvider<List<td.ChatFolderInfo>>((ref) async {
   return repo.getFolders();
 });
 
-/// Filtered posts by folder/category
+/// Filtered posts by folder/category and excluding muted channels
 final filteredFeedPostsProvider =
     FutureProvider.family<List<Post>, String>((ref, folderIdStr) async {
-  final posts = await ref.watch(feedPostsProvider.future);
+  var posts = await ref.watch(feedPostsProvider.future);
+
+  // Exclude muted channels
+  final mutedChannelIds = ref.watch(mutedChannelsProvider);
+  if (mutedChannelIds.isNotEmpty) {
+    posts = posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+  }
 
   if (folderIdStr == 'All') {
     return posts;

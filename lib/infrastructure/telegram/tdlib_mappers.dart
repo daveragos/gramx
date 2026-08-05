@@ -129,6 +129,48 @@ class TdlibMappers {
       forwardedFromTitle = fwdOrigin.senderName;
     }
 
+    String? replyToText;
+    String? replyToAuthorTitle;
+    int? replyToMessageId;
+    final replyTo = message.replyTo;
+    if (replyTo is td.MessageReplyToMessage) {
+      replyToMessageId = replyTo.messageId;
+
+      // Author title resolution
+      final origin = replyTo.origin;
+      if (origin is td.MessageOriginChannel) {
+        replyToAuthorTitle = knownChatTitles?[origin.chatId] ??
+            (origin.authorSignature.isNotEmpty ? origin.authorSignature : chat.title);
+      } else if (origin is td.MessageOriginChat) {
+        replyToAuthorTitle = knownChatTitles?[origin.senderChatId] ?? chat.title;
+      } else if (origin is td.MessageOriginUser) {
+        replyToAuthorTitle = 'User';
+      } else if (origin is td.MessageOriginHiddenUser) {
+        replyToAuthorTitle = origin.senderName;
+      }
+      replyToAuthorTitle ??= chat.title;
+
+      // Content preview resolution
+      final content = replyTo.content;
+      if (content is td.MessageText) {
+        replyToText = content.text.text;
+      } else if (content is td.MessagePhoto) {
+        replyToText = content.caption.text.isNotEmpty ? content.caption.text : '📷 Photo';
+      } else if (content is td.MessageVideo) {
+        replyToText = content.caption.text.isNotEmpty ? content.caption.text : '📹 Video';
+      } else if (content is td.MessageAnimation) {
+        replyToText = 'GIF';
+      } else if (content is td.MessageSticker) {
+        replyToText = '${content.sticker.emoji} Sticker';
+      } else if (content is td.MessagePoll) {
+        replyToText = '📊 ${content.poll.question.text}';
+      } else if (content is td.MessageDocument) {
+        replyToText = '📄 ${content.document.fileName}';
+      }
+    }
+
+    final hasDiscussionGroup = message.interactionInfo?.replyInfo != null;
+
     return Post(
       id: '${chat.id}_${message.id}',
       chatId: chat.id,
@@ -161,6 +203,10 @@ class TdlibMappers {
       forwardedFromTitle: forwardedFromTitle,
       forwardedFromUsername: forwardedFromUsername,
       forwardedFromChatId: forwardedFromChatId,
+      replyToText: replyToText,
+      replyToAuthorTitle: replyToAuthorTitle,
+      replyToMessageId: replyToMessageId,
+      hasDiscussionGroup: hasDiscussionGroup,
       entities: textEntities,
       poll: pollObj,
     );
