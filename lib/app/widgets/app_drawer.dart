@@ -112,32 +112,32 @@ class AppDrawer extends ConsumerWidget {
             ),
             const Divider(),
             DrawerNavItem(
-              icon: Icons.person_outline,
-              title: 'Profile',
+              icon: Icons.person_outline_rounded,
+              title: 'My Profile',
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/profile');
               },
             ),
             DrawerNavItem(
-              icon: Icons.bookmark_border,
-              title: 'Bookmarks',
+              icon: Icons.bookmark_border_rounded,
+              title: 'Saved Messages & Bookmarks',
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/bookmarks');
               },
             ),
             DrawerNavItem(
-              icon: Icons.list_alt,
-              title: 'Folders / Lists',
+              icon: Icons.list_alt_rounded,
+              title: 'Subscribed Channels',
               onTap: () {
                 Navigator.pop(context);
-                GoRouter.of(context).push('/folders');
+                GoRouter.of(context).push('/channels');
               },
             ),
             DrawerNavItem(
               icon: Icons.settings_outlined,
-              title: 'Settings and Privacy',
+              title: 'Settings & Privacy',
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/settings');

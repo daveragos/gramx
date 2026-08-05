@@ -39,10 +39,17 @@ abstract class Post with _$Post {
     String? replyToText,
     String? replyToAuthorTitle,
     int? replyToMessageId,
+    String? replyToThumbnailUrl,
+    int? replyToThumbnailFileId,
     @Default(false) bool hasDiscussionGroup,
     @Default([]) List<TextEntity> entities,
-    Poll? poll,
+    @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? poll,
   }) = _Post;
 
   factory Post.fromJson(Map<String, dynamic> json) => _$PostFromJson(json);
 }
+
+Poll? _pollFromJson(dynamic json) =>
+    json == null ? null : Poll.fromJson(json as Map<String, dynamic>);
+Map<String, dynamic>? _pollToJson(Poll? poll) =>
+    poll == null ? null : (poll as dynamic).toJson() as Map<String, dynamic>;

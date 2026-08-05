@@ -45,15 +45,15 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   replyToText: json['replyToText'] as String?,
   replyToAuthorTitle: json['replyToAuthorTitle'] as String?,
   replyToMessageId: (json['replyToMessageId'] as num?)?.toInt(),
+  replyToThumbnailUrl: json['replyToThumbnailUrl'] as String?,
+  replyToThumbnailFileId: (json['replyToThumbnailFileId'] as num?)?.toInt(),
   hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
   entities:
       (json['entities'] as List<dynamic>?)
           ?.map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
-  poll: json['poll'] == null
-      ? null
-      : Poll.fromJson(json['poll'] as Map<String, dynamic>),
+  poll: _pollFromJson(json['poll']),
 );
 
 Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
@@ -87,7 +87,9 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyToText': instance.replyToText,
   'replyToAuthorTitle': instance.replyToAuthorTitle,
   'replyToMessageId': instance.replyToMessageId,
+  'replyToThumbnailUrl': instance.replyToThumbnailUrl,
+  'replyToThumbnailFileId': instance.replyToThumbnailFileId,
   'hasDiscussionGroup': instance.hasDiscussionGroup,
   'entities': instance.entities,
-  'poll': instance.poll,
+  'poll': _pollToJson(instance.poll),
 };

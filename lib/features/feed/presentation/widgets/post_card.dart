@@ -1,7 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -16,9 +16,11 @@ import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 class PostCard extends ConsumerWidget {
   final Post post;
+  final bool isHighlighted;
   final VoidCallback? onTap;
   final VoidCallback? onChannelTap;
   final VoidCallback? onBookmarkTap;
@@ -28,6 +30,7 @@ class PostCard extends ConsumerWidget {
   const PostCard({
     super.key,
     required this.post,
+    this.isHighlighted = false,
     this.onTap,
     this.onChannelTap,
     this.onBookmarkTap,
@@ -42,29 +45,13 @@ class PostCard extends ConsumerWidget {
     }
 
     final title = post.forwardedFromTitle;
-    final username = post.forwardedFromUsername;
 
-    // Fallback to launching Telegram link or web
-    if (username != null && username.isNotEmpty) {
-      final telegramUrl = 'https://t.me/$username';
-      try {
-        final uri = Uri.parse(telegramUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      } catch (_) {}
-    }
-
-    // Graceful toast if private / inaccessible
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Channel "${title ?? username ?? 'Original'}" is private or inaccessible.',
-            style: const TextStyle(color: Colors.white),
-          ),
+          content: Text(title != null ? 'Channel "$title" is private or unavailable' : 'Original channel is unavailable'),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -117,8 +104,16 @@ class PostCard extends ConsumerWidget {
 
     return InkWell(
       onTap: onTap ?? defaultReplyHandler,
-      child: Container(
-        color: theme.scaffoldBackgroundColor,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          color: isHighlighted
+              ? AppColors.accent.withValues(alpha: 0.12)
+              : theme.scaffoldBackgroundColor,
+          border: isHighlighted
+              ? Border.all(color: AppColors.accent, width: 1.5)
+              : null,
+        ),
         child: Column(
           children: [
             Padding(
@@ -180,6 +175,17 @@ class PostCard extends ConsumerWidget {
                               TimeUtils.relativeTime(post.publishedAt),
                               style: AppTypography.timestamp(color: secondaryColor),
                             ),
+                            if (!post.isRead) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
 
@@ -206,55 +212,8 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // Quoted Reply Preview Card (Telegram Style)
                         if (post.replyToText != null || post.replyToAuthorTitle != null || post.replyToMessageId != null) ...[
-                          const SizedBox(height: 6),
-                          GestureDetector(
-                            onTap: () {
-                              if (post.replyToMessageId != null) {
-                                context.push('/post/${post.chatId}_${post.replyToMessageId}');
-                              }
-                            },
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? const Color(0xFF1E2530)
-                                    : Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(8),
-                                border: const Border(
-                                  left: BorderSide(color: AppColors.accent, width: 3),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    post.replyToAuthorTitle ?? post.channelTitle,
-                                    style: const TextStyle(
-                                      color: AppColors.accent,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    post.replyToText ?? 'Original post',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTypography.body(color: secondaryColor).copyWith(
-                                      fontSize: 13,
-                                      height: 1.2,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          _buildQuotedReplyCard(context, ref, post, isDark, secondaryColor),
                         ],
 
                         // Text content with link launcher
@@ -367,6 +326,140 @@ class PostCard extends ConsumerWidget {
             Divider(color: theme.dividerTheme.color, height: 0.5, thickness: 0.5),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuotedReplyCard(
+      BuildContext context, WidgetRef ref, Post post, bool isDark, Color secondaryColor) {
+    final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
+    final replyText = post.replyToText ?? 'Original post';
+    final hasThumbnail = post.replyToThumbnailFileId != null ||
+        (post.replyToThumbnailUrl != null && post.replyToThumbnailUrl!.isNotEmpty);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 6, bottom: 4),
+      child: InkWell(
+        onTap: () {
+          if (post.replyToMessageId != null) {
+            context.push('/channel/${post.chatId}?highlight=${post.replyToMessageId}');
+          }
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C2733) : const Color(0xFFEFF5FC),
+            borderRadius: BorderRadius.circular(10),
+            border: const Border(
+              left: BorderSide(color: AppColors.accent, width: 3.5),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.campaign_rounded,
+                          size: 14,
+                          color: AppColors.accent,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            replyTitle,
+                            style: const TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.1,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      replyText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.body(color: secondaryColor).copyWith(
+                        fontSize: 12.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasThumbnail) ...[
+                const SizedBox(width: 8),
+                _buildReplyThumbnail(ref, post, isDark),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReplyThumbnail(WidgetRef ref, Post post, bool isDark) {
+    final fileId = post.replyToThumbnailFileId;
+    final directUrl = post.replyToThumbnailUrl;
+
+    Widget imageWidget;
+    if (fileId != null && fileId != 0) {
+      final fileState = ref.watch(fileDownloadProvider(fileId));
+      final resolvedPath = fileState.value ?? directUrl;
+      if (resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
+        imageWidget = Image.file(
+          File(resolvedPath),
+          width: 42,
+          height: 42,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildReplyThumbnailPlaceholder(isDark),
+        );
+      } else {
+        imageWidget = _buildReplyThumbnailPlaceholder(isDark);
+      }
+    } else if (directUrl != null && directUrl.isNotEmpty && File(directUrl).existsSync()) {
+      imageWidget = Image.file(
+        File(directUrl),
+        width: 42,
+        height: 42,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildReplyThumbnailPlaceholder(isDark),
+      );
+    } else {
+      imageWidget = _buildReplyThumbnailPlaceholder(isDark);
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: imageWidget,
+      ),
+    );
+  }
+
+  Widget _buildReplyThumbnailPlaceholder(bool isDark) {
+    return Container(
+      width: 42,
+      height: 42,
+      color: isDark ? const Color(0xFF283647) : Colors.grey.shade300,
+      child: const Icon(
+        Icons.image_outlined,
+        size: 18,
+        color: AppColors.accent,
       ),
     );
   }

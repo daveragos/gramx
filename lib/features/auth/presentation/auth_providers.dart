@@ -132,6 +132,14 @@ class AuthController extends Notifier<AuthState> {
     );
   }
 
+  /// Return back to login method selection step
+  void goBackToSelection() {
+    state = state.copyWith(
+      step: AuthStep.loginMethodSelection,
+      errorMessage: null,
+    );
+  }
+
   void _startConnectionTimeout() {
     _timeoutTimer?.cancel();
     _timeoutTimer = Timer(const Duration(seconds: 12), () {

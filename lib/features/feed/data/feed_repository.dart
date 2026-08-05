@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/post.dart';
@@ -44,16 +45,28 @@ class FeedRepository {
 
     if (channelChats.isEmpty) return [];
 
-    // 4. Fetch all channel histories in PARALLEL with onlyLocal: true (instant)
-    final historyFutures = channelChats.map(
-      (chat) => _tdlib.sendRequest(td.GetChatHistory(
+    // 4. Fetch channel histories (local first, then remote for unread posts)
+    final historyFutures = channelChats.map((chat) async {
+      final localRes = await _tdlib.sendRequest(td.GetChatHistory(
         chatId: chat.id,
         fromMessageId: 0,
         offset: 0,
         limit: 30,
         onlyLocal: true,
-      )),
-    );
+      ));
+      if (localRes is td.Messages && localRes.messages.length >= 5 && chat.unreadCount == 0) {
+        return localRes;
+      }
+      // Fetch remote history from Telegram server for unread posts
+      final remoteRes = await _tdlib.sendRequest(td.GetChatHistory(
+        chatId: chat.id,
+        fromMessageId: 0,
+        offset: 0,
+        limit: 30,
+        onlyLocal: false,
+      ));
+      return remoteRes is td.Messages ? remoteRes : localRes;
+    });
     final historyResults = await Future.wait(historyFutures);
 
     // 5. Collect all messages and build chat map
@@ -258,6 +271,137 @@ class FeedRepository {
     }
     // Default fallback emojis if all reactions are allowed
     return ['👍', '❤️', '🔥', '🥰', '👏'];
+  }
+
+  /// Fetch comments (message thread history) for a channel post
+  Future<List<Post>> fetchPostComments(int chatId, int messageId) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetMessageThreadHistory(
+        chatId: chatId,
+        messageId: messageId,
+        fromMessageId: 0,
+        offset: 0,
+        limit: 50,
+      ));
+
+      if (res is td.Messages && res.messages.isNotEmpty) {
+        final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+        if (chatObj is! td.Chat) return [];
+
+        // Collect all unique userIds and senderChatIds
+        final userIds = <int>{};
+        final chatIds = <int>{};
+        for (final m in res.messages) {
+          final sender = m.senderId;
+          if (sender is td.MessageSenderUser) {
+            userIds.add(sender.userId);
+          } else if (sender is td.MessageSenderChat) {
+            chatIds.add(sender.chatId);
+          }
+        }
+
+        // Fetch user and chat sender details in parallel
+        final userResults = await Future.wait(
+          userIds.map((id) => _tdlib.sendRequest(td.GetUser(userId: id))),
+        );
+        final chatResults = await Future.wait(
+          chatIds.map((id) => _tdlib.sendRequest(td.GetChat(chatId: id))),
+        );
+
+        final senderTitles = <String, String>{};
+        final senderAvatarUrls = <String, String>{};
+        final senderAvatarFileIds = <String, int>{};
+
+        for (final r in userResults) {
+          if (r is td.User) {
+            final fullName = '${r.firstName} ${r.lastName}'.trim();
+            final key = 'user_${r.id}';
+            senderTitles[key] = fullName.isNotEmpty ? fullName : 'User';
+            final photo = r.profilePhoto;
+            if (photo != null) {
+              senderAvatarFileIds[key] = photo.small.id;
+              final path = photo.small.local.path;
+              if (path.isNotEmpty) {
+                senderAvatarUrls[key] = path;
+              } else if (photo.small.remote.id.isNotEmpty) {
+                senderAvatarUrls[key] = photo.small.remote.id;
+              }
+              _syncService.downloadFileWithPriority(photo.small.id);
+            }
+          }
+        }
+
+        for (final r in chatResults) {
+          if (r is td.Chat) {
+            final key = 'chat_${r.id}';
+            senderTitles[key] = r.title;
+            final photo = r.photo;
+            if (photo != null) {
+              senderAvatarFileIds[key] = photo.small.id;
+              final path = photo.small.local.path;
+              if (path.isNotEmpty) {
+                senderAvatarUrls[key] = path;
+              } else if (photo.small.remote.id.isNotEmpty) {
+                senderAvatarUrls[key] = photo.small.remote.id;
+              }
+              _syncService.downloadFileWithPriority(photo.small.id);
+            }
+          }
+        }
+
+        final posts = <Post>[];
+        for (final m in res.messages) {
+          final sender = m.senderId;
+          String key = '';
+          if (sender is td.MessageSenderUser) {
+            key = 'user_${sender.userId}';
+          } else if (sender is td.MessageSenderChat) {
+            key = 'chat_${sender.chatId}';
+          }
+
+          final post = TdlibMappers.mapMessageToPost(
+            m,
+            chatObj,
+            overrideSenderTitle: senderTitles[key],
+            overrideSenderAvatarUrl: senderAvatarUrls[key],
+            overrideSenderAvatarFileId: senderAvatarFileIds[key],
+          );
+          posts.add(post);
+        }
+
+        return posts;
+      }
+    } catch (e) {
+      debugPrint('[FeedRepo] Failed to fetch comments thread: $e');
+    }
+    return [];
+  }
+
+  /// Post a new comment reply to a post thread
+  Future<void> sendComment(int chatId, int messageId, String text) async {
+    try {
+      await _tdlib.sendRequest(td.SendMessage(
+        chatId: chatId,
+        messageThreadId: messageId,
+        replyTo: td.InputMessageReplyToMessage(messageId: messageId),
+        options: const td.MessageSendOptions(
+          disableNotification: false,
+          fromBackground: false,
+          protectContent: false,
+          updateOrderOfInstalledStickerSets: false,
+          effectId: 0,
+          sendingId: 0,
+          onlyPreview: false,
+        ),
+        inputMessageContent: td.InputMessageText(
+          text: td.FormattedText(text: text, entities: []),
+          clearDraft: false,
+        ),
+      ));
+    } catch (e) {
+      debugPrint('[FeedRepo] Failed to send comment: $e');
+      rethrow;
+    }
   }
 }
 

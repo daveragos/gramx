@@ -23,6 +23,19 @@ class TdlibService {
 
   td.AuthorizationState? _currentAuthState;
   String _lastStatusMessage = 'Initializing TDLib...';
+  final Completer<void> _tdlibReadyCompleter = Completer<void>();
+
+  void _markTdlibReady() {
+    if (!_tdlibReadyCompleter.isCompleted) {
+      _tdlibReadyCompleter.complete();
+    }
+  }
+
+  void _markTdlibError(Object error) {
+    if (!_tdlibReadyCompleter.isCompleted) {
+      _tdlibReadyCompleter.completeError(error);
+    }
+  }
 
   TdlibService(Ref ref);
 
@@ -182,6 +195,15 @@ class TdlibService {
       await initialize();
     }
 
+    // Gate non-init requests until TDLib parameters are configured
+    if (function is! td.SetTdlibParameters && function is! td.GetAuthorizationState) {
+      try {
+        await _tdlibReadyCompleter.future.timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('[TDLib] Gate wait note: $e');
+      }
+    }
+
     final completer = Completer<td.TdObject>();
     final extra = extraId ?? DateTime.now().microsecondsSinceEpoch.toString();
     _pendingRequests[extra] = completer;
@@ -256,17 +278,33 @@ class TdlibService {
         final res = await sendRequest(request);
         if (res is td.TdError) {
           _updateStatus('Parameter error: ${res.message}');
+          _markTdlibError(Exception(res.message));
         } else {
           _updateStatus('Parameters accepted by Telegram.');
+          _markTdlibReady();
+          try {
+            await sendRequest(const td.SetLogVerbosityLevel(newVerbosityLevel: 1));
+          } catch (_) {}
         }
       } catch (e) {
         _updateStatus('Failed to set TDLib parameters: $e');
+        _markTdlibError(e);
         debugPrint('[TDLib] SetTdlibParameters error: $e');
       }
-    } else if (state is td.AuthorizationStateWaitPhoneNumber) {
-      _updateStatus('Ready for authentication.');
-    } else if (state is td.AuthorizationStateReady) {
-      _updateStatus('Authenticated with Telegram!');
+    } else if (state is td.AuthorizationStateWaitPhoneNumber ||
+        state is td.AuthorizationStateWaitCode ||
+        state is td.AuthorizationStateWaitPassword ||
+        state is td.AuthorizationStateWaitOtherDeviceConfirmation ||
+        state is td.AuthorizationStateReady) {
+      _markTdlibReady();
+      if (state is td.AuthorizationStateWaitPhoneNumber) {
+        _updateStatus('Ready for authentication.');
+      } else if (state is td.AuthorizationStateReady) {
+        _updateStatus('Authenticated with Telegram!');
+        try {
+          sendRequest(const td.LoadChats(chatList: td.ChatListMain(), limit: 100));
+        } catch (_) {}
+      }
     }
   }
 

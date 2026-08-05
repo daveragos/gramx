@@ -12,8 +12,13 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
+  final int? highlightMessageId;
 
-  const ChannelProfileScreen({super.key, required this.channelId});
+  const ChannelProfileScreen({
+    super.key,
+    required this.channelId,
+    this.highlightMessageId,
+  });
 
   @override
   ConsumerState<ChannelProfileScreen> createState() =>
@@ -24,9 +29,25 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent * 0.85) {
+        loadMoreChannelPosts(ref, widget.channelId);
+      }
+    }
   }
 
   @override
@@ -201,8 +222,11 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                     return SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final post = posts[index];
+                        final isHighlighted = widget.highlightMessageId != null &&
+                            post.messageId == widget.highlightMessageId;
                         return PostCard(
                           post: post,
+                          isHighlighted: isHighlighted,
                           onTap: () {
                             ref.read(markPostAsReadProvider(post.id));
                             context.push('/post/${post.id}');

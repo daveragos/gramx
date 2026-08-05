@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -21,6 +24,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _showGoToTop = false;
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -69,9 +73,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
 
+    String parseTitle(dynamic rawTitle) {
+      if (rawTitle == null) return 'Folder';
+      if (rawTitle is String) return rawTitle;
+      if (rawTitle is td.FormattedText) return rawTitle.text;
+      if (rawTitle is Map) {
+        final textVal = rawTitle['text'];
+        if (textVal is String) return textVal;
+      }
+      try {
+        final text = (rawTitle as dynamic).text;
+        if (text != null && text is String) return text;
+      } catch (_) {}
+      return rawTitle.toString();
+    }
+
     final tabItems = [
       (title: 'All', id: 'All'),
-      ...dynamicFolders.map((f) => (title: f.title, id: f.id.toString())),
+      ...dynamicFolders.map((f) => (title: parseTitle(f.title), id: f.id.toString())),
     ];
 
     return channelsAsync.when(
@@ -115,115 +134,127 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         return DefaultTabController(
           length: tabItems.length,
-          child: Scaffold(
-            body: Stack(
-              children: [
-                NestedScrollView(
-                  controller: _scrollController,
-                  headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
-                    return [
-                      SliverAppBar(
-                        floating: true,
-                        snap: true,
-                        pinned: false,
-                        forceElevated: innerBoxIsScrolled,
-                        leading: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          child: ChannelAvatar(
-                            title: displayName,
-                            avatarPath: accountAsync.value?.avatarPath,
-                            radius: AppSpacing.avatarSizeSmall / 2,
-                            onTap: () {
-                              Scaffold.of(context).openDrawer();
-                            },
+          child: PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              final now = DateTime.now();
+              if (_lastBackPressTime == null ||
+                  now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+                _lastBackPressTime = now;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Press back again to exit'),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else {
+                SystemNavigator.pop();
+              }
+            },
+            child: Scaffold(
+              body: Stack(
+                children: [
+                  NestedScrollView(
+                    controller: _scrollController,
+                    headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
+                      return [
+                        SliverAppBar(
+                          floating: true,
+                          snap: true,
+                          pinned: false,
+                          forceElevated: innerBoxIsScrolled,
+                          leading: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            child: ChannelAvatar(
+                              title: displayName,
+                              avatarPath: accountAsync.value?.avatarPath,
+                              radius: AppSpacing.avatarSizeSmall / 2,
+                              onTap: () {
+                                Scaffold.of(context).openDrawer();
+                              },
+                            ),
+                          ),
+                          title: Text(
+                            'gramX',
+                            style: AppTypography.heading(color: primaryTextColor),
+                          ),
+                          centerTitle: true,
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.search_rounded),
+                              color: primaryTextColor,
+                              onPressed: () {
+                                context.push('/search');
+                              },
+                            ),
+                          ],
+                          bottom: TabBar(
+                            isScrollable: true,
+                            tabAlignment: TabAlignment.start,
+                            indicatorColor: AppColors.accent,
+                            labelColor: primaryTextColor,
+                            unselectedLabelColor: secondaryTextColor,
+                            dividerColor: Colors.transparent,
+                            tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
                           ),
                         ),
-                        title: Text(
-                          'gramX',
-                          style: AppTypography.heading(color: primaryTextColor),
-                        ),
-                        centerTitle: true,
-                        bottom: TabBar(
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.start,
-                          indicatorColor: AppColors.accent,
-                          labelColor: primaryTextColor,
-                          unselectedLabelColor: secondaryTextColor,
-                          dividerColor: Colors.transparent,
-                          tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
-                        ),
-                      ),
-                    ];
-                  },
-                  body: NotificationListener<ScrollNotification>(
-                    onNotification: (ScrollNotification notification) {
-                      if (notification is ScrollUpdateNotification) {
-                        final delta = notification.scrollDelta ?? 0;
-                        if (delta > 2.0) {
-                          ref
-                              .read(bottomNavVisibilityProvider.notifier)
-                              .setVisible(false);
-                        } else if (delta < -2.0) {
-                          ref
-                              .read(bottomNavVisibilityProvider.notifier)
-                              .setVisible(true);
-                        }
-                      }
-                      return false;
+                      ];
                     },
-                    child: TabBarView(
+                    body: TabBarView(
                       children: tabItems.map((item) {
                         return FolderFeed(folderTitle: item.title, folderId: item.id);
                       }).toList(),
                     ),
                   ),
-                ),
 
-                // Floating Top Center "Go to Top / New Posts" Pill
-                if (_showGoToTop)
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 95,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _scrollToTop,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.arrow_upward_rounded,
-                                  color: Colors.white, size: 16),
-                              SizedBox(width: 6),
-                              Text(
-                                'Top',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                  // Floating Top Center "Go to Top / New Posts" Pill
+                  if (_showGoToTop)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 95,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _scrollToTop,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.arrow_upward_rounded,
+                                    color: Colors.white, size: 16),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Top',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         );

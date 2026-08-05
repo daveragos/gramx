@@ -3,6 +3,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
@@ -100,6 +101,41 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     }).toList();
     state = AsyncData(updated);
   }
+
+  /// Optimistically update poll options when user votes on a poll.
+  void votePollOptimistic(String postId, List<int> optionIds) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId && p.poll != null) {
+        final currentPoll = p.poll!;
+        final newTotalVoters = currentPoll.totalVoterCount + 1;
+
+        final updatedOptions = currentPoll.options.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final opt = entry.value;
+          final isNewlyChosen = optionIds.contains(idx);
+          final newCount = isNewlyChosen ? opt.voterCount + 1 : opt.voterCount;
+          final pct = newTotalVoters > 0 ? (newCount / newTotalVoters) * 100 : 0.0;
+          return opt.copyWith(
+            voterCount: newCount,
+            votePercentage: pct,
+            isChosen: isNewlyChosen || opt.isChosen,
+          );
+        }).toList();
+
+        final updatedPoll = currentPoll.copyWith(
+          options: updatedOptions,
+          totalVoterCount: newTotalVoters,
+          chosenOptionIds: {...currentPoll.chosenOptionIds, ...optionIds}.toList(),
+        );
+
+        return p.copyWith(poll: updatedPoll);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
 }
 
 /// Main feed posts provider — uses AsyncNotifier for stateful pagination.
@@ -172,6 +208,19 @@ final bottomNavVisibilityProvider =
     NotifierProvider<BottomNavVisibilityNotifier, bool>(
         BottomNavVisibilityNotifier.new);
 
+/// Provider for real-time post comments thread
+final postCommentsProvider =
+    FutureProvider.family<List<Post>, String>((ref, postId) async {
+  final parts = postId.split('_');
+  if (parts.length != 2) return [];
+  final chatId = int.tryParse(parts[0]);
+  final messageId = int.tryParse(parts[1]);
+  if (chatId == null || messageId == null) return [];
+
+  final repo = ref.watch(feedRepositoryProvider);
+  return repo.fetchPostComments(chatId, messageId);
+});
+
 /// Provider to mark post as read
 final markPostAsReadProvider =
     FutureProvider.family<void, String>((ref, postId) async {
@@ -185,10 +234,17 @@ final markPostAsReadProvider =
   await repo.markPostAsRead(chatId, messageId);
 });
 
-/// Provides user's dynamic folders synced from Telegram
-final foldersProvider = FutureProvider<List<td.ChatFolderInfo>>((ref) async {
-  final repo = ref.watch(folderRepositoryProvider);
-  return repo.getFolders();
+/// Provides user's dynamic folders synced from Telegram (StreamProvider for real-time reactivity)
+final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
+  final tdlib = ref.watch(tdlibServiceProvider);
+  // Yield initial cached folders
+  yield tdlib.chatFolders;
+  // Listen for UpdateChatFolders updates
+  await for (final update in tdlib.updatesStream) {
+    if (update is td.UpdateChatFolders) {
+      yield update.chatFolders;
+    }
+  }
 });
 
 /// Filtered posts by folder/category and excluding muted channels

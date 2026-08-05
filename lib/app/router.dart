@@ -135,7 +135,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final channelId = state.pathParameters['channelId']!;
-          return ChannelProfileScreen(channelId: channelId);
+          final highlightStr = state.uri.queryParameters['highlight'];
+          final highlightMessageId =
+              highlightStr != null ? int.tryParse(highlightStr) : null;
+          return ChannelProfileScreen(
+            channelId: channelId,
+            highlightMessageId: highlightMessageId,
+          );
         },
       ),
       GoRoute(

@@ -7,6 +7,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
@@ -29,21 +30,34 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     super.dispose();
   }
 
-  void _sendComment() {
+  void _sendComment(int chatId, int messageId) async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
     _commentController.clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Comment posted!'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    try {
+      await ref.read(feedRepositoryProvider).sendComment(chatId, messageId, text);
+      ref.invalidate(postCommentsProvider(widget.postId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comment posted!'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to post comment: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final postAsync = ref.watch(postDetailProvider(widget.postId));
+    final commentsAsync = ref.watch(postCommentsProvider(widget.postId));
     final accountAsync = ref.watch(activeAccountProvider);
     final isLoggedIn = accountAsync.value != null;
     final theme = Theme.of(context);
@@ -85,6 +99,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   color: AppColors.accent,
                   onRefresh: () async {
                     ref.invalidate(postDetailProvider(widget.postId));
+                    ref.invalidate(postCommentsProvider(widget.postId));
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -290,12 +305,89 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   ),
                                 )
                               else
-                                Center(
-                                  child: Text(
-                                    'No comments on this post yet. Be the first to comment!',
-                                    style: AppTypography.body(color: secondaryColor),
-                                    textAlign: TextAlign.center,
+                                commentsAsync.when(
+                                  loading: () => const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.accent,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
                                   ),
+                                  error: (err, _) => Text(
+                                    'Error loading comments: $err',
+                                    style: AppTypography.body(color: secondaryColor),
+                                  ),
+                                  data: (comments) {
+                                    if (comments.isEmpty) {
+                                      return Center(
+                                        child: Text(
+                                          'No comments on this post yet. Be the first to comment!',
+                                          style: AppTypography.body(color: secondaryColor),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      );
+                                    }
+
+                                    return Column(
+                                      children: comments.map((comment) {
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 12.0),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              ChannelAvatar(
+                                                title: comment.channelTitle,
+                                                avatarPath: comment.channelAvatarUrl,
+                                                avatarFileId: comment.channelAvatarFileId,
+                                                avatarColorHex: comment.channelAvatarColor,
+                                                radius: 18,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                      children: [
+                                                        Text(
+                                                          comment.channelTitle,
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          TimeUtils.relativeTime(comment.publishedAt),
+                                                          style: AppTypography.timestamp(color: secondaryColor),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    if (comment.text != null && comment.text!.isNotEmpty)
+                                                      TextEntityRenderer(
+                                                        text: comment.text!,
+                                                        entities: comment.entities,
+                                                        style: AppTypography.body(color: primaryColor),
+                                                      ),
+                                                    if (comment.media.isNotEmpty) ...[
+                                                      const SizedBox(height: 6),
+                                                      ConstrainedBox(
+                                                        constraints: const BoxConstraints(maxHeight: 220),
+                                                        child: PostMediaGrid(media: comment.media),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    );
+                                  },
                                 ),
                             ],
                           ),
@@ -343,7 +435,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: _sendComment,
+                        onPressed: () => _sendComment(post.chatId, post.messageId),
                         icon: const Icon(Icons.send_rounded,
                             color: AppColors.accent),
                       ),

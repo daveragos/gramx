@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -47,6 +48,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     super.dispose();
   }
 
+  DateTime? _lastBackPressTime;
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -56,32 +59,61 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final secondaryColor =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            AuthTopBar(authState: authState, controller: controller),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: _buildPage(authState, controller),
-              ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        // If on sub-step (phone input, code, password, QR), pop to method selection
+        if (authState.step != AuthStep.loginMethodSelection &&
+            authState.step != AuthStep.loading) {
+          controller.goBackToSelection();
+          return;
+        }
+
+        // On root selection step: "Press back again to exit" UX
+        final now = DateTime.now();
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xxl, 0, AppSpacing.xxl, AppSpacing.lg,
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        body: SafeArea(
+          child: Column(
+            children: [
+              AuthTopBar(authState: authState, controller: controller),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _buildPage(authState, controller),
+                ),
               ),
-              child: Text(
-                'gramX • Powered by official TDLib MTProto engine\n'
-                'No third-party push • No tracking',
-                style: AppTypography.actionCount(color: secondaryColor.withValues(alpha: 0.7)),
-                textAlign: TextAlign.center,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xxl, 0, AppSpacing.xxl, AppSpacing.lg,
+                ),
+                child: Text(
+                  'gramX • Powered by official TDLib MTProto engine\n'
+                  'No third-party push • No tracking',
+                  style: AppTypography.actionCount(color: secondaryColor.withValues(alpha: 0.7)),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

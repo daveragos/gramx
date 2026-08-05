@@ -4,7 +4,6 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
-import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -34,14 +33,19 @@ class _PollCardState extends ConsumerState<PollCard> {
     setState(() => _isVoting = true);
 
     try {
-      final channel = await ref.read(channelDetailProvider(widget.channelId).future);
-      if (channel != null) {
+      final chatIdInt = int.tryParse(widget.channelId);
+      final compositePostId = chatIdInt != null ? '${chatIdInt}_${widget.messageId}' : widget.channelId;
+
+      // 1. Instant optimistic UI update
+      ref.read(feedPostsProvider.notifier).votePollOptimistic(compositePostId, [optionIndex]);
+
+      // 2. Persist asynchronously via TDLib
+      if (chatIdInt != null && chatIdInt != 0) {
         await ref.read(syncServiceProvider).voteInPoll(
-          chatId: channel.chatId,
+          chatId: chatIdInt,
           messageId: widget.messageId,
           optionIds: [optionIndex],
         );
-        ref.invalidate(feedPostsProvider);
       }
     } catch (e) {
       if (mounted) {

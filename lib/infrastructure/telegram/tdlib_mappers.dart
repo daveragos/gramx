@@ -8,13 +8,29 @@ import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 
 class TdlibMappers {
+  static String? _parseFormattedText(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return raw.isNotEmpty ? raw : null;
+    if (raw is td.FormattedText) return raw.text.isNotEmpty ? raw.text : null;
+    if (raw is Map) {
+      final text = raw['text']?.toString();
+      return text != null && text.isNotEmpty ? text : null;
+    }
+    try {
+      final text = (raw as dynamic).text?.toString();
+      if (text != null && text.isNotEmpty) return text;
+    } catch (_) {}
+    final str = raw.toString();
+    return str.isNotEmpty ? str : null;
+  }
+
   static Channel mapChatToChannel(td.Chat chat, {td.Supergroup? supergroup, td.SupergroupFullInfo? fullInfo}) {
     return Channel(
       id: chat.id.toString(),
       chatId: chat.id,
       title: chat.title,
       username: supergroup?.usernames?.activeUsernames.isNotEmpty == true ? supergroup!.usernames!.activeUsernames.first : null,
-      description: fullInfo?.description,
+      description: _parseFormattedText(fullInfo?.description),
       avatarUrl: chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true
               ? chat.photo!.small.local.path
@@ -26,13 +42,21 @@ class TdlibMappers {
       avatarColor: _generateRandomHexColor(chat.id),
       subscriberCount: supergroup?.memberCount ?? 0,
       isVerified: supergroup?.isVerified ?? false,
-            isFavorite: false,
+      isFavorite: false,
       isMuted: false,
       isHidden: false,
     );
   }
 
-  static Post mapMessageToPost(td.Message message, td.Chat chat, {bool isBookmarked = false, Map<int, String>? knownChatTitles}) {
+  static Post mapMessageToPost(
+    td.Message message,
+    td.Chat chat, {
+    bool isBookmarked = false,
+    Map<int, String>? knownChatTitles,
+    String? overrideSenderTitle,
+    String? overrideSenderAvatarUrl,
+    int? overrideSenderAvatarFileId,
+  }) {
     String? bodyText;
     String? linkPreviewUrl;
     String? linkPreviewTitle;
@@ -43,7 +67,7 @@ class TdlibMappers {
 
     final content = message.content;
     if (content is td.MessageText) {
-      bodyText = content.text.text;
+      bodyText = _parseFormattedText(content.text);
       final parsed = _parseEntities(content.text.entities);
       if (parsed != null) textEntities = parsed;
 
@@ -51,7 +75,7 @@ class TdlibMappers {
         final lp = content.linkPreview!;
         linkPreviewUrl = lp.url.isNotEmpty ? lp.url : null;
         linkPreviewTitle = lp.title.isNotEmpty ? lp.title : (lp.displayUrl.isNotEmpty ? lp.displayUrl : null);
-        linkPreviewDescription = lp.description.text.isNotEmpty ? lp.description.text : null;
+        linkPreviewDescription = _parseFormattedText(lp.description);
         
         final previewType = lp.type;
         td.Photo? photo;
@@ -83,23 +107,23 @@ class TdlibMappers {
         }
       }
     } else if (content is td.MessagePhoto) {
-      bodyText = content.caption.text;
+      bodyText = _parseFormattedText(content.caption);
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageVideo) {
-      bodyText = content.caption.text;
+      bodyText = _parseFormattedText(content.caption);
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageAnimation) {
-      bodyText = content.caption.text;
+      bodyText = _parseFormattedText(content.caption);
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageDocument) {
-      bodyText = content.caption.text;
+      bodyText = _parseFormattedText(content.caption);
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
     } else if (content is td.MessagePoll) {
-      bodyText = content.poll.question.text;
+      bodyText = _parseFormattedText(content.poll.question);
       pollObj = _parsePoll(content.poll);
     }
 
@@ -132,6 +156,8 @@ class TdlibMappers {
     String? replyToText;
     String? replyToAuthorTitle;
     int? replyToMessageId;
+    String? replyToThumbnailUrl;
+    int? replyToThumbnailFileId;
     final replyTo = message.replyTo;
     if (replyTo is td.MessageReplyToMessage) {
       replyToMessageId = replyTo.messageId;
@@ -150,22 +176,92 @@ class TdlibMappers {
       }
       replyToAuthorTitle ??= chat.title;
 
-      // Content preview resolution
+      // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
       if (content is td.MessageText) {
-        replyToText = content.text.text;
+        replyToText = _parseFormattedText(content.text);
+        if (content.linkPreview != null) {
+          final lp = content.linkPreview!;
+          final previewType = lp.type;
+          td.Photo? photo;
+          td.Thumbnail? thumbnail;
+
+          if (previewType is td.LinkPreviewTypePhoto) {
+            photo = previewType.photo;
+          } else if (previewType is td.LinkPreviewTypeArticle) {
+            photo = previewType.photo;
+          } else if (previewType is td.LinkPreviewTypeApp) {
+            photo = previewType.photo;
+          } else if (previewType is td.LinkPreviewTypeVideo) {
+            thumbnail = previewType.video.thumbnail;
+          } else if (previewType is td.LinkPreviewTypeAnimation) {
+            thumbnail = previewType.animation.thumbnail;
+          } else if (previewType is td.LinkPreviewTypeDocument) {
+            thumbnail = previewType.document.thumbnail;
+          }
+
+          if (photo != null && photo.sizes.isNotEmpty) {
+            final f = photo.sizes.first.photo;
+            replyToThumbnailFileId = f.id;
+            replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+                ? f.local.path
+                : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
+          } else if (thumbnail != null) {
+            final f = thumbnail.file;
+            replyToThumbnailFileId = f.id;
+            replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+                ? f.local.path
+                : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
+          }
+        }
       } else if (content is td.MessagePhoto) {
-        replyToText = content.caption.text.isNotEmpty ? content.caption.text : '📷 Photo';
+        final captionText = _parseFormattedText(content.caption);
+        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '📷 Photo';
+        if (content.photo.sizes.isNotEmpty) {
+          final f = content.photo.sizes.first.photo;
+          replyToThumbnailFileId = f.id;
+          replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+              ? f.local.path
+              : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
+        }
       } else if (content is td.MessageVideo) {
-        replyToText = content.caption.text.isNotEmpty ? content.caption.text : '📹 Video';
+        final captionText = _parseFormattedText(content.caption);
+        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '📹 Video';
+        final thumbFile = content.video.thumbnail?.file;
+        if (thumbFile != null) {
+          replyToThumbnailFileId = thumbFile.id;
+          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+        }
       } else if (content is td.MessageAnimation) {
         replyToText = 'GIF';
+        final thumbFile = content.animation.thumbnail?.file;
+        if (thumbFile != null) {
+          replyToThumbnailFileId = thumbFile.id;
+          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+        }
       } else if (content is td.MessageSticker) {
         replyToText = '${content.sticker.emoji} Sticker';
+        final thumbFile = content.sticker.thumbnail?.file ?? content.sticker.sticker;
+        replyToThumbnailFileId = thumbFile.id;
+        replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+            ? thumbFile.local.path
+            : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
       } else if (content is td.MessagePoll) {
-        replyToText = '📊 ${content.poll.question.text}';
+        final qText = _parseFormattedText(content.poll.question);
+        replyToText = '📊 ${qText ?? ''}';
       } else if (content is td.MessageDocument) {
         replyToText = '📄 ${content.document.fileName}';
+        final thumbFile = content.document.thumbnail?.file;
+        if (thumbFile != null) {
+          replyToThumbnailFileId = thumbFile.id;
+          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+        }
       }
     }
 
@@ -177,15 +273,15 @@ class TdlibMappers {
       channelId: chat.id.toString(),
       messageId: message.id,
       mediaAlbumId: message.mediaAlbumId.toInt(),
-      channelTitle: chat.title,
-      channelAvatarUrl: chat.photo != null
+      channelTitle: overrideSenderTitle ?? chat.title,
+      channelAvatarUrl: overrideSenderAvatarUrl ?? (chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true
               ? chat.photo!.small.local.path
               : (chat.photo!.small.remote.id.isNotEmpty
                   ? chat.photo!.small.remote.id
                   : chat.photo!.small.id.toString()))
-          : null,
-      channelAvatarFileId: chat.photo?.small.id,
+          : null),
+      channelAvatarFileId: overrideSenderAvatarFileId ?? chat.photo?.small.id,
       channelAvatarColor: _generateRandomHexColor(chat.id),
       text: bodyText,
       media: extractMediaItems(message),
@@ -195,7 +291,7 @@ class TdlibMappers {
       forwardCount: message.interactionInfo?.forwardCount ?? 0,
       reactions: reactionsMap,
       isBookmarked: isBookmarked,
-      isRead: message.isOutgoing ? true : false,
+      isRead: message.isOutgoing || message.id <= chat.lastReadInboxMessageId,
       linkPreviewUrl: linkPreviewUrl,
       linkPreviewTitle: linkPreviewTitle,
       linkPreviewDescription: linkPreviewDescription,
@@ -206,6 +302,8 @@ class TdlibMappers {
       replyToText: replyToText,
       replyToAuthorTitle: replyToAuthorTitle,
       replyToMessageId: replyToMessageId,
+      replyToThumbnailUrl: replyToThumbnailUrl,
+      replyToThumbnailFileId: replyToThumbnailFileId,
       hasDiscussionGroup: hasDiscussionGroup,
       entities: textEntities,
       poll: pollObj,
@@ -328,6 +426,30 @@ class TdlibMappers {
         fileId: docFile.id,
         thumbnailFileId: thumbFile?.id,
         localPath: docFile.local.isDownloadingCompleted ? docFile.local.path : null,
+      ));
+    } else if (content is td.MessageSticker) {
+      final sticker = content.sticker;
+      final stickerFile = sticker.sticker;
+      final stickerPath = stickerFile.local.isDownloadingCompleted && stickerFile.local.path.isNotEmpty
+          ? stickerFile.local.path
+          : (stickerFile.remote.id.isNotEmpty ? stickerFile.remote.id : stickerFile.id.toString());
+      final thumbFile = sticker.thumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: stickerPath,
+        type: MediaType.photo,
+        url: stickerPath,
+        thumbnailUrl: thumbPath,
+        width: sticker.width,
+        height: sticker.height,
+        fileId: stickerFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: stickerFile.local.isDownloadingCompleted ? stickerFile.local.path : null,
       ));
     }
 
@@ -462,7 +584,7 @@ class TdlibMappers {
         final opt = entry.value;
         final isCorrect = isQuiz && (idx == correctOptionId);
         return {
-          'text': opt.text,
+          'text': _parseFormattedText(opt.text) ?? '',
           'voterCount': opt.voterCount,
           'votePercentage': opt.votePercentage.toDouble(),
           'isChosen': opt.isChosen,
@@ -472,13 +594,13 @@ class TdlibMappers {
 
       final map = {
         'id': poll.id.toString(),
-        'question': poll.question.text,
+        'question': _parseFormattedText(poll.question) ?? '',
         'options': options,
         'totalVoterCount': poll.totalVoterCount,
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
-        'correctOptionId': ?correctOptionId,
+        'correctOptionId': correctOptionId,
         'chosenOptionIds': poll.options
             .asMap()
             .entries
