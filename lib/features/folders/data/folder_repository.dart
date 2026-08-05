@@ -15,7 +15,8 @@ class FolderRepository {
   }
 
   Future<List<td.ChatFolderInfo>> getFolders() async {
-    return _cachedFolders;
+    if (_cachedFolders.isNotEmpty) return _cachedFolders;
+    return _tdlib.chatFolders;
   }
 
   Future<List<int>> getFolderChannelChatIds(int folderId) async {

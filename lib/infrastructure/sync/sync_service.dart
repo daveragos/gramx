@@ -54,12 +54,12 @@ class SyncService {
   }
 
   /// Queue background file download in TDLib.
-  Future<void> _downloadFile(int fileId) async {
+  Future<void> _downloadFile(int fileId, {int priority = 1}) async {
     if (fileId == 0) return;
     try {
       await _tdlib.sendRequest(td.DownloadFile(
         fileId: fileId,
-        priority: 1,
+        priority: priority,
         offset: 0,
         limit: 0,
         synchronous: false,
@@ -67,6 +67,12 @@ class SyncService {
     } catch (e) {
       debugPrint('[Sync] DownloadFile failed for fileId $fileId: $e');
     }
+  }
+
+  /// Download a file with viewport-aware priority.
+  /// Use priority 32 for visible/viewport media, 1 for background prefetch.
+  Future<void> downloadFileWithPriority(int fileId, {int priority = 32}) async {
+    await _downloadFile(fileId, priority: priority);
   }
 
   /// Download small chat photo if available.

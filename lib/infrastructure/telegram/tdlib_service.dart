@@ -19,6 +19,7 @@ class TdlibService {
   final _authEventController =
       StreamController<td.AuthorizationState>.broadcast();
   final _statusMessageController = StreamController<String>.broadcast();
+  final _fileUpdateController = StreamController<td.UpdateFile>.broadcast();
 
   td.AuthorizationState? _currentAuthState;
   String _lastStatusMessage = 'Initializing TDLib...';
@@ -38,6 +39,9 @@ class TdlibService {
   /// Stream of status messages during initialization.
   Stream<String> get statusMessageStream => _statusMessageController.stream;
   String get lastStatusMessage => _lastStatusMessage;
+
+  /// Stream of file download updates from TDLib.
+  Stream<td.UpdateFile> get fileUpdates => _fileUpdateController.stream;
 
   /// Stream of authorization state updates.
   Stream<td.AuthorizationState> get authStateStream {
@@ -129,6 +133,8 @@ class TdlibService {
     });
   }
 
+  final Map<String, Completer<td.TdObject>> _pendingRequests = {};
+
   /// Drain all pending updates from native queue using tdReceive(0)
   void _drainUpdates() {
     for (int i = 0; i < 100; i++) {
@@ -138,13 +144,26 @@ class TdlibService {
       try {
         final map = jsonDecode(response) as Map<String, dynamic>;
         if (map.containsKey('@extra')) {
-          _invokesController.add(map);
+          final extra = map['@extra']?.toString();
+          final completer = extra != null ? _pendingRequests.remove(extra) : null;
+          if (completer != null) {
+            final object = convertJsonToObject(jsonEncode(map));
+            if (object != null) {
+              if (object is td.TdError) {
+                completer.completeError(Exception(object.message));
+              } else {
+                completer.complete(object);
+              }
+            } else {
+              completer.completeError(Exception('Failed to deserialize TDLib response.'));
+            }
+          } else {
+            _invokesController.add(map);
+          }
         } else {
           final object = convertJsonToObject(response);
           if (object != null) {
             _handleIncomingUpdate(object);
-          } else {
-            debugPrint('[TDLib] Received unhandled update JSON: $response');
           }
         }
       } catch (e) {
@@ -165,23 +184,7 @@ class TdlibService {
 
     final completer = Completer<td.TdObject>();
     final extra = extraId ?? DateTime.now().microsecondsSinceEpoch.toString();
-
-    late StreamSubscription sub;
-    sub = _invokesController.stream.listen((map) {
-      if (map['@extra']?.toString() == extra) {
-        sub.cancel();
-        final object = convertJsonToObject(jsonEncode(map));
-        if (object != null) {
-          if (object is td.TdError) {
-            completer.completeError(Exception(object.message));
-          } else {
-            completer.complete(object);
-          }
-        } else {
-          completer.completeError(Exception('Failed to deserialize TDLib response.'));
-        }
-      }
-    });
+    _pendingRequests[extra] = completer;
 
     final map = function.toJson();
     map['@extra'] = extra;
@@ -192,11 +195,14 @@ class TdlibService {
     return completer.future.timeout(
       timeout,
       onTimeout: () {
-        sub.cancel();
+        _pendingRequests.remove(extra);
         throw TimeoutException('TDLib request ${function.runtimeType} timed out.');
       },
     );
   }
+
+  List<td.ChatFolderInfo> _chatFolders = [];
+  List<td.ChatFolderInfo> get chatFolders => _chatFolders;
 
   void _handleIncomingUpdate(td.TdObject object) {
     if (object is td.UpdateAuthorizationState) {
@@ -204,8 +210,14 @@ class TdlibService {
       debugPrint('[TDLib Update] UpdateAuthorizationState -> ${object.authorizationState.runtimeType}');
       _authEventController.add(object.authorizationState);
       _handleAuthorizationState(object.authorizationState);
+    } else if (object is td.UpdateChatFolders) {
+      _chatFolders = object.chatFolders;
     } else if (object is td.TdError) {
       debugPrint('[TDLib Global Error] ${object.code}: ${object.message}');
+    }
+    // Only broadcast completed file updates to UI stream listeners
+    if (object is td.UpdateFile && object.file.local.isDownloadingCompleted) {
+      _fileUpdateController.add(object);
     }
     _updatesController.add(object);
   }
@@ -288,6 +300,7 @@ class TdlibService {
     await _invokesController.close();
     await _authEventController.close();
     await _statusMessageController.close();
+    await _fileUpdateController.close();
     _clientId = null;
   }
 }

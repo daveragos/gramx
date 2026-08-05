@@ -1,15 +1,15 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
@@ -17,32 +17,13 @@ class ChannelProfileScreen extends ConsumerStatefulWidget {
   const ChannelProfileScreen({super.key, required this.channelId});
 
   @override
-  ConsumerState<ChannelProfileScreen> createState() => _ChannelProfileScreenState();
+  ConsumerState<ChannelProfileScreen> createState() =>
+      _ChannelProfileScreenState();
 }
 
 class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   final ScrollController _scrollController = ScrollController();
-  bool _isLoadingMore = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchInitialHistory();
-    });
-  }
-
-  Future<void> _fetchInitialHistory() async {
-    try {
-      final channel = ref.read(channelDetailProvider(widget.channelId)).value;
-      if (channel != null) {
-        await ref.read(loadMoreChannelHistoryProvider((chatId: channel.chatId, fromMessageId: 0)).future);
-      }
-    } catch (e) {
-      debugPrint('[ChannelScreen] Error fetching initial history: $e');
-    }
-  }
+  bool _isMuted = false;
 
   @override
   void dispose() {
@@ -50,56 +31,20 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_isLoadingMore) return;
-    _isLoadingMore = true;
-
-    try {
-      final channel = ref.read(channelDetailProvider(widget.channelId)).value;
-      if (channel != null) {
-        await ref.read(
-          loadMoreChannelHistoryProvider((
-            chatId: channel.chatId,
-            fromMessageId: 0,
-          )).future,
-        );
-      }
-    } catch (e) {
-      debugPrint('[ChannelScreen] Error loading more history: $e');
-    } finally {
-      _isLoadingMore = false;
-    }
-  }
-
   Color _parseColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
   }
 
-  Widget _buildHeaderAvatar(dynamic channel, Color bannerColor) {
-    if (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty) {
-      final file = File(channel.avatarUrl!);
-      if (file.existsSync()) {
-        return CircleAvatar(
-          radius: 32,
-          backgroundImage: FileImage(file),
-        );
-      }
+  void _openTelegramLink(String? username) async {
+    if (username != null && username.isNotEmpty) {
+      final uri = Uri.parse('https://t.me/$username');
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      } catch (_) {}
     }
-    return CircleAvatar(
-      radius: 32,
-      backgroundColor: bannerColor,
-      child: Text(
-        channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
-        style: AppTypography.heading(color: Colors.white),
-      ),
-    );
   }
 
   @override
@@ -107,14 +52,16 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
     final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
     final theme = Theme.of(context);
-    final secondaryColor = theme.brightness == Brightness.dark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
+    final isDark = theme.brightness == Brightness.dark;
+    final secondaryColor =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
 
     return Scaffold(
       body: channelAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.accent),
+        ),
         error: (err, _) => Scaffold(
           appBar: AppBar(title: const Text('Channel')),
           body: Center(child: Text('Error: $err')),
@@ -142,79 +89,192 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
           return CustomScrollView(
             controller: _scrollController,
             slivers: [
-              // Banner
+              // Banner & Navigation Header
               SliverAppBar(
-                expandedHeight: 120,
+                expandedHeight: 140,
                 pinned: true,
                 backgroundColor: bannerColor,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => context.pop(),
+                ),
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Container(color: bannerColor),
+                  title: Text(
+                    channel.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [bannerColor, bannerColor.withValues(alpha: 0.8)],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              // Profile header
+
+              // Profile Details Section
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.postPadding),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.postPadding),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Avatar overlapping banner
-                      Transform.translate(
-                        offset: const Offset(0, -32),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: theme.scaffoldBackgroundColor,
-                              width: 4,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Overlapping Channel Avatar
+                          Transform.translate(
+                            offset: const Offset(0, -28),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.scaffoldBackgroundColor,
+                                  width: 4,
+                                ),
+                              ),
+                              child: ChannelAvatar(
+                                title: channel.title,
+                                avatarPath: channel.avatarUrl,
+                                avatarFileId: channel.avatarFileId,
+                                avatarColorHex: channel.avatarColor,
+                                radius: 36,
+                              ),
                             ),
                           ),
-                          child: _buildHeaderAvatar(channel, bannerColor),
-                        ),
+
+                          // Action Buttons
+                          Row(
+                            children: [
+                              IconButton.outlined(
+                                onPressed: () {
+                                  setState(() => _isMuted = !_isMuted);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(_isMuted
+                                          ? 'Muted notifications'
+                                          : 'Unmuted notifications'),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                icon: Icon(
+                                  _isMuted
+                                      ? Icons.notifications_off_outlined
+                                      : Icons.notifications_outlined,
+                                  color: primaryColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (channel.username != null)
+                                ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _openTelegramLink(channel.username),
+                                  icon: const Icon(Icons.send_rounded, size: 16),
+                                  label: const Text('Open'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.accent,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
-                      Transform.translate(
-                        offset: const Offset(0, -16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(channel.title, style: AppTypography.heading(color: primaryColor)),
-                                if (channel.isVerified) ...[
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.verified, color: AppColors.verified, size: 22),
-                                ],
-                              ],
+
+                      // Channel Title & Username
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              channel.title,
+                              style: AppTypography.heading(color: primaryColor),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            if (channel.username != null)
-                              Text('@${channel.username}', style: AppTypography.username(color: secondaryColor)),
-                            const SizedBox(height: AppSpacing.sm),
-                            if (channel.description != null)
-                              Text(channel.description!, style: AppTypography.body(color: primaryColor)),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              '${TimeUtils.formatCount(channel.subscriberCount)} subscribers',
-                              style: AppTypography.body(color: secondaryColor),
+                          ),
+                          if (channel.isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.verified,
+                              color: AppColors.verified,
+                              size: 20,
                             ),
                           ],
-                        ),
+                        ],
                       ),
+                      if (channel.username != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${channel.username}',
+                          style: AppTypography.username(color: secondaryColor),
+                        ),
+                      ],
+
+                      // Description
+                      if (channel.description != null &&
+                          channel.description!.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          channel.description!,
+                          style: AppTypography.body(color: primaryColor),
+                        ),
+                      ],
+
+                      // Subscriber count
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
+                        children: [
+                          Icon(Icons.people_outline,
+                              size: 16, color: secondaryColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${TimeUtils.formatCount(channel.subscriberCount)} subscribers',
+                            style: AppTypography.body(color: secondaryColor),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
                     ],
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(child: Divider()),
-              // Channel posts
+
+              const SliverToBoxAdapter(child: Divider(height: 1)),
+
+              // Channel Posts List
               channelPostsAsync.when(
                 loading: () => const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.accent),
+                  ),
                 ),
                 error: (err, _) => SliverFillRemaining(
-                  child: Center(child: Text('Error: $err')),
+                  child: Center(child: Text('Error loading posts: $err')),
                 ),
-                data: (posts) => SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
+                data: (posts) {
+                  if (posts.isEmpty) {
+                    return const SliverFillRemaining(
+                      child: Center(
+                        child: Text('No posts found in this channel.'),
+                      ),
+                    );
+                  }
+
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
                       final post = posts[index];
                       return PostCard(
                         post: post,
@@ -223,10 +283,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                           context.push('/post/${post.id}');
                         },
                       );
-                    },
-                    childCount: posts.length,
-                  ),
-                ),
+                    }, childCount: posts.length),
+                  );
+                },
               ),
             ],
           );

@@ -4,11 +4,70 @@ import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 
-/// Provides the full feed of posts (all channels), sorted by publishedAt desc.
-final feedPostsProvider = FutureProvider<List<Post>>((ref) async {
-  final repo = ref.watch(feedRepositoryProvider);
-  return repo.fetchFeedPosts();
-});
+/// Stateful feed notifier that supports appending older posts (pagination)
+/// and full refresh without destroying state.
+class FeedNotifier extends AsyncNotifier<List<Post>> {
+  final Map<int, int> _oldestMessageIds = {};
+  bool _isLoadingMore = false;
+
+  @override
+  Future<List<Post>> build() async {
+    final repo = ref.watch(feedRepositoryProvider);
+    final posts = await repo.fetchFeedPosts();
+    _updateOldestIds(posts);
+    return posts;
+  }
+
+  /// Track the oldest messageId per channel for cursor-based pagination.
+  void _updateOldestIds(List<Post> posts) {
+    for (final post in posts) {
+      final existing = _oldestMessageIds[post.chatId];
+      if (existing == null || post.messageId < existing) {
+        _oldestMessageIds[post.chatId] = post.messageId;
+      }
+    }
+  }
+
+  /// Load more (older) posts and APPEND to existing state.
+  Future<void> loadMore() async {
+    if (_isLoadingMore || _oldestMessageIds.isEmpty) return;
+    _isLoadingMore = true;
+    try {
+      final repo = ref.read(feedRepositoryProvider);
+      final olderPosts = await repo.fetchOlderPosts(_oldestMessageIds);
+      if (olderPosts.isNotEmpty) {
+        _updateOldestIds(olderPosts);
+        final current = state.value ?? [];
+        final existingIds = current.map((p) => p.id).toSet();
+        final newPosts =
+            olderPosts.where((p) => !existingIds.contains(p.id)).toList();
+        if (newPosts.isNotEmpty) {
+          final merged = [...current, ...newPosts]
+            ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+          state = AsyncData(merged);
+        }
+      }
+    } finally {
+      _isLoadingMore = false;
+    }
+  }
+
+  /// Full refresh: re-fetch from scratch (for pull-to-refresh).
+  Future<void> refresh() async {
+    _oldestMessageIds.clear();
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(feedRepositoryProvider);
+      final posts = await repo.fetchFeedPosts();
+      _updateOldestIds(posts);
+      return posts;
+    });
+  }
+}
+
+/// Main feed posts provider — uses AsyncNotifier for stateful pagination.
+final feedPostsProvider =
+    AsyncNotifierProvider<FeedNotifier, List<Post>>(FeedNotifier.new);
 
 /// Provides a single post by its composite ID (chatId_messageId).
 final postDetailProvider =
@@ -17,7 +76,7 @@ final postDetailProvider =
   if (parts.length != 2) return null;
   final chatId = int.tryParse(parts[0]);
   if (chatId == null) return null;
-  
+
   final repo = ref.watch(feedRepositoryProvider);
   final posts = await repo.fetchChannelPosts(chatId);
   return posts.where((p) => p.id == postId).firstOrNull;
@@ -32,10 +91,10 @@ final bookmarkToggleProvider =
   final chatId = int.tryParse(parts[0]);
   final messageId = int.tryParse(parts[1]);
   if (chatId == null || messageId == null) return;
-  
+
   await repo.toggleBookmark(chatId, messageId);
-  // Invalidate feed to reflect change
-  ref.invalidate(feedPostsProvider);
+  // Refresh feed to reflect bookmark change
+  await ref.read(feedPostsProvider.notifier).refresh();
 });
 
 /// Bottom navigation visibility state provider
@@ -51,7 +110,8 @@ class BottomNavVisibilityNotifier extends Notifier<bool> {
 }
 
 final bottomNavVisibilityProvider =
-    NotifierProvider<BottomNavVisibilityNotifier, bool>(BottomNavVisibilityNotifier.new);
+    NotifierProvider<BottomNavVisibilityNotifier, bool>(
+        BottomNavVisibilityNotifier.new);
 
 /// Provider to mark post as read
 final markPostAsReadProvider =
@@ -62,17 +122,8 @@ final markPostAsReadProvider =
   final chatId = int.tryParse(parts[0]);
   final messageId = int.tryParse(parts[1]);
   if (chatId == null || messageId == null) return;
-  
-  await repo.markPostAsRead(chatId, messageId);
-  ref.invalidate(feedPostsProvider);
-});
 
-/// Provider to trigger loading more history for pagination
-final loadMoreChannelHistoryProvider =
-    FutureProvider.family<void, ({int chatId, int fromMessageId})>((ref, arg) async {
-  final repo = ref.read(feedRepositoryProvider);
-  await repo.fetchChannelPosts(arg.chatId, fromMessageId: arg.fromMessageId);
-  ref.invalidate(feedPostsProvider);
+  await repo.markPostAsRead(chatId, messageId);
 });
 
 /// Provides user's dynamic folders synced from Telegram
@@ -97,7 +148,10 @@ final filteredFeedPostsProvider =
 
   final folderRepo = ref.watch(folderRepositoryProvider);
   final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
-  final allowedChannelIdsStr = allowedChannelIds.map((id) => id.toString()).toSet();
-  
-  return posts.where((post) => allowedChannelIdsStr.contains(post.channelId)).toList();
+  final allowedChannelIdsStr =
+      allowedChannelIds.map((id) => id.toString()).toSet();
+
+  return posts
+      .where((post) => allowedChannelIdsStr.contains(post.channelId))
+      .toList();
 });

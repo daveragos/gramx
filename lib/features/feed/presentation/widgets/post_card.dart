@@ -126,6 +126,7 @@ class PostCard extends ConsumerWidget {
                   ChannelAvatar(
                     title: post.channelTitle,
                     avatarPath: post.channelAvatarUrl,
+                    avatarFileId: post.channelAvatarFileId,
                     avatarColorHex: post.channelAvatarColor,
                     onTap: onChannelTap ?? () => context.push('/channel/${post.channelId}'),
                   ),
@@ -236,6 +237,57 @@ class PostCard extends ConsumerWidget {
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           PostMediaGrid(media: post.media),
+                        ],
+
+                        // Horizontal Reactions Scroll Bar
+                        if (post.reactions.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: post.reactions.entries.map((entry) {
+                                final emoji = entry.key;
+                                final count = entry.value;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: InkWell(
+                                    onTap: () => defaultReactionHandler(emoji),
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? AppColors.darkSurfaceVariant
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: isDark
+                                              ? AppColors.darkBorder
+                                              : AppColors.lightBorder,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(emoji,
+                                              style: const TextStyle(
+                                                  fontSize: 14)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            TimeUtils.formatCount(count),
+                                            style: AppTypography.actionCount(
+                                                color: secondaryColor),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
                         ],
 
                         const SizedBox(height: AppSpacing.md),

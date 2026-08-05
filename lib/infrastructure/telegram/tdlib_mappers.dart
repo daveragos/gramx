@@ -22,6 +22,7 @@ class TdlibMappers {
                   ? chat.photo!.small.remote.id
                   : chat.photo!.small.id.toString()))
           : null,
+      avatarFileId: chat.photo?.small.id,
       avatarColor: _generateRandomHexColor(chat.id),
       subscriberCount: supergroup?.memberCount ?? 0,
       isVerified: supergroup?.isVerified ?? false,
@@ -31,7 +32,7 @@ class TdlibMappers {
     );
   }
 
-  static Post mapMessageToPost(td.Message message, td.Chat chat, {bool isBookmarked = false}) {
+  static Post mapMessageToPost(td.Message message, td.Chat chat, {bool isBookmarked = false, Map<int, String>? knownChatTitles}) {
     String? bodyText;
     String? linkPreviewUrl;
     String? linkPreviewTitle;
@@ -45,6 +46,7 @@ class TdlibMappers {
       bodyText = content.text.text;
       final parsed = _parseEntities(content.text.entities);
       if (parsed != null) textEntities = parsed;
+
       if (content.linkPreview != null) {
         final lp = content.linkPreview!;
         linkPreviewUrl = lp.url.isNotEmpty ? lp.url : null;
@@ -115,12 +117,14 @@ class TdlibMappers {
     final fwdOrigin = message.forwardInfo?.origin;
     if (fwdOrigin is td.MessageOriginChannel) {
       forwardedFromChatId = fwdOrigin.chatId.toString();
-      forwardedFromTitle = fwdOrigin.authorSignature.isNotEmpty ? fwdOrigin.authorSignature : null;
+      final resolvedTitle = knownChatTitles?[fwdOrigin.chatId];
+      forwardedFromTitle = resolvedTitle ?? (fwdOrigin.authorSignature.isNotEmpty ? fwdOrigin.authorSignature : null);
     } else if (fwdOrigin is td.MessageOriginChat) {
       forwardedFromChatId = fwdOrigin.senderChatId.toString();
+      final resolvedTitle = knownChatTitles?[fwdOrigin.senderChatId];
+      forwardedFromTitle = resolvedTitle;
     } else if (fwdOrigin is td.MessageOriginUser) {
-      // User ID could be used to resolve user, but not channel ID.
-      // We will skip for now or resolve async.
+      // User origin
     } else if (fwdOrigin is td.MessageOriginHiddenUser) {
       forwardedFromTitle = fwdOrigin.senderName;
     }
@@ -139,6 +143,7 @@ class TdlibMappers {
                   ? chat.photo!.small.remote.id
                   : chat.photo!.small.id.toString()))
           : null,
+      channelAvatarFileId: chat.photo?.small.id,
       channelAvatarColor: _generateRandomHexColor(chat.id),
       text: bodyText,
       media: extractMediaItems(message),
@@ -168,12 +173,17 @@ class TdlibMappers {
     if (content is td.MessagePhoto) {
       final photo = content.photo;
       final bestSize = photo.sizes.last;
-      final bestPhotoPath = bestSize.photo.local.path.isNotEmpty == true 
-          ? bestSize.photo.local.path 
-          : (bestSize.photo.remote.id.isNotEmpty ? bestSize.photo.remote.id : bestSize.photo.id.toString());
-      final thumbPath = photo.sizes.first.photo.local.path.isNotEmpty == true 
-          ? photo.sizes.first.photo.local.path 
-          : (photo.sizes.first.photo.remote.id.isNotEmpty ? photo.sizes.first.photo.remote.id : photo.sizes.first.photo.id.toString());
+      final bestPhotoFile = bestSize.photo;
+      final bestPhotoPath = bestPhotoFile.local.isDownloadingCompleted && bestPhotoFile.local.path.isNotEmpty
+          ? bestPhotoFile.local.path
+          : (bestPhotoFile.remote.id.isNotEmpty ? bestPhotoFile.remote.id : bestPhotoFile.id.toString());
+      final thumbFile = photo.sizes.first.photo;
+      final thumbPath = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+          ? thumbFile.local.path
+          : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+
+      // Extract minithumbnail if available
+      final minithumbnailBase64 = photo.minithumbnail?.data;
 
       list.add(MediaItem(
         id: bestPhotoPath,
@@ -182,17 +192,26 @@ class TdlibMappers {
         thumbnailUrl: thumbPath,
         width: bestSize.width,
         height: bestSize.height,
+        minithumbnail: minithumbnailBase64,
+        fileId: bestPhotoFile.id,
+        thumbnailFileId: thumbFile.id,
+        localPath: bestPhotoFile.local.isDownloadingCompleted ? bestPhotoFile.local.path : null,
       ));
     } else if (content is td.MessageVideo) {
       final video = content.video;
-      final videoPath = video.video.local.path.isNotEmpty == true 
-          ? video.video.local.path 
-          : (video.video.remote.id.isNotEmpty ? video.video.remote.id : video.video.id.toString());
-      final thumbPath = video.thumbnail != null
-          ? (video.thumbnail!.file.local.path.isNotEmpty == true
-              ? video.thumbnail!.file.local.path
-              : (video.thumbnail!.file.remote.id.isNotEmpty ? video.thumbnail!.file.remote.id : video.thumbnail!.file.id.toString()))
+      final videoFile = video.video;
+      final videoPath = videoFile.local.isDownloadingCompleted && videoFile.local.path.isNotEmpty
+          ? videoFile.local.path
+          : (videoFile.remote.id.isNotEmpty ? videoFile.remote.id : videoFile.id.toString());
+      final thumbFile = video.thumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
           : null;
+
+      // Extract minithumbnail
+      final minithumbnailBase64 = video.minithumbnail?.data;
 
       list.add(MediaItem(
         id: videoPath,
@@ -202,20 +221,29 @@ class TdlibMappers {
         width: video.width,
         height: video.height,
         duration: video.duration,
-        fileSize: video.video.expectedSize,
+        fileSize: videoFile.expectedSize,
         fileName: video.fileName,
         mimeType: video.mimeType,
+        minithumbnail: minithumbnailBase64,
+        fileId: videoFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: videoFile.local.isDownloadingCompleted ? videoFile.local.path : null,
       ));
     } else if (content is td.MessageAnimation) {
       final anim = content.animation;
-      final animPath = anim.animation.local.path.isNotEmpty == true 
-          ? anim.animation.local.path 
-          : (anim.animation.remote.id.isNotEmpty ? anim.animation.remote.id : anim.animation.id.toString());
-      final thumbPath = anim.thumbnail != null
-          ? (anim.thumbnail!.file.local.path.isNotEmpty == true
-              ? anim.thumbnail!.file.local.path
-              : (anim.thumbnail!.file.remote.id.isNotEmpty ? anim.thumbnail!.file.remote.id : anim.thumbnail!.file.id.toString()))
+      final animFile = anim.animation;
+      final animPath = animFile.local.isDownloadingCompleted && animFile.local.path.isNotEmpty
+          ? animFile.local.path
+          : (animFile.remote.id.isNotEmpty ? animFile.remote.id : animFile.id.toString());
+      final thumbFile = anim.thumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
           : null;
+
+      // Extract minithumbnail
+      final minithumbnailBase64 = anim.minithumbnail?.data;
 
       list.add(MediaItem(
         id: animPath,
@@ -225,16 +253,22 @@ class TdlibMappers {
         width: anim.width,
         height: anim.height,
         duration: anim.duration,
+        minithumbnail: minithumbnailBase64,
+        fileId: animFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: animFile.local.isDownloadingCompleted ? animFile.local.path : null,
       ));
     } else if (content is td.MessageDocument) {
       final doc = content.document;
-      final docPath = doc.document.local.path.isNotEmpty == true 
-          ? doc.document.local.path 
-          : (doc.document.remote.id.isNotEmpty ? doc.document.remote.id : doc.document.id.toString());
-      final thumbPath = doc.thumbnail != null
-          ? (doc.thumbnail!.file.local.path.isNotEmpty == true
-              ? doc.thumbnail!.file.local.path
-              : (doc.thumbnail!.file.remote.id.isNotEmpty ? doc.thumbnail!.file.remote.id : doc.thumbnail!.file.id.toString()))
+      final docFile = doc.document;
+      final docPath = docFile.local.isDownloadingCompleted && docFile.local.path.isNotEmpty
+          ? docFile.local.path
+          : (docFile.remote.id.isNotEmpty ? docFile.remote.id : docFile.id.toString());
+      final thumbFile = doc.thumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
           : null;
 
       list.add(MediaItem(
@@ -242,23 +276,26 @@ class TdlibMappers {
         type: MediaType.document,
         url: docPath,
         thumbnailUrl: thumbPath,
-        fileSize: doc.document.expectedSize,
+        fileSize: docFile.expectedSize,
         fileName: doc.fileName,
         mimeType: doc.mimeType,
+        fileId: docFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: docFile.local.isDownloadingCompleted ? docFile.local.path : null,
       ));
     }
 
     return list;
   }
 
-  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}}) {
+  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}, Map<int, String>? knownChatTitles}) {
     final grouped = <int, List<td.Message>>{};
     final result = <Post>[];
 
     for (final m in messages) {
       final albumId = m.mediaAlbumId.toInt();
       if (albumId == 0) {
-        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}')));
+        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'), knownChatTitles: knownChatTitles));
       } else {
         grouped.putIfAbsent(albumId, () => []).add(m);
       }
@@ -268,7 +305,7 @@ class TdlibMappers {
       group.sort((a, b) => a.id.compareTo(b.id));
       final anchor = group.first;
       
-      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'));
+      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'), knownChatTitles: knownChatTitles);
       
       final allMedia = <MediaItem>[];
       int maxViews = 0;
@@ -358,8 +395,8 @@ class TdlibMappers {
           'offset': entity.offset,
           'length': entity.length,
           'type': typeStr,
-          if (url != null) 'url': url,
-          if (customEmojiId != null) 'customEmojiId': customEmojiId,
+          'url': ?url,
+          'customEmojiId': ?customEmojiId,
         };
       }).toList();
       return jsonEncode(list);
@@ -395,7 +432,7 @@ class TdlibMappers {
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
-        if (correctOptionId != null) 'correctOptionId': correctOptionId,
+        'correctOptionId': ?correctOptionId,
         'chosenOptionIds': poll.options
             .asMap()
             .entries

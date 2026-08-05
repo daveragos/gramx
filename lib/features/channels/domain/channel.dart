@@ -12,6 +12,7 @@ abstract class Channel with _$Channel {
     String? username,
     String? description,
     String? avatarUrl,
+    int? avatarFileId,
     String? avatarColor,
     @Default(0) int subscriberCount,
     @Default(false) bool isVerified,

@@ -27,6 +27,12 @@ abstract class MediaItem with _$MediaItem {
     String? fileName,
     String? mimeType,
     String? localPath,
+    /// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
+    String? minithumbnail,
+    /// TDLib file ID for the main media file (for reactive download tracking).
+    int? fileId,
+    /// TDLib file ID for the thumbnail file.
+    int? thumbnailFileId,
   }) = _MediaItem;
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);

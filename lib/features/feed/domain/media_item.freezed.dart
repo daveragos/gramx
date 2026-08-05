@@ -15,7 +15,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MediaItem {
 
- String get id; MediaType get type; String? get url; String? get thumbnailUrl; int get width; int get height; int get duration; int get fileSize; String? get fileName; String? get mimeType; String? get localPath;
+ String get id; MediaType get type; String? get url; String? get thumbnailUrl; int get width; int get height; int get duration; int get fileSize; String? get fileName; String? get mimeType; String? get localPath;/// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
+ String? get minithumbnail;/// TDLib file ID for the main media file (for reactive download tracking).
+ int? get fileId;/// TDLib file ID for the thumbnail file.
+ int? get thumbnailFileId;
 /// Create a copy of MediaItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +31,16 @@ $MediaItemCopyWith<MediaItem> get copyWith => _$MediaItemCopyWithImpl<MediaItem>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.thumbnailUrl, thumbnailUrl) || other.thumbnailUrl == thumbnailUrl)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.fileSize, fileSize) || other.fileSize == fileSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.mimeType, mimeType) || other.mimeType == mimeType)&&(identical(other.localPath, localPath) || other.localPath == localPath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MediaItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.thumbnailUrl, thumbnailUrl) || other.thumbnailUrl == thumbnailUrl)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.fileSize, fileSize) || other.fileSize == fileSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.mimeType, mimeType) || other.mimeType == mimeType)&&(identical(other.localPath, localPath) || other.localPath == localPath)&&(identical(other.minithumbnail, minithumbnail) || other.minithumbnail == minithumbnail)&&(identical(other.fileId, fileId) || other.fileId == fileId)&&(identical(other.thumbnailFileId, thumbnailFileId) || other.thumbnailFileId == thumbnailFileId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,url,thumbnailUrl,width,height,duration,fileSize,fileName,mimeType,localPath);
+int get hashCode => Object.hash(runtimeType,id,type,url,thumbnailUrl,width,height,duration,fileSize,fileName,mimeType,localPath,minithumbnail,fileId,thumbnailFileId);
 
 @override
 String toString() {
-  return 'MediaItem(id: $id, type: $type, url: $url, thumbnailUrl: $thumbnailUrl, width: $width, height: $height, duration: $duration, fileSize: $fileSize, fileName: $fileName, mimeType: $mimeType, localPath: $localPath)';
+  return 'MediaItem(id: $id, type: $type, url: $url, thumbnailUrl: $thumbnailUrl, width: $width, height: $height, duration: $duration, fileSize: $fileSize, fileName: $fileName, mimeType: $mimeType, localPath: $localPath, minithumbnail: $minithumbnail, fileId: $fileId, thumbnailFileId: $thumbnailFileId)';
 }
 
 
@@ -48,7 +51,7 @@ abstract mixin class $MediaItemCopyWith<$Res>  {
   factory $MediaItemCopyWith(MediaItem value, $Res Function(MediaItem) _then) = _$MediaItemCopyWithImpl;
 @useResult
 $Res call({
- String id, MediaType type, String? url, String? thumbnailUrl, int width, int height, int duration, int fileSize, String? fileName, String? mimeType, String? localPath
+ String id, MediaType type, String? url, String? thumbnailUrl, int width, int height, int duration, int fileSize, String? fileName, String? mimeType, String? localPath, String? minithumbnail, int? fileId, int? thumbnailFileId
 });
 
 
@@ -65,7 +68,7 @@ class _$MediaItemCopyWithImpl<$Res>
 
 /// Create a copy of MediaItem
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? url = freezed,Object? thumbnailUrl = freezed,Object? width = null,Object? height = null,Object? duration = null,Object? fileSize = null,Object? fileName = freezed,Object? mimeType = freezed,Object? localPath = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? url = freezed,Object? thumbnailUrl = freezed,Object? width = null,Object? height = null,Object? duration = null,Object? fileSize = null,Object? fileName = freezed,Object? mimeType = freezed,Object? localPath = freezed,Object? minithumbnail = freezed,Object? fileId = freezed,Object? thumbnailFileId = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -78,7 +81,10 @@ as int,fileSize: null == fileSize ? _self.fileSize : fileSize // ignore: cast_nu
 as int,fileName: freezed == fileName ? _self.fileName : fileName // ignore: cast_nullable_to_non_nullable
 as String?,mimeType: freezed == mimeType ? _self.mimeType : mimeType // ignore: cast_nullable_to_non_nullable
 as String?,localPath: freezed == localPath ? _self.localPath : localPath // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,minithumbnail: freezed == minithumbnail ? _self.minithumbnail : minithumbnail // ignore: cast_nullable_to_non_nullable
+as String?,fileId: freezed == fileId ? _self.fileId : fileId // ignore: cast_nullable_to_non_nullable
+as int?,thumbnailFileId: freezed == thumbnailFileId ? _self.thumbnailFileId : thumbnailFileId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -163,10 +169,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath,  String? minithumbnail,  int? fileId,  int? thumbnailFileId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MediaItem() when $default != null:
-return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath);case _:
+return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath,_that.minithumbnail,_that.fileId,_that.thumbnailFileId);case _:
   return orElse();
 
 }
@@ -184,10 +190,10 @@ return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath,  String? minithumbnail,  int? fileId,  int? thumbnailFileId)  $default,) {final _that = this;
 switch (_that) {
 case _MediaItem():
-return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath);case _:
+return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath,_that.minithumbnail,_that.fileId,_that.thumbnailFileId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +210,10 @@ return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  MediaType type,  String? url,  String? thumbnailUrl,  int width,  int height,  int duration,  int fileSize,  String? fileName,  String? mimeType,  String? localPath,  String? minithumbnail,  int? fileId,  int? thumbnailFileId)?  $default,) {final _that = this;
 switch (_that) {
 case _MediaItem() when $default != null:
-return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath);case _:
+return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_that.height,_that.duration,_that.fileSize,_that.fileName,_that.mimeType,_that.localPath,_that.minithumbnail,_that.fileId,_that.thumbnailFileId);case _:
   return null;
 
 }
@@ -219,7 +225,7 @@ return $default(_that.id,_that.type,_that.url,_that.thumbnailUrl,_that.width,_th
 @JsonSerializable()
 
 class _MediaItem implements MediaItem {
-  const _MediaItem({required this.id, required this.type, this.url, this.thumbnailUrl, this.width = 0, this.height = 0, this.duration = 0, this.fileSize = 0, this.fileName, this.mimeType, this.localPath});
+  const _MediaItem({required this.id, required this.type, this.url, this.thumbnailUrl, this.width = 0, this.height = 0, this.duration = 0, this.fileSize = 0, this.fileName, this.mimeType, this.localPath, this.minithumbnail, this.fileId, this.thumbnailFileId});
   factory _MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);
 
 @override final  String id;
@@ -233,6 +239,12 @@ class _MediaItem implements MediaItem {
 @override final  String? fileName;
 @override final  String? mimeType;
 @override final  String? localPath;
+/// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
+@override final  String? minithumbnail;
+/// TDLib file ID for the main media file (for reactive download tracking).
+@override final  int? fileId;
+/// TDLib file ID for the thumbnail file.
+@override final  int? thumbnailFileId;
 
 /// Create a copy of MediaItem
 /// with the given fields replaced by the non-null parameter values.
@@ -247,16 +259,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MediaItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.thumbnailUrl, thumbnailUrl) || other.thumbnailUrl == thumbnailUrl)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.fileSize, fileSize) || other.fileSize == fileSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.mimeType, mimeType) || other.mimeType == mimeType)&&(identical(other.localPath, localPath) || other.localPath == localPath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MediaItem&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.thumbnailUrl, thumbnailUrl) || other.thumbnailUrl == thumbnailUrl)&&(identical(other.width, width) || other.width == width)&&(identical(other.height, height) || other.height == height)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.fileSize, fileSize) || other.fileSize == fileSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.mimeType, mimeType) || other.mimeType == mimeType)&&(identical(other.localPath, localPath) || other.localPath == localPath)&&(identical(other.minithumbnail, minithumbnail) || other.minithumbnail == minithumbnail)&&(identical(other.fileId, fileId) || other.fileId == fileId)&&(identical(other.thumbnailFileId, thumbnailFileId) || other.thumbnailFileId == thumbnailFileId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,type,url,thumbnailUrl,width,height,duration,fileSize,fileName,mimeType,localPath);
+int get hashCode => Object.hash(runtimeType,id,type,url,thumbnailUrl,width,height,duration,fileSize,fileName,mimeType,localPath,minithumbnail,fileId,thumbnailFileId);
 
 @override
 String toString() {
-  return 'MediaItem(id: $id, type: $type, url: $url, thumbnailUrl: $thumbnailUrl, width: $width, height: $height, duration: $duration, fileSize: $fileSize, fileName: $fileName, mimeType: $mimeType, localPath: $localPath)';
+  return 'MediaItem(id: $id, type: $type, url: $url, thumbnailUrl: $thumbnailUrl, width: $width, height: $height, duration: $duration, fileSize: $fileSize, fileName: $fileName, mimeType: $mimeType, localPath: $localPath, minithumbnail: $minithumbnail, fileId: $fileId, thumbnailFileId: $thumbnailFileId)';
 }
 
 
@@ -267,7 +279,7 @@ abstract mixin class _$MediaItemCopyWith<$Res> implements $MediaItemCopyWith<$Re
   factory _$MediaItemCopyWith(_MediaItem value, $Res Function(_MediaItem) _then) = __$MediaItemCopyWithImpl;
 @override @useResult
 $Res call({
- String id, MediaType type, String? url, String? thumbnailUrl, int width, int height, int duration, int fileSize, String? fileName, String? mimeType, String? localPath
+ String id, MediaType type, String? url, String? thumbnailUrl, int width, int height, int duration, int fileSize, String? fileName, String? mimeType, String? localPath, String? minithumbnail, int? fileId, int? thumbnailFileId
 });
 
 
@@ -284,7 +296,7 @@ class __$MediaItemCopyWithImpl<$Res>
 
 /// Create a copy of MediaItem
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? url = freezed,Object? thumbnailUrl = freezed,Object? width = null,Object? height = null,Object? duration = null,Object? fileSize = null,Object? fileName = freezed,Object? mimeType = freezed,Object? localPath = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? url = freezed,Object? thumbnailUrl = freezed,Object? width = null,Object? height = null,Object? duration = null,Object? fileSize = null,Object? fileName = freezed,Object? mimeType = freezed,Object? localPath = freezed,Object? minithumbnail = freezed,Object? fileId = freezed,Object? thumbnailFileId = freezed,}) {
   return _then(_MediaItem(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -297,7 +309,10 @@ as int,fileSize: null == fileSize ? _self.fileSize : fileSize // ignore: cast_nu
 as int,fileName: freezed == fileName ? _self.fileName : fileName // ignore: cast_nullable_to_non_nullable
 as String?,mimeType: freezed == mimeType ? _self.mimeType : mimeType // ignore: cast_nullable_to_non_nullable
 as String?,localPath: freezed == localPath ? _self.localPath : localPath // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,minithumbnail: freezed == minithumbnail ? _self.minithumbnail : minithumbnail // ignore: cast_nullable_to_non_nullable
+as String?,fileId: freezed == fileId ? _self.fileId : fileId // ignore: cast_nullable_to_non_nullable
+as int?,thumbnailFileId: freezed == thumbnailFileId ? _self.thumbnailFileId : thumbnailFileId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

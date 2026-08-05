@@ -17,6 +17,7 @@ abstract class Post with _$Post {
     required String channelTitle,
     String? channelUsername,
     String? channelAvatarUrl,
+    int? channelAvatarFileId,
     String? channelAvatarColor,
     @Default(false) bool isChannelVerified,
     String? text,

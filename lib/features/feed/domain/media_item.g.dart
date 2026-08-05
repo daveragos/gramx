@@ -18,6 +18,9 @@ _MediaItem _$MediaItemFromJson(Map<String, dynamic> json) => _MediaItem(
   fileName: json['fileName'] as String?,
   mimeType: json['mimeType'] as String?,
   localPath: json['localPath'] as String?,
+  minithumbnail: json['minithumbnail'] as String?,
+  fileId: (json['fileId'] as num?)?.toInt(),
+  thumbnailFileId: (json['thumbnailFileId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
@@ -33,6 +36,9 @@ Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
       'fileName': instance.fileName,
       'mimeType': instance.mimeType,
       'localPath': instance.localPath,
+      'minithumbnail': instance.minithumbnail,
+      'fileId': instance.fileId,
+      'thumbnailFileId': instance.thumbnailFileId,
     };
 
 const _$MediaTypeEnumMap = {
