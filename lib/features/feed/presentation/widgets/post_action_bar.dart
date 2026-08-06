@@ -77,7 +77,7 @@ class PostActionBar extends ConsumerWidget {
           onTap: onShareTap,
         ),
 
-        // Reaction Button (Emoji support with Overlay Picker)
+        // Reaction Button (Instant toggle on tap, overlay picker on long-press)
         KeyedSubtree(
           key: reactionKey,
           child: GestureDetector(
@@ -87,12 +87,10 @@ class PostActionBar extends ConsumerWidget {
             },
             onTap: () {
               HapticFeedback.lightImpact();
-              if (activeEmoji != null) {
-                // Toggle off existing or open picker
-                _showReactionPicker(context, ref, reactionKey);
-              } else {
-                _showReactionPicker(context, ref, reactionKey);
-              }
+              final emojiToToggle = post.chosenReactions.isNotEmpty
+                  ? post.chosenReactions.first
+                  : (activeEmoji ?? '❤️');
+              onSelectReaction(emojiToToggle);
             },
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -101,8 +99,12 @@ class PostActionBar extends ConsumerWidget {
                   Text(activeEmoji, style: const TextStyle(fontSize: 16))
                 else
                   Icon(
-                    totalReactions > 0 ? Icons.favorite : Icons.favorite_border,
-                    color: totalReactions > 0 ? AppColors.like : secondaryColor,
+                    post.chosenReactions.isNotEmpty || totalReactions > 0
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color: post.chosenReactions.isNotEmpty || totalReactions > 0
+                        ? AppColors.like
+                        : secondaryColor,
                     size: 18,
                   ),
                 if (totalReactions > 0) ...[
@@ -110,7 +112,7 @@ class PostActionBar extends ConsumerWidget {
                   Text(
                     TimeUtils.formatCount(totalReactions),
                     style: AppTypography.actionCount(
-                      color: activeEmoji != null ? AppColors.like : secondaryColor,
+                      color: post.chosenReactions.isNotEmpty ? AppColors.like : secondaryColor,
                     ),
                   ),
                 ],

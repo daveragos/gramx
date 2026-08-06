@@ -33,6 +33,11 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
         (k, e) => MapEntry(k, (e as num).toInt()),
       ) ??
       const {},
+  chosenReactions:
+      (json['chosenReactions'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toSet() ??
+      const {},
   isBookmarked: json['isBookmarked'] as bool? ?? false,
   isRead: json['isRead'] as bool? ?? false,
   linkPreviewUrl: json['linkPreviewUrl'] as String?,
@@ -75,6 +80,7 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyCount': instance.replyCount,
   'forwardCount': instance.forwardCount,
   'reactions': instance.reactions,
+  'chosenReactions': instance.chosenReactions.toList(),
   'isBookmarked': instance.isBookmarked,
   'isRead': instance.isRead,
   'linkPreviewUrl': instance.linkPreviewUrl,

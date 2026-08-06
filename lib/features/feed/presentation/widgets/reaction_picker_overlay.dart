@@ -61,9 +61,11 @@ class ReactionPickerOverlay extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final backgroundColor = isDark ? AppColors.darkSurface : Colors.white;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final screenWidth = MediaQuery.of(context).size.width;
     final emojis = availableEmojis.isEmpty ? defaultEmojis : availableEmojis;
 
     return Container(
+      constraints: BoxConstraints(maxWidth: screenWidth - 32),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -79,6 +81,7 @@ class ReactionPickerOverlay extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: emojis.map((emoji) {

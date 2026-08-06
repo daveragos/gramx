@@ -85,17 +85,22 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     final updated = current.map((p) {
       if (p.id == postId) {
         final newReactions = Map<String, int>.from(p.reactions);
-        if (newReactions.containsKey(emoji)) {
-          final count = newReactions[emoji]! - 1;
+        final newChosen = Set<String>.from(p.chosenReactions);
+        if (newChosen.contains(emoji)) {
+          // User is removing their reaction
+          newChosen.remove(emoji);
+          final count = (newReactions[emoji] ?? 1) - 1;
           if (count <= 0) {
             newReactions.remove(emoji);
           } else {
             newReactions[emoji] = count;
           }
         } else {
+          // User is adding a reaction
+          newChosen.add(emoji);
           newReactions[emoji] = (newReactions[emoji] ?? 0) + 1;
         }
-        return p.copyWith(reactions: newReactions);
+        return p.copyWith(reactions: newReactions, chosenReactions: newChosen);
       }
       return p;
     }).toList();
@@ -131,6 +136,19 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
         );
 
         return p.copyWith(poll: updatedPoll);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
+
+  /// Optimistically mark a post as read without re-fetching the feed.
+  void markReadOptimistic(String postId) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId && !p.isRead) {
+        return p.copyWith(isRead: true);
       }
       return p;
     }).toList();
@@ -231,6 +249,9 @@ final markPostAsReadProvider =
   final messageId = int.tryParse(parts[1]);
   if (chatId == null || messageId == null) return;
 
+  // Optimistic local state update
+  ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
+
   await repo.markPostAsRead(chatId, messageId);
 });
 
@@ -247,32 +268,50 @@ final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
   }
 });
 
-/// Filtered posts by folder/category and excluding muted channels
-final filteredFeedPostsProvider =
-    FutureProvider.family<List<Post>, String>((ref, folderIdStr) async {
-  var posts = await ref.watch(feedPostsProvider.future);
+/// Cached folder channel IDs per folder (fetched once via TDLib and cached in Riverpod)
+final folderChannelIdsProvider =
+    FutureProvider.family<Set<String>, int>((ref, folderId) async {
+  final folderRepo = ref.watch(folderRepositoryProvider);
+  final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
+  return allowedChannelIds.map((id) => id.toString()).toSet();
+});
 
-  // Exclude muted channels
+/// Filtered posts by folder/category and excluding muted channels.
+/// Synchronous Provider returning `AsyncValue<List<Post>>` to ensure instant 0ms
+/// state updates when post actions (reactions, bookmarks) occur.
+final filteredFeedPostsProvider =
+    Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
+  final postsAsync = ref.watch(feedPostsProvider);
   final mutedChannelIds = ref.watch(mutedChannelsProvider);
-  if (mutedChannelIds.isNotEmpty) {
-    posts = posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
-  }
 
   if (folderIdStr == 'All') {
-    return posts;
+    return postsAsync.whenData((posts) {
+      if (mutedChannelIds.isEmpty) return posts;
+      return posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+    });
   }
 
   final folderId = int.tryParse(folderIdStr);
   if (folderId == null) {
-    return posts;
+    return postsAsync.whenData((posts) {
+      if (mutedChannelIds.isEmpty) return posts;
+      return posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+    });
   }
 
-  final folderRepo = ref.watch(folderRepositoryProvider);
-  final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
-  final allowedChannelIdsStr =
-      allowedChannelIds.map((id) => id.toString()).toSet();
+  final folderChannelsAsync = ref.watch(folderChannelIdsProvider(folderId));
 
-  return posts
-      .where((post) => allowedChannelIdsStr.contains(post.channelId))
-      .toList();
+  return postsAsync.whenData((posts) {
+    var filtered = posts;
+    if (mutedChannelIds.isNotEmpty) {
+      filtered = filtered.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+    }
+    final allowedChannelIdsStr = folderChannelsAsync.value;
+    if (allowedChannelIdsStr == null || allowedChannelIdsStr.isEmpty) {
+      return filtered;
+    }
+    return filtered
+        .where((post) => allowedChannelIdsStr.contains(post.channelId))
+        .toList();
+  });
 });

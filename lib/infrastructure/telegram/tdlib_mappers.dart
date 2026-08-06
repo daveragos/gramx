@@ -128,10 +128,14 @@ class TdlibMappers {
     }
 
     final Map<String, int> reactionsMap = {};
+    final Set<String> chosenReactionsSet = {};
     for (final reaction in message.interactionInfo?.reactions?.reactions ?? <td.MessageReaction>[]) {
       final type = reaction.type;
       if (type is td.ReactionTypeEmoji) {
         reactionsMap[type.emoji] = reaction.totalCount;
+        if (reaction.isChosen) {
+          chosenReactionsSet.add(type.emoji);
+        }
       }
     }
 
@@ -176,10 +180,17 @@ class TdlibMappers {
       }
       replyToAuthorTitle ??= chat.title;
 
+      // Check for quoted text first (user selected specific text to reply to)
+      final quote = replyTo.quote;
+      if (quote != null) {
+        replyToText = _parseFormattedText(quote.text);
+      }
+
       // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
       if (content is td.MessageText) {
-        replyToText = _parseFormattedText(content.text);
+        // Only use full content text if no quote was set
+        replyToText ??= _parseFormattedText(content.text);
         if (content.linkPreview != null) {
           final lp = content.linkPreview!;
           final previewType = lp.type;
@@ -290,6 +301,7 @@ class TdlibMappers {
       replyCount: message.interactionInfo?.replyInfo?.replyCount ?? 0,
       forwardCount: message.interactionInfo?.forwardCount ?? 0,
       reactions: reactionsMap,
+      chosenReactions: chosenReactionsSet,
       isBookmarked: isBookmarked,
       isRead: message.isOutgoing || message.id <= chat.lastReadInboxMessageId,
       linkPreviewUrl: linkPreviewUrl,

@@ -9,6 +9,8 @@ import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
@@ -155,6 +157,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.lg),
+                              // Quoted Reply Preview Card
+                              if (post.replyToText != null || post.replyToAuthorTitle != null || post.replyToMessageId != null) ...[
+                                _buildQuotedReplyCard(context, post, isDark, secondaryColor),
+                              ],
                               // Post text
                               if (post.text != null && post.text!.isNotEmpty) ...[
                                 TextEntityRenderer(
@@ -445,6 +451,93 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildQuotedReplyCard(
+      BuildContext context, Post post, bool isDark, Color secondaryColor) {
+    final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
+    final replyText = post.replyToText ?? 'Original post';
+
+    void goToOriginalPost() {
+      if (post.replyToMessageId != null) {
+        final targetPostId = '${post.chatId}_${post.replyToMessageId}';
+        context.push('/post/$targetPostId');
+      } else {
+        context.push('/channel/${post.channelId}');
+      }
+    }
+
+    void goToOriginalChannel() {
+      context.push('/channel/${post.channelId}');
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 4, bottom: 10),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: goToOriginalPost,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1C2733) : const Color(0xFFEFF5FC),
+            borderRadius: BorderRadius.circular(10),
+            border: const Border(
+              left: BorderSide(color: AppColors.accent, width: 3.5),
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: goToOriginalChannel,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.campaign_rounded,
+                            size: 14,
+                            color: AppColors.accent,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              replyTitle,
+                              style: const TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.1,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      replyText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.body(color: secondaryColor).copyWith(
+                        fontSize: 12.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

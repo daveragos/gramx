@@ -7,6 +7,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
@@ -32,6 +33,21 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Notify TDLib that the user opened this chat (for unread tracking)
+    final chatId = int.tryParse(widget.channelId);
+    if (chatId != null) {
+      ref.read(feedRepositoryProvider).openChat(chatId);
+    }
+  }
+
+  @override
+  void deactivate() {
+    // Notify TDLib that the user closed this chat
+    final chatId = int.tryParse(widget.channelId);
+    if (chatId != null) {
+      ref.read(feedRepositoryProvider).closeChat(chatId);
+    }
+    super.deactivate();
   }
 
   @override

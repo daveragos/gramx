@@ -67,6 +67,7 @@ class PostCard extends ConsumerWidget {
         : AppColors.lightTextSecondary;
 
     final defaultBookmarkHandler = onBookmarkTap ?? () {
+      ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
       ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
     };
 
@@ -82,7 +83,7 @@ class PostCard extends ConsumerWidget {
         chatId: post.chatId,
         messageId: post.messageId,
         reactionEmoji: emoji,
-        isCurrentlyLiked: post.reactions.containsKey(emoji),
+        isCurrentlyLiked: post.chosenReactions.contains(emoji),
       );
     }
 
@@ -256,52 +257,63 @@ class PostCard extends ConsumerWidget {
                         // Horizontal Reactions Scroll Bar
                         if (post.reactions.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(
-                                parent: AlwaysScrollableScrollPhysics()),
-                            child: Row(
-                              children: post.reactions.entries.map((entry) {
-                                final emoji = entry.key;
-                                final count = entry.value;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: InkWell(
-                                    onTap: () => defaultReactionHandler(emoji),
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? AppColors.darkSurfaceVariant
-                                            : Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: isDark
-                                              ? AppColors.darkBorder
-                                              : AppColors.lightBorder,
-                                          width: 0.5,
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {},
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                children: post.reactions.entries.map((entry) {
+                                  final emoji = entry.key;
+                                  final count = entry.value;
+                                  final isChosen = post.chosenReactions.contains(emoji);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: InkWell(
+                                      onTap: () => defaultReactionHandler(emoji),
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 150),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isChosen
+                                              ? AppColors.accent.withValues(alpha: 0.18)
+                                              : (isDark
+                                                  ? AppColors.darkSurfaceVariant
+                                                  : Colors.grey.shade100),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isChosen
+                                                ? AppColors.accent
+                                                : (isDark
+                                                    ? AppColors.darkBorder
+                                                    : AppColors.lightBorder),
+                                            width: isChosen ? 1.2 : 0.5,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(emoji,
+                                                style: const TextStyle(
+                                                    fontSize: 14)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              TimeUtils.formatCount(count),
+                                              style: AppTypography.actionCount(
+                                                  color: isChosen ? AppColors.accent : secondaryColor).copyWith(
+                                                fontWeight: isChosen ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(emoji,
-                                              style: const TextStyle(
-                                                  fontSize: 14)),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            TimeUtils.formatCount(count),
-                                            style: AppTypography.actionCount(
-                                                color: secondaryColor),
-                                          ),
-                                        ],
-                                      ),
                                     ),
-                                  ),
-                                );
-                              }).toList(),
+                                  );
+                                }).toList(),
+                              ),
                             ),
                           ),
                         ],
@@ -337,16 +349,25 @@ class PostCard extends ConsumerWidget {
     final hasThumbnail = post.replyToThumbnailFileId != null ||
         (post.replyToThumbnailUrl != null && post.replyToThumbnailUrl!.isNotEmpty);
 
+    void goToOriginalPost() {
+      if (post.replyToMessageId != null) {
+        final targetPostId = '${post.chatId}_${post.replyToMessageId}';
+        context.push('/post/$targetPostId');
+      } else {
+        context.push('/channel/${post.channelId}');
+      }
+    }
+
+    void goToOriginalChannel() {
+      context.push('/channel/${post.channelId}');
+    }
+
     return Container(
       margin: const EdgeInsets.only(top: 6, bottom: 4),
-      child: InkWell(
-        onTap: () {
-          if (post.replyToMessageId != null) {
-            context.push('/channel/${post.chatId}?highlight=${post.replyToMessageId}');
-          }
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: Ink(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: goToOriginalPost,
+        child: Container(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1C2733) : const Color(0xFFEFF5FC),
             borderRadius: BorderRadius.circular(10),
@@ -363,28 +384,32 @@ class PostCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.campaign_rounded,
-                          size: 14,
-                          color: AppColors.accent,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            replyTitle,
-                            style: const TextStyle(
-                              color: AppColors.accent,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.1,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: goToOriginalChannel,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.campaign_rounded,
+                            size: 14,
+                            color: AppColors.accent,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              replyTitle,
+                              style: const TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.1,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(

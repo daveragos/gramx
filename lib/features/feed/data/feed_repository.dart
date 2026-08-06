@@ -186,7 +186,10 @@ class FeedRepository {
       onlyLocal: true,
     ));
 
-    if (history is! td.Messages || history.messages.isEmpty) {
+    // For initial loads, require at least 5 local messages before skipping
+    // remote fetch. For pagination loads, always fetch remote.
+    final minExpected = fromMessageId == 0 ? 5 : 1;
+    if (history is! td.Messages || history.messages.length < minExpected) {
       history = await _tdlib.sendRequest(td.GetChatHistory(
         chatId: chatId,
         fromMessageId: fromMessageId,
@@ -252,6 +255,25 @@ class FeedRepository {
       messageIds: [messageId],
       forceRead: true,
     ));
+  }
+
+  /// Notify TDLib that the user has opened a chat.
+  /// Required for proper unread count tracking across clients.
+  Future<void> openChat(int chatId) async {
+    try {
+      await _tdlib.sendRequest(td.OpenChat(chatId: chatId));
+    } catch (e) {
+      debugPrint('[FeedRepo] openChat error: $e');
+    }
+  }
+
+  /// Notify TDLib that the user has closed a chat.
+  Future<void> closeChat(int chatId) async {
+    try {
+      await _tdlib.sendRequest(td.CloseChat(chatId: chatId));
+    } catch (e) {
+      debugPrint('[FeedRepo] closeChat error: $e');
+    }
   }
 
   /// Get available reactions for a chat

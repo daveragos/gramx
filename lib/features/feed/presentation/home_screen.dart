@@ -25,6 +25,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _showGoToTop = false;
   DateTime? _lastBackPressTime;
+  int _currentTabIndex = 0;
 
   @override
   void initState() {
@@ -158,6 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   NestedScrollView(
                     controller: _scrollController,
+                    floatHeaderSlivers: true,
                     headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
                       return [
                         SliverAppBar(
@@ -197,6 +199,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             labelColor: primaryTextColor,
                             unselectedLabelColor: secondaryTextColor,
                             dividerColor: Colors.transparent,
+                            onTap: (index) {
+                              if (index == _currentTabIndex) {
+                                // Re-tap on active tab — scroll to top
+                                _scrollToTop();
+                              }
+                              setState(() => _currentTabIndex = index);
+                            },
                             tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
                           ),
                         ),

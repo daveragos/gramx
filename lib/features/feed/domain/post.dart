@@ -27,6 +27,7 @@ abstract class Post with _$Post {
     @Default(0) int replyCount,
     @Default(0) int forwardCount,
     @Default({}) Map<String, int> reactions,
+    @Default({}) Set<String> chosenReactions,
     @Default(false) bool isBookmarked,
     @Default(false) bool isRead,
     String? linkPreviewUrl,

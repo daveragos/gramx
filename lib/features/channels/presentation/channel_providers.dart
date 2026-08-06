@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
@@ -37,22 +38,32 @@ final olderChannelPostsProvider =
   OlderChannelPostsNotifier.new,
 );
 
-/// Provides posts for a specific channel (with pagination support).
-final channelPostsProvider =
+/// Fetches initial posts for a specific channel.
+final initialChannelPostsProvider =
     FutureProvider.family<List<Post>, String>((ref, channelId) async {
   final repo = ref.watch(feedRepositoryProvider);
   final id = int.tryParse(channelId);
   if (id == null) return [];
-  final initialPosts = await repo.fetchChannelPosts(id);
-  final olderPostsMap = ref.watch(olderChannelPostsProvider);
-  final olderPosts = olderPostsMap[channelId] ?? [];
+  return repo.fetchChannelPosts(id);
+});
 
-  final merged = [...initialPosts, ...olderPosts];
-  final uniqueMap = <String, Post>{};
-  for (final post in merged) {
-    uniqueMap[post.id] = post;
-  }
-  return uniqueMap.values.toList();
+/// Provides posts for a specific channel (with pagination and optimistic update support).
+final channelPostsProvider =
+    Provider.family<AsyncValue<List<Post>>, String>((ref, channelId) {
+  final initialAsync = ref.watch(initialChannelPostsProvider(channelId));
+  final olderPostsMap = ref.watch(olderChannelPostsProvider);
+  final feedPosts = ref.watch(feedPostsProvider).value ?? [];
+  final feedMap = {for (final p in feedPosts) p.id: p};
+
+  return initialAsync.whenData((initialPosts) {
+    final olderPosts = olderPostsMap[channelId] ?? [];
+    final merged = [...initialPosts, ...olderPosts];
+    final uniqueMap = <String, Post>{};
+    for (final post in merged) {
+      uniqueMap[post.id] = feedMap[post.id] ?? post;
+    }
+    return uniqueMap.values.toList();
+  });
 });
 
 /// Helper function to load more older channel posts on scroll.
