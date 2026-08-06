@@ -87,10 +87,11 @@ class PostActionBar extends ConsumerWidget {
             },
             onTap: () {
               HapticFeedback.lightImpact();
-              final emojiToToggle = post.chosenReactions.isNotEmpty
-                  ? post.chosenReactions.first
-                  : (activeEmoji ?? '❤️');
-              onSelectReaction(emojiToToggle);
+              if (post.chosenReactions.isNotEmpty) {
+                onSelectReaction(post.chosenReactions.first);
+              } else {
+                _showReactionPicker(context, ref, reactionKey);
+              }
             },
             child: Row(
               mainAxisSize: MainAxisSize.min,

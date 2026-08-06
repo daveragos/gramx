@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -92,6 +93,8 @@ class PostCard extends ConsumerWidget {
     }
 
     final defaultShareHandler = onShareTap ?? () {
+      final postUrl = 'https://t.me/c/${post.channelId}/${post.messageId}';
+      Clipboard.setData(ClipboardData(text: postUrl));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Post link copied to clipboard.'),

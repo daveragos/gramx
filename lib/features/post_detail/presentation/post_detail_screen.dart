@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -13,6 +14,8 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
+import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   final String postId;
@@ -25,11 +28,64 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
 
   @override
   void dispose() {
     _commentController.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleShare(BuildContext context, Post post) {
+    final postUrl = 'https://t.me/c/${post.channelId}/${post.messageId}';
+    Clipboard.setData(ClipboardData(text: postUrl));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Post link copied to clipboard.'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showReactionPicker(BuildContext context, Post post, GlobalKey key) async {
+    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final offset = renderBox.localToGlobal(Offset.zero);
+      final rect = offset & renderBox.size;
+      final availableEmojis = await ref.read(feedRepositoryProvider).getAvailableReactions(post.chatId);
+      final selectedEmoji = post.chosenReactions.isNotEmpty ? post.chosenReactions.first : null;
+      if (context.mounted) {
+        ReactionPickerOverlay.show(
+          context: context,
+          targetRect: rect,
+          availableEmojis: availableEmojis,
+          selectedEmoji: selectedEmoji,
+          onEmojiSelected: (emoji) => _toggleReaction(post, emoji),
+        );
+      }
+    }
+  }
+
+  void _toggleReaction(Post post, String emoji) {
+    ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
+    ref.read(syncServiceProvider).togglePostReaction(
+      chatId: post.chatId,
+      messageId: post.messageId,
+      reactionEmoji: emoji,
+      isCurrentlyLiked: post.chosenReactions.contains(emoji),
+    );
+    ref.invalidate(postDetailProvider(widget.postId));
+  }
+
+  void _handleReactionTap(BuildContext context, Post post, GlobalKey key) {
+    HapticFeedback.lightImpact();
+    if (post.chosenReactions.isNotEmpty) {
+      _toggleReaction(post, post.chosenReactions.first);
+    } else {
+      _showReactionPicker(context, post, key);
+    }
   }
 
   void _sendComment(int chatId, int messageId) async {
@@ -93,6 +149,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
           final totalReactions =
               post.reactions.values.fold<int>(0, (a, b) => a + b);
+          final reactionKey = GlobalKey();
 
           return Column(
             children: [
@@ -114,47 +171,50 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Channel header
-                              Row(
-                                children: [
-                                  ChannelAvatar(
-                                    title: post.channelTitle,
-                                    avatarPath: post.channelAvatarUrl,
-                                    avatarFileId: post.channelAvatarFileId,
-                                    avatarColorHex: post.channelAvatarColor,
-                                    radius: AppSpacing.avatarSizeLarge / 2,
-                                  ),
-                                  const SizedBox(width: AppSpacing.avatarGap),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              post.channelTitle,
-                                              style: AppTypography.displayName(
-                                                  color: primaryColor),
-                                            ),
-                                            if (post.isChannelVerified) ...[
-                                              const SizedBox(width: 4),
-                                              const Icon(
-                                                Icons.verified,
-                                                color: AppColors.verified,
-                                                size: 18,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        if (post.channelUsername != null)
-                                          Text(
-                                            '@${post.channelUsername}',
-                                            style: AppTypography.username(
-                                                color: secondaryColor),
-                                          ),
-                                      ],
+                              GestureDetector(
+                                onTap: () => context.push('/channel/${post.channelId}'),
+                                child: Row(
+                                  children: [
+                                    ChannelAvatar(
+                                      title: post.channelTitle,
+                                      avatarPath: post.channelAvatarUrl,
+                                      avatarFileId: post.channelAvatarFileId,
+                                      avatarColorHex: post.channelAvatarColor,
+                                      radius: AppSpacing.avatarSizeLarge / 2,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: AppSpacing.avatarGap),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                post.channelTitle,
+                                                style: AppTypography.displayName(
+                                                    color: primaryColor),
+                                              ),
+                                              if (post.isChannelVerified) ...[
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                  Icons.verified,
+                                                  color: AppColors.verified,
+                                                  size: 18,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          if (post.channelUsername != null)
+                                            Text(
+                                              '@${post.channelUsername}',
+                                              style: AppTypography.username(
+                                                  color: secondaryColor),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                               const SizedBox(height: AppSpacing.lg),
                               // Quoted Reply Preview Card
@@ -247,26 +307,43 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(Icons.chat_bubble_outline,
-                                  color: secondaryColor, size: 22),
-                              Icon(Icons.repeat, color: secondaryColor, size: 22),
                               GestureDetector(
                                 onTap: () {
-                                  ref.read(bookmarkToggleProvider(widget.postId));
+                                  if (post.hasDiscussionGroup && isLoggedIn) {
+                                    _commentFocusNode.requestFocus();
+                                  }
                                 },
-                                child: Icon(
-                                  totalReactions > 0
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: totalReactions > 0
-                                      ? AppColors.like
-                                      : secondaryColor,
-                                  size: 22,
+                                child: Icon(Icons.chat_bubble_outline,
+                                    color: secondaryColor, size: 22),
+                              ),
+                              GestureDetector(
+                                onTap: () => _handleShare(context, post),
+                                child: Icon(Icons.repeat, color: secondaryColor, size: 22),
+                              ),
+                              KeyedSubtree(
+                                key: reactionKey,
+                                child: GestureDetector(
+                                  onTap: () => _handleReactionTap(context, post, reactionKey),
+                                  onLongPress: () {
+                                    HapticFeedback.mediumImpact();
+                                    _showReactionPicker(context, post, reactionKey);
+                                  },
+                                  child: Icon(
+                                    post.chosenReactions.isNotEmpty || totalReactions > 0
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: post.chosenReactions.isNotEmpty || totalReactions > 0
+                                        ? AppColors.like
+                                        : secondaryColor,
+                                    size: 22,
+                                  ),
                                 ),
                               ),
                               GestureDetector(
                                 onTap: () {
-                                  ref.read(bookmarkToggleProvider(widget.postId));
+                                  ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
+                                  ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
+                                  ref.invalidate(postDetailProvider(widget.postId));
                                 },
                                 child: Icon(
                                   post.isBookmarked
@@ -278,8 +355,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   size: 22,
                                 ),
                               ),
-                              Icon(Icons.ios_share,
-                                  color: secondaryColor, size: 22),
+                              GestureDetector(
+                                onTap: () => _handleShare(context, post),
+                                child: Icon(Icons.ios_share,
+                                    color: secondaryColor, size: 22),
+                              ),
                             ],
                           ),
                         ),
@@ -422,6 +502,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       Expanded(
                         child: TextField(
                           controller: _commentController,
+                          focusNode: _commentFocusNode,
                           decoration: InputDecoration(
                             hintText: 'Add a comment...',
                             hintStyle:
