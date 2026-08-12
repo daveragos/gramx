@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -184,6 +185,31 @@ class TextEntityRenderer extends StatelessWidget {
         formattedUrl = 'https://$formattedUrl';
       }
       final uri = Uri.parse(formattedUrl);
+
+      // In-app handling for Telegram t.me links
+      if (uri.host == 't.me' || uri.host == 'telegram.me' || uri.host == 'www.t.me') {
+        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+        if (segments.isNotEmpty) {
+          if (segments.length == 1) {
+            final target = segments.first;
+            if (!target.startsWith('c')) {
+              context.push('/channel/$target');
+              return;
+            }
+          } else if (segments.length == 2) {
+            final first = segments[0];
+            final second = segments[1];
+            if (first == 'c') {
+              context.push('/channel/$second');
+              return;
+            } else {
+              context.push('/channel/$first');
+              return;
+            }
+          }
+        }
+      }
+
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
@@ -205,15 +231,7 @@ class TextEntityRenderer extends StatelessWidget {
   Future<void> _handleMentionTap(BuildContext context, String mention) async {
     final username = mention.replaceFirst('@', '').trim();
     if (username.isNotEmpty) {
-      final telegramUrl = 'https://t.me/$username';
-      try {
-        final uri = Uri.parse(telegramUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      } catch (e) {
-        debugPrint('[TextEntityRenderer] Could not open mention @$username: $e');
-      }
+      context.push('/channel/$username');
     }
   }
 }

@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:video_player/video_player.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_video_viewer.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_audio_player.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
@@ -19,75 +22,117 @@ class PostMediaGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (media.isEmpty) return const SizedBox.shrink();
 
-    final borderColor =
-        Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
-    final items = media.take(4).toList();
+    final docOrAudioItems = media.where((m) =>
+      m.type == MediaType.document ||
+      m.type == MediaType.audio ||
+      m.type == MediaType.voice
+    ).toList();
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-              color: borderColor, width: AppSpacing.mediaBorderWidth),
+    final visualItems = media.where((m) =>
+      m.type == MediaType.photo ||
+      m.type == MediaType.video ||
+      m.type == MediaType.gif ||
+      m.type == MediaType.sticker
+    ).toList();
+
+    final children = <Widget>[];
+
+    // Build document or audio widgets
+    for (final item in docOrAudioItems) {
+      if (item.type == MediaType.document) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: PostDocumentCard(item: item),
+        ));
+      } else if (item.type == MediaType.audio || item.type == MediaType.voice) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: PostAudioPlayer(item: item),
+        ));
+      }
+    }
+
+    // Build visual media grid if present
+    if (visualItems.isNotEmpty) {
+      final borderColor = Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
+      final items = visualItems.take(4).toList();
+
+      children.add(
+        ClipRRect(
           borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor, width: AppSpacing.mediaBorderWidth),
+              borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.mediaRadius - 1),
+              child: _buildGrid(context, items, visualItems, borderColor),
+            ),
+          ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.mediaRadius - 1),
-          child: _buildGrid(context, items, borderColor),
-        ),
-      ),
+      );
+    }
+
+    if (children.length == 1) {
+      return children.first;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
     );
   }
 
   Widget _buildGrid(
-      BuildContext context, List<MediaItem> items, Color borderColor) {
+      BuildContext context, List<MediaItem> items, List<MediaItem> allVisual, Color borderColor) {
     switch (items.length) {
       case 1:
-        return _buildSingleMedia(context, items[0]);
+        return _buildSingleMedia(context, items[0], allVisual);
       case 2:
-        return _buildTwoMedia(context, items);
+        return _buildTwoMedia(context, items, allVisual);
       case 3:
-        return _buildThreeMedia(context, items);
+        return _buildThreeMedia(context, items, allVisual);
       default:
-        return _buildFourMedia(context, items);
+        return _buildFourMedia(context, items, allVisual);
     }
   }
 
-  Widget _buildSingleMedia(BuildContext context, MediaItem item) {
+  Widget _buildSingleMedia(BuildContext context, MediaItem item, List<MediaItem> allVisual) {
     return AspectRatio(
       aspectRatio: item.width > 0 && item.height > 0
           ? (item.width / item.height).clamp(0.5, 2.0)
           : 16 / 9,
-      child: _MediaTile(item: item, index: 0, allMedia: media),
+      child: _MediaTile(item: item, index: 0, allMedia: allVisual),
     );
   }
 
-  Widget _buildTwoMedia(BuildContext context, List<MediaItem> items) {
+  Widget _buildTwoMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
           const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
+          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
         ],
       ),
     );
   }
 
-  Widget _buildThreeMedia(BuildContext context, List<MediaItem> items) {
+  Widget _buildThreeMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
           const SizedBox(width: AppSpacing.mediaGap),
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
                 const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual)),
               ],
             ),
           ),
@@ -96,7 +141,7 @@ class PostMediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildFourMedia(BuildContext context, List<MediaItem> items) {
+  Widget _buildFourMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Column(
@@ -104,9 +149,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
               ],
             ),
           ),
@@ -114,9 +159,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[3], index: 3, allMedia: media)),
+                Expanded(child: _MediaTile(item: items[3], index: 3, allMedia: allVisual)),
               ],
             ),
           ),
@@ -141,29 +186,26 @@ class _MediaTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
-    final iconColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final heroTag = 'media_${item.id}_$index';
 
-    // Determine which fileId to track reactively
+    // For videos/GIFs, track thumbnail or main file
     final int? trackFileId = item.type == MediaType.video
-        ? item.thumbnailFileId  // For videos, track the thumbnail
-        : item.fileId;          // For photos/gifs, track the main file
+        ? (item.thumbnailFileId ?? item.fileId)
+        : item.fileId;
 
-    // Use reactive file download provider if we have a fileId
     String? resolvedPath;
-
     if (trackFileId != null && trackFileId != 0) {
       final fileState = ref.watch(fileDownloadProvider(trackFileId));
       resolvedPath = fileState.value;
-    } else {
-      // Fallback: try localPath or url directly
-      resolvedPath = _tryResolvePath(item);
     }
+    resolvedPath ??= _tryResolvePath(item);
 
     Widget contentWidget;
 
-    if (resolvedPath != null && resolvedPath.isNotEmpty) {
+    if (item.type == MediaType.gif && resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
+      contentWidget = _GifVideoPlayerTile(path: resolvedPath);
+    } else if (resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
       contentWidget = Hero(
         tag: heroTag,
         child: Image.file(
@@ -198,7 +240,6 @@ class _MediaTile extends ConsumerWidget {
         );
       }
     } else if (item.minithumbnail != null) {
-      // Progressive loading: show blurred minithumbnail while downloading
       try {
         final bytes = base64Decode(item.minithumbnail!);
         contentWidget = Stack(
@@ -210,11 +251,8 @@ class _MediaTile extends ConsumerWidget {
               width: double.infinity,
               height: double.infinity,
             ),
-            // Slight blur overlay to indicate loading
-            Container(
-              color: Colors.black.withValues(alpha: 0.1),
-            ),
-            if (item.type == MediaType.video)
+            Container(color: Colors.black.withValues(alpha: 0.1)),
+            if (item.type == MediaType.video || item.type == MediaType.gif)
               Center(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -249,7 +287,7 @@ class _MediaTile extends ConsumerWidget {
       color: bgColor,
       child: Center(
         child: Icon(
-          item.type == MediaType.video
+          item.type == MediaType.video || item.type == MediaType.gif
               ? Icons.play_circle_outline_rounded
               : item.type == MediaType.document
                   ? Icons.insert_drive_file_outlined
@@ -261,7 +299,6 @@ class _MediaTile extends ConsumerWidget {
     );
   }
 
-  /// Try to resolve a file path without reactive provider (fallback).
   String? _tryResolvePath(MediaItem item) {
     if (item.localPath != null && item.localPath!.isNotEmpty) {
       return item.localPath;
@@ -269,10 +306,8 @@ class _MediaTile extends ConsumerWidget {
     return null;
   }
 
-  void _handleTap(
-      BuildContext context, WidgetRef ref, String? resolvedPath, String heroTag) {
-    if (item.type == MediaType.video) {
-      // For video, check the main video file (not thumbnail)
+  void _handleTap(BuildContext context, WidgetRef ref, String? resolvedPath, String heroTag) {
+    if (item.type == MediaType.video || item.type == MediaType.gif) {
       String? videoPath;
       if (item.fileId != null && item.fileId != 0) {
         final videoFileState = ref.read(fileDownloadProvider(item.fileId!));
@@ -288,7 +323,7 @@ class _MediaTile extends ConsumerWidget {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Prioritizing video download... Please wait a moment.'),
+            content: Text('Downloading animation/video... Please wait.'),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -313,5 +348,87 @@ class _MediaTile extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _GifVideoPlayerTile extends StatefulWidget {
+  final String path;
+  const _GifVideoPlayerTile({required this.path});
+
+  @override
+  State<_GifVideoPlayerTile> createState() => _GifVideoPlayerTileState();
+}
+
+class _GifVideoPlayerTileState extends State<_GifVideoPlayerTile> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  Future<void> _initController() async {
+    try {
+      _controller = VideoPlayerController.file(File(widget.path));
+      await _controller!.initialize();
+      await _controller!.setLooping(true);
+      await _controller!.setVolume(0.0);
+      await _controller!.play();
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('[GifTile] Error initializing video player: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller != null && _controller!.value.isInitialized) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: _controller!.value.size.width,
+              height: _controller!.value.size.height,
+              child: VideoPlayer(_controller!),
+            ),
+          ),
+          Positioned(
+            left: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'GIF',
+                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return Container(
+      color: Colors.black26,
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+        ),
+      ),
+    );
   }
 }

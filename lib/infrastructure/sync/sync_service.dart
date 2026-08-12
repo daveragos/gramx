@@ -7,14 +7,17 @@ import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
+
 class SyncService {
   final AppDatabase _db;
   final TdlibService _tdlib;
+  final Ref? _ref;
   StreamSubscription? _updateSub;
   
   final Completer<void> _authReady = Completer<void>();
 
-  SyncService(this._db, this._tdlib);
+  SyncService(this._db, this._tdlib, [this._ref]);
 
   /// Must be called by the auth controller when authentication is complete.
   void markAuthReady() {
@@ -141,10 +144,38 @@ class SyncService {
               ..where((a) => a.avatarPath.equals(fileIdStr) | a.avatarPath.equals(remoteId)))
             .write(AccountsCompanion(avatarPath: Value(localPath)));
       }
-    } else if (update is td.UpdateChatReadInbox) {
-      // Handled by UI/TDLib cache
-    } else if (update is td.UpdatePoll) {
-      // Handled by UI/TDLib cache
+    } else if (update is td.UpdateMessageReactions) {
+      final chatId = update.chatId;
+      final messageId = update.messageId;
+      final compositeId = '${chatId}_$messageId';
+
+      final reactionsMap = <String, int>{};
+      final chosenSet = <String>{};
+
+      for (final r in update.reactions) {
+        final emoji = r.type is td.ReactionTypeEmoji ? (r.type as td.ReactionTypeEmoji).emoji : '';
+        if (emoji.isNotEmpty) {
+          reactionsMap[emoji] = r.totalCount;
+          if (r.isChosen) {
+            chosenSet.add(emoji);
+          }
+        }
+      }
+
+      _ref?.read(feedPostsProvider.notifier).updateReactionsLive(compositeId, reactionsMap, chosenSet);
+    } else if (update is td.UpdateMessageInteractionInfo) {
+      final chatId = update.chatId;
+      final messageId = update.messageId;
+      final compositeId = '${chatId}_$messageId';
+      final info = update.interactionInfo;
+
+      if (info != null) {
+        _ref?.read(feedPostsProvider.notifier).updateMetadataLive(
+          compositeId,
+          viewCount: info.viewCount,
+          forwardCount: info.forwardCount,
+        );
+      }
     }
   }
 
@@ -221,5 +252,5 @@ class SyncService {
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final tdlib = ref.watch(tdlibServiceProvider);
-  return SyncService(db, tdlib);
+  return SyncService(db, tdlib, ref);
 });

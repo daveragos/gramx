@@ -60,6 +60,23 @@ class ChannelRepository {
     }
     return null;
   }
+
+  /// Search global public channels matching query
+  Future<List<Channel>> searchPublicChannels(String query) async {
+    if (query.trim().isEmpty) return [];
+    try {
+      final res = await _tdlib.sendRequest(td.SearchPublicChats(query: query));
+      if (res is td.Chats) {
+        final channels = <Channel>[];
+        for (final chatId in res.chatIds) {
+          final ch = await getChannelByChatId(chatId);
+          if (ch != null) channels.add(ch);
+        }
+        return channels;
+      }
+    } catch (_) {}
+    return [];
+  }
 }
 
 final channelRepositoryProvider = Provider<ChannelRepository>((ref) {

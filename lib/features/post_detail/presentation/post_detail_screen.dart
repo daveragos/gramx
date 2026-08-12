@@ -29,6 +29,7 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
+  Post? _replyTargetPost;
 
   @override
   void dispose() {
@@ -92,8 +93,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
     _commentController.clear();
+    final targetReply = _replyTargetPost;
+    setState(() => _replyTargetPost = null);
     try {
-      await ref.read(feedRepositoryProvider).sendComment(chatId, messageId, text);
+      await ref.read(feedRepositoryProvider).sendComment(
+        chatId,
+        messageId,
+        text,
+        replyToMessageId: targetReply?.messageId,
+      );
       ref.invalidate(postCommentsProvider(widget.postId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -416,89 +424,202 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       );
                                     }
 
-                                    return Column(
-                                      children: comments.map((comment) {
-                                        return Padding(
-                                          padding: const EdgeInsets.only(bottom: 12.0),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              ChannelAvatar(
-                                                title: comment.channelTitle,
-                                                avatarPath: comment.channelAvatarUrl,
-                                                avatarFileId: comment.channelAvatarFileId,
-                                                avatarColorHex: comment.channelAvatarColor,
-                                                radius: 18,
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                      children: [
-                                                        Text(
-                                                          comment.channelTitle,
-                                                          style: const TextStyle(
-                                                            fontWeight: FontWeight.bold,
-                                                            fontSize: 13,
-                                                          ),
-                                                        ),
-                                                        Text(
-                                                          TimeUtils.relativeTime(comment.publishedAt),
-                                                          style: AppTypography.timestamp(color: secondaryColor),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    const SizedBox(height: 2),
-                                                    if (comment.text != null && comment.text!.isNotEmpty)
-                                                      TextEntityRenderer(
-                                                        text: comment.text!,
-                                                        entities: comment.entities,
-                                                        style: AppTypography.body(color: primaryColor),
-                                                      ),
-                                                    if (comment.media.isNotEmpty) ...[
-                                                      const SizedBox(height: 6),
-                                                      ConstrainedBox(
-                                                        constraints: const BoxConstraints(maxHeight: 220),
-                                                        child: PostMediaGrid(media: comment.media),
-                                                      ),
-                                                    ],
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                    );
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+                                     return Column(
+                                       children: comments.map((comment) {
+                                         final isReply = comment.replyToMessageId != null ||
+                                             comment.replyToText != null ||
+                                             comment.replyToAuthorTitle != null;
+
+                                         return Padding(
+                                           padding: EdgeInsets.only(
+                                             bottom: 12.0,
+                                             left: isReply ? 16.0 : 0.0,
+                                           ),
+                                           child: Container(
+                                             padding: isReply
+                                                 ? const EdgeInsets.only(left: 8)
+                                                 : EdgeInsets.zero,
+                                             decoration: isReply
+                                                 ? BoxDecoration(
+                                                     border: Border(
+                                                       left: BorderSide(
+                                                         color: AppColors.accent.withValues(alpha: 0.4),
+                                                         width: 2.0,
+                                                       ),
+                                                     ),
+                                                   )
+                                                 : null,
+                                             child: Row(
+                                               crossAxisAlignment: CrossAxisAlignment.start,
+                                               children: [
+                                                 ChannelAvatar(
+                                                   title: comment.channelTitle,
+                                                   avatarPath: comment.channelAvatarUrl,
+                                                   avatarFileId: comment.channelAvatarFileId,
+                                                   avatarColorHex: comment.channelAvatarColor,
+                                                   radius: isReply ? 15 : 18,
+                                                 ),
+                                                 const SizedBox(width: 10),
+                                                 Expanded(
+                                                   child: Column(
+                                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                                     children: [
+                                                       Row(
+                                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                         children: [
+                                                           Text(
+                                                             comment.channelTitle,
+                                                             style: TextStyle(
+                                                               fontWeight: FontWeight.bold,
+                                                               fontSize: isReply ? 12.5 : 13.5,
+                                                             ),
+                                                           ),
+                                                           Text(
+                                                             TimeUtils.relativeTime(comment.publishedAt),
+                                                             style: AppTypography.timestamp(color: secondaryColor),
+                                                           ),
+                                                         ],
+                                                       ),
+                                                       if (isReply &&
+                                                           (comment.replyToAuthorTitle != null ||
+                                                               comment.replyToText != null)) ...[
+                                                         const SizedBox(height: 3),
+                                                         Container(
+                                                           padding: const EdgeInsets.symmetric(
+                                                               horizontal: 8, vertical: 4),
+                                                           decoration: BoxDecoration(
+                                                             color: isDark
+                                                                 ? const Color(0xFF1E2836)
+                                                                 : const Color(0xFFEAF2FB),
+                                                             borderRadius: BorderRadius.circular(6),
+                                                             border: const Border(
+                                                               left: BorderSide(
+                                                                   color: AppColors.accent, width: 2.5),
+                                                             ),
+                                                           ),
+                                                           child: Column(
+                                                             crossAxisAlignment: CrossAxisAlignment.start,
+                                                             children: [
+                                                               Text(
+                                                                 comment.replyToAuthorTitle ?? 'Comment',
+                                                                 style: const TextStyle(
+                                                                   color: AppColors.accent,
+                                                                   fontSize: 11.5,
+                                                                   fontWeight: FontWeight.bold,
+                                                                 ),
+                                                               ),
+                                                               if (comment.replyToText != null)
+                                                                 Text(
+                                                                   comment.replyToText!,
+                                                                   maxLines: 1,
+                                                                   overflow: TextOverflow.ellipsis,
+                                                                   style: TextStyle(
+                                                                     color: secondaryColor,
+                                                                     fontSize: 11,
+                                                                   ),
+                                                                 ),
+                                                             ],
+                                                           ),
+                                                         ),
+                                                       ],
+                                                       const SizedBox(height: 3),
+                                                       if (comment.text != null && comment.text!.isNotEmpty)
+                                                         TextEntityRenderer(
+                                                           text: comment.text!,
+                                                           entities: comment.entities,
+                                                           style: AppTypography.body(color: primaryColor),
+                                                         ),
+                                                       if (comment.media.isNotEmpty) ...[
+                                                         const SizedBox(height: 6),
+                                                         ConstrainedBox(
+                                                           constraints: const BoxConstraints(maxHeight: 220),
+                                                           child: PostMediaGrid(media: comment.media),
+                                                         ),
+                                                       ],
+                                                       const SizedBox(height: 4),
+                                                       GestureDetector(
+                                                         onTap: () {
+                                                           setState(() => _replyTargetPost = comment);
+                                                           _commentFocusNode.requestFocus();
+                                                         },
+                                                         child: Row(
+                                                           mainAxisSize: MainAxisSize.min,
+                                                           children: [
+                                                             Icon(Icons.reply_rounded,
+                                                                 size: 13, color: AppColors.accent),
+                                                             const SizedBox(width: 3),
+                                                             Text(
+                                                               'Reply',
+                                                               style: AppTypography.actionCount(
+                                                                   color: AppColors.accent).copyWith(
+                                                                 fontWeight: FontWeight.w600,
+                                                               ),
+                                                             ),
+                                                           ],
+                                                         ),
+                                                       ),
+                                                     ],
+                                                   ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                         );
+                                       }).toList(),
+                                     );
+                                   },
+                                 ),
+                             ],
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
+               ),
               // Comment Input Bar for Logged-In Users on discussion enabled posts
               if (isLoggedIn && post.hasDiscussionGroup)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    border: Border(
-                      top: BorderSide(
-                        color: theme.dividerTheme.color ?? AppColors.darkBorder,
-                        width: 0.5,
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_replyTargetPost != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Replying to ${_replyTargetPost!.channelTitle}',
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(() => _replyTargetPost = null),
+                              child: const Icon(Icons.close, size: 16, color: AppColors.accent),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.scaffoldBackgroundColor,
+                        border: Border(
+                          top: BorderSide(
+                            color: theme.dividerTheme.color ?? AppColors.darkBorder,
+                            width: 0.5,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
                       Expanded(
                         child: TextField(
                           controller: _commentController,
@@ -529,8 +650,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     ],
                   ),
                 ),
-            ],
-          );
+              ],
+            ),
+          ],
+        );
         },
       ),
     );

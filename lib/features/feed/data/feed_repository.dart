@@ -400,12 +400,12 @@ class FeedRepository {
   }
 
   /// Post a new comment reply to a post thread
-  Future<void> sendComment(int chatId, int messageId, String text) async {
+  Future<void> sendComment(int chatId, int messageId, String text, {int? replyToMessageId}) async {
     try {
       await _tdlib.sendRequest(td.SendMessage(
         chatId: chatId,
         messageThreadId: messageId,
-        replyTo: td.InputMessageReplyToMessage(messageId: messageId),
+        replyTo: td.InputMessageReplyToMessage(messageId: replyToMessageId ?? messageId),
         options: const td.MessageSendOptions(
           disableNotification: false,
           fromBackground: false,

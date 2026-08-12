@@ -107,6 +107,35 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(updated);
   }
 
+  /// Live update reactions from TDLib UpdateMessageReactions stream
+  void updateReactionsLive(String postId, Map<String, int> reactions, Set<String> chosenReactions) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId) {
+        return p.copyWith(reactions: reactions, chosenReactions: chosenReactions);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
+
+  /// Live update views and forward counts from TDLib UpdateMessageInteractionInfo stream
+  void updateMetadataLive(String postId, {int? viewCount, int? forwardCount}) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId) {
+        return p.copyWith(
+          viewCount: viewCount ?? p.viewCount,
+          forwardCount: forwardCount ?? p.forwardCount,
+        );
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
+
   /// Optimistically update poll options when user votes on a poll.
   void votePollOptimistic(String postId, List<int> optionIds) {
     final current = state.value;
