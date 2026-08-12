@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Channel {
 
- String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; DateTime? get lastPostAt;
+ String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; bool get isJoined; DateTime? get lastPostAt;
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $ChannelCopyWith<Channel> get copyWith => _$ChannelCopyWithImpl<Channel>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,lastPostAt);
+int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,lastPostAt);
 
 @override
 String toString() {
-  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, lastPostAt: $lastPostAt)';
+  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, lastPostAt: $lastPostAt)';
 }
 
 
@@ -222,7 +222,7 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 @JsonSerializable()
 
 class _Channel implements Channel {
-  const _Channel({required this.id, required this.chatId, required this.title, this.username, this.description, this.avatarUrl, this.avatarFileId, this.avatarColor, this.subscriberCount = 0, this.isVerified = false, this.isFavorite = false, this.isMuted = false, this.isHidden = false, this.lastPostAt});
+  const _Channel({required this.id, required this.chatId, required this.title, this.username, this.description, this.avatarUrl, this.avatarFileId, this.avatarColor, this.subscriberCount = 0, this.isVerified = false, this.isFavorite = false, this.isMuted = false, this.isHidden = false, this.isJoined = true, this.lastPostAt});
   factory _Channel.fromJson(Map<String, dynamic> json) => _$ChannelFromJson(json);
 
 @override final  String id;
@@ -238,6 +238,7 @@ class _Channel implements Channel {
 @override@JsonKey() final  bool isFavorite;
 @override@JsonKey() final  bool isMuted;
 @override@JsonKey() final  bool isHidden;
+@override@JsonKey() final  bool isJoined;
 @override final  DateTime? lastPostAt;
 
 /// Create a copy of Channel
@@ -253,16 +254,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,lastPostAt);
+int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,lastPostAt);
 
 @override
 String toString() {
-  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, lastPostAt: $lastPostAt)';
+  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, lastPostAt: $lastPostAt)';
 }
 
 

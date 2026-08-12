@@ -1,9 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
@@ -14,6 +19,17 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   @override
   Future<List<Post>> build() async {
     final repo = ref.watch(feedRepositoryProvider);
+    final syncService = ref.watch(syncServiceProvider);
+
+    final sub = syncService.livePostUpdates.listen((update) {
+      if (update is LiveReactionsUpdate) {
+        updateReactionsLive(update.postId, update.reactions, update.chosenReactions);
+      } else if (update is LiveInteractionUpdate) {
+        updateMetadataLive(update.postId, viewCount: update.viewCount, forwardCount: update.forwardCount);
+      }
+    });
+    ref.onDispose(() => sub.cancel());
+
     final posts = await repo.fetchFeedPosts();
     _updateOldestIds(posts);
     return posts;
@@ -195,11 +211,15 @@ final postDetailProvider =
   final parts = postId.split('_');
   if (parts.length != 2) return null;
   final chatId = int.tryParse(parts[0]);
-  if (chatId == null) return null;
+  final messageId = int.tryParse(parts[1]);
+  if (chatId == null || messageId == null) return null;
 
   final repo = ref.watch(feedRepositoryProvider);
-  final posts = await repo.fetchChannelPosts(chatId);
-  return posts.where((p) => p.id == postId).firstOrNull;
+  final post = await repo.fetchSinglePost(chatId, messageId);
+  if (post == null) return null;
+
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
+  return applyPostOverrides(post, overrides);
 });
 
 /// Toggle bookmark action — call this to flip bookmark state.
@@ -219,20 +239,73 @@ final bookmarkToggleProvider =
   await repo.toggleBookmark(chatId, messageId);
 });
 
-/// Provider managing muted channel IDs
+/// Provider managing muted channel IDs with local file persistence.
 class MutedChannelsNotifier extends Notifier<Set<String>> {
-  @override
-  Set<String> build() => {};
+  static const String _fileName = 'muted_channels.json';
 
-  void toggleMute(String channelId) {
-    if (state.contains(channelId)) {
-      state = {...state}..remove(channelId);
-    } else {
-      state = {...state, channelId};
+  @override
+  Set<String> build() {
+    _loadFromDisk();
+    return {};
+  }
+
+  Future<File> _getFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_fileName');
+  }
+
+  Future<void> _loadFromDisk() async {
+    try {
+      final file = await _getFile();
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final List<dynamic> list = jsonDecode(content);
+        state = list.map((e) => e.toString()).toSet();
+      }
+    } catch (e) {
+      debugPrint('[MutedChannels] Error loading from disk: $e');
     }
   }
 
-  bool isMuted(String channelId) => state.contains(channelId);
+  Future<void> _saveToDisk() async {
+    try {
+      final file = await _getFile();
+      await file.writeAsString(jsonEncode(state.toList()));
+    } catch (e) {
+      debugPrint('[MutedChannels] Error saving to disk: $e');
+    }
+  }
+
+  void toggleMute(String channelId, {int? chatId, String? username}) {
+    final idsToToggle = <String>{
+      channelId,
+      if (chatId != null) chatId.toString(),
+      if (chatId != null) chatId.abs().toString(),
+      if (chatId != null) '-100${chatId.abs()}',
+      if (username != null && username.isNotEmpty) username,
+    };
+
+    final isCurrentlyMuted = state.any((id) => idsToToggle.contains(id));
+
+    if (isCurrentlyMuted) {
+      state = state.where((id) => !idsToToggle.contains(id)).toSet();
+    } else {
+      state = {...state, ...idsToToggle};
+    }
+    _saveToDisk();
+  }
+
+  bool isMuted(String channelId, {int? chatId, String? username}) {
+    if (state.isEmpty) return false;
+    final idsToCheck = <String>{
+      channelId,
+      if (chatId != null) chatId.toString(),
+      if (chatId != null) chatId.abs().toString(),
+      if (chatId != null) '-100${chatId.abs()}',
+      if (username != null && username.isNotEmpty) username,
+    };
+    return state.any((id) => idsToCheck.contains(id));
+  }
 }
 
 final mutedChannelsProvider =
@@ -305,6 +378,91 @@ final folderChannelIdsProvider =
   return allowedChannelIds.map((id) => id.toString()).toSet();
 });
 
+bool _isPostMuted(Post post, Set<String> mutedIds) {
+  if (mutedIds.isEmpty) return false;
+  final possibleIds = <String>{
+    post.channelId,
+    post.chatId.toString(),
+    post.chatId.abs().toString(),
+    '-100${post.chatId.abs()}',
+    if (post.channelUsername != null) post.channelUsername!,
+  };
+  return possibleIds.any((id) => mutedIds.contains(id));
+}
+
+class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dynamic>>> {
+  @override
+  Map<String, Map<String, dynamic>> build() => {};
+
+  void toggleReaction(String postId, String emoji, Post currentPost) {
+    final currentData = state[postId] ?? {};
+    final Map<String, int> reactions = Map<String, int>.from(currentData['reactions'] ?? currentPost.reactions);
+    final Set<String> chosen = Set<String>.from(currentData['chosenReactions'] ?? currentPost.chosenReactions);
+
+    if (chosen.contains(emoji)) {
+      chosen.remove(emoji);
+      final count = (reactions[emoji] ?? 1) - 1;
+      if (count <= 0) {
+        reactions.remove(emoji);
+      } else {
+        reactions[emoji] = count;
+      }
+    } else {
+      chosen.add(emoji);
+      reactions[emoji] = (reactions[emoji] ?? 0) + 1;
+    }
+
+    state = {
+      ...state,
+      postId: {
+        ...currentData,
+        'reactions': reactions,
+        'chosenReactions': chosen,
+      },
+    };
+  }
+
+  void toggleBookmark(String postId, Post currentPost) {
+    final currentData = state[postId] ?? {};
+    final currentIsBookmarked = currentData['isBookmarked'] as bool? ?? currentPost.isBookmarked;
+
+    state = {
+      ...state,
+      postId: {
+        ...currentData,
+        'isBookmarked': !currentIsBookmarked,
+      },
+    };
+  }
+
+  void markRead(String postId) {
+    final currentData = state[postId] ?? {};
+    state = {
+      ...state,
+      postId: {
+        ...currentData,
+        'isRead': true,
+      },
+    };
+  }
+}
+
+final optimisticPostUpdatesProvider =
+    NotifierProvider<OptimisticPostUpdatesNotifier, Map<String, Map<String, dynamic>>>(
+  OptimisticPostUpdatesNotifier.new,
+);
+
+Post applyPostOverrides(Post post, Map<String, Map<String, dynamic>> overrides) {
+  final data = overrides[post.id];
+  if (data == null) return post;
+  return post.copyWith(
+    reactions: data['reactions'] as Map<String, int>? ?? post.reactions,
+    chosenReactions: data['chosenReactions'] as Set<String>? ?? post.chosenReactions,
+    isBookmarked: data['isBookmarked'] as bool? ?? post.isBookmarked,
+    isRead: data['isRead'] as bool? ?? post.isRead,
+  );
+}
+
 /// Filtered posts by folder/category and excluding muted channels.
 /// Synchronous Provider returning `AsyncValue<List<Post>>` to ensure instant 0ms
 /// state updates when post actions (reactions, bookmarks) occur.
@@ -312,35 +470,53 @@ final filteredFeedPostsProvider =
     Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
   final postsAsync = ref.watch(feedPostsProvider);
   final mutedChannelIds = ref.watch(mutedChannelsProvider);
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
 
   if (folderIdStr == 'All') {
     return postsAsync.whenData((posts) {
-      if (mutedChannelIds.isEmpty) return posts;
-      return posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+      var list = posts;
+      if (mutedChannelIds.isNotEmpty) {
+        list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
+      }
+      return list.map((p) => applyPostOverrides(p, overrides)).toList();
     });
   }
 
   final folderId = int.tryParse(folderIdStr);
   if (folderId == null) {
     return postsAsync.whenData((posts) {
-      if (mutedChannelIds.isEmpty) return posts;
-      return posts.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+      var list = posts;
+      if (mutedChannelIds.isNotEmpty) {
+        list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
+      }
+      return list.map((p) => applyPostOverrides(p, overrides)).toList();
     });
   }
 
   final folderChannelsAsync = ref.watch(folderChannelIdsProvider(folderId));
 
+  if (folderChannelsAsync.isLoading && !folderChannelsAsync.hasValue) {
+    return const AsyncValue.loading();
+  }
+  if (folderChannelsAsync.hasError && !folderChannelsAsync.hasValue) {
+    return AsyncValue.error(folderChannelsAsync.error!, folderChannelsAsync.stackTrace!);
+  }
+
+  final allowedChannelIdsStr = folderChannelsAsync.value ?? {};
+
   return postsAsync.whenData((posts) {
     var filtered = posts;
     if (mutedChannelIds.isNotEmpty) {
-      filtered = filtered.where((p) => !mutedChannelIds.contains(p.channelId)).toList();
+      filtered = filtered.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
     }
-    final allowedChannelIdsStr = folderChannelsAsync.value;
-    if (allowedChannelIdsStr == null || allowedChannelIdsStr.isEmpty) {
-      return filtered;
+    if (allowedChannelIdsStr.isEmpty) {
+      return [];
     }
     return filtered
-        .where((post) => allowedChannelIdsStr.contains(post.channelId))
+        .where((post) =>
+            allowedChannelIdsStr.contains(post.channelId) ||
+            allowedChannelIdsStr.contains(post.chatId.toString()))
+        .map((p) => applyPostOverrides(p, overrides))
         .toList();
   });
 });

@@ -13,13 +13,11 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   return repo.getSubscribedChannels();
 });
 
-/// Provides a single channel by its chat ID.
+/// Provides a single channel by its chat ID, username, or identifier.
 final channelDetailProvider =
     FutureProvider.family<Channel?, String>((ref, channelId) async {
   final repo = ref.watch(channelRepositoryProvider);
-  final id = int.tryParse(channelId);
-  if (id == null) return null;
-  return repo.getChannelByChatId(id);
+  return repo.getChannelByIdentifier(channelId);
 });
 
 /// Older posts loaded via pagination for channels (map of channelId to list of posts).
@@ -41,10 +39,13 @@ final olderChannelPostsProvider =
 /// Fetches initial posts for a specific channel.
 final initialChannelPostsProvider =
     FutureProvider.family<List<Post>, String>((ref, channelId) async {
-  final repo = ref.watch(feedRepositoryProvider);
-  final id = int.tryParse(channelId);
-  if (id == null) return [];
-  return repo.fetchChannelPosts(id);
+  final feedRepo = ref.watch(feedRepositoryProvider);
+  final channelRepo = ref.watch(channelRepositoryProvider);
+
+  final channel = await channelRepo.getChannelByIdentifier(channelId);
+  if (channel == null) return [];
+
+  return feedRepo.fetchChannelPosts(channel.chatId);
 });
 
 /// Provides posts for a specific channel (with pagination and optimistic update support).
@@ -54,13 +55,15 @@ final channelPostsProvider =
   final olderPostsMap = ref.watch(olderChannelPostsProvider);
   final feedPosts = ref.watch(feedPostsProvider).value ?? [];
   final feedMap = {for (final p in feedPosts) p.id: p};
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
 
   return initialAsync.whenData((initialPosts) {
     final olderPosts = olderPostsMap[channelId] ?? [];
     final merged = [...initialPosts, ...olderPosts];
     final uniqueMap = <String, Post>{};
     for (final post in merged) {
-      uniqueMap[post.id] = feedMap[post.id] ?? post;
+      final base = feedMap[post.id] ?? post;
+      uniqueMap[post.id] = applyPostOverrides(base, overrides);
     }
     return uniqueMap.values.toList();
   });
@@ -72,8 +75,7 @@ Future<void> loadMoreChannelPosts(WidgetRef ref, String channelId) async {
   if (current.isEmpty) return;
 
   final oldestMessageId = current.last.messageId;
-  final chatId = int.tryParse(channelId);
-  if (chatId == null) return;
+  final chatId = current.first.chatId;
 
   final repo = ref.read(feedRepositoryProvider);
   final older =

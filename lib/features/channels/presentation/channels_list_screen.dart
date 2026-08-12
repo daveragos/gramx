@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -124,7 +124,7 @@ class ChannelsListScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final channel = channels[index];
               return InkWell(
-                onTap: () => context.push('/channel/${channel.id}'),
+                onTap: () => NavigationUtils.openChannel(context, channel.id),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.postPadding,

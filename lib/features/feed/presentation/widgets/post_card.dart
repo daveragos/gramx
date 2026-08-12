@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
@@ -14,6 +15,7 @@ import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart'
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -41,7 +43,7 @@ class PostCard extends ConsumerWidget {
 
   Future<void> _handleForwardedTap(BuildContext context, WidgetRef ref) async {
     if (post.forwardedFromChatId != null) {
-      context.push('/channel/${post.forwardedFromChatId}');
+      NavigationUtils.openChannel(context, post.forwardedFromChatId!);
       return;
     }
 
@@ -67,9 +69,18 @@ class PostCard extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
+    if (!post.isRead) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(optimisticPostUpdatesProvider.notifier).markRead(post.id);
+        ref.read(markPostAsReadProvider(post.id));
+      });
+    }
+
     final defaultBookmarkHandler = onBookmarkTap ?? () {
+      ref.read(optimisticPostUpdatesProvider.notifier).toggleBookmark(post.id, post);
       ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
       ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
+      ref.invalidate(bookmarkedPostsProvider);
     };
 
     void defaultReactionHandler(String emoji) {
@@ -77,7 +88,7 @@ class PostCard extends ConsumerWidget {
         onLikeEmojiTap!(emoji);
         return;
       }
-      // Optimistic instant UI update
+      ref.read(optimisticPostUpdatesProvider.notifier).toggleReaction(post.id, emoji, post);
       ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
 
       ref.read(syncServiceProvider).togglePostReaction(
@@ -89,7 +100,18 @@ class PostCard extends ConsumerWidget {
     }
 
     void defaultReplyHandler() {
-      context.push('/post/${post.id}');
+      if (post.hasDiscussionGroup) {
+        context.push('/post/${post.id}?focusReply=true');
+      } else {
+        context.push('/post/${post.id}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Comments are disabled for this channel.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
 
     final defaultShareHandler = onShareTap ?? () {
@@ -131,7 +153,7 @@ class PostCard extends ConsumerWidget {
                     avatarPath: post.channelAvatarUrl,
                     avatarFileId: post.channelAvatarFileId,
                     avatarColorHex: post.channelAvatarColor,
-                    onTap: onChannelTap ?? () => context.push('/channel/${post.channelId}'),
+                    onTap: onChannelTap ?? () => NavigationUtils.openChannel(context, post.channelId),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -143,7 +165,7 @@ class PostCard extends ConsumerWidget {
                           children: [
                             Flexible(
                               child: GestureDetector(
-                                onTap: onChannelTap ?? () => context.push('/channel/${post.channelId}'),
+                                onTap: onChannelTap ?? () => NavigationUtils.openChannel(context, post.channelId),
                                 child: Text(
                                   post.channelTitle,
                                   style: AppTypography.displayName(color: primaryTextColor),
@@ -170,26 +192,34 @@ class PostCard extends ConsumerWidget {
                               ),
                               const SizedBox(width: 4),
                             ],
-                            Text(
-                              '·',
-                              style: AppTypography.username(color: secondaryColor),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              TimeUtils.relativeTime(post.publishedAt),
-                              style: AppTypography.timestamp(color: secondaryColor),
-                            ),
-                            if (!post.isRead) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.accent,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ],
+                             if (post.authorSignature != null && post.authorSignature!.isNotEmpty) ...[
+                               Text(
+                                 '~ ${post.authorSignature}',
+                                 style: AppTypography.actionCount(color: AppColors.accent)
+                                     .copyWith(fontSize: 11.5, fontWeight: FontWeight.w600),
+                               ),
+                               const SizedBox(width: 4),
+                             ],
+                             Text(
+                               '·',
+                               style: AppTypography.username(color: secondaryColor),
+                             ),
+                             const SizedBox(width: 4),
+                             Text(
+                               TimeUtils.relativeTime(post.publishedAt),
+                               style: AppTypography.timestamp(color: secondaryColor),
+                             ),
+                             if (!post.isRead) ...[
+                               const SizedBox(width: 6),
+                               Container(
+                                 width: 7,
+                                 height: 7,
+                                 decoration: const BoxDecoration(
+                                   color: AppColors.accent,
+                                   shape: BoxShape.circle,
+                                 ),
+                               ),
+                             ],
                           ],
                         ),
 
@@ -238,6 +268,7 @@ class PostCard extends ConsumerWidget {
                             title: post.linkPreviewTitle,
                             description: post.linkPreviewDescription,
                             imageUrl: post.linkPreviewImageUrl,
+                            imageFileId: post.linkPreviewFileId,
                           ),
                         ],
 
@@ -355,14 +386,14 @@ class PostCard extends ConsumerWidget {
     void goToOriginalPost() {
       if (post.replyToMessageId != null) {
         final targetPostId = '${post.chatId}_${post.replyToMessageId}';
-        context.push('/post/$targetPostId');
+        NavigationUtils.openPost(context, targetPostId);
       } else {
-        context.push('/channel/${post.channelId}');
+        NavigationUtils.openChannel(context, post.channelId);
       }
     }
 
     void goToOriginalChannel() {
-      context.push('/channel/${post.channelId}');
+      NavigationUtils.openChannel(context, post.channelId);
     }
 
     return Container(

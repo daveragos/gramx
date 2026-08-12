@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
@@ -101,6 +102,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   bool _isSearching = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
@@ -162,6 +171,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: TextField(
                   controller: _controller,
                   focusNode: _focusNode,
+                  autofocus: true,
                   onChanged: _onQueryChanged,
                   style: AppTypography.body(color: primaryColor),
                   decoration: InputDecoration(
@@ -356,7 +366,7 @@ class _ChannelResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push('/channel/${channel.id}'),
+      onTap: () => NavigationUtils.openChannel(context, channel.id),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -495,7 +505,7 @@ class _ExploreView extends ConsumerWidget {
                       context.push('/post/${post.id}');
                     },
                     onChannelTap: () =>
-                        context.push('/channel/${post.channelId}'),
+                        NavigationUtils.openChannel(context, post.channelId),
                     onBookmarkTap: () {
                       ref.read(bookmarkToggleProvider(post.id));
                     },

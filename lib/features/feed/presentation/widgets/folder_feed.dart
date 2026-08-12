@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
@@ -128,7 +129,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                     context.push('/post/${post.id}');
                   },
                   onChannelTap: () =>
-                      context.push('/channel/${post.channelId}'),
+                      NavigationUtils.openChannel(context, post.channelId),
                   onBookmarkTap: () {
                     ref.read(bookmarkToggleProvider(post.id));
                   },

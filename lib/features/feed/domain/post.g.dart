@@ -44,6 +44,7 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   linkPreviewTitle: json['linkPreviewTitle'] as String?,
   linkPreviewDescription: json['linkPreviewDescription'] as String?,
   linkPreviewImageUrl: json['linkPreviewImageUrl'] as String?,
+  linkPreviewFileId: (json['linkPreviewFileId'] as num?)?.toInt(),
   forwardedFromTitle: json['forwardedFromTitle'] as String?,
   forwardedFromUsername: json['forwardedFromUsername'] as String?,
   forwardedFromChatId: json['forwardedFromChatId'] as String?,
@@ -53,6 +54,7 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   replyToThumbnailUrl: json['replyToThumbnailUrl'] as String?,
   replyToThumbnailFileId: (json['replyToThumbnailFileId'] as num?)?.toInt(),
   hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
+  authorSignature: json['authorSignature'] as String?,
   entities:
       (json['entities'] as List<dynamic>?)
           ?.map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
@@ -87,6 +89,7 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'linkPreviewTitle': instance.linkPreviewTitle,
   'linkPreviewDescription': instance.linkPreviewDescription,
   'linkPreviewImageUrl': instance.linkPreviewImageUrl,
+  'linkPreviewFileId': instance.linkPreviewFileId,
   'forwardedFromTitle': instance.forwardedFromTitle,
   'forwardedFromUsername': instance.forwardedFromUsername,
   'forwardedFromChatId': instance.forwardedFromChatId,
@@ -96,6 +99,7 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyToThumbnailUrl': instance.replyToThumbnailUrl,
   'replyToThumbnailFileId': instance.replyToThumbnailFileId,
   'hasDiscussionGroup': instance.hasDiscussionGroup,
+  'authorSignature': instance.authorSignature,
   'entities': instance.entities,
   'poll': _pollToJson(instance.poll),
 };

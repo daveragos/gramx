@@ -7,17 +7,34 @@ import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-import 'package:gramx/features/feed/presentation/feed_providers.dart';
+
+sealed class LivePostUpdate {}
+
+class LiveReactionsUpdate extends LivePostUpdate {
+  final String postId;
+  final Map<String, int> reactions;
+  final Set<String> chosenReactions;
+  LiveReactionsUpdate(this.postId, this.reactions, this.chosenReactions);
+}
+
+class LiveInteractionUpdate extends LivePostUpdate {
+  final String postId;
+  final int? viewCount;
+  final int? forwardCount;
+  LiveInteractionUpdate(this.postId, {this.viewCount, this.forwardCount});
+}
 
 class SyncService {
   final AppDatabase _db;
   final TdlibService _tdlib;
-  final Ref? _ref;
   StreamSubscription? _updateSub;
+  final _liveUpdateController = StreamController<LivePostUpdate>.broadcast();
+
+  Stream<LivePostUpdate> get livePostUpdates => _liveUpdateController.stream;
   
   final Completer<void> _authReady = Completer<void>();
 
-  SyncService(this._db, this._tdlib, [this._ref]);
+  SyncService(this._db, this._tdlib);
 
   /// Must be called by the auth controller when authentication is complete.
   void markAuthReady() {
@@ -85,23 +102,17 @@ class SyncService {
     }
   }
 
-  /// Automatically download avatars and media for a message.
+  /// Download photo thumbnails for message previews (heavy media/files are downloaded on-demand).
   void _downloadMessageMedia(td.Message message) {
     final content = message.content;
     if (content is td.MessagePhoto) {
       for (final size in content.photo.sizes) {
         _downloadFile(size.photo.id);
       }
-    } else if (content is td.MessageVideo) {
-      _downloadFile(content.video.video.id);
-      if (content.video.thumbnail != null) {
-        _downloadFile(content.video.thumbnail!.file.id);
-      }
-    } else if (content is td.MessageAnimation) {
-      _downloadFile(content.animation.animation.id);
-      if (content.animation.thumbnail != null) {
-        _downloadFile(content.animation.thumbnail!.file.id);
-      }
+    } else if (content is td.MessageVideo && content.video.thumbnail != null) {
+      _downloadFile(content.video.thumbnail!.file.id);
+    } else if (content is td.MessageAnimation && content.animation.thumbnail != null) {
+      _downloadFile(content.animation.thumbnail!.file.id);
     } else if (content is td.MessageText && content.linkPreview != null) {
       final lp = content.linkPreview!;
       final previewType = lp.type;
@@ -113,16 +124,6 @@ class SyncService {
         for (final size in previewType.photo!.sizes) {
           _downloadFile(size.photo.id);
         }
-      } else if (previewType is td.LinkPreviewTypeApp) {
-        for (final size in previewType.photo.sizes) {
-          _downloadFile(size.photo.id);
-        }
-      } else if (previewType is td.LinkPreviewTypeVideo && previewType.video.thumbnail != null) {
-        _downloadFile(previewType.video.thumbnail!.file.id);
-      } else if (previewType is td.LinkPreviewTypeAnimation && previewType.animation.thumbnail != null) {
-        _downloadFile(previewType.animation.thumbnail!.file.id);
-      } else if (previewType is td.LinkPreviewTypeDocument && previewType.document.thumbnail != null) {
-        _downloadFile(previewType.document.thumbnail!.file.id);
       }
     }
   }
@@ -162,7 +163,7 @@ class SyncService {
         }
       }
 
-      _ref?.read(feedPostsProvider.notifier).updateReactionsLive(compositeId, reactionsMap, chosenSet);
+      _liveUpdateController.add(LiveReactionsUpdate(compositeId, reactionsMap, chosenSet));
     } else if (update is td.UpdateMessageInteractionInfo) {
       final chatId = update.chatId;
       final messageId = update.messageId;
@@ -170,11 +171,11 @@ class SyncService {
       final info = update.interactionInfo;
 
       if (info != null) {
-        _ref?.read(feedPostsProvider.notifier).updateMetadataLive(
+        _liveUpdateController.add(LiveInteractionUpdate(
           compositeId,
           viewCount: info.viewCount,
           forwardCount: info.forwardCount,
-        );
+        ));
       }
     }
   }
@@ -252,5 +253,5 @@ class SyncService {
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final tdlib = ref.watch(tdlibServiceProvider);
-  return SyncService(db, tdlib, ref);
+  return SyncService(db, tdlib);
 });

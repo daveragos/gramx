@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -8,12 +9,14 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
-/// Provider to filter bookmarked posts from the home feed posts stream.
-final bookmarkedPostsProvider = Provider<AsyncValue<List<Post>>>((ref) {
-  final postsAsync = ref.watch(feedPostsProvider);
-  return postsAsync.whenData(
-    (posts) => posts.where((post) => post.isBookmarked).toList(),
-  );
+import 'package:gramx/features/feed/data/feed_repository.dart';
+
+/// Provider to fetch bookmarked posts directly from database and TDLib.
+final bookmarkedPostsProvider = FutureProvider<List<Post>>((ref) async {
+  final repo = ref.watch(feedRepositoryProvider);
+  final posts = await repo.fetchBookmarkedPosts();
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
+  return posts.map((p) => applyPostOverrides(p, overrides)).toList();
 });
 
 class BookmarksScreen extends ConsumerWidget {
@@ -75,7 +78,7 @@ class BookmarksScreen extends ConsumerWidget {
           return RefreshIndicator(
             color: AppColors.accent,
             onRefresh: () async {
-              ref.invalidate(feedPostsProvider);
+              ref.invalidate(bookmarkedPostsProvider);
             },
             child: ListView.builder(
               padding: EdgeInsets.zero,
@@ -88,7 +91,7 @@ class BookmarksScreen extends ConsumerWidget {
                     ref.read(markPostAsReadProvider(post.id));
                     context.push('/post/${post.id}');
                   },
-                  onChannelTap: () => context.push('/channel/${post.channelId}'),
+                  onChannelTap: () => NavigationUtils.openChannel(context, post.channelId),
                   onBookmarkTap: () {
                     ref.read(bookmarkToggleProvider(post.id));
                   },

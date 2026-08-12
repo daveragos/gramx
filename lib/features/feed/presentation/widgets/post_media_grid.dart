@@ -142,6 +142,9 @@ class PostMediaGrid extends StatelessWidget {
   }
 
   Widget _buildFourMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
+    final hasMore = allVisual.length > 4;
+    final extraCount = hasMore ? (allVisual.length - 3) : null;
+
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Column(
@@ -161,7 +164,14 @@ class PostMediaGrid extends StatelessWidget {
               children: [
                 Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[3], index: 3, allMedia: allVisual)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[3],
+                    index: 3,
+                    allMedia: allVisual,
+                    extraCount: extraCount,
+                  ),
+                ),
               ],
             ),
           ),
@@ -175,11 +185,13 @@ class _MediaTile extends ConsumerWidget {
   final MediaItem item;
   final int index;
   final List<MediaItem> allMedia;
+  final int? extraCount;
 
   const _MediaTile({
     required this.item,
     required this.index,
     required this.allMedia,
+    this.extraCount,
   });
 
   @override
@@ -189,23 +201,23 @@ class _MediaTile extends ConsumerWidget {
     final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final heroTag = 'media_${item.id}_$index';
 
-    // For videos/GIFs, track thumbnail or main file
     final int? trackFileId = item.type == MediaType.video
         ? (item.thumbnailFileId ?? item.fileId)
         : item.fileId;
 
-    String? resolvedPath;
+    FileDownloadProgressState? downloadState;
     if (trackFileId != null && trackFileId != 0) {
-      final fileState = ref.watch(fileDownloadProvider(trackFileId));
-      resolvedPath = fileState.value;
+      downloadState = ref.watch(fileDownloadProgressProvider(trackFileId)).value;
     }
-    resolvedPath ??= _tryResolvePath(item);
+
+    final String? resolvedPath = downloadState?.localPath ?? _tryResolvePath(item);
+    final isDownloaded = resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync();
 
     Widget contentWidget;
 
-    if (item.type == MediaType.gif && resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
+    if (item.type == MediaType.gif && isDownloaded) {
       contentWidget = _GifVideoPlayerTile(path: resolvedPath);
-    } else if (resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
+    } else if (isDownloaded) {
       contentWidget = Hero(
         tag: heroTag,
         child: Image.file(
@@ -239,46 +251,105 @@ class _MediaTile extends ConsumerWidget {
           ],
         );
       }
-    } else if (item.minithumbnail != null) {
-      try {
-        final bytes = base64Decode(item.minithumbnail!);
-        contentWidget = Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            ),
-            Container(color: Colors.black.withValues(alpha: 0.1)),
-            if (item.type == MediaType.video || item.type == MediaType.gif)
-              Center(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(10),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white70,
-                    size: 30,
+    } else {
+      Widget placeholderWidget;
+      if (item.minithumbnail != null) {
+        try {
+          final bytes = base64Decode(item.minithumbnail!);
+          placeholderWidget = Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          );
+        } catch (_) {
+          placeholderWidget = _buildPlaceholder(bgColor, iconColor);
+        }
+      } else {
+        placeholderWidget = _buildPlaceholder(bgColor, iconColor);
+      }
+
+      final progress = downloadState?.progress ?? 0.0;
+      final isProgressing = downloadState != null && !downloadState.isCompleted;
+
+      contentWidget = Stack(
+        fit: StackFit.expand,
+        children: [
+          placeholderWidget,
+          Container(color: Colors.black.withValues(alpha: 0.15)),
+          if (isProgressing)
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    value: progress > 0 ? progress : null,
+                    strokeWidth: 3,
+                    color: Colors.white,
+                    backgroundColor: Colors.white24,
                   ),
                 ),
               ),
-          ],
-        );
-      } catch (_) {
-        contentWidget = _buildPlaceholder(bgColor, iconColor);
-      }
-    } else {
-      contentWidget = _buildPlaceholder(bgColor, iconColor);
+            )
+          else if (item.type == MediaType.video || item.type == MediaType.gif)
+            Center(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.black45,
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(10),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white70,
+                  size: 30,
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (extraCount != null && extraCount! > 0) {
+      contentWidget = Stack(
+        fit: StackFit.expand,
+        children: [
+          contentWidget,
+          Container(
+            color: Colors.black.withValues(alpha: 0.55),
+            child: Center(
+              child: Text(
+                '+$extraCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
 
     return GestureDetector(
       onTap: () => _handleTap(context, ref, resolvedPath, heroTag),
-      child: contentWidget,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeIn,
+        switchOutCurve: Curves.easeOut,
+        child: KeyedSubtree(
+          key: ValueKey(isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}'),
+          child: contentWidget,
+        ),
+      ),
     );
   }
 
@@ -332,7 +403,12 @@ class _MediaTile extends ConsumerWidget {
     } else {
       final imageItems = allMedia
           .where((m) => m.type == MediaType.photo)
-          .map((m) => m.localPath ?? m.url)
+          .map((m) {
+            final downloadedPath = m.fileId != null && m.fileId != 0
+                ? ref.read(fileDownloadProgressProvider(m.fileId!)).value?.localPath
+                : null;
+            return downloadedPath ?? m.localPath ?? m.url;
+          })
           .where((p) => p != null && p.isNotEmpty)
           .cast<String>()
           .toList();

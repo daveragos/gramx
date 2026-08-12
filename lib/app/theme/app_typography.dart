@@ -63,4 +63,11 @@ abstract class AppTypography {
     fontWeight: FontWeight.w500,
     color: color,
   );
+
+  static TextStyle button({Color? color}) => GoogleFonts.inter(
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
+    color: color,
+    height: 1.2,
+  );
 }

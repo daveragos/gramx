@@ -127,7 +127,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final postId = state.pathParameters['postId']!;
-          return PostDetailScreen(postId: postId);
+          final focusReply = state.uri.queryParameters['focusReply'] == 'true';
+          return PostDetailScreen(
+            postId: postId,
+            autoFocusReply: focusReply,
+          );
         },
       ),
       GoRoute(

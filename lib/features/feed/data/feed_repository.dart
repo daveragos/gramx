@@ -174,12 +174,29 @@ class FeedRepository {
   /// Fetch posts for a single channel (local-first fallback).
   Future<List<Post>> fetchChannelPosts(int chatId,
       {int fromMessageId = 0, int limit = 50}) async {
-    final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+    td.TdObject chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+    if (chatObj is! td.Chat) {
+      final strId = chatId.toString();
+      int? supergroupId;
+      if (chatId > 0) {
+        supergroupId = chatId;
+      } else if (strId.startsWith('-100')) {
+        supergroupId = int.tryParse(strId.substring(4));
+      }
+      if (supergroupId != null) {
+        try {
+          final res = await _tdlib.sendRequest(td.CreateSupergroupChat(supergroupId: supergroupId, force: false));
+          if (res is td.Chat) chatObj = res;
+        } catch (_) {}
+      }
+    }
     if (chatObj is! td.Chat) return [];
+
+    final resolvedChatId = (chatObj as td.Chat).id;
 
     // 1. Try local history first for instant rendering
     td.TdObject history = await _tdlib.sendRequest(td.GetChatHistory(
-      chatId: chatId,
+      chatId: resolvedChatId,
       fromMessageId: fromMessageId,
       offset: 0,
       limit: limit,
@@ -191,7 +208,7 @@ class FeedRepository {
     final minExpected = fromMessageId == 0 ? 5 : 1;
     if (history is! td.Messages || history.messages.length < minExpected) {
       history = await _tdlib.sendRequest(td.GetChatHistory(
-        chatId: chatId,
+        chatId: resolvedChatId,
         fromMessageId: fromMessageId,
         offset: 0,
         limit: limit,
@@ -246,6 +263,85 @@ class FeedRepository {
               (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
         .getSingleOrNull();
     return existing != null;
+  }
+
+  /// Fetch a single post by chatId and messageId via TDLib GetMessages.
+  Future<Post?> fetchSinglePost(int chatId, int messageId) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetMessages(
+        chatId: chatId,
+        messageIds: [messageId],
+      ));
+      if (res is td.Messages && res.messages.isNotEmpty) {
+        final msg = res.messages.first;
+        if (msg.id != 0) {
+          final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+          if (chatObj is td.Chat) {
+            final bookmarks = await _db.select(_db.bookmarkEntries).get();
+            final bookmarkKeys =
+                bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
+            final posts = TdlibMappers.mergeAlbumMessages(
+              [msg],
+              chatObj,
+              bookmarkedKeys: bookmarkKeys,
+            );
+            if (posts.isNotEmpty) return posts.first;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[FeedRepo] fetchSinglePost error: $e');
+    }
+
+    final fallbackPosts =
+        await fetchChannelPosts(chatId, fromMessageId: messageId, limit: 20);
+    return fallbackPosts.where((p) => p.messageId == messageId).firstOrNull;
+  }
+
+  /// Fetch all bookmarked posts stored in the local SQLite database.
+  Future<List<Post>> fetchBookmarkedPosts() async {
+    final bookmarks = await _db.select(_db.bookmarkEntries).get();
+    if (bookmarks.isEmpty) return [];
+
+    final bookmarkKeys =
+        bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
+
+    final messagesByChatId = <int, List<int>>{};
+    for (final b in bookmarks) {
+      messagesByChatId.putIfAbsent(b.chatId, () => []).add(b.messageId);
+    }
+
+    final bookmarkedPosts = <Post>[];
+
+    for (final entry in messagesByChatId.entries) {
+      final chatId = entry.key;
+      final messageIds = entry.value;
+
+      try {
+        final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+        if (chatObj is! td.Chat) continue;
+
+        final res = await _tdlib.sendRequest(td.GetMessages(
+          chatId: chatId,
+          messageIds: messageIds,
+        ));
+
+        if (res is td.Messages && res.messages.isNotEmpty) {
+          final validMsgs = res.messages.whereType<td.Message>().toList();
+          final posts = TdlibMappers.mergeAlbumMessages(
+            validMsgs,
+            chatObj,
+            bookmarkedKeys: bookmarkKeys,
+          );
+          bookmarkedPosts.addAll(posts);
+        }
+      } catch (e) {
+        debugPrint('[FeedRepo] Failed to fetch bookmarked messages for chat $chatId: $e');
+      }
+    }
+
+    bookmarkedPosts.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    return bookmarkedPosts;
   }
 
   /// Mark post as read via TDLib.
@@ -402,10 +498,19 @@ class FeedRepository {
   /// Post a new comment reply to a post thread
   Future<void> sendComment(int chatId, int messageId, String text, {int? replyToMessageId}) async {
     try {
+      int targetChatId = chatId;
+      int targetThreadId = messageId;
+
+      final threadInfo = await _tdlib.sendRequest(td.GetMessageThread(chatId: chatId, messageId: messageId));
+      if (threadInfo is td.MessageThreadInfo) {
+        targetChatId = threadInfo.chatId;
+        targetThreadId = threadInfo.messageThreadId;
+      }
+
       await _tdlib.sendRequest(td.SendMessage(
-        chatId: chatId,
-        messageThreadId: messageId,
-        replyTo: td.InputMessageReplyToMessage(messageId: replyToMessageId ?? messageId),
+        chatId: targetChatId,
+        messageThreadId: targetThreadId,
+        replyTo: td.InputMessageReplyToMessage(messageId: replyToMessageId ?? targetThreadId),
         options: const td.MessageSendOptions(
           disableNotification: false,
           fromBackground: false,

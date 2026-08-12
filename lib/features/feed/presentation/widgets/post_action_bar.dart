@@ -33,7 +33,9 @@ class PostActionBar extends ConsumerWidget {
       final offset = renderBox.localToGlobal(Offset.zero);
       final rect = offset & renderBox.size;
       
-      final activeEmoji = post.reactions.entries.isEmpty ? null : post.reactions.keys.first;
+      final activeEmoji = post.chosenReactions.isNotEmpty
+          ? post.chosenReactions.first
+          : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
 
       // Fetch dynamic available reactions
       final availableEmojis = await ref.read(feedRepositoryProvider).getAvailableReactions(post.chatId);
@@ -53,7 +55,9 @@ class PostActionBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
-    final activeEmoji = post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null;
+    final activeEmoji = post.chosenReactions.isNotEmpty
+        ? post.chosenReactions.first
+        : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
     final reactionKey = GlobalKey();
 
     return Row(

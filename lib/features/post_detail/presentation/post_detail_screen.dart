@@ -15,12 +15,19 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
+import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   final String postId;
+  final bool autoFocusReply;
 
-  const PostDetailScreen({super.key, required this.postId});
+  const PostDetailScreen({
+    super.key,
+    required this.postId,
+    this.autoFocusReply = false,
+  });
 
   @override
   ConsumerState<PostDetailScreen> createState() => _PostDetailScreenState();
@@ -30,6 +37,19 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
   Post? _replyTargetPost;
+  final Set<String> _expandedCommentIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoFocusReply) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _commentFocusNode.requestFocus();
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -70,6 +90,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   void _toggleReaction(Post post, String emoji) {
+    ref.read(optimisticPostUpdatesProvider.notifier).toggleReaction(post.id, emoji, post);
     ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
     ref.read(syncServiceProvider).togglePostReaction(
       chatId: post.chatId,
@@ -84,6 +105,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     HapticFeedback.lightImpact();
     if (post.chosenReactions.isNotEmpty) {
       _toggleReaction(post, post.chosenReactions.first);
+    } else if (post.reactions.keys.isNotEmpty) {
+      _toggleReaction(post, post.reactions.keys.first);
     } else {
       _showReactionPicker(context, post, key);
     }
@@ -157,6 +180,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
           final totalReactions =
               post.reactions.values.fold<int>(0, (a, b) => a + b);
+          final activeEmoji = post.chosenReactions.isNotEmpty
+              ? post.chosenReactions.first
+              : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
           final reactionKey = GlobalKey();
 
           return Column(
@@ -237,6 +263,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   style: AppTypography.bodyLarge(color: primaryColor),
                                 ),
                               ],
+                              // Link preview
+                              if (post.linkPreviewUrl != null && post.linkPreviewUrl!.isNotEmpty) ...[
+                                const SizedBox(height: AppSpacing.md),
+                                LinkPreviewCard(
+                                  url: post.linkPreviewUrl!,
+                                  title: post.linkPreviewTitle,
+                                  description: post.linkPreviewDescription,
+                                  imageUrl: post.linkPreviewImageUrl,
+                                  imageFileId: post.linkPreviewFileId,
+                                ),
+                              ],
                               // Poll display
                               if (post.poll != null) ...[
                                 const SizedBox(height: AppSpacing.md),
@@ -250,6 +287,69 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               if (post.media.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.md),
                                 PostMediaGrid(media: post.media),
+                              ],
+                              // Horizontal Reactions Scroll Bar
+                              if (post.reactions.isNotEmpty) ...[
+                                const SizedBox(height: AppSpacing.sm),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    children: post.reactions.entries.map((entry) {
+                                      final emoji = entry.key;
+                                      final count = entry.value;
+                                      final isChosen = post.chosenReactions.contains(emoji);
+                                      return Padding(
+                                        padding: const EdgeInsets.only(right: 6),
+                                        child: InkWell(
+                                          onTap: () => _toggleReaction(post, emoji),
+                                          borderRadius: BorderRadius.circular(16),
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 150),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: isChosen
+                                                  ? AppColors.accent.withValues(alpha: 0.18)
+                                                  : (isDark
+                                                      ? AppColors.darkSurfaceVariant
+                                                      : Colors.grey.shade100),
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: isChosen
+                                                    ? AppColors.accent
+                                                    : (isDark
+                                                        ? AppColors.darkBorder
+                                                        : AppColors.lightBorder),
+                                                width: isChosen ? 1.2 : 0.5,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(emoji,
+                                                    style: const TextStyle(fontSize: 14)),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  TimeUtils.formatCount(count),
+                                                  style: AppTypography.actionCount(
+                                                          color: isChosen
+                                                              ? AppColors.accent
+                                                              : secondaryColor)
+                                                      .copyWith(
+                                                    fontWeight: isChosen
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
                               ],
                               const SizedBox(height: AppSpacing.lg),
                               // Full timestamp
@@ -319,6 +419,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 onTap: () {
                                   if (post.hasDiscussionGroup && isLoggedIn) {
                                     _commentFocusNode.requestFocus();
+                                  } else if (!post.hasDiscussionGroup) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Comments are disabled for this channel.'),
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
                                   }
                                 },
                                 child: Icon(Icons.chat_bubble_outline,
@@ -336,21 +444,25 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     HapticFeedback.mediumImpact();
                                     _showReactionPicker(context, post, reactionKey);
                                   },
-                                  child: Icon(
-                                    post.chosenReactions.isNotEmpty || totalReactions > 0
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: post.chosenReactions.isNotEmpty || totalReactions > 0
-                                        ? AppColors.like
-                                        : secondaryColor,
-                                    size: 22,
-                                  ),
+                                  child: activeEmoji != null
+                                      ? Text(activeEmoji, style: const TextStyle(fontSize: 20))
+                                      : Icon(
+                                          post.chosenReactions.isNotEmpty
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          color: post.chosenReactions.isNotEmpty
+                                              ? AppColors.like
+                                              : secondaryColor,
+                                          size: 22,
+                                        ),
                                 ),
                               ),
                               GestureDetector(
                                 onTap: () {
+                                  ref.read(optimisticPostUpdatesProvider.notifier).toggleBookmark(post.id, post);
                                   ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
                                   ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
+                                  ref.invalidate(bookmarkedPostsProvider);
                                   ref.invalidate(postDetailProvider(widget.postId));
                                 },
                                 child: Icon(
@@ -414,247 +526,545 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     style: AppTypography.body(color: secondaryColor),
                                   ),
                                   data: (comments) {
-                                    if (comments.isEmpty) {
-                                      return Center(
-                                        child: Text(
-                                          'No comments on this post yet. Be the first to comment!',
-                                          style: AppTypography.body(color: secondaryColor),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      );
-                                    }
+                                     if (comments.isEmpty) {
+                                       return Center(
+                                         child: Text(
+                                           'No comments on this post yet. Be the first to comment!',
+                                           style: AppTypography.body(color: secondaryColor),
+                                           textAlign: TextAlign.center,
+                                         ),
+                                       );
+                                     }
 
-                                     return Column(
-                                       children: comments.map((comment) {
-                                         final isReply = comment.replyToMessageId != null ||
-                                             comment.replyToText != null ||
-                                             comment.replyToAuthorTitle != null;
+                                     final commentMap = {for (var c in comments) c.messageId: c};
+                                     final Map<int, List<Post>> subMap = {};
 
-                                         return Padding(
-                                           padding: EdgeInsets.only(
-                                             bottom: 12.0,
-                                             left: isReply ? 16.0 : 0.0,
-                                           ),
-                                           child: Container(
-                                             padding: isReply
-                                                 ? const EdgeInsets.only(left: 8)
-                                                 : EdgeInsets.zero,
-                                             decoration: isReply
-                                                 ? BoxDecoration(
-                                                     border: Border(
-                                                       left: BorderSide(
-                                                         color: AppColors.accent.withValues(alpha: 0.4),
-                                                         width: 2.0,
-                                                       ),
-                                                     ),
-                                                   )
-                                                 : null,
-                                             child: Row(
-                                               crossAxisAlignment: CrossAxisAlignment.start,
-                                               children: [
-                                                 ChannelAvatar(
-                                                   title: comment.channelTitle,
-                                                   avatarPath: comment.channelAvatarUrl,
-                                                   avatarFileId: comment.channelAvatarFileId,
-                                                   avatarColorHex: comment.channelAvatarColor,
-                                                   radius: isReply ? 15 : 18,
-                                                 ),
-                                                 const SizedBox(width: 10),
-                                                 Expanded(
-                                                   child: Column(
-                                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                     for (final comment in comments) {
+                                       final replyId = comment.replyToMessageId;
+                                       if (replyId != null && replyId != post.messageId && commentMap.containsKey(replyId)) {
+                                         int rootId = replyId;
+                                         int depth = 0;
+                                         while (commentMap.containsKey(rootId) && depth < 10) {
+                                           final parent = commentMap[rootId]!;
+                                           if (parent.replyToMessageId == null ||
+                                               parent.replyToMessageId == post.messageId ||
+                                               !commentMap.containsKey(parent.replyToMessageId)) {
+                                             break;
+                                           }
+                                           rootId = parent.replyToMessageId!;
+                                           depth++;
+                                         }
+                                         subMap.putIfAbsent(rootId, () => []).add(comment);
+                                       }
+                                     }
+
+                                     final childIds = subMap.values.expand((list) => list.map((c) => c.messageId)).toSet();
+                                     final topLevelComments = comments.where((c) => !childIds.contains(c.messageId)).toList();
+
+                                     final List<Widget> commentWidgets = [];
+
+                                     for (int i = 0; i < topLevelComments.length; i++) {
+                                       final topComment = topLevelComments[i];
+                                       final subReplies = subMap[topComment.messageId] ?? [];
+                                       final isExpanded = _expandedCommentIds.contains(topComment.id);
+                                       final isLastTopComment = i == topLevelComments.length - 1;
+
+                                       commentWidgets.add(
+                                         _buildXCommentItem(
+                                           context: context,
+                                           comment: topComment,
+                                           isLast: isLastTopComment && subReplies.isEmpty,
+                                           isDark: isDark,
+                                           primaryColor: primaryColor,
+                                           secondaryColor: secondaryColor,
+                                         ),
+                                       );
+
+                                       if (subReplies.isNotEmpty) {
+                                         if (!isExpanded) {
+                                           commentWidgets.add(
+                                             Padding(
+                                               padding: const EdgeInsets.only(left: 46, top: 0, bottom: 16),
+                                               child: InkWell(
+                                                 onTap: () {
+                                                   HapticFeedback.lightImpact();
+                                                   setState(() => _expandedCommentIds.add(topComment.id));
+                                                 },
+                                                 borderRadius: BorderRadius.circular(16),
+                                                 child: Padding(
+                                                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                                                   child: Row(
+                                                     mainAxisSize: MainAxisSize.min,
                                                      children: [
-                                                       Row(
-                                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                         children: [
-                                                           Text(
-                                                             comment.channelTitle,
-                                                             style: TextStyle(
-                                                               fontWeight: FontWeight.bold,
-                                                               fontSize: isReply ? 12.5 : 13.5,
-                                                             ),
-                                                           ),
-                                                           Text(
-                                                             TimeUtils.relativeTime(comment.publishedAt),
-                                                             style: AppTypography.timestamp(color: secondaryColor),
-                                                           ),
-                                                         ],
+                                                       Container(
+                                                         width: 20,
+                                                         height: 1.5,
+                                                         color: AppColors.accent.withValues(alpha: 0.6),
                                                        ),
-                                                       if (isReply &&
-                                                           (comment.replyToAuthorTitle != null ||
-                                                               comment.replyToText != null)) ...[
-                                                         const SizedBox(height: 3),
-                                                         Container(
-                                                           padding: const EdgeInsets.symmetric(
-                                                               horizontal: 8, vertical: 4),
-                                                           decoration: BoxDecoration(
-                                                             color: isDark
-                                                                 ? const Color(0xFF1E2836)
-                                                                 : const Color(0xFFEAF2FB),
-                                                             borderRadius: BorderRadius.circular(6),
-                                                             border: const Border(
-                                                               left: BorderSide(
-                                                                   color: AppColors.accent, width: 2.5),
-                                                             ),
-                                                           ),
-                                                           child: Column(
-                                                             crossAxisAlignment: CrossAxisAlignment.start,
-                                                             children: [
-                                                               Text(
-                                                                 comment.replyToAuthorTitle ?? 'Comment',
-                                                                 style: const TextStyle(
-                                                                   color: AppColors.accent,
-                                                                   fontSize: 11.5,
-                                                                   fontWeight: FontWeight.bold,
-                                                                 ),
-                                                               ),
-                                                               if (comment.replyToText != null)
-                                                                 Text(
-                                                                   comment.replyToText!,
-                                                                   maxLines: 1,
-                                                                   overflow: TextOverflow.ellipsis,
-                                                                   style: TextStyle(
-                                                                     color: secondaryColor,
-                                                                     fontSize: 11,
-                                                                   ),
-                                                                 ),
-                                                             ],
-                                                           ),
+                                                       const SizedBox(width: 8),
+                                                       Text(
+                                                         subReplies.length == 1
+                                                             ? 'Show 1 reply'
+                                                             : 'Show ${subReplies.length} replies',
+                                                         style: const TextStyle(
+                                                           color: AppColors.accent,
+                                                           fontSize: 13,
+                                                           fontWeight: FontWeight.w600,
                                                          ),
-                                                       ],
-                                                       const SizedBox(height: 3),
-                                                       if (comment.text != null && comment.text!.isNotEmpty)
-                                                         TextEntityRenderer(
-                                                           text: comment.text!,
-                                                           entities: comment.entities,
-                                                           style: AppTypography.body(color: primaryColor),
-                                                         ),
-                                                       if (comment.media.isNotEmpty) ...[
-                                                         const SizedBox(height: 6),
-                                                         ConstrainedBox(
-                                                           constraints: const BoxConstraints(maxHeight: 220),
-                                                           child: PostMediaGrid(media: comment.media),
-                                                         ),
-                                                       ],
-                                                       const SizedBox(height: 4),
-                                                       GestureDetector(
-                                                         onTap: () {
-                                                           setState(() => _replyTargetPost = comment);
-                                                           _commentFocusNode.requestFocus();
-                                                         },
-                                                         child: Row(
-                                                           mainAxisSize: MainAxisSize.min,
-                                                           children: [
-                                                             Icon(Icons.reply_rounded,
-                                                                 size: 13, color: AppColors.accent),
-                                                             const SizedBox(width: 3),
-                                                             Text(
-                                                               'Reply',
-                                                               style: AppTypography.actionCount(
-                                                                   color: AppColors.accent).copyWith(
-                                                                 fontWeight: FontWeight.w600,
-                                                               ),
-                                                             ),
-                                                           ],
-                                                         ),
+                                                       ),
+                                                       const Icon(
+                                                         Icons.keyboard_arrow_down_rounded,
+                                                         size: 18,
+                                                         color: AppColors.accent,
                                                        ),
                                                      ],
                                                    ),
                                                  ),
-                                               ],
+                                               ),
                                              ),
-                                           ),
-                                         );
-                                       }).toList(),
-                                     );
-                                   },
-                                 ),
-                             ],
-                           ),
-                         ),
-                       ],
-                     ),
-                   ),
-                 ),
-               ),
+                                           );
+                                         } else {
+                                           for (int j = 0; j < subReplies.length; j++) {
+                                             final sub = subReplies[j];
+                                             final isLastSub = j == subReplies.length - 1;
+                                             commentWidgets.add(
+                                               Padding(
+                                                 padding: const EdgeInsets.only(left: 32),
+                                                 child: _buildXCommentItem(
+                                                   context: context,
+                                                   comment: sub,
+                                                   isLast: isLastSub && isLastTopComment,
+                                                   isDark: isDark,
+                                                   primaryColor: primaryColor,
+                                                   secondaryColor: secondaryColor,
+                                                 ),
+                                               ),
+                                             );
+                                           }
+
+                                           commentWidgets.add(
+                                             Padding(
+                                               padding: const EdgeInsets.only(left: 46, top: 0, bottom: 16),
+                                               child: InkWell(
+                                                 onTap: () {
+                                                   HapticFeedback.lightImpact();
+                                                   setState(() => _expandedCommentIds.remove(topComment.id));
+                                                 },
+                                                 borderRadius: BorderRadius.circular(16),
+                                                 child: Padding(
+                                                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                                                   child: Row(
+                                                     mainAxisSize: MainAxisSize.min,
+                                                     children: [
+                                                       Container(
+                                                         width: 20,
+                                                         height: 1.5,
+                                                         color: secondaryColor.withValues(alpha: 0.4),
+                                                       ),
+                                                       const SizedBox(width: 8),
+                                                       Text(
+                                                         subReplies.length == 1 ? 'Hide reply' : 'Hide replies',
+                                                         style: TextStyle(
+                                                           color: secondaryColor,
+                                                           fontSize: 12.5,
+                                                           fontWeight: FontWeight.w500,
+                                                         ),
+                                                       ),
+                                                       Icon(
+                                                         Icons.keyboard_arrow_up_rounded,
+                                                         size: 18,
+                                                         color: secondaryColor,
+                                                       ),
+                                                     ],
+                                                   ),
+                                                 ),
+                                               ),
+                                             ),
+                                           );
+                                         }
+                                       }
+                                     }
+
+                                     return Column(children: commentWidgets);
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               // Comment Input Bar for Logged-In Users on discussion enabled posts
               if (isLoggedIn && post.hasDiscussionGroup)
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_replyTargetPost != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Replying to ${_replyTargetPost!.channelTitle}',
-                                style: const TextStyle(
-                                    fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => setState(() => _replyTargetPost = null),
-                              child: const Icon(Icons.close, size: 16, color: AppColors.accent),
-                            ),
-                          ],
+                _buildCommentInputBar(
+                  context: context,
+                  post: post,
+                  isDark: isDark,
+                  primaryColor: primaryColor,
+                  secondaryColor: secondaryColor,
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildXCommentItem({
+    required BuildContext context,
+    required Post comment,
+    required bool isLast,
+    required bool isDark,
+    required Color primaryColor,
+    required Color secondaryColor,
+  }) {
+    final isReply = comment.replyToMessageId != null ||
+        comment.replyToText != null ||
+        comment.replyToAuthorTitle != null;
+    final replyAuthor = comment.replyToAuthorTitle ?? 'post';
+
+    final totalReactions = comment.reactions.values.fold<int>(0, (a, b) => a + b);
+    final isLiked = comment.chosenReactions.isNotEmpty || totalReactions > 0;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Left Column: Avatar + Thread Connector Line
+          Column(
+            children: [
+              ChannelAvatar(
+                title: comment.channelTitle,
+                avatarPath: comment.channelAvatarUrl,
+                avatarFileId: comment.channelAvatarFileId,
+                avatarColorHex: comment.channelAvatarColor,
+                radius: 18,
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+
+          // Right Column: Content + Header + Actions
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header Row: Name @Username · Time
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          comment.channelTitle,
+                          style: AppTypography.displayName(color: primaryColor).copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: theme.scaffoldBackgroundColor,
-                        border: Border(
-                          top: BorderSide(
-                            color: theme.dividerTheme.color ?? AppColors.darkBorder,
-                            width: 0.5,
+                      if (comment.channelUsername != null && comment.channelUsername!.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            '@${comment.channelUsername}',
+                            style: AppTypography.username(color: secondaryColor).copyWith(fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          focusNode: _commentFocusNode,
-                          decoration: InputDecoration(
-                            hintText: 'Add a comment...',
-                            hintStyle:
-                                AppTypography.body(color: secondaryColor),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
-                            filled: true,
-                            fillColor: isDark
-                                ? AppColors.darkSurfaceVariant
-                                : Colors.grey.shade100,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        onPressed: () => _sendComment(post.chatId, post.messageId),
-                        icon: const Icon(Icons.send_rounded,
-                            color: AppColors.accent),
+                      ],
+                      const SizedBox(width: 4),
+                      Text('·', style: AppTypography.username(color: secondaryColor)),
+                      const SizedBox(width: 4),
+                      Text(
+                        TimeUtils.relativeTime(comment.publishedAt),
+                        style: AppTypography.timestamp(color: secondaryColor).copyWith(fontSize: 12),
                       ),
                     ],
                   ),
-                ),
-              ],
+
+                  // Replying to @Author Tag
+                  if (isReply) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          'Replying to ',
+                          style: AppTypography.body(color: secondaryColor).copyWith(fontSize: 12.5),
+                        ),
+                        Text(
+                          '@$replyAuthor',
+                          style: const TextStyle(
+                            color: AppColors.accent,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // Quoted reply card snippet (if present)
+                  if (comment.replyToText != null && comment.replyToText!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
+                        borderRadius: BorderRadius.circular(6),
+                        border: const Border(
+                          left: BorderSide(color: AppColors.accent, width: 2.5),
+                        ),
+                      ),
+                      child: Text(
+                        comment.replyToText!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.body(color: secondaryColor).copyWith(fontSize: 12),
+                      ),
+                    ),
+                  ],
+
+                  // Text Content
+                  if (comment.text != null && comment.text!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    TextEntityRenderer(
+                      text: comment.text!,
+                      entities: comment.entities,
+                      style: AppTypography.body(color: primaryColor).copyWith(fontSize: 14, height: 1.3),
+                    ),
+                  ],
+
+                  // Media Attachments
+                  if (comment.media.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: PostMediaGrid(media: comment.media),
+                    ),
+                  ],
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Reply Icon + Count
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          setState(() => _replyTargetPost = comment);
+                          _commentFocusNode.requestFocus();
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 16,
+                                color: secondaryColor,
+                              ),
+                              if (comment.replyCount > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  TimeUtils.formatCount(comment.replyCount),
+                                  style: AppTypography.actionCount(color: secondaryColor).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Like / Reaction Icon + Count
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          final emoji = comment.chosenReactions.isNotEmpty
+                              ? comment.chosenReactions.first
+                              : '❤️';
+                          _toggleReaction(comment, emoji);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 16,
+                                color: isLiked ? AppColors.like : secondaryColor,
+                              ),
+                              if (totalReactions > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  TimeUtils.formatCount(totalReactions),
+                                  style: AppTypography.actionCount(
+                                    color: isLiked ? AppColors.like : secondaryColor,
+                                  ).copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Share Icon
+                      InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _handleShare(context, comment);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.ios_share,
+                            size: 16,
+                            color: secondaryColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentInputBar({
+    required BuildContext context,
+    required Post post,
+    required bool isDark,
+    required Color primaryColor,
+    required Color secondaryColor,
+  }) {
+    return SafeArea(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
             ),
           ],
-        );
-        },
+          border: Border(
+            top: BorderSide(
+              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_replyTargetPost != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
+                child: Row(
+                  children: [
+                    const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Replying to @${_replyTargetPost!.channelTitle}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accent,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => setState(() => _replyTargetPost = null),
+                      child: const Padding(
+                        padding: EdgeInsets.all(2),
+                        child: Icon(Icons.close, size: 16, color: AppColors.accent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  ChannelAvatar(
+                    title: post.channelTitle,
+                    radius: 16,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      focusNode: _commentFocusNode,
+                      maxLines: 4,
+                      minLines: 1,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: AppTypography.body(color: primaryColor),
+                      decoration: InputDecoration(
+                        hintText: _replyTargetPost != null
+                            ? 'Post your reply...'
+                            : 'Add a comment...',
+                        hintStyle: AppTypography.body(color: secondaryColor),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        filled: true,
+                        fillColor: isDark
+                            ? AppColors.darkSurfaceVariant
+                            : Colors.grey.shade100,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => _sendComment(post.chatId, post.messageId),
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: AppColors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_upward_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

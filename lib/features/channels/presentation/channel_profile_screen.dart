@@ -6,6 +6,7 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
+import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -28,32 +29,27 @@ class ChannelProfileScreen extends ConsumerStatefulWidget {
 
 class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   final ScrollController _scrollController = ScrollController();
+  late final FeedRepository _feedRepository;
+  bool _isActionLoading = false;
+  int? _openedChatId;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    // Notify TDLib that the user opened this chat (for unread tracking)
-    final chatId = int.tryParse(widget.channelId);
-    if (chatId != null) {
-      ref.read(feedRepositoryProvider).openChat(chatId);
-    }
-  }
-
-  @override
-  void deactivate() {
-    // Notify TDLib that the user closed this chat
-    final chatId = int.tryParse(widget.channelId);
-    if (chatId != null) {
-      ref.read(feedRepositoryProvider).closeChat(chatId);
-    }
-    super.deactivate();
+    _feedRepository = ref.read(feedRepositoryProvider);
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+
+    // Notify TDLib that the user closed this chat
+    if (_openedChatId != null) {
+      _feedRepository.closeChat(_openedChatId!);
+    }
+
     super.dispose();
   }
 
@@ -70,39 +66,64 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   Widget build(BuildContext context) {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
     final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
-    final mutedChannels = ref.watch(mutedChannelsProvider);
-    final isMuted = mutedChannels.contains(widget.channelId);
+    final channel = channelAsync.value;
+
+    if (channel != null && _openedChatId != channel.chatId) {
+      _openedChatId = channel.chatId;
+      _feedRepository.openChat(channel.chatId);
+    }
+
+    // Watch the provider state to rebuild on changes
+    ref.watch(mutedChannelsProvider);
+    final isMuted = ref
+        .read(mutedChannelsProvider.notifier)
+        .isMuted(
+          widget.channelId,
+          chatId: channel?.chatId,
+          username: channel?.username,
+        );
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          channelAsync.value?.title ?? 'Channel',
+          channel?.title ?? 'Channel',
           style: AppTypography.heading(color: primaryColor),
         ),
         actions: [
           IconButton(
+            tooltip: isMuted ? 'Show posts in feed' : 'Hide posts from feed',
             onPressed: () {
-              ref.read(mutedChannelsProvider.notifier).toggleMute(widget.channelId);
+              ref
+                  .read(mutedChannelsProvider.notifier)
+                  .toggleMute(
+                    widget.channelId,
+                    chatId: channel?.chatId,
+                    username: channel?.username,
+                  );
               final newlyMuted = !isMuted;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(newlyMuted
-                      ? 'Muted channel. Its posts will be hidden from your feed.'
-                      : 'Unmuted channel.'),
+                  content: Text(
+                    newlyMuted
+                        ? 'Hidden from feed. Posts from this channel are now hidden from your feed.'
+                        : 'Visible in feed. Posts from this channel will appear in your feed.',
+                  ),
                   duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
                 ),
               );
             },
             icon: Icon(
               isMuted
-                  ? Icons.notifications_off_outlined
-                  : Icons.notifications_outlined,
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
               color: isMuted ? AppColors.error : primaryColor,
             ),
           ),
@@ -161,7 +182,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                                       Flexible(
                                         child: Text(
                                           channel.title,
-                                          style: AppTypography.heading(color: primaryColor),
+                                          style: AppTypography.heading(
+                                            color: primaryColor,
+                                          ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -179,23 +202,121 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       '@${channel.username}',
-                                      style: AppTypography.username(color: secondaryColor),
+                                      style: AppTypography.username(
+                                        color: secondaryColor,
+                                      ),
                                     ),
                                   ],
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      Icon(Icons.people_outline,
-                                          size: 14, color: secondaryColor),
+                                      Icon(
+                                        Icons.people_outline,
+                                        size: 14,
+                                        color: secondaryColor,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         '${TimeUtils.formatCount(channel.subscriberCount)} subscribers',
-                                        style: AppTypography.body(color: secondaryColor),
+                                        style: AppTypography.body(
+                                          color: secondaryColor,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: channel.isJoined
+                                    ? Colors.transparent
+                                    : AppColors.accent,
+                                foregroundColor: channel.isJoined
+                                    ? primaryColor
+                                    : Colors.white,
+                                elevation: channel.isJoined ? 0 : 2,
+                                side: channel.isJoined
+                                    ? BorderSide(
+                                        color: secondaryColor.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                      )
+                                    : null,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: _isActionLoading
+                                  ? null
+                                  : () async {
+                                      setState(() => _isActionLoading = true);
+                                      final channelRepo = ref.read(
+                                        channelRepositoryProvider,
+                                      );
+                                      if (channel.isJoined) {
+                                        final success = await channelRepo
+                                            .leaveChannel(channel.chatId);
+                                        if (context.mounted && success) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Left ${channel.title}',
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 2,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        final success = await channelRepo
+                                            .joinChannel(channel.chatId);
+                                        if (context.mounted && success) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Joined ${channel.title}',
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 2,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                      ref.invalidate(
+                                        channelDetailProvider(widget.channelId),
+                                      );
+                                      ref.invalidate(channelsProvider);
+                                      ref.invalidate(feedPostsProvider);
+                                      if (mounted) {
+                                        setState(
+                                          () => _isActionLoading = false,
+                                        );
+                                      }
+                                    },
+                              child: _isActionLoading
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      channel.isJoined ? 'Joined' : 'Join',
+                                      style: AppTypography.button(),
+                                    ),
                             ),
                           ],
                         ),
@@ -238,7 +359,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                     return SliverList(
                       delegate: SliverChildBuilderDelegate((context, index) {
                         final post = posts[index];
-                        final isHighlighted = widget.highlightMessageId != null &&
+                        final isHighlighted =
+                            widget.highlightMessageId != null &&
                             post.messageId == widget.highlightMessageId;
                         return PostCard(
                           post: post,

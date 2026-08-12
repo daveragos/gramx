@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 class LinkPreviewCard extends ConsumerWidget {
@@ -13,6 +14,7 @@ class LinkPreviewCard extends ConsumerWidget {
   final String? title;
   final String? description;
   final String? imageUrl;
+  final int? imageFileId;
 
   const LinkPreviewCard({
     super.key,
@@ -20,6 +22,7 @@ class LinkPreviewCard extends ConsumerWidget {
     this.title,
     this.description,
     this.imageUrl,
+    this.imageFileId,
   });
 
   String get _domain {
@@ -53,6 +56,8 @@ class LinkPreviewCard extends ConsumerWidget {
     final surfaceColor =
         isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
 
+    final hasImage = (imageUrl != null && imageUrl!.isNotEmpty) || (imageFileId != null && imageFileId! > 0);
+
     return InkWell(
       onTap: _openUrl,
       borderRadius: BorderRadius.circular(16),
@@ -68,7 +73,7 @@ class LinkPreviewCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Preview Image Banner if available
-            if (imageUrl != null && imageUrl!.isNotEmpty)
+            if (hasImage)
               _buildPreviewImage(ref, isDark),
             // Content Box
             Padding(
@@ -120,10 +125,10 @@ class LinkPreviewCard extends ConsumerWidget {
   }
 
   Widget _buildPreviewImage(WidgetRef ref, bool isDark) {
-    final path = imageUrl!;
+    final path = imageUrl;
 
-    // If it's a URL, use CachedNetworkImage
-    if (path.startsWith('http://') || path.startsWith('https://')) {
+    // 1. Web URL image
+    if (path != null && (path.startsWith('http://') || path.startsWith('https://'))) {
       return CachedNetworkImage(
         imageUrl: path,
         height: 150,
@@ -140,36 +145,58 @@ class LinkPreviewCard extends ConsumerWidget {
       );
     }
 
-    // For local files, use async existence check
-    final fileExists = ref.watch(fileExistsProvider(path));
-    return fileExists.when(
-      data: (exists) {
-        if (exists) {
-          return Image.file(
-            File(path),
-            height: 150,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-          );
-        }
-        return const SizedBox.shrink();
-      },
-      loading: () => Container(
-        height: 150,
-        color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
-        child: const Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.accent,
+    // 2. Local file path image
+    if (path != null && path.isNotEmpty) {
+      final fileExists = ref.watch(fileExistsProvider(path));
+      final exists = fileExists.value ?? false;
+      if (exists) {
+        return Image.file(
+          File(path),
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+        );
+      }
+    }
+
+    // 3. TDLib fileId thumbnail
+    if (imageFileId != null && imageFileId! > 0) {
+      // Trigger download preview thumbnail with high priority
+      ref.read(syncServiceProvider).downloadFileWithPriority(imageFileId!, priority: 32);
+
+      final fileAsync = ref.watch(fileDownloadProvider(imageFileId!));
+      return fileAsync.when(
+        data: (localPath) {
+          if (localPath != null && localPath.isNotEmpty) {
+            return Image.file(
+              File(localPath),
+              height: 150,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+            );
+          }
+          return const SizedBox.shrink();
+        },
+        loading: () => Container(
+          height: 150,
+          color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.accent,
+              ),
             ),
           ),
         ),
-      ),
-      error: (_, _) => const SizedBox.shrink(),
-    );
+        error: (err, stack) => const SizedBox.shrink(),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }

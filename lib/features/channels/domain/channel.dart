@@ -19,6 +19,7 @@ abstract class Channel with _$Channel {
     @Default(false) bool isFavorite,
     @Default(false) bool isMuted,
     @Default(false) bool isHidden,
+    @Default(true) bool isJoined,
     DateTime? lastPostAt,
   }) = _Channel;
 

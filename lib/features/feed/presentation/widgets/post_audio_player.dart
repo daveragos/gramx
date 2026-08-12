@@ -78,15 +78,16 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final fileId = widget.item.fileId;
-    String? resolvedPath;
+    FileDownloadProgressState? downloadState;
 
     if (fileId != null && fileId != 0) {
-      final fileState = ref.watch(fileDownloadProvider(fileId));
-      resolvedPath = fileState.value;
+      downloadState = ref.watch(fileDownloadProgressProvider(fileId)).value;
     }
-    resolvedPath ??= widget.item.localPath;
+    final resolvedPath = downloadState?.localPath ?? widget.item.localPath;
 
     final isDownloaded = resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync();
+    final isDownloading = downloadState != null && !downloadState.isCompleted && (downloadState.progress > 0 || downloadState.downloadedSize > 0);
+    final progress = downloadState?.progress ?? 0.0;
     final isVoice = widget.item.type == MediaType.voice;
     final title = isVoice ? 'Voice message' : (widget.item.fileName ?? 'Audio track');
     final durationSecs = widget.item.duration;
@@ -112,7 +113,7 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
               GestureDetector(
                 onTap: () {
                   if (isDownloaded) {
-                    _togglePlay(resolvedPath!);
+                    _togglePlay(resolvedPath);
                   } else if (fileId != null && fileId != 0) {
                     ref.read(syncServiceProvider).downloadFileWithPriority(fileId, priority: 32);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -139,13 +140,22 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                             color: Colors.white,
                           ),
                         )
-                      : Icon(
-                          !isDownloaded
-                              ? Icons.download_rounded
-                              : (_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
-                          color: Colors.white,
-                          size: 26,
-                        ),
+                      : isDownloading
+                          ? Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(
+                                value: progress > 0 ? progress : null,
+                                strokeWidth: 3,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              !isDownloaded
+                                  ? Icons.download_rounded
+                                  : (_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded),
+                              color: Colors.white,
+                              size: 26,
+                            ),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -165,7 +175,7 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
-                        value: progressRatio,
+                        value: isDownloading ? progress : progressRatio,
                         minHeight: 4,
                         backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
                         valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accent),
@@ -180,7 +190,9 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                           style: AppTypography.actionCount(color: secondaryColor),
                         ),
                         Text(
-                          isVoice ? 'Voice' : 'Audio',
+                          isDownloading
+                              ? '${(progress * 100).toInt()}%'
+                              : (isVoice ? 'Voice' : 'Audio'),
                           style: AppTypography.actionCount(color: secondaryColor),
                         ),
                       ],

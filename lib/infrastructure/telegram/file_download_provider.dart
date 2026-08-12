@@ -1,51 +1,106 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Reactive provider that tracks a TDLib file download by its fileId.
-/// Emits the local file path once the download completes.
-/// Automatically triggers high-priority TDLib download when requested.
-final fileDownloadProvider =
-    StreamProvider.family<String?, int>((ref, fileId) async* {
+class FileDownloadProgressState {
+  final int fileId;
+  final int downloadedSize;
+  final int totalSize;
+  final bool isCompleted;
+  final String? localPath;
+
+  const FileDownloadProgressState({
+    required this.fileId,
+    this.downloadedSize = 0,
+    this.totalSize = 0,
+    this.isCompleted = false,
+    this.localPath,
+  });
+
+  double get progress {
+    if (isCompleted) return 1.0;
+    if (totalSize > 0 && downloadedSize > 0) {
+      return (downloadedSize / totalSize).clamp(0.01, 1.0);
+    }
+    return 0.0;
+  }
+}
+
+/// Reactive stream provider tracking real-time TDLib download progress for a fileId.
+final fileDownloadProgressProvider =
+    StreamProvider.family<FileDownloadProgressState, int>((ref, fileId) async* {
   if (fileId == 0) {
-    yield null;
+    yield const FileDownloadProgressState(fileId: 0);
     return;
   }
 
   final tdlib = ref.watch(tdlibServiceProvider);
 
-  // 1. Check current file state immediately via TDLib
+  // 1. Query initial file state
   try {
     final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
     if (result is td.File) {
-      if (result.local.isDownloadingCompleted &&
-          result.local.path.isNotEmpty) {
-        yield result.local.path;
-        return;
+      final isDone = result.local.isDownloadingCompleted && result.local.path.isNotEmpty;
+      final total = result.expectedSize > 0 ? result.expectedSize : result.size;
+
+      yield FileDownloadProgressState(
+        fileId: fileId,
+        downloadedSize: result.local.downloadedSize,
+        totalSize: total,
+        isCompleted: isDone,
+        localPath: isDone ? result.local.path : null,
+      );
+
+      if (isDone) return;
+
+      if (!result.local.isDownloadingActive) {
+        await tdlib.sendRequest(td.DownloadFile(
+          fileId: fileId,
+          priority: 32,
+          offset: 0,
+          limit: 0,
+          synchronous: false,
+        ));
       }
     }
   } catch (_) {
-    // File state query failed, proceed to request download
+    try {
+      await tdlib.sendRequest(td.DownloadFile(
+        fileId: fileId,
+        priority: 32,
+        offset: 0,
+        limit: 0,
+        synchronous: false,
+      ));
+    } catch (_) {}
   }
 
-  // 2. Yield null initially (file downloading)
-  yield null;
-
-  // 3. Trigger viewport-aware download via SyncService
-  final syncService = ref.watch(syncServiceProvider);
-  syncService.downloadFileWithPriority(fileId, priority: 32);
-
-  // 4. Listen for completed UpdateFile event for this specific fileId
+  // 2. Stream real-time progress updates from TDLib update stream
   await for (final update in tdlib.fileUpdates) {
-    if (update.file.id == fileId &&
-        update.file.local.isDownloadingCompleted &&
-        update.file.local.path.isNotEmpty) {
-      yield update.file.local.path;
-      return; // Download complete, cancel stream subscription
+    if (update.file.id == fileId) {
+      final file = update.file;
+      final isDone = file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
+      final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+
+      yield FileDownloadProgressState(
+        fileId: fileId,
+        downloadedSize: file.local.downloadedSize,
+        totalSize: total,
+        isCompleted: isDone,
+        localPath: isDone ? file.local.path : null,
+      );
+
+      if (isDone) return;
     }
   }
+});
+
+/// Reactive provider that tracks a TDLib file download by its fileId and returns the completed local path.
+final fileDownloadProvider =
+    StreamProvider.family<String?, int>((ref, fileId) async* {
+  final stateAsync = ref.watch(fileDownloadProgressProvider(fileId));
+  yield stateAsync.value?.localPath;
 });
 
 /// Async file existence check that doesn't block the UI thread.

@@ -59,16 +59,18 @@ class PostDocumentCard extends ConsumerWidget {
 
     final fileId = item.fileId;
     String? resolvedPath;
+    FileDownloadProgressState? downloadState;
 
     if (fileId != null && fileId != 0) {
-      final fileState = ref.watch(fileDownloadProvider(fileId));
-      resolvedPath = fileState.value;
+      downloadState = ref.watch(fileDownloadProgressProvider(fileId)).value;
     }
-    resolvedPath ??= item.localPath;
+    resolvedPath = downloadState?.localPath ?? item.localPath;
 
     final isDownloaded = resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync();
+    final isDownloading = downloadState != null && !downloadState.isCompleted && (downloadState.progress > 0 || downloadState.downloadedSize > 0);
     final fileName = item.fileName ?? 'Document file';
     final fileSizeText = _formatFileSize(item.fileSize);
+    final progress = downloadState?.progress ?? 0.0;
 
     return InkWell(
       onTap: () {
@@ -102,11 +104,20 @@ class PostDocumentCard extends ConsumerWidget {
                 color: AppColors.accent.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                isDownloaded ? Icons.insert_drive_file_rounded : Icons.download_rounded,
-                color: AppColors.accent,
-                size: 22,
-              ),
+              child: isDownloading
+                  ? Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: CircularProgressIndicator(
+                        value: progress > 0 ? progress : null,
+                        strokeWidth: 3,
+                        color: AppColors.accent,
+                      ),
+                    )
+                  : Icon(
+                      isDownloaded ? Icons.insert_drive_file_rounded : Icons.download_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -123,7 +134,11 @@ class PostDocumentCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isDownloaded ? '$fileSizeText · Downloaded' : '$fileSizeText · Tap to download',
+                    isDownloaded
+                        ? '$fileSizeText · Downloaded'
+                        : isDownloading
+                            ? '$fileSizeText · ${(progress * 100).toInt()}%'
+                            : '$fileSizeText · Tap to download',
                     style: AppTypography.actionCount(color: secondaryColor),
                   ),
                 ],

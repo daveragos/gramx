@@ -25,6 +25,11 @@ class TdlibMappers {
   }
 
   static Channel mapChatToChannel(td.Chat chat, {td.Supergroup? supergroup, td.SupergroupFullInfo? fullInfo}) {
+    final status = supergroup?.status;
+    final isJoined = status != null
+        ? (status is! td.ChatMemberStatusLeft && status is! td.ChatMemberStatusBanned)
+        : chat.positions.isNotEmpty;
+
     return Channel(
       id: chat.id.toString(),
       chatId: chat.id,
@@ -45,6 +50,7 @@ class TdlibMappers {
       isFavorite: false,
       isMuted: false,
       isHidden: false,
+      isJoined: isJoined,
     );
   }
 
@@ -62,6 +68,7 @@ class TdlibMappers {
     String? linkPreviewTitle;
     String? linkPreviewDescription;
     String? linkPreviewImageUrl;
+    int? linkPreviewFileId;
     List<TextEntity> textEntities = [];
     Poll? pollObj;
 
@@ -97,13 +104,15 @@ class TdlibMappers {
 
         if (photo != null && photo.sizes.isNotEmpty) {
           final best = photo.sizes.last;
-          linkPreviewImageUrl = best.photo.local.path.isNotEmpty == true
-              ? best.photo.local.path
-              : (best.photo.remote.id.isNotEmpty ? best.photo.remote.id : best.photo.id.toString());
+          linkPreviewFileId = best.photo.id;
+          if (best.photo.local.path.isNotEmpty) {
+            linkPreviewImageUrl = best.photo.local.path;
+          }
         } else if (thumbnail != null) {
-          linkPreviewImageUrl = thumbnail.file.local.path.isNotEmpty == true
-              ? thumbnail.file.local.path
-              : (thumbnail.file.remote.id.isNotEmpty ? thumbnail.file.remote.id : thumbnail.file.id.toString());
+          linkPreviewFileId = thumbnail.file.id;
+          if (thumbnail.file.local.path.isNotEmpty) {
+            linkPreviewImageUrl = thumbnail.file.local.path;
+          }
         }
       }
     } else if (content is td.MessagePhoto) {
@@ -119,6 +128,14 @@ class TdlibMappers {
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
     } else if (content is td.MessageDocument) {
+      bodyText = _parseFormattedText(content.caption);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
+    } else if (content is td.MessageVoiceNote) {
+      bodyText = _parseFormattedText(content.caption);
+      final parsed = _parseEntities(content.caption.entities);
+      if (parsed != null) textEntities = parsed;
+    } else if (content is td.MessageAudio) {
       bodyText = _parseFormattedText(content.caption);
       final parsed = _parseEntities(content.caption.entities);
       if (parsed != null) textEntities = parsed;
@@ -273,6 +290,12 @@ class TdlibMappers {
               ? thumbFile.local.path
               : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
         }
+      } else if (content is td.MessageVoiceNote) {
+        final captionText = _parseFormattedText(content.caption);
+        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '🎤 Voice message';
+      } else if (content is td.MessageAudio) {
+        final captionText = _parseFormattedText(content.caption);
+        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '🎵 ${content.audio.fileName}';
       }
     }
 
@@ -308,6 +331,7 @@ class TdlibMappers {
       linkPreviewTitle: linkPreviewTitle,
       linkPreviewDescription: linkPreviewDescription,
       linkPreviewImageUrl: linkPreviewImageUrl,
+      linkPreviewFileId: linkPreviewFileId,
       forwardedFromTitle: forwardedFromTitle,
       forwardedFromUsername: forwardedFromUsername,
       forwardedFromChatId: forwardedFromChatId,
@@ -317,6 +341,7 @@ class TdlibMappers {
       replyToThumbnailUrl: replyToThumbnailUrl,
       replyToThumbnailFileId: replyToThumbnailFileId,
       hasDiscussionGroup: hasDiscussionGroup,
+      authorSignature: message.authorSignature.isNotEmpty ? message.authorSignature : null,
       entities: textEntities,
       poll: pollObj,
     );
@@ -462,6 +487,50 @@ class TdlibMappers {
         fileId: stickerFile.id,
         thumbnailFileId: thumbFile?.id,
         localPath: stickerFile.local.isDownloadingCompleted ? stickerFile.local.path : null,
+      ));
+    } else if (content is td.MessageVoiceNote) {
+      final voice = content.voiceNote;
+      final voiceFile = voice.voice;
+      final voicePath = voiceFile.local.isDownloadingCompleted && voiceFile.local.path.isNotEmpty
+          ? voiceFile.local.path
+          : (voiceFile.remote.id.isNotEmpty ? voiceFile.remote.id : voiceFile.id.toString());
+
+      list.add(MediaItem(
+        id: voicePath,
+        type: MediaType.voice,
+        url: voicePath,
+        duration: voice.duration,
+        fileSize: voiceFile.expectedSize,
+        fileName: 'Voice message',
+        mimeType: voice.mimeType,
+        fileId: voiceFile.id,
+        localPath: voiceFile.local.isDownloadingCompleted ? voiceFile.local.path : null,
+      ));
+    } else if (content is td.MessageAudio) {
+      final audio = content.audio;
+      final audioFile = audio.audio;
+      final audioPath = audioFile.local.isDownloadingCompleted && audioFile.local.path.isNotEmpty
+          ? audioFile.local.path
+          : (audioFile.remote.id.isNotEmpty ? audioFile.remote.id : audioFile.id.toString());
+      final thumbFile = audio.albumCoverThumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: audioPath,
+        type: MediaType.audio,
+        url: audioPath,
+        thumbnailUrl: thumbPath,
+        duration: audio.duration,
+        fileSize: audioFile.expectedSize,
+        fileName: audio.fileName.isNotEmpty ? audio.fileName : (audio.title.isNotEmpty ? audio.title : 'Audio track'),
+        mimeType: audio.mimeType,
+        fileId: audioFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: audioFile.local.isDownloadingCompleted ? audioFile.local.path : null,
       ));
     }
 

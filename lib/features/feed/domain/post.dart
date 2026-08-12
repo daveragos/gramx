@@ -34,6 +34,7 @@ abstract class Post with _$Post {
     String? linkPreviewTitle,
     String? linkPreviewDescription,
     String? linkPreviewImageUrl,
+    int? linkPreviewFileId,
     String? forwardedFromTitle,
     String? forwardedFromUsername,
     String? forwardedFromChatId,
@@ -43,6 +44,7 @@ abstract class Post with _$Post {
     String? replyToThumbnailUrl,
     int? replyToThumbnailFileId,
     @Default(false) bool hasDiscussionGroup,
+    String? authorSignature,
     @Default([]) List<TextEntity> entities,
     @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? poll,
   }) = _Post;
