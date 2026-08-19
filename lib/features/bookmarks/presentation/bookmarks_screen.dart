@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -33,7 +34,7 @@ class BookmarksScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Bookmarks',
+          AppStrings.bookmarksTitle,
           style: AppTypography.heading(color: primaryColor),
         ),
       ),
@@ -59,13 +60,13 @@ class BookmarksScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Text(
-                      'Save posts for later',
+                      AppStrings.bookmarksEmptyTitle,
                       style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      "Don't let the good ones fly away! Bookmark posts to easily find them again in the future.",
+                      AppStrings.bookmarksEmptyBody,
                       style: AppTypography.body(color: secondaryColor),
                       textAlign: TextAlign.center,
                     ),

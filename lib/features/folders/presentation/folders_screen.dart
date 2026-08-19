@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -28,7 +29,7 @@ class FoldersScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Folders',
+          AppStrings.foldersTitle,
           style: AppTypography.heading(color: primaryColor),
         ),
       ),
@@ -54,13 +55,13 @@ class FoldersScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Text(
-                      'No folders found',
+                      AppStrings.foldersEmptyTitle,
                       style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Your Telegram chat folders will sync and show up here once you subscribe to channels and group them.',
+                      AppStrings.foldersEmptyBody,
                       style: AppTypography.body(color: secondaryColor),
                       textAlign: TextAlign.center,
                     ),
@@ -92,11 +93,9 @@ class FoldersScreen extends ConsumerWidget {
                 ),
                 subtitle: Text(
                   countAsync.when(
-                    data: (ids) => ids.length == 1
-                        ? '1 channel'
-                        : '${ids.length} channels',
-                    loading: () => 'Counting…',
-                    error: (_, _) => 'Count unavailable',
+                    data: (ids) => AppStrings.folderChannelCount(ids.length),
+                    loading: () => AppStrings.foldersCounting,
+                    error: (_, _) => AppStrings.foldersCountUnavailable,
                   ),
                   style: AppTypography.actionCount(color: secondaryColor),
                 ),

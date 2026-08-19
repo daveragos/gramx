@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/settings/data/app_settings.dart';
@@ -32,8 +33,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(freed.isEmpty
-              ? 'Nothing to clear.'
-              : 'Freed ${freed.formattedSize} of cached media.'),
+              ? AppStrings.settingsStorageNothingToClear
+              : AppStrings.settingsStorageFreed(freed.formattedSize)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -59,7 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Settings and privacy', style: AppTypography.heading(color: primaryColor)),
+            Text(AppStrings.settingsTitle, style: AppTypography.heading(color: primaryColor)),
             accountAsync.when(
               data: (acc) => acc != null && acc.username != null
                   ? Text('@${acc.username}', style: AppTypography.actionCount(color: secondaryColor))
@@ -170,12 +171,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Log in to Telegram',
+                              AppStrings.authLogInPrompt,
                               style: AppTypography.subheading(color: primaryColor),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Sync your channels, folders, and timeline',
+                              AppStrings.authLogInBody,
                               style: AppTypography.actionCount(color: secondaryColor),
                             ),
                           ],
@@ -190,21 +191,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           // 2. YOUR ACCOUNT SECTION
-          _SectionHeader(title: 'YOUR ACCOUNT', secondaryColor: secondaryColor),
+          _SectionHeader(title: AppStrings.settingsSectionAccount, secondaryColor: secondaryColor),
           ListTile(
             leading: Icon(Icons.person_outline, color: primaryColor),
-            title: Text('Account Information', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('See your Telegram account details, ID, and phone number', style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text(AppStrings.settingsAccountInfo, style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.settingsAccountInfoBody, style: AppTypography.actionCount(color: secondaryColor)),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () => context.push('/profile'),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(title: 'DISPLAY AND SOUND', secondaryColor: secondaryColor),
+          _SectionHeader(title: AppStrings.settingsSectionDisplay, secondaryColor: secondaryColor),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
             child: Text(
-              'Dark mode appearance',
+              AppStrings.settingsDarkModeLabel,
               style: AppTypography.actionCount(color: secondaryColor),
             ),
           ),
@@ -215,7 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Expanded(
                   child: _XThemeSegmentTile(
-                    title: 'Light',
+                    title: AppStrings.settingsThemeLight,
                     mode: AppThemeMode.light,
                     currentMode: currentTheme,
                     bgColor: AppColors.lightBackground,
@@ -227,7 +228,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _XThemeSegmentTile(
-                    title: 'Dim',
+                    title: AppStrings.settingsThemeDim,
                     mode: AppThemeMode.dim,
                     currentMode: currentTheme,
                     bgColor: AppColors.dimBackground,
@@ -239,7 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _XThemeSegmentTile(
-                    title: 'Lights out',
+                    title: AppStrings.settingsThemeDark,
                     mode: AppThemeMode.dark,
                     currentMode: currentTheme,
                     bgColor: AppColors.darkBackground,
@@ -255,13 +256,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 4. PREFERENCES SECTION
-          _SectionHeader(title: 'PREFERENCES', secondaryColor: secondaryColor),
+          _SectionHeader(title: AppStrings.settingsSectionPreferences, secondaryColor: secondaryColor),
           SwitchListTile(
             secondary: Icon(Icons.play_circle_outline, color: primaryColor),
-            title: Text('Auto-play videos and GIFs',
+            title: Text(AppStrings.settingsAutoPlayTitle,
                 style: AppTypography.body(color: primaryColor)),
             subtitle: Text(
-              'Play silently while they are on screen',
+              AppStrings.settingsAutoPlayBody,
               style: AppTypography.actionCount(color: secondaryColor),
             ),
             activeThumbColor: AppColors.accent,
@@ -272,18 +273,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 5. DATA AND STORAGE SECTION
-          _SectionHeader(title: 'DATA AND STORAGE', secondaryColor: secondaryColor),
+          _SectionHeader(title: AppStrings.settingsSectionData, secondaryColor: secondaryColor),
           ListTile(
             leading: Icon(Icons.storage_outlined, color: primaryColor),
-            title: Text('Media Storage & Cache',
+            title: Text(AppStrings.settingsStorageTitle,
                 style: AppTypography.body(color: primaryColor)),
             subtitle: Text(
               ref.watch(storageUsageProvider).when(
                     data: (usage) => usage.isEmpty
-                        ? 'No cached media'
-                        : '${usage.formattedSize} of downloaded media',
-                    loading: () => 'Checking…',
-                    error: (_, _) => 'Downloaded photos, video and files',
+                        ? AppStrings.settingsStorageNone
+                        : AppStrings.settingsStorageUsage(usage.formattedSize),
+                    loading: () => AppStrings.settingsStorageChecking,
+                    error: (_, _) => AppStrings.settingsStorageFallback,
                   ),
               style: AppTypography.actionCount(color: secondaryColor),
             ),
@@ -294,7 +295,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: AppColors.error),
                   )
-                : const Text('Clear',
+                : const Text(AppStrings.settingsStorageClear,
                     style: TextStyle(
                         color: AppColors.error,
                         fontWeight: FontWeight.bold,
@@ -304,10 +305,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 6. ABOUT & SUPPORT SECTION
-          _SectionHeader(title: 'ABOUT & SUPPORT', secondaryColor: secondaryColor),
+          _SectionHeader(title: AppStrings.settingsSectionAbout, secondaryColor: secondaryColor),
           ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
-            title: Text('Version', style: AppTypography.body(color: primaryColor)),
+            title: Text(AppStrings.settingsVersion, style: AppTypography.body(color: primaryColor)),
             trailing: Text('v0.1.0', style: AppTypography.actionCount(color: secondaryColor)),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
@@ -320,7 +321,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ListTile(
                         leading: const Icon(Icons.logout_rounded, color: AppColors.error),
                         title: const Text(
-                          'Log out',
+                          AppStrings.settingsLogOut,
                           style: TextStyle(
                             color: AppColors.error,
                             fontWeight: FontWeight.bold,
@@ -346,17 +347,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log out of gramX?'),
-        content: const Text('You will need to re-login to access your synced Telegram timeline and channels.'),
+        title: const Text(AppStrings.settingsLogOutTitle),
+        content: const Text(AppStrings.settingsLogOutBody),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text(AppStrings.settingsCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Log out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+            child: const Text(AppStrings.settingsLogOut,
+                style: TextStyle(
+                    color: AppColors.error, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

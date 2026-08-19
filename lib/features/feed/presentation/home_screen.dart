@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -98,12 +99,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const CircularProgressIndicator(color: AppColors.accent),
                       const SizedBox(height: 24),
                       Text(
-                        'Syncing Telegram Feed',
+                        AppStrings.feedSyncingTitle,
                         style: AppTypography.heading(color: primaryTextColor),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Fetching your subscribed channels and history from Telegram...',
+                        AppStrings.feedSyncingBody,
                         style: AppTypography.body(color: secondaryTextColor),
                         textAlign: TextAlign.center,
                       ),
@@ -132,7 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _lastBackPressTime = now;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Press back again to exit'),
+                    content: Text(AppStrings.feedPressBackAgain),
                     duration: Duration(seconds: 2),
                     behavior: SnackBarBehavior.floating,
                   ),
@@ -158,7 +159,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             padding: const EdgeInsets.all(AppSpacing.sm),
                             child: Semantics(
                               button: true,
-                              label: 'Open navigation menu',
+                              label: AppStrings.a11yOpenMenu,
                               child: ChannelAvatar(
                                 title: displayName,
                                 avatarPath: accountAsync.value?.avatarPath,
@@ -170,14 +171,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           ),
                           title: Text(
-                            'gramX',
+                            AppStrings.appName,
                             style: AppTypography.heading(color: primaryTextColor),
                           ),
                           centerTitle: true,
                           actions: [
                             IconButton(
                               icon: const Icon(Icons.search_rounded),
-                              tooltip: 'Search',
+                              tooltip: AppStrings.a11ySearch,
                               color: primaryTextColor,
                               onPressed: () {
                                 // Switch tab rather than push: /search is a
@@ -223,7 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Center(
                         child: Semantics(
                           button: true,
-                          label: 'Scroll to top',
+                          label: AppStrings.a11yScrollToTop,
                           child: GestureDetector(
                           onTap: _scrollToTop,
                           child: AnimatedContainer(
@@ -248,7 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     color: Colors.white, size: 16),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Top',
+                                  AppStrings.feedScrollToTop,
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,

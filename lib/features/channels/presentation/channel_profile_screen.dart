@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -126,8 +127,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                 SnackBar(
                   content: Text(
                     newlyMuted
-                        ? 'Hidden from feed. Posts from this channel are now hidden from your feed.'
-                        : 'Visible in feed. Posts from this channel will appear in your feed.',
+                        ? AppStrings.channelHiddenFromFeed
+                        : AppStrings.channelVisibleInFeed,
                   ),
                   duration: const Duration(seconds: 2),
                   behavior: SnackBarBehavior.floating,
@@ -365,7 +366,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                     if (posts.isEmpty) {
                       return const SliverFillRemaining(
                         child: Center(
-                          child: Text('No posts found in this channel.'),
+                          child: Text(AppStrings.channelNoPosts),
                         ),
                       );
                     }

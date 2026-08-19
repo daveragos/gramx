@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -37,7 +38,7 @@ class FeedOnboardingView extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xxl),
               Text(
-                'Welcome to gramX',
+                AppStrings.onboardingWelcome,
                 style: AppTypography.heading(
                   color: primaryColor,
                 ).copyWith(fontSize: 28),
@@ -46,8 +47,8 @@ class FeedOnboardingView extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               Text(
                 isLoggedIn
-                    ? 'You haven\'t subscribed to any channels yet. Add public Telegram channels to build your custom feed.'
-                    : 'One timeline for the Telegram channels you follow. Log in with your Telegram account to view your subscribed channels and feeds.',
+                    ? AppStrings.onboardingLoggedInBody
+                    : AppStrings.onboardingLoggedOutBody,
                 style: AppTypography.body(color: secondaryColor),
                 textAlign: TextAlign.center,
               ),
@@ -66,7 +67,7 @@ class FeedOnboardingView extends ConsumerWidget {
                     context.push('/auth');
                   },
                   child: const Text(
-                    'Log in with Telegram',
+                    AppStrings.onboardingLogIn,
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

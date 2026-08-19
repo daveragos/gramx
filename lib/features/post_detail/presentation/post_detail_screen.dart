@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -96,7 +97,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (link == null) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text("This post can't be linked to."),
+          content: Text(AppStrings.postNotLinkable),
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
         ),
@@ -106,7 +107,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     await Clipboard.setData(ClipboardData(text: link));
     messenger.showSnackBar(
       const SnackBar(
-        content: Text('Post link copied to clipboard.'),
+        content: Text(AppStrings.postLinkCopied),
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 2),
       ),
@@ -172,7 +173,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Comment posted!'),
+            content: Text(AppStrings.commentPosted),
             duration: Duration(seconds: 1),
           ),
         );
@@ -180,7 +181,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to post comment: $e')),
+          SnackBar(content: Text(AppStrings.commentFailed(e))),
         );
       }
     }
@@ -204,7 +205,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Post', style: AppTypography.heading(color: primaryColor)),
+        title: Text(AppStrings.postTitle, style: AppTypography.heading(color: primaryColor)),
       ),
       body: postAsync.when(
         loading: () => const Center(
@@ -215,7 +216,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           if (post == null) {
             return Center(
               child: Text(
-                'Post not found',
+                AppStrings.postNotFound,
                 style: AppTypography.body(color: secondaryColor),
               ),
             );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -69,9 +70,7 @@ class PostActionBar extends ConsumerWidget {
           count: post.replyCount,
           color: secondaryColor,
           activeColor: AppColors.reply,
-          semanticLabel: post.replyCount == 0
-              ? 'Reply'
-              : 'Reply, ${post.replyCount} comments',
+          semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
           onTap: onReplyTap,
         ),
 
@@ -92,9 +91,8 @@ class PostActionBar extends ConsumerWidget {
           child: Semantics(
             button: true,
             label: post.chosenReactions.isNotEmpty
-                ? 'Your reaction ${post.chosenReactions.first}. '
-                    'Double tap to remove, long press to change'
-                : 'React to this post',
+                ? AppStrings.a11yCurrentReaction(post.chosenReactions.first)
+                : AppStrings.a11yReact,
             excludeSemantics: true,
             child: GestureDetector(
             onLongPress: () {
@@ -154,7 +152,9 @@ class PostActionBar extends ConsumerWidget {
           children: [
             Semantics(
               button: true,
-              label: post.isBookmarked ? 'Remove bookmark' : 'Bookmark post',
+              label: post.isBookmarked
+                  ? AppStrings.a11yBookmarkRemove
+                  : AppStrings.a11yBookmarkAdd,
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
@@ -170,7 +170,7 @@ class PostActionBar extends ConsumerWidget {
             const SizedBox(width: AppSpacing.lg),
             Semantics(
               button: true,
-              label: 'Copy link to post',
+              label: AppStrings.a11yCopyLink,
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();

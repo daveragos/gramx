@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -105,7 +106,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
             const Icon(Icons.error_outline, color: AppColors.error, size: 48),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Something went wrong',
+              AppStrings.feedErrorTitle,
               style: AppTypography.subheading(
                 color: theme.colorScheme.onSurface,
               ),
@@ -134,7 +135,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'No posts in ${widget.folderTitle}',
+                  AppStrings.feedEmptyTitle(widget.folderTitle),
                   style: AppTypography.subheading(
                     color: theme.colorScheme.onSurface,
                   ),
@@ -238,7 +239,7 @@ class _NewPostsPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count == 1 ? '1 new post' : '$count new posts';
+    final label = AppStrings.newPostsPill(count);
 
     return Semantics(
       button: true,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
@@ -189,15 +190,17 @@ class PostMediaGrid extends StatelessWidget {
 /// entirely invisible to a screen reader before this.
 String describeMedia(MediaItem item, int index, int total) {
   final kind = switch (item.type) {
-    MediaType.photo => 'Photo',
-    MediaType.video => 'Video',
-    MediaType.gif => 'GIF',
-    MediaType.sticker => 'Sticker',
-    MediaType.document => item.fileName ?? 'Document',
-    MediaType.audio => item.fileName ?? 'Audio track',
-    MediaType.voice => 'Voice message',
+    MediaType.photo => AppStrings.mediaPhoto,
+    MediaType.video => AppStrings.mediaVideo,
+    MediaType.gif => AppStrings.mediaGif,
+    MediaType.sticker => AppStrings.mediaSticker,
+    MediaType.document => item.fileName ?? AppStrings.mediaDocument,
+    MediaType.audio => item.fileName ?? AppStrings.mediaAudio,
+    MediaType.voice => AppStrings.mediaVoice,
   };
-  return total > 1 ? '$kind ${index + 1} of $total' : kind;
+  return total > 1
+      ? AppStrings.mediaPosition(kind, index + 1, total)
+      : kind;
 }
 
 class _MediaTile extends ConsumerWidget {

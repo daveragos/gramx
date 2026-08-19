@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -52,7 +53,7 @@ class ChannelsListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Channels',
+          AppStrings.channelsTitle,
           style: AppTypography.heading(color: primaryColor),
         ),
         actions: [
@@ -85,13 +86,13 @@ class ChannelsListScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     Text(
-                      'No channels yet',
+                      AppStrings.channelsEmptyTitle,
                       style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
-                      'Add public channels or log in to sync channels you already subscribe to.',
+                      AppStrings.channelsEmptyBody,
                       style: AppTypography.body(color: secondaryColor),
                       textAlign: TextAlign.center,
                     ),
@@ -109,7 +110,8 @@ class ChannelsListScreen extends ConsumerWidget {
                         ),
                       ),
                       onPressed: () => _showAddChannelDialog(context, ref),
-                      child: const Text('Add Public Channel', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(AppStrings.channelsAddPublic,
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),

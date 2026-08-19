@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -53,7 +54,9 @@ class PostCard extends ConsumerWidget {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(title != null ? 'Channel "$title" is private or unavailable' : 'Original channel is unavailable'),
+          content: Text(title != null
+              ? AppStrings.feedPrivateChannel(title)
+              : AppStrings.feedOriginalChannelUnavailable),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),
@@ -105,7 +108,7 @@ class PostCard extends ConsumerWidget {
         context.push('/post/${post.id}');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Comments are disabled for this channel.'),
+            content: Text(AppStrings.feedCommentsDisabled),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -119,7 +122,7 @@ class PostCard extends ConsumerWidget {
       if (link == null) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text("This post can't be linked to."),
+            content: Text(AppStrings.postNotLinkable),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 2),
           ),
@@ -129,7 +132,7 @@ class PostCard extends ConsumerWidget {
       await Clipboard.setData(ClipboardData(text: link));
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Post link copied to clipboard.'),
+          content: Text(AppStrings.postLinkCopied),
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
         ),
@@ -223,7 +226,7 @@ class PostCard extends ConsumerWidget {
                                const SizedBox(width: 6),
                                // State carried by colour alone needs a label.
                                Semantics(
-                                 label: 'Unread',
+                                 label: AppStrings.a11yUnread,
                                  child: Container(
                                    width: 7,
                                    height: 7,
