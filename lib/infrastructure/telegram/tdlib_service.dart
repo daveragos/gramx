@@ -7,6 +7,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gramx/core/config/app_config.dart';
+import 'package:gramx/infrastructure/telegram/database_key_store.dart';
 
 /// A failed TDLib request, carrying the numeric error code.
 ///
@@ -177,7 +178,10 @@ class TdlibService {
     }
   }
 
-  TdlibService(Ref ref);
+  final DatabaseKeyStore _keyStore;
+
+  TdlibService(Ref ref, {DatabaseKeyStore? keyStore})
+      : _keyStore = keyStore ?? DatabaseKeyStore();
 
   /// Stream of all incoming TDLib updates (excluding invoke results).
   Stream<td.TdObject> get updatesStream {
@@ -409,11 +413,16 @@ class TdlibService {
         await Directory(databaseDir).create(recursive: true);
         await Directory(filesDir).create(recursive: true);
 
+        // A null stored key means either a fresh install or a database created
+        // before encryption existed. Both are opened with an empty key and then
+        // encrypted in place below, so an upgrade doesn't orphan the cache.
+        final storedKey = await _keyStore.read();
+
         final request = td.SetTdlibParameters(
           useTestDc: false,
           databaseDirectory: databaseDir,
           filesDirectory: filesDir,
-          databaseEncryptionKey: '',
+          databaseEncryptionKey: storedKey ?? '',
           useFileDatabase: true,
           useChatInfoDatabase: true,
           useMessageDatabase: true,
@@ -433,6 +442,7 @@ class TdlibService {
         } else {
           _updateStatus('Parameters accepted by Telegram.');
           _markTdlibReady();
+          if (storedKey == null) await _encryptDatabase();
           try {
             await sendRequest(const td.SetLogVerbosityLevel(newVerbosityLevel: 1));
           } catch (_) {}
@@ -459,6 +469,24 @@ class TdlibService {
     }
   }
 
+  /// Encrypts the local database and stores the key in the platform keystore.
+  ///
+  /// Runs once, right after an unencrypted open. The key is persisted only
+  /// after TDLib confirms the change — storing it first would leave a key that
+  /// doesn't open the database, which is unrecoverable without a wipe.
+  Future<void> _encryptDatabase() async {
+    final key = DatabaseKeyStore.generate();
+    try {
+      await sendRequest(td.SetDatabaseEncryptionKey(newEncryptionKey: key));
+      await _keyStore.write(key);
+      debugPrint('[TDLib] Local database encrypted');
+    } catch (e) {
+      // The database stays readable with an empty key; we simply try again on
+      // the next launch rather than leaving a mismatched key behind.
+      debugPrint('[TDLib] Could not encrypt local database: $e');
+    }
+  }
+
   /// Completely wipe local TDLib database and reset connection.
   Future<void> resetSession() async {
     try {
@@ -474,6 +502,9 @@ class TdlibService {
       if (await databaseDir.exists()) {
         await databaseDir.delete(recursive: true);
       }
+      // The key belongs to the database we just deleted. Keeping it would make
+      // the next launch open a fresh database with a stale key and fail.
+      await _keyStore.clear();
       _updateStatus('Local session reset. Re-initializing...');
       await initialize();
     } catch (e) {
