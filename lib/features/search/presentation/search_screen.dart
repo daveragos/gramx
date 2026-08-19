@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,50 @@ class SearchNotifier extends Notifier<String> {
 
 final searchQueryProvider =
     NotifierProvider<SearchNotifier, String>(SearchNotifier.new);
+
+/// How long typing must pause before a query is allowed to reach Telegram.
+///
+/// Without this, a ten-character query fired `SearchPublicChats` ten times,
+/// each followed by per-result lookups — on the one path in the app the user
+/// drives keystroke by keystroke. See `docs/TDLIB.md` → no per-keystroke
+/// requests.
+const Duration searchDebounce = Duration(milliseconds: 300);
+
+/// The search query with the network debounce applied.
+///
+/// [searchQueryProvider] stays instant so filtering already-loaded posts feels
+/// immediate; only the query that costs a request waits.
+class DebouncedSearchQueryNotifier extends Notifier<String> {
+  Timer? _timer;
+  String _emitted = '';
+
+  @override
+  String build() {
+    final query = ref.watch(searchQueryProvider).trim();
+
+    _timer?.cancel();
+    ref.onDispose(() => _timer?.cancel());
+
+    // Clearing the field takes effect immediately — there is nothing to spend.
+    if (query.isEmpty) {
+      _emitted = '';
+      return '';
+    }
+    if (query == _emitted) return _emitted;
+
+    _timer = Timer(searchDebounce, () {
+      _emitted = query;
+      state = query;
+    });
+
+    // Keep showing the last settled query while the user is still typing.
+    return _emitted;
+  }
+}
+
+final debouncedSearchQueryProvider =
+    NotifierProvider<DebouncedSearchQueryNotifier, String>(
+        DebouncedSearchQueryNotifier.new);
 
 class SearchFocusNotifier extends Notifier<int> {
   @override
@@ -67,9 +112,11 @@ final searchCategoryProvider =
     NotifierProvider<SearchCategoryNotifier, SearchCategory>(
         SearchCategoryNotifier.new);
 
-/// Filtered local and global public channels based on search query.
+/// Local and global public channels matching the search query.
+///
+/// Watches the debounced query — this provider spends requests.
 final searchChannelsProvider = FutureProvider<List<Channel>>((ref) async {
-  final query = ref.watch(searchQueryProvider).trim();
+  final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return [];
 
   final repo = ref.watch(channelRepositoryProvider);
