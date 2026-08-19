@@ -282,54 +282,111 @@ class TdlibService {
     }
   }
 
-  /// Non-blocking polling loop (drains pending updates every 50ms)
+  /// Fastest poll, used while updates are actually arriving.
+  static const Duration _activePollInterval = Duration(milliseconds: 50);
+
+  /// Slowest poll, used once the queue has been empty for a while. A fixed
+  /// 50 ms timer woke the app twenty times a second even on an idle screen.
+  static const Duration _idlePollInterval = Duration(milliseconds: 250);
+
+  /// Empty drains before backing off.
+  static const int _idleThreshold = 8;
+
+  /// Updates decoded per drain before yielding to the event loop, so a burst —
+  /// a media download emits `UpdateFile` continuously — can't monopolise a frame.
+  static const int _maxDrainBatch = 64;
+
+  int _emptyDrains = 0;
+  Duration _pollInterval = _activePollInterval;
+
+  /// Non-blocking polling loop, backing off while nothing is arriving.
   void _startPolling() {
+    _scheduleNextPoll(_activePollInterval);
+  }
+
+  void _scheduleNextPoll(Duration interval) {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      _drainUpdates();
-    });
+    _pollInterval = interval;
+    _pollTimer = Timer.periodic(interval, (_) => _drainUpdates());
+  }
+
+  /// Speeds the loop up on activity and slows it down when idle.
+  void _adjustPollRate({required bool drainedAnything}) {
+    if (drainedAnything) {
+      _emptyDrains = 0;
+      if (_pollInterval != _activePollInterval) {
+        _scheduleNextPoll(_activePollInterval);
+      }
+      return;
+    }
+
+    if (_pollInterval == _idlePollInterval) return;
+    if (++_emptyDrains >= _idleThreshold) {
+      _scheduleNextPoll(_idlePollInterval);
+    }
   }
 
   final Map<String, Completer<td.TdObject>> _pendingRequests = {};
 
-  /// Drain all pending updates from native queue using tdReceive(0)
+  /// Drains pending updates from the native queue.
+  ///
+  /// Decodes each payload exactly once. The previous version parsed every
+  /// update twice — once for the `@extra` check and again inside
+  /// `convertJsonToObject` — and request replies were additionally re-encoded
+  /// back to a string in between, so a reply cost two parses and one encode.
   void _drainUpdates() {
-    for (int i = 0; i < 100; i++) {
+    var drained = 0;
+
+    while (drained < _maxDrainBatch) {
       final String? response = TdPlugin.instance.tdReceive(0);
-      if (response == null || response.isEmpty) return;
+      if (response == null || response.isEmpty) break;
+      drained++;
 
       try {
         final map = jsonDecode(response) as Map<String, dynamic>;
+
+        // Presence of the key — not a non-null value — is what marks a reply
+        // to one of our requests, matching how TDLib echoes it back.
         if (map.containsKey('@extra')) {
           final extra = map['@extra']?.toString();
-          final completer = extra != null ? _pendingRequests.remove(extra) : null;
+          final completer =
+              extra != null ? _pendingRequests.remove(extra) : null;
           if (completer != null) {
-            final object = convertJsonToObject(jsonEncode(map));
-            if (object != null) {
-              if (object is td.TdError) {
-                _noteError(object.code, object.message);
-                completer.completeError(
-                  TdlibRequestException(object.code, object.message),
-                );
-              } else {
-                completer.complete(object);
-              }
-            } else {
-              completer.completeError(Exception('Failed to deserialize TDLib response.'));
-            }
+            _completeRequest(completer, map);
           } else {
             _invokesController.add(map);
           }
         } else {
-          final object = convertJsonToObject(response);
-          if (object != null) {
-            _handleIncomingUpdate(object);
-          }
+          final object = convertMapToObject(map);
+          if (object != null) _handleIncomingUpdate(object);
         }
       } catch (e) {
         debugPrint('[TDLib] JSON decode error on update: $e');
       }
     }
+
+    _adjustPollRate(drainedAnything: drained > 0);
+  }
+
+  void _completeRequest(
+    Completer<td.TdObject> completer,
+    Map<String, dynamic> map,
+  ) {
+    final object = convertMapToObject(map);
+    if (object == null) {
+      completer.completeError(
+        Exception('Failed to deserialize TDLib response.'),
+      );
+      return;
+    }
+    if (object is td.TdError) {
+      _noteError(object.code, object.message);
+      completer.completeError(
+        TdlibRequestException(object.code, object.message),
+      );
+      return;
+    }
+    completer.complete(object);
   }
 
   /// Send a TDLib request and await its typed response.
