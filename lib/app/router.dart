@@ -19,7 +19,7 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _searchNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'search');
 final _channelsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'channels');
-final _settingsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'settings');
+final _bookmarksNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'bookmarks');
 
 /// Auth-gated router.
 ///
@@ -46,7 +46,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/home',
+    initialLocation: ShellTab.home.path,
     refreshListenable: authNotifier,
     redirect: (context, state) {
       final authStep = ref.read(authControllerProvider).step;
@@ -68,12 +68,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Already authenticated but lingering on /auth → go home.
       if (isAuthenticated && isOnAuth) {
-        return '/home';
+        return ShellTab.home.path;
       }
 
       return null; // no redirect needed
     },
     routes: [
+      // Branches are declared in ShellTab order and take their paths from it;
+      // see app/app_shell.dart. Adding a tab means adding a branch here.
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
@@ -84,7 +86,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             navigatorKey: _homeNavigatorKey,
             routes: [
               GoRoute(
-                path: '/home',
+                path: ShellTab.home.path,
                 builder: (context, state) => const HomeScreen(),
               ),
             ],
@@ -94,7 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             navigatorKey: _searchNavigatorKey,
             routes: [
               GoRoute(
-                path: '/search',
+                path: ShellTab.search.path,
                 builder: (context, state) => const SearchScreen(),
               ),
             ],
@@ -104,18 +106,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             navigatorKey: _channelsNavigatorKey,
             routes: [
               GoRoute(
-                path: '/channels',
+                path: ShellTab.channels.path,
                 builder: (context, state) => const ChannelsListScreen(),
               ),
             ],
           ),
-          // Settings tab
+          // Bookmarks tab
           StatefulShellBranch(
-            navigatorKey: _settingsNavigatorKey,
+            navigatorKey: _bookmarksNavigatorKey,
             routes: [
               GoRoute(
-                path: '/settings',
-                builder: (context, state) => const SettingsScreen(),
+                path: ShellTab.bookmarks.path,
+                builder: (context, state) => const BookmarksScreen(),
               ),
             ],
           ),
@@ -159,9 +161,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ProfileScreen(),
       ),
       GoRoute(
-        path: '/bookmarks',
+        path: '/settings',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BookmarksScreen(),
+        builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
         path: '/folders',

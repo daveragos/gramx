@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -188,7 +189,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               icon: const Icon(Icons.search_rounded),
                               color: primaryTextColor,
                               onPressed: () {
-                                context.push('/search');
+                                // Switch tab rather than push: /search is a
+                                // shell branch, and pushing it would stack a
+                                // second copy above the tab bar.
+                                StatefulNavigationShell.of(context)
+                                    .goBranch(ShellTab.search.index);
                               },
                             ),
                           ],

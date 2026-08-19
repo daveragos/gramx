@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
@@ -9,6 +10,11 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
+
+  void _goToTab(BuildContext context, ShellTab tab) {
+    Navigator.pop(context);
+    StatefulNavigationShell.of(context).goBranch(tab.index);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,21 +125,18 @@ class AppDrawer extends ConsumerWidget {
                 GoRouter.of(context).push('/profile');
               },
             ),
+            // Tabs switch branches rather than pushing. Pushing a branch route
+            // onto the root stack leaves the shell's indexed stack behind and
+            // throws away that tab's scroll position.
             DrawerNavItem(
               icon: Icons.bookmark_border_rounded,
               title: 'Saved Messages & Bookmarks',
-              onTap: () {
-                Navigator.pop(context);
-                GoRouter.of(context).push('/bookmarks');
-              },
+              onTap: () => _goToTab(context, ShellTab.bookmarks),
             ),
             DrawerNavItem(
               icon: Icons.list_alt_rounded,
               title: 'Subscribed Channels',
-              onTap: () {
-                Navigator.pop(context);
-                GoRouter.of(context).push('/channels');
-              },
+              onTap: () => _goToTab(context, ShellTab.channels),
             ),
             DrawerNavItem(
               icon: Icons.settings_outlined,

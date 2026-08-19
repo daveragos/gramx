@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -33,6 +34,14 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void deactivate() {
+    // Leaving the feed with the bar hidden would strand it off screen on
+    // whatever comes next.
+    ref.read(bottomNavVisibilityProvider.notifier).show();
+    super.deactivate();
   }
 
   /// Commits pending arrivals, then returns to the top so the user lands on
@@ -132,6 +141,16 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           },
           child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
+              // Scrolling down hides the tab bar, scrolling up brings it back —
+              // the reading surface gets the whole screen while in motion.
+              if (notification is UserScrollNotification) {
+                final nav = ref.read(bottomNavVisibilityProvider.notifier);
+                if (notification.direction == ScrollDirection.reverse) {
+                  nav.hide();
+                } else if (notification.direction == ScrollDirection.forward) {
+                  nav.show();
+                }
+              }
               if (notification.metrics.pixels >=
                   notification.metrics.maxScrollExtent - 300) {
                 _loadMore();
