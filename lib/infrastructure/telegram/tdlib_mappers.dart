@@ -165,9 +165,11 @@ class TdlibMappers {
     String? forwardedFromTitle;
     String? forwardedFromUsername;
     String? forwardedFromChatId;
+    int? forwardedFromMessageId;
     final fwdOrigin = message.forwardInfo?.origin;
     if (fwdOrigin is td.MessageOriginChannel) {
       forwardedFromChatId = fwdOrigin.chatId.toString();
+      forwardedFromMessageId = fwdOrigin.messageId;
       final resolvedTitle = knownChatTitles?[fwdOrigin.chatId];
       forwardedFromTitle = resolvedTitle ?? (fwdOrigin.authorSignature.isNotEmpty ? fwdOrigin.authorSignature : null);
     } else if (fwdOrigin is td.MessageOriginChat) {
@@ -341,6 +343,7 @@ class TdlibMappers {
       forwardedFromTitle: forwardedFromTitle,
       forwardedFromUsername: forwardedFromUsername,
       forwardedFromChatId: forwardedFromChatId,
+      forwardedFromMessageId: forwardedFromMessageId,
       replyToText: replyToText,
       replyToAuthorTitle: replyToAuthorTitle,
       replyToMessageId: replyToMessageId,

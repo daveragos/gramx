@@ -24,6 +24,9 @@ abstract class AppStrings {
       'Fetching your subscribed channels and history from Telegram...';
   static const feedEmptyTitleAll = 'No posts yet';
   static const feedErrorTitle = 'Something went wrong';
+  static const feedCaughtUpTitle = "You're all caught up";
+  static const feedCaughtUpBody =
+      'Posts you have read are cleared on refresh. New ones will appear here.';
   static const feedScrollToTop = 'Top';
   static const feedPressBackAgain = 'Press back again to exit';
   static const feedCommentsDisabled = 'Comments are disabled for this channel.';
@@ -43,6 +46,11 @@ abstract class AppStrings {
   static const postLinkCopied = 'Post link copied to clipboard.';
   static const postNotLinkable = "This post can't be linked to.";
   static const postNotFound = 'Post not found';
+  static const postUnreachableBody =
+      "This post is in a channel you're not in, or it has been deleted. "
+      'It may still open in Telegram.';
+  static const postOpenInTelegram = 'Open in Telegram';
+  static const postCannotOpenTelegram = "Couldn't open Telegram.";
   static const postTitle = 'Post';
 
   static const a11yReply = 'Reply';

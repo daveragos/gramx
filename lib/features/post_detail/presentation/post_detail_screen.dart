@@ -6,6 +6,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
@@ -214,12 +216,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         error: (err, _) => Center(child: Text('Error: $err')),
         data: (post) {
           if (post == null) {
-            return Center(
-              child: Text(
-                AppStrings.postNotFound,
-                style: AppTypography.body(color: secondaryColor),
-              ),
-            );
+            // Usually a forward from a private channel, or a deleted post.
+            // Telegram itself may still be able to show it, so offer that
+            // rather than leaving a dead end.
+            return _UnreachablePost(postId: widget.postId);
           }
 
           final totalReactions =
@@ -1197,6 +1197,69 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when a post can't be loaded — typically a forward whose origin is a
+/// channel the user isn't in.
+class _UnreachablePost extends StatelessWidget {
+  final String postId;
+
+  const _UnreachablePost({required this.postId});
+
+  Future<void> _openInTelegram(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final parts = postId.split('_');
+    final chatId = parts.length == 2 ? int.tryParse(parts[0]) : null;
+    final messageId = parts.length == 2 ? int.tryParse(parts[1]) : null;
+
+    final link = chatId == null || messageId == null
+        ? null
+        : TelegramIds.postLink(chatId: chatId, messageId: messageId);
+
+    if (link == null || !await launchUrl(Uri.parse(link),
+        mode: LaunchMode.externalApplication)) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text(AppStrings.postCannotOpenTelegram)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 48, color: secondary),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              AppStrings.postNotFound,
+              style: AppTypography.subheading(color: theme.colorScheme.onSurface),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              AppStrings.postUnreachableBody,
+              style: AppTypography.body(color: secondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            OutlinedButton.icon(
+              onPressed: () => _openInTelegram(context),
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text(AppStrings.postOpenInTelegram),
+            ),
+          ],
         ),
       ),
     );

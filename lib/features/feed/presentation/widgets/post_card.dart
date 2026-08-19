@@ -43,25 +43,37 @@ class PostCard extends ConsumerWidget {
     this.onShareTap,
   });
 
-  Future<void> _handleForwardedTap(BuildContext context, WidgetRef ref) async {
-    if (post.forwardedFromChatId != null) {
-      NavigationUtils.openChannel(context, post.forwardedFromChatId!);
+  /// Opens what a forwarded post came from.
+  ///
+  /// Three cases, in descending order of usefulness:
+  ///  1. Telegram told us the original post — open that post directly.
+  ///  2. We only know the channel — open the channel.
+  ///  3. The origin was hidden (a private channel, or a sender who forbids
+  ///     linking) — say so, rather than doing nothing on tap.
+  void _handleForwardedTap(BuildContext context, WidgetRef ref) {
+    final chatId = post.forwardedFromChatId;
+    final messageId = post.forwardedFromMessageId;
+
+    if (chatId != null && messageId != null) {
+      context.push('/post/${chatId}_$messageId');
+      return;
+    }
+
+    if (chatId != null) {
+      NavigationUtils.openChannel(context, chatId);
       return;
     }
 
     final title = post.forwardedFromTitle;
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(title != null
-              ? AppStrings.feedPrivateChannel(title)
-              : AppStrings.feedOriginalChannelUnavailable),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(title != null
+            ? AppStrings.feedPrivateChannel(title)
+            : AppStrings.feedOriginalChannelUnavailable),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override

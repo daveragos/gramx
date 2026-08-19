@@ -24,6 +24,25 @@ Map<int, int> narrowCursors(Map<int, int> cursors, Set<int>? allowedChatIds) {
   };
 }
 
+/// Removes posts the reader has already finished with.
+///
+/// A post is dropped only when *both* are true: it was on screen before the
+/// refresh ([seenBefore]) and Telegram now considers it read. That pairing
+/// matters —
+///
+/// * filtering on read alone would empty the feed on a cold start, since
+///   everything older than the read cursor is read;
+/// * filtering on seen alone would drop unread posts the reader deliberately
+///   scrolled past to come back to.
+///
+/// New posts and posts still unread always survive.
+List<Post> dropAlreadyRead(List<Post> posts, Set<String> seenBefore) {
+  if (seenBefore.isEmpty) return posts;
+  return posts
+      .where((p) => !(p.isRead && seenBefore.contains(p.id)))
+      .toList();
+}
+
 /// Merges [incoming] posts into [current], newest first.
 ///
 /// Posts already present win: their entry is kept untouched so optimistic
@@ -155,13 +174,19 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   }
 
   /// Full refresh: re-fetch from scratch (for pull-to-refresh).
+  ///
+  /// Posts the reader already finished are dropped — pulling for new material
+  /// and being handed back what you just read is the opposite of what the
+  /// gesture asks for. See [dropAlreadyRead] for exactly which ones go.
   Future<void> refresh() async {
     _backfillSub?.cancel();
+    final seenBefore = (state.value ?? const <Post>[]).map((p) => p.id).toSet();
+
     _oldestMessageIds.clear();
     state = const AsyncLoading();
     final repo = ref.read(feedRepositoryProvider);
     state = await AsyncValue.guard(() async {
-      final posts = await repo.fetchFeedPosts();
+      final posts = dropAlreadyRead(await repo.fetchFeedPosts(), seenBefore);
       _updateOldestIds(posts);
       return posts;
     });

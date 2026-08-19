@@ -6,6 +6,7 @@ Post post(
   String id, {
   required int minutesAgo,
   bool isBookmarked = false,
+  bool isRead = false,
   Map<String, int> reactions = const {},
 }) {
   final parts = id.split('_');
@@ -17,11 +18,62 @@ Post post(
     channelTitle: 'Channel ${parts[0]}',
     publishedAt: DateTime(2026, 1, 1, 12).subtract(Duration(minutes: minutesAgo)),
     isBookmarked: isBookmarked,
+    isRead: isRead,
     reactions: reactions,
   );
 }
 
 void main() {
+  group('dropAlreadyRead', () {
+    // Pulling for new material and being handed back what you just read is the
+    // opposite of what the gesture asks for.
+    test('drops posts that were on screen and are now read', () {
+      final fetched = [
+        post('-1_1', minutesAgo: 10, isRead: true),
+        post('-1_2', minutesAgo: 5, isRead: false),
+      ];
+
+      final kept = dropAlreadyRead(fetched, {'-1_1', '-1_2'});
+
+      expect(kept.map((p) => p.id), ['-1_2']);
+    });
+
+    // Filtering on "read" alone would empty the feed on a cold start —
+    // everything older than the read cursor is read.
+    test('keeps read posts that were never on screen', () {
+      final fetched = [post('-1_1', minutesAgo: 10, isRead: true)];
+
+      expect(dropAlreadyRead(fetched, const {}), hasLength(1));
+      expect(dropAlreadyRead(fetched, {'-9_9'}), hasLength(1));
+    });
+
+    // Filtering on "seen" alone would drop unread posts the reader
+    // deliberately scrolled past to come back to.
+    test('keeps unread posts even if they were on screen', () {
+      final fetched = [post('-1_1', minutesAgo: 10, isRead: false)];
+
+      expect(dropAlreadyRead(fetched, {'-1_1'}), hasLength(1));
+    });
+
+    test('new posts always survive', () {
+      final fetched = [
+        post('-1_1', minutesAgo: 10, isRead: true),
+        post('-1_9', minutesAgo: 1, isRead: false),
+      ];
+
+      expect(dropAlreadyRead(fetched, {'-1_1'}).map((p) => p.id), ['-1_9']);
+    });
+
+    test('can legitimately empty the feed when everything is read', () {
+      final fetched = [
+        post('-1_1', minutesAgo: 10, isRead: true),
+        post('-1_2', minutesAgo: 5, isRead: true),
+      ];
+
+      expect(dropAlreadyRead(fetched, {'-1_1', '-1_2'}), isEmpty);
+    });
+  });
+
   group('mergePostsNewestFirst', () {
     test('adds new posts and orders newest first', () {
       final current = [post('-1_2', minutesAgo: 10)];

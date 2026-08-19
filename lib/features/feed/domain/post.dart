@@ -38,6 +38,9 @@ abstract class Post with _$Post {
     String? forwardedFromTitle,
     String? forwardedFromUsername,
     String? forwardedFromChatId,
+    /// The original post's id in its own channel, when Telegram tells us.
+    /// Lets a forward link to the post itself rather than just the channel.
+    int? forwardedFromMessageId,
     String? replyToText,
     String? replyToAuthorTitle,
     int? replyToMessageId,

@@ -35,6 +35,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
 
+  /// True once this tab has shown posts, so an empty list afterwards means
+  /// "caught up" rather than "nothing here".
+  bool _hasLoadedOnce = false;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -138,27 +142,48 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         ),
       ),
       data: (posts) {
+        if (posts.isNotEmpty) _hasLoadedOnce = true;
         if (posts.isEmpty) {
           if (isSyncing) {
             return const FeedSkeleton();
           }
+          // An empty feed after a refresh means the reader finished
+          // everything, which is a different message from "this folder has
+          // nothing in it".
+          final caughtUp = _hasLoadedOnce;
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.article_outlined,
-                  color: theme.iconTheme.color,
-                  size: 48,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  AppStrings.feedEmptyTitle(widget.folderTitle),
-                  style: AppTypography.subheading(
-                    color: theme.colorScheme.onSurface,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xxl),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    caughtUp
+                        ? Icons.check_circle_outline
+                        : Icons.article_outlined,
+                    color: theme.iconTheme.color,
+                    size: 48,
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    caughtUp
+                        ? AppStrings.feedCaughtUpTitle
+                        : AppStrings.feedEmptyTitle(widget.folderTitle),
+                    style: AppTypography.subheading(
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (caughtUp) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      AppStrings.feedCaughtUpBody,
+                      style: AppTypography.body(color: theme.iconTheme.color),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
+              ),
             ),
           );
         }
