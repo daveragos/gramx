@@ -58,10 +58,21 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     super.dispose();
   }
 
-  void _handleShare(BuildContext context, Post post) {
-    final postUrl = 'https://t.me/c/${post.channelId}/${post.messageId}';
-    Clipboard.setData(ClipboardData(text: postUrl));
-    ScaffoldMessenger.of(context).showSnackBar(
+  Future<void> _handleShare(BuildContext context, Post post) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final link = await ref.read(feedRepositoryProvider).postLink(post);
+    if (link == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text("This post can't be linked to."),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: link));
+    messenger.showSnackBar(
       const SnackBar(
         content: Text('Post link copied to clipboard.'),
         behavior: SnackBarBehavior.floating,

@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
@@ -325,6 +326,33 @@ class FeedRepository {
       history.messages,
       chatObj,
       bookmarkedKeys: bookmarkKeys,
+    );
+  }
+
+  /// A shareable t.me link for a post.
+  ///
+  /// Asks TDLib for the canonical link first — it knows about usernames,
+  /// albums and thread context. Falls back to building one locally if the
+  /// request fails, so sharing still works offline or for a channel TDLib
+  /// declines to link.
+  Future<String?> postLink(Post post) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetMessageLink(
+        chatId: post.chatId,
+        messageId: post.messageId,
+        mediaTimestamp: 0,
+        forAlbum: post.media.length > 1,
+        inMessageThread: false,
+      ));
+      if (res is td.MessageLink && res.link.isNotEmpty) return res.link;
+    } catch (e) {
+      debugPrint('[FeedRepo] GetMessageLink failed, building locally: $e');
+    }
+
+    return TelegramIds.postLink(
+      chatId: post.chatId,
+      messageId: post.messageId,
+      username: post.channelUsername,
     );
   }
 
