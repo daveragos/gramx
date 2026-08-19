@@ -226,6 +226,55 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, chats);
   }
 
+  /// Looks up the messages that posts in this batch are replying to.
+  ///
+  /// TDLib only inlines `replyTo.content` for cross-chat replies and quotes, so
+  /// a reply inside one channel arrives with no preview text — the card fell
+  /// back to the words "Original post", which say nothing about the post.
+  ///
+  /// `GetMessages` takes a list, so this is one request per chat regardless of
+  /// how many replies it holds, and it reads local data in the common case.
+  Future<Map<String, String>> _resolveReplyExcerpts(
+    Map<int, List<td.Message>> messagesByChatId,
+  ) async {
+    final wanted = <int, Set<int>>{};
+
+    for (final entry in messagesByChatId.entries) {
+      for (final message in entry.value) {
+        final replyTo = message.replyTo;
+        if (replyTo is! td.MessageReplyToMessage) continue;
+        // Already inlined by TDLib, or the user quoted specific text.
+        if (replyTo.content != null || replyTo.quote != null) continue;
+        if (replyTo.messageId == 0) continue;
+        wanted.putIfAbsent(entry.key, () => {}).add(replyTo.messageId);
+      }
+    }
+
+    if (wanted.isEmpty) return const {};
+
+    final excerpts = <String, String>{};
+    for (final entry in wanted.entries) {
+      try {
+        final res = await _tdlib.sendRequest(td.GetMessages(
+          chatId: entry.key,
+          messageIds: entry.value.toList(),
+        ));
+        if (res is! td.Messages) continue;
+        for (final message in res.messages) {
+          // GetMessages answers with an id of 0 for anything it doesn't have.
+          if (message.id == 0) continue;
+          final excerpt = TdlibMappers.excerptOf(message);
+          if (excerpt != null) {
+            excerpts['${entry.key}_${message.id}'] = excerpt;
+          }
+        }
+      } catch (e) {
+        debugPrint('[FeedRepo] Reply excerpt lookup failed for ${entry.key}: $e');
+      }
+    }
+    return excerpts;
+  }
+
   /// Maps raw messages into sorted [Post]s, resolving forwarded-channel names.
   Future<List<Post>> _buildPosts(
     Map<int, List<td.Message>> messagesByChatId,
@@ -271,6 +320,8 @@ class FeedRepository {
       }
     }
 
+    final replyExcerpts = await _resolveReplyExcerpts(messagesByChatId);
+
     final posts = <Post>[];
     for (final entry in messagesByChatId.entries) {
       final chat = chatMap[entry.key];
@@ -280,6 +331,7 @@ class FeedRepository {
         chat,
         bookmarkedKeys: bookmarkKeys,
         knownChatTitles: knownChatTitles,
+        knownReplyExcerpts: replyExcerpts,
       ));
     }
 
@@ -519,35 +571,99 @@ class FeedRepository {
 
   /// Fetch a single post by chatId and messageId via TDLib GetMessages.
   Future<Post?> fetchSinglePost(int chatId, int messageId) async {
+    final chat = await _resolveChat(chatId);
+    if (chat == null) return null;
+
+    // Local first — free, and usually enough for a post already in the feed.
+    final cached = await _messageById(chatId, messageId);
+    if (cached != null) return _postFrom(cached, chat);
+
+    // Not cached. Ask the server for a window *around* the message.
+    //
+    // `GetChatHistory` with offset 0 returns messages strictly older than the
+    // anchor, so the message asked for is never in the result — the old
+    // fallback could not succeed, and a perfectly reachable public post
+    // reported itself as private. A negative offset includes the anchor.
+    try {
+      final res = await _tdlib.sendRequest(td.GetChatHistory(
+        chatId: chatId,
+        fromMessageId: messageId,
+        offset: -1,
+        limit: 3,
+        onlyLocal: false,
+      ));
+      if (res is td.Messages) {
+        for (final message in res.messages) {
+          if (message.id == messageId) return await _postFrom(message, chat);
+        }
+      }
+    } catch (e) {
+      debugPrint('[FeedRepo] fetchSinglePost history fallback failed: $e');
+    }
+
+    // One more try at the direct read: the window fetch above will have pulled
+    // the message into TDLib's local store even if it wasn't in the reply.
+    final afterFetch = await _messageById(chatId, messageId);
+    return afterFetch == null ? null : _postFrom(afterFetch, chat);
+  }
+
+  /// Reads one message, or null if TDLib doesn't have it.
+  ///
+  /// `GetMessages` answers with a placeholder whose id is 0 rather than an
+  /// error when a message isn't cached, so the id has to be checked.
+  Future<td.Message?> _messageById(int chatId, int messageId) async {
     try {
       final res = await _tdlib.sendRequest(td.GetMessages(
         chatId: chatId,
         messageIds: [messageId],
       ));
-      if (res is td.Messages && res.messages.isNotEmpty) {
-        final msg = res.messages.first;
-        if (msg.id != 0) {
-          final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
-          if (chatObj is td.Chat) {
-            final bookmarks = await _db.select(_db.bookmarkEntries).get();
-            final bookmarkKeys =
-                bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
-            final posts = TdlibMappers.mergeAlbumMessages(
-              [msg],
-              chatObj,
-              bookmarkedKeys: bookmarkKeys,
-            );
-            if (posts.isNotEmpty) return posts.first;
-          }
-        }
-      }
+      if (res is! td.Messages || res.messages.isEmpty) return null;
+      final message = res.messages.first;
+      return message.id == messageId ? message : null;
     } catch (e) {
-      debugPrint('[FeedRepo] fetchSinglePost error: $e');
+      debugPrint('[FeedRepo] GetMessages failed for $chatId/$messageId: $e');
+      return null;
+    }
+  }
+
+  /// Finds a chat, teaching TDLib about it if it only knows the id.
+  ///
+  /// A forwarded post's origin is often a channel the user isn't in, so the
+  /// cache misses and `GetChat` alone can fail. `CreateSupergroupChat` makes a
+  /// public channel resolvable; a genuinely private one still fails, which is
+  /// the case the UI reports honestly.
+  Future<td.Chat?> _resolveChat(int chatId) async {
+    final cached = _chatCache.chat(chatId);
+    if (cached != null) return cached;
+
+    try {
+      final res = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      if (res is td.Chat) return res;
+    } catch (_) {
+      // Falls through to the supergroup path below.
     }
 
-    final fallbackPosts =
-        await fetchChannelPosts(chatId, fromMessageId: messageId, limit: 20);
-    return fallbackPosts.where((p) => p.messageId == messageId).firstOrNull;
+    final supergroupId = TelegramIds.supergroupId(chatId);
+    if (supergroupId == null) return null;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.CreateSupergroupChat(supergroupId: supergroupId, force: false),
+      );
+      return res is td.Chat ? res : null;
+    } catch (e) {
+      debugPrint('[FeedRepo] Could not resolve chat $chatId: $e');
+      return null;
+    }
+  }
+
+  Future<Post?> _postFrom(td.Message message, td.Chat chat) async {
+    final posts = TdlibMappers.mergeAlbumMessages(
+      [message],
+      chat,
+      bookmarkedKeys: await _bookmarkKeys(),
+    );
+    return posts.isEmpty ? null : posts.first;
   }
 
   /// Fetch all bookmarked posts stored in the local SQLite database.

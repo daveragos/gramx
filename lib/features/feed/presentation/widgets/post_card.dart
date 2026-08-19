@@ -410,7 +410,7 @@ class PostCard extends ConsumerWidget {
   Widget _buildQuotedReplyCard(
       BuildContext context, WidgetRef ref, Post post, bool isDark, Color secondaryColor) {
     final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
-    final replyText = post.replyToText ?? 'Original post';
+    final replyText = post.replyToText ?? AppStrings.replyUnavailable;
     final hasThumbnail = post.replyToThumbnailFileId != null ||
         (post.replyToThumbnailUrl != null && post.replyToThumbnailUrl!.isNotEmpty);
 

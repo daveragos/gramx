@@ -176,6 +176,8 @@ abstract class AppStrings {
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 
+  static const replyUnavailable = 'Message unavailable';
+
   // ── Threads ────────────────────────────────────────────────────────────────
   static const threadHide = 'Hide thread';
 

@@ -55,11 +55,57 @@ class TdlibMappers {
     );
   }
 
+  /// A one-line summary of a message, for a reply preview.
+  ///
+  /// Text messages and captions show their own words; everything else falls
+  /// back to a label for its kind, the same way Telegram does.
+  static String? excerptOf(td.Message message, {int maxLength = 120}) {
+    final content = message.content;
+    String? text;
+
+    if (content is td.MessageText) {
+      text = _parseFormattedText(content.text);
+    } else if (content is td.MessagePhoto) {
+      text = _parseFormattedText(content.caption) ?? '🖼 Photo';
+    } else if (content is td.MessageVideo) {
+      text = _parseFormattedText(content.caption) ?? '🎬 Video';
+    } else if (content is td.MessageAnimation) {
+      text = _parseFormattedText(content.caption) ?? 'GIF';
+    } else if (content is td.MessageDocument) {
+      text = _parseFormattedText(content.caption) ??
+          (content.document.fileName.isNotEmpty
+              ? content.document.fileName
+              : '📄 Document');
+    } else if (content is td.MessageVoiceNote) {
+      text = _parseFormattedText(content.caption) ?? '🎤 Voice message';
+    } else if (content is td.MessageAudio) {
+      text = _parseFormattedText(content.caption) ?? '🎵 Audio';
+    } else if (content is td.MessagePoll) {
+      text = _parseFormattedText(content.poll.question);
+    } else if (content is td.MessageSticker) {
+      text = '${content.sticker.emoji} Sticker';
+    } else {
+      text = MessageContentSupport.describe(content);
+    }
+
+    if (text == null || text.isEmpty) return null;
+
+    final collapsed = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (collapsed.length <= maxLength) return collapsed;
+    return '${collapsed.substring(0, maxLength).trimRight()}…';
+  }
+
   static Post mapMessageToPost(
     td.Message message,
     td.Chat chat, {
     bool isBookmarked = false,
     Map<int, String>? knownChatTitles,
+    /// Excerpts for replied-to messages, keyed `chatId_messageId`.
+    ///
+    /// TDLib only fills `replyTo.content` for cross-chat replies and quotes, so
+    /// a reply within the same channel arrives with no preview text at all. The
+    /// repository resolves those and passes them in here.
+    Map<String, String>? knownReplyExcerpts,
     String? overrideSenderTitle,
     String? overrideSenderAvatarUrl,
     int? overrideSenderAvatarFileId,
@@ -210,6 +256,9 @@ class TdlibMappers {
       if (quote != null) {
         replyToText = _parseFormattedText(quote.text);
       }
+
+      // Resolved separately when TDLib didn't inline the content.
+      replyToText ??= knownReplyExcerpts?['${chat.id}_${replyTo.messageId}'];
 
       // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
@@ -554,7 +603,7 @@ class TdlibMappers {
     return list;
   }
 
-  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}, Map<int, String>? knownChatTitles}) {
+  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}, Map<int, String>? knownChatTitles, Map<String, String>? knownReplyExcerpts}) {
     final grouped = <int, List<td.Message>>{};
     final result = <Post>[];
 
@@ -565,7 +614,7 @@ class TdlibMappers {
 
       final albumId = m.mediaAlbumId.toInt();
       if (albumId == 0) {
-        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'), knownChatTitles: knownChatTitles));
+        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'), knownChatTitles: knownChatTitles, knownReplyExcerpts: knownReplyExcerpts));
       } else {
         grouped.putIfAbsent(albumId, () => []).add(m);
       }
@@ -575,7 +624,7 @@ class TdlibMappers {
       group.sort((a, b) => a.id.compareTo(b.id));
       final anchor = group.first;
       
-      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'), knownChatTitles: knownChatTitles);
+      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'), knownChatTitles: knownChatTitles, knownReplyExcerpts: knownReplyExcerpts);
       
       final allMedia = <MediaItem>[];
       int maxViews = 0;
