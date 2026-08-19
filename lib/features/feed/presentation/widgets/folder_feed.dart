@@ -8,10 +8,11 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
+import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
-import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
+import 'package:gramx/features/feed/presentation/widgets/thread_card.dart';
 
 class FolderFeed extends ConsumerStatefulWidget {
   final String folderTitle;
@@ -143,6 +144,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
       ),
       data: (posts) {
         if (posts.isNotEmpty) _hasLoadedOnce = true;
+        // Collapse a channel's own follow-ups so one burst takes one slot.
+        final threads = groupIntoThreads(posts);
         if (posts.isEmpty) {
           if (isSyncing) {
             return const FeedSkeleton();
@@ -219,9 +222,9 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
             child: ListView.builder(
               controller: _scrollController,
               padding: EdgeInsets.only(top: widget.topPadding),
-              itemCount: posts.length + (_isLoadingMore ? 1 : 0),
+              itemCount: threads.length + (_isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == posts.length) {
+                if (index == threads.length) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: Center(
@@ -233,21 +236,16 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                   );
                 }
 
-                final post = posts[index];
-                return PostVisibilityReporter(
-                  postId: post.id,
-                  child: PostCard(
-                    post: post,
-                    onTap: () {
-                      ref.read(markPostAsReadProvider(post.id));
-                      context.push('/post/${post.id}');
-                    },
-                    onChannelTap: () =>
-                        NavigationUtils.openChannel(context, post.channelId),
-                    onBookmarkTap: () {
-                      ref.read(bookmarkToggleProvider(post.id));
-                    },
-                  ),
+                final thread = threads[index];
+                return ThreadCard(
+                  key: ValueKey(thread.root.id),
+                  thread: thread,
+                  onOpenPost: (post) {
+                    ref.read(markPostAsReadProvider(post.id));
+                    context.push('/post/${post.id}');
+                  },
+                  onOpenChannel: (post) =>
+                      NavigationUtils.openChannel(context, post.channelId),
                 );
               },
             ),

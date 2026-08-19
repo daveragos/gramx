@@ -176,6 +176,12 @@ abstract class AppStrings {
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 
+  // ── Threads ────────────────────────────────────────────────────────────────
+  static const threadHide = 'Hide thread';
+
+  static String threadShow(int count) =>
+      count == 1 ? 'Show 1 more post' : 'Show $count more posts';
+
   // ── Video ──────────────────────────────────────────────────────────────────
   static const videoUnavailable = "This video isn't available.";
   static const videoPreparing = 'Preparing video…';
