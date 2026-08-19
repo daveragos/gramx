@@ -65,6 +65,8 @@ abstract class MediaItem with _$MediaItem {
     int? thumbnailFileId,
     /// How a sticker is encoded. Only meaningful for [MediaType.sticker].
     @Default(StickerFormat.unknown) StickerFormat stickerFormat,
+    /// Telegram's "cover this until tapped" flag, set by the poster.
+    @Default(false) bool hasSpoiler,
   }) = _MediaItem;
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);

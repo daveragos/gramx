@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -23,40 +22,12 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  final ScrollController _scrollController = ScrollController();
-  bool _showGoToTop = false;
-  DateTime? _lastBackPressTime;
+  /// App bar plus folder tabs. The feed reserves this much at its top so the
+  /// header can slide away without reflowing the list.
+  static const double _appBarHeight = 56;
+  static const double _tabBarHeight = 46;
+
   int _currentTabIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.hasClients) {
-      final isScrolledDown = _scrollController.offset > 300;
-      if (isScrolledDown != _showGoToTop) {
-        setState(() => _showGoToTop = isScrolledDown);
-      }
-    }
-  }
-
-  void _scrollToTop() {
-    _scrollController.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOut,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,12 +43,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
+    final chromeVisible = ref.watch(chromeVisibleProvider);
+    final headerHeight = MediaQuery.of(context).padding.top +
+        _appBarHeight +
+        _tabBarHeight;
+
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
 
+    // A folder with no channels is a dead end, so it doesn't get a tab. While
+    // a folder's contents are still loading we keep it — dropping a tab that
+    // then reappears is worse than a brief empty one.
+    bool folderHasChannels(int folderId) {
+      final ids = ref.watch(folderChannelIdsProvider(folderId));
+      return ids.isLoading || (ids.value?.isNotEmpty ?? false);
+    }
+
     final tabItems = [
       (title: 'All', id: 'All'),
-      ...dynamicFolders.map((f) => (title: parseFolderTitle(f.title), id: f.id.toString())),
+      ...dynamicFolders.where((f) => folderHasChannels(f.id)).map(
+            (f) => (title: parseFolderTitle(f.title), id: f.id.toString()),
+          ),
     ];
 
     return channelsAsync.when(
@@ -123,149 +109,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           length: tabItems.length,
           child: _FolderTabRequestHandler(
             folderIds: tabItems.map((t) => t.id).toList(),
-            child: PopScope(
-            canPop: false,
-            onPopInvokedWithResult: (didPop, result) {
-              if (didPop) return;
-              final now = DateTime.now();
-              if (_lastBackPressTime == null ||
-                  now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
-                _lastBackPressTime = now;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(AppStrings.feedPressBackAgain),
-                    duration: Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              } else {
-                SystemNavigator.pop();
-              }
-            },
             child: Scaffold(
               body: Stack(
                 children: [
-                  NestedScrollView(
-                    controller: _scrollController,
-                    floatHeaderSlivers: true,
-                    headerSliverBuilder: (headerContext, innerBoxIsScrolled) {
-                      return [
-                        SliverAppBar(
-                          floating: true,
-                          snap: true,
-                          pinned: false,
-                          forceElevated: innerBoxIsScrolled,
-                          leading: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.sm),
-                            child: Semantics(
-                              button: true,
-                              label: AppStrings.a11yOpenMenu,
-                              child: ChannelAvatar(
-                                title: displayName,
-                                avatarPath: accountAsync.value?.avatarPath,
-                                radius: AppSpacing.avatarSizeSmall / 2,
-                                onTap: () {
-                                  Scaffold.of(context).openDrawer();
-                                },
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            AppStrings.appName,
-                            style: AppTypography.heading(color: primaryTextColor),
-                          ),
-                          centerTitle: true,
-                          actions: [
-                            IconButton(
-                              icon: const Icon(Icons.search_rounded),
-                              tooltip: AppStrings.a11ySearch,
-                              color: primaryTextColor,
-                              onPressed: () {
-                                // Switch tab rather than push: /search is a
-                                // shell branch, and pushing it would stack a
-                                // second copy above the tab bar.
-                                StatefulNavigationShell.of(context)
-                                    .goBranch(ShellTab.search.index);
-                              },
-                            ),
-                          ],
-                          bottom: TabBar(
-                            isScrollable: true,
-                            tabAlignment: TabAlignment.start,
-                            indicatorColor: AppColors.accent,
-                            labelColor: primaryTextColor,
-                            unselectedLabelColor: secondaryTextColor,
-                            dividerColor: Colors.transparent,
-                            onTap: (index) {
-                              if (index == _currentTabIndex) {
-                                // Re-tap on active tab — scroll to top
-                                _scrollToTop();
-                              }
-                              setState(() => _currentTabIndex = index);
-                            },
-                            tabs: tabItems.map((item) => Tab(text: item.title)).toList(),
-                          ),
-                        ),
-                      ];
-                    },
-                    body: TabBarView(
-                      children: tabItems.map((item) {
-                        return FolderFeed(folderTitle: item.title, folderId: item.id);
-                      }).toList(),
-                    ),
+                  // The feed fills the screen and reserves room for the header
+                  // rather than sitting under a collapsing box. Sliding the
+                  // header away leaves the content where it is, so nothing
+                  // jumps mid-scroll.
+                  TabBarView(
+                    children: tabItems.map((item) {
+                      return FolderFeed(
+                        folderTitle: item.title,
+                        folderId: item.id,
+                        topPadding: headerHeight,
+                      );
+                    }).toList(),
                   ),
 
-                  // Floating Top Center "Go to Top / New Posts" Pill
-                  if (_showGoToTop)
-                    Positioned(
-                      top: MediaQuery.of(context).padding.top + 95,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Semantics(
-                          button: true,
-                          label: AppStrings.a11yScrollToTop,
-                          child: GestureDetector(
-                          onTap: _scrollToTop,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.arrow_upward_rounded,
-                                    color: Colors.white, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  AppStrings.feedScrollToTop,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: AnimatedSlide(
+                      offset: chromeVisible ? Offset.zero : const Offset(0, -1),
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: _FeedHeader(
+                        height: headerHeight,
+                        displayName: displayName,
+                        avatarPath: accountAsync.value?.avatarPath,
+                        tabTitles: tabItems.map((t) => t.title).toList(),
+                        onTabTap: (index) {
+                          ref
+                              .read(activeFolderProvider.notifier)
+                              .set(tabItems[index].id);
+                          if (index == _currentTabIndex) {
+                            // Re-tap on the active tab returns to the top.
+                            ref
+                                .read(feedScrollToTopProvider.notifier)
+                                .request(tabItems[index].id);
+                          }
+                          setState(() => _currentTabIndex = index);
+                        },
                       ),
                     ),
+                  ),
                 ],
               ),
-            ),
             ),
           ),
         );
@@ -301,5 +191,100 @@ class _FolderTabRequestHandler extends ConsumerWidget {
     });
 
     return child;
+  }
+}
+
+/// The feed's app bar and folder tabs, as one sliding surface.
+///
+/// Painted opaque and sized explicitly: it overlays the list rather than
+/// occupying layout space, so sliding it away doesn't reflow what's underneath.
+class _FeedHeader extends ConsumerWidget {
+  final double height;
+  final String displayName;
+  final String? avatarPath;
+  final List<String> tabTitles;
+  final ValueChanged<int> onTabTap;
+
+  const _FeedHeader({
+    required this.height,
+    required this.displayName,
+    required this.avatarPath,
+    required this.tabTitles,
+    required this.onTabTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(bottom: BorderSide(color: border, width: 0.5)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            SizedBox(
+              height: 56,
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Semantics(
+                      button: true,
+                      label: AppStrings.a11yOpenMenu,
+                      child: ChannelAvatar(
+                        title: displayName,
+                        avatarPath: avatarPath,
+                        radius: AppSpacing.avatarSizeSmall / 2,
+                        onTap: () => Scaffold.of(context).openDrawer(),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        AppStrings.appName,
+                        style: AppTypography.heading(color: primary),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search_rounded),
+                    tooltip: AppStrings.a11ySearch,
+                    color: primary,
+                    // Switch tab rather than push: /search is a shell branch,
+                    // and pushing it would stack a second copy above the bar.
+                    onPressed: () => StatefulNavigationShell.of(context)
+                        .goBranch(ShellTab.search.index),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 46,
+              child: TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorColor: AppColors.accent,
+                labelColor: primary,
+                unselectedLabelColor: secondary,
+                dividerColor: Colors.transparent,
+                onTap: onTabTap,
+                tabs: [for (final title in tabTitles) Tab(text: title)],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

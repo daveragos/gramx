@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
@@ -29,7 +31,7 @@ enum ShellTab {
 }
 
 /// Hosts the tab bar and the drawer around whichever branch is showing.
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
 
   const AppShell({
@@ -37,24 +39,75 @@ class AppShell extends ConsumerWidget {
     required this.navigationShell,
   });
 
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// How long a second back press still counts as "I meant it".
+  static const Duration _exitWindow = Duration(seconds: 2);
+
+  DateTime? _lastBackPress;
+
+  StatefulNavigationShell get navigationShell => widget.navigationShell;
+
+  /// Back behaviour for the whole shell.
+  ///
+  /// From any tab other than Home, back returns to Home — leaving the app from
+  /// deep in Settings is not what the gesture means. Only from Home does a
+  /// second press within [_exitWindow] actually exit.
+  void _handleBack() {
+    if (navigationShell.currentIndex != ShellTab.home.index) {
+      navigationShell.goBranch(ShellTab.home.index);
+      return;
+    }
+
+    final now = DateTime.now();
+    final last = _lastBackPress;
+    if (last == null || now.difference(last) > _exitWindow) {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.feedPressBackAgain),
+          duration: _exitWindow,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    SystemNavigator.pop();
+  }
+
   /// Switches branch, or returns to that branch's root if it is already active
   /// — the standard tab-bar behaviour, and what makes a second tap on Home
   /// mean "take me back to the top".
   void _onTap(int index) {
-    navigationShell.goBranch(
-      index,
-      initialLocation: index == navigationShell.currentIndex,
-    );
+    final isRetap = index == navigationShell.currentIndex;
+
+    // Re-tapping Home means "take me back to the top of what I'm reading".
+    // goBranch alone only resets the branch's route stack.
+    if (isRetap && index == ShellTab.home.index) {
+      ref
+          .read(feedScrollToTopProvider.notifier)
+          .request(ref.read(activeFolderProvider));
+    }
+
+    navigationShell.goBranch(index, initialLocation: isRetap);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isVisible = ref.watch(bottomNavVisibilityProvider);
+  Widget build(BuildContext context) {
+    final isVisible = ref.watch(chromeVisibleProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
       body: navigationShell,
       drawer: const AppDrawer(),
       bottomNavigationBar: ClipRect(
@@ -84,6 +137,7 @@ class AppShell extends ConsumerWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

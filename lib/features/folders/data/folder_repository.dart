@@ -1,12 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 class FolderRepository {
   final TdlibService _tdlib;
+  final ChatCache _chatCache;
+
   List<td.ChatFolderInfo> _cachedFolders = [];
 
-  FolderRepository(this._tdlib) {
+  /// Ceiling on chats read from one folder. Folders are small in practice; this
+  /// only stops a pathological one from becoming a long loop.
+  static const int _folderChatLimit = 200;
+
+  FolderRepository(this._tdlib, this._chatCache) {
     _tdlib.updatesStream.listen((update) {
       if (update is td.UpdateChatFolders) {
         _cachedFolders = update.chatFolders;
@@ -19,26 +27,45 @@ class FolderRepository {
     return _tdlib.chatFolders;
   }
 
+  /// The channel chat ids inside a folder.
+  ///
+  /// Resolves each id through [ChatCache] rather than calling `GetChat` per
+  /// chat. That fan-out ran once per folder tab, so a handful of folders
+  /// multiplied straight into the request budget — see `docs/TDLIB.md`.
   Future<List<int>> getFolderChannelChatIds(int folderId) async {
+    final chatList = td.ChatListFolder(chatFolderId: folderId);
+
     try {
-      await _tdlib.sendRequest(td.LoadChats(chatList: td.ChatListFolder(chatFolderId: folderId), limit: 200));
-    } catch (_) {}
-    
-    final chatsObj = await _tdlib.sendRequest(td.GetChats(chatList: td.ChatListFolder(chatFolderId: folderId), limit: 200));
-    if (chatsObj is td.Chats) {
-      final channelChatIds = <int>[];
-      for (final chatId in chatsObj.chatIds) {
-        final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
-        if (chatObj is td.Chat && chatObj.type is td.ChatTypeSupergroup && (chatObj.type as td.ChatTypeSupergroup).isChannel) {
-          channelChatIds.add(chatId);
-        }
-      }
-      return channelChatIds;
+      await _tdlib.sendRequest(
+        td.LoadChats(chatList: chatList, limit: _folderChatLimit),
+      );
+    } catch (_) {
+      // 404 means the folder is already fully loaded, which is the common case.
     }
-    return [];
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChats(chatList: chatList, limit: _folderChatLimit),
+      );
+      if (res is! td.Chats) return const [];
+
+      final channelIds = <int>[];
+      for (final chatId in res.chatIds) {
+        final chat = _chatCache.chat(chatId);
+        if (chat == null) continue;
+        if (ChatCacheState.isChannel(chat)) channelIds.add(chatId);
+      }
+      return channelIds;
+    } catch (e) {
+      debugPrint('[Folders] Could not read folder $folderId: $e');
+      return const [];
+    }
   }
 }
 
 final folderRepositoryProvider = Provider<FolderRepository>((ref) {
-  return FolderRepository(ref.watch(tdlibServiceProvider));
+  return FolderRepository(
+    ref.watch(tdlibServiceProvider),
+    ref.watch(chatCacheProvider),
+  );
 });

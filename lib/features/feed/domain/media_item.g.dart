@@ -24,6 +24,7 @@ _MediaItem _$MediaItemFromJson(Map<String, dynamic> json) => _MediaItem(
   stickerFormat:
       $enumDecodeNullable(_$StickerFormatEnumMap, json['stickerFormat']) ??
       StickerFormat.unknown,
+  hasSpoiler: json['hasSpoiler'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
@@ -43,6 +44,7 @@ Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
       'fileId': instance.fileId,
       'thumbnailFileId': instance.thumbnailFileId,
       'stickerFormat': _$StickerFormatEnumMap[instance.stickerFormat]!,
+      'hasSpoiler': instance.hasSpoiler,
     };
 
 const _$MediaTypeEnumMap = {

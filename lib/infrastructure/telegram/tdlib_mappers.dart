@@ -375,6 +375,7 @@ class TdlibMappers {
       list.add(MediaItem(
         id: bestPhotoPath,
         type: MediaType.photo,
+        hasSpoiler: content.hasSpoiler,
         url: bestPhotoPath,
         thumbnailUrl: thumbPath,
         width: bestSize.width,
@@ -403,6 +404,7 @@ class TdlibMappers {
       list.add(MediaItem(
         id: videoPath,
         type: MediaType.video,
+        hasSpoiler: content.hasSpoiler,
         url: videoPath,
         thumbnailUrl: thumbPath,
         width: video.width,
@@ -435,6 +437,7 @@ class TdlibMappers {
       list.add(MediaItem(
         id: animPath,
         type: MediaType.gif,
+        hasSpoiler: content.hasSpoiler,
         url: animPath,
         thumbnailUrl: thumbPath,
         width: anim.width,

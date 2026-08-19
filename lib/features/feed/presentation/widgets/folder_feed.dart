@@ -17,10 +17,14 @@ class FolderFeed extends ConsumerStatefulWidget {
   final String folderTitle;
   final String folderId;
 
+  /// Room reserved for the sliding header, which overlays this list.
+  final double topPadding;
+
   const FolderFeed({
     super.key,
     required this.folderTitle,
     required this.folderId,
+    this.topPadding = 0,
   });
 
   @override
@@ -41,7 +45,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   void deactivate() {
     // Leaving the feed with the bar hidden would strand it off screen on
     // whatever comes next.
-    ref.read(bottomNavVisibilityProvider.notifier).show();
+    ref.read(chromeVisibleProvider.notifier).show();
     super.deactivate();
   }
 
@@ -49,13 +53,19 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   /// the newest post rather than wherever the insert pushed them.
   void _showNewPosts() {
     ref.read(pendingPostsProvider.notifier).accept();
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOut,
-      );
-    }
+    _scrollToTop();
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    // Bring the chrome back too — arriving at the top with the header still
+    // hidden looks like the app lost its navigation.
+    ref.read(chromeVisibleProvider.notifier).show();
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
   }
 
   /// Chat ids this tab shows, or null for the "All" tab.
@@ -91,6 +101,11 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     // watching) avoids rebuilding the whole list every time focus moves.
     ref.listen(feedFocusControllerProvider, (_, _) {});
 
+    // Another widget — the tab bar, usually — asking this feed to go to the top.
+    ref.listen<ScrollToTopRequest?>(feedScrollToTopProvider, (_, request) {
+      if (request?.folderId == widget.folderId) _scrollToTop();
+    });
+
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
     final pendingCount =
         ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
@@ -98,7 +113,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final theme = Theme.of(context);
 
     return feedAsync.when(
-      loading: () => const FeedSkeleton(),
+      loading: () => Padding(
+        padding: EdgeInsets.only(top: widget.topPadding),
+        child: const FeedSkeleton(),
+      ),
       error: (err, stack) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -160,7 +178,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               // Scrolling down hides the tab bar, scrolling up brings it back —
               // the reading surface gets the whole screen while in motion.
               if (notification is UserScrollNotification) {
-                final nav = ref.read(bottomNavVisibilityProvider.notifier);
+                final nav = ref.read(chromeVisibleProvider.notifier);
                 if (notification.direction == ScrollDirection.reverse) {
                   nav.hide();
                 } else if (notification.direction == ScrollDirection.forward) {
@@ -175,7 +193,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
             },
             child: ListView.builder(
               controller: _scrollController,
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(top: widget.topPadding),
               itemCount: posts.length + (_isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == posts.length) {
@@ -212,7 +230,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
             ),
             if (pendingCount > 0)
               Positioned(
-                top: AppSpacing.md,
+                top: widget.topPadding + AppSpacing.md,
                 left: 0,
                 right: 0,
                 child: Center(

@@ -399,8 +399,11 @@ final mutedChannelsProvider =
     NotifierProvider<MutedChannelsNotifier, Set<String>>(
         MutedChannelsNotifier.new);
 
-/// Bottom navigation visibility state provider
-class BottomNavVisibilityNotifier extends Notifier<bool> {
+/// Whether the app chrome — bottom bar, feed header and folder tabs — is shown.
+///
+/// One flag for both so they move together. Scrolling down hands the whole
+/// screen to the reader; scrolling up brings the furniture back.
+class ChromeVisibilityNotifier extends Notifier<bool> {
   @override
   bool build() => true;
 
@@ -411,9 +414,48 @@ class BottomNavVisibilityNotifier extends Notifier<bool> {
   }
 }
 
-final bottomNavVisibilityProvider =
-    NotifierProvider<BottomNavVisibilityNotifier, bool>(
-        BottomNavVisibilityNotifier.new);
+final chromeVisibleProvider =
+    NotifierProvider<ChromeVisibilityNotifier, bool>(
+        ChromeVisibilityNotifier.new);
+
+/// The folder tab currently on screen.
+///
+/// The bottom bar needs this: re-tapping Home should return the *visible* feed
+/// to the top, and only the feed knows which tab that is.
+class ActiveFolderNotifier extends Notifier<String> {
+  @override
+  String build() => 'All';
+
+  void set(String folderId) {
+    if (state != folderId) state = folderId;
+  }
+}
+
+final activeFolderProvider =
+    NotifierProvider<ActiveFolderNotifier, String>(ActiveFolderNotifier.new);
+
+/// A request for one folder's feed to return to the top.
+///
+/// Carries a tick so two requests for the same folder are distinct events; the
+/// feed itself owns its scroll controller, so this is how another widget asks.
+class ScrollToTopRequest {
+  final String folderId;
+  final int tick;
+
+  const ScrollToTopRequest(this.folderId, this.tick);
+}
+
+class FeedScrollToTopNotifier extends Notifier<ScrollToTopRequest?> {
+  @override
+  ScrollToTopRequest? build() => null;
+
+  void request(String folderId) =>
+      state = ScrollToTopRequest(folderId, (state?.tick ?? 0) + 1);
+}
+
+final feedScrollToTopProvider =
+    NotifierProvider<FeedScrollToTopNotifier, ScrollToTopRequest?>(
+        FeedScrollToTopNotifier.new);
 
 /// Provider for real-time post comments thread
 final postCommentsProvider =

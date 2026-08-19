@@ -14,6 +14,7 @@ import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewe
 import 'package:gramx/features/feed/presentation/widgets/full_screen_video_viewer.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_audio_player.dart';
+import 'package:gramx/features/feed/presentation/widgets/spoiler_cover.dart';
 import 'package:gramx/features/feed/presentation/widgets/sticker_tile.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
@@ -360,6 +361,19 @@ class _MediaTile extends ConsumerWidget {
             ),
           ),
         ],
+      );
+    }
+
+    // A spoiler covers the media until the reader chooses to see it. The
+    // poster set this flag deliberately, so revealing it must be a decision,
+    // not something that happens by scrolling past.
+    if (item.hasSpoiler) {
+      return SpoilerCover(
+        label: describeMedia(item, index, allMedia.length),
+        child: GestureDetector(
+          onTap: () => _handleTap(context, ref, resolvedPath, heroTag),
+          child: contentWidget,
+        ),
       );
     }
 

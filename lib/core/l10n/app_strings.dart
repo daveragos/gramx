@@ -168,6 +168,10 @@ abstract class AppStrings {
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 
+  // ── Spoilers ───────────────────────────────────────────────────────────────
+  static const spoilerHidden = 'Hidden by a spoiler';
+  static const spoilerTapToReveal = 'Tap to reveal';
+
   // ── Media ──────────────────────────────────────────────────────────────────
   static const mediaPhoto = 'Photo';
   static const mediaVideo = 'Video';

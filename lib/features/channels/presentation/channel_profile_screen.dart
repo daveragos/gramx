@@ -11,6 +11,7 @@ import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
@@ -89,6 +90,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     final channel = channelAsync.value;
 
     // Watch the provider state to rebuild on changes
+    // Keeps the focus controller alive while this screen is open; it owns the
+    // dwell timers behind read tracking.
+    ref.listen(feedFocusControllerProvider, (_, _) {});
+
     ref.watch(mutedChannelsProvider);
     final isMuted = ref
         .read(mutedChannelsProvider.notifier)
@@ -377,13 +382,18 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                         final isHighlighted =
                             widget.highlightMessageId != null &&
                             post.messageId == widget.highlightMessageId;
-                        return PostCard(
-                          post: post,
-                          isHighlighted: isHighlighted,
-                          onTap: () {
-                            ref.read(markPostAsReadProvider(post.id));
-                            context.push('/post/${post.id}');
-                          },
+                        // Same dwell-based read tracking as the main feed —
+                        // reading a post here counts just as much.
+                        return PostVisibilityReporter(
+                          postId: post.id,
+                          child: PostCard(
+                            post: post,
+                            isHighlighted: isHighlighted,
+                            onTap: () {
+                              ref.read(markPostAsReadProvider(post.id));
+                              context.push('/post/${post.id}');
+                            },
+                          ),
                         );
                       }, childCount: posts.length),
                     );
