@@ -16,7 +16,6 @@ import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart
 import 'package:gramx/features/feed/presentation/widgets/post_audio_player.dart';
 import 'package:gramx/features/feed/presentation/widgets/spoiler_cover.dart';
 import 'package:gramx/features/feed/presentation/widgets/sticker_tile.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 class PostMediaGrid extends StatelessWidget {
@@ -430,20 +429,16 @@ class _MediaTile extends ConsumerWidget {
       }
       videoPath ??= item.localPath;
 
-      if (videoPath != null && videoPath.isNotEmpty) {
-        FullScreenVideoViewer.show(context, videoPath: videoPath);
-      } else {
-        if (item.fileId != null && item.fileId != 0) {
-          ref.read(syncServiceProvider).downloadFileWithPriority(item.fileId!, priority: 32);
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Downloading animation/video... Please wait.'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      // Open regardless of whether the file has landed: the viewer shows the
+      // poster frame and its own progress, and starts playback when ready.
+      // Refusing to open and showing a snackbar instead made a tapped video
+      // feel like it had failed.
+      FullScreenVideoViewer.show(
+        context,
+        videoPath: videoPath,
+        fileId: item.fileId,
+        thumbnailPath: item.thumbnailUrl,
+      );
     } else {
       final imageItems = allMedia
           .where((m) => m.type == MediaType.photo)
