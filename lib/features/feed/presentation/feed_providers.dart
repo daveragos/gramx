@@ -377,20 +377,16 @@ final postCommentsProvider =
   return repo.fetchPostComments(chatId, messageId);
 });
 
-/// Provider to mark post as read
+/// Marks a post read because the user explicitly opened it.
+///
+/// Passive reading is handled by `FeedFocusController`, which waits for a real
+/// dwell. This provider is for the deliberate act of tapping a post, where
+/// forcing the read state through is what the user asked for.
 final markPostAsReadProvider =
     FutureProvider.family<void, String>((ref, postId) async {
-  final repo = ref.read(feedRepositoryProvider);
-  final parts = postId.split('_');
-  if (parts.length != 2) return;
-  final chatId = int.tryParse(parts[0]);
-  final messageId = int.tryParse(parts[1]);
-  if (chatId == null || messageId == null) return;
-
-  // Optimistic local state update
+  ref.read(optimisticPostUpdatesProvider.notifier).markRead(postId);
   ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
-
-  await repo.markPostAsRead(chatId, messageId);
+  await ref.read(feedRepositoryProvider).markPostAsRead(postId);
 });
 
 /// Provides user's dynamic folders synced from Telegram (StreamProvider for real-time reactivity)

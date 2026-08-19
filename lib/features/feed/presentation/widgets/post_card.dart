@@ -69,12 +69,10 @@ class PostCard extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    if (!post.isRead) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(optimisticPostUpdatesProvider.notifier).markRead(post.id);
-        ref.read(markPostAsReadProvider(post.id));
-      });
-    }
+    // Read state is NOT marked here. Flutter builds list items ahead of the
+    // viewport, so doing it in build() marked posts the user never saw — and
+    // ViewMessages propagates that to every Telegram client they own.
+    // FeedFocusController handles it, after a real on-screen dwell.
 
     final defaultBookmarkHandler = onBookmarkTap ?? () {
       ref.read(optimisticPostUpdatesProvider.notifier).toggleBookmark(post.id, post);

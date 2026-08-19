@@ -7,6 +7,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
+import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -38,6 +39,15 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _feedRepository = ref.read(feedRepositoryProvider);
+
+    // Opening a chat is a TDLib request, so it must not happen as a side effect
+    // of rendering. listenManual belongs in initState and fireImmediately
+    // covers the case where the channel is already cached.
+    ref.listenManual<AsyncValue<Channel?>>(
+      channelDetailProvider(widget.channelId),
+      (_, next) => _syncOpenChat(next.value?.chatId),
+      fireImmediately: true,
+    );
   }
 
   @override
@@ -51,6 +61,15 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     }
 
     super.dispose();
+  }
+
+  /// Keeps this screen's open chat in step with the channel it is showing.
+  void _syncOpenChat(int? chatId) {
+    if (chatId == null || chatId == _openedChatId) return;
+    final previous = _openedChatId;
+    if (previous != null) _feedRepository.closeChat(previous);
+    _openedChatId = chatId;
+    _feedRepository.openChat(chatId);
   }
 
   void _onScroll() {
@@ -67,11 +86,6 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
     final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
     final channel = channelAsync.value;
-
-    if (channel != null && _openedChatId != channel.chatId) {
-      _openedChatId = channel.chatId;
-      _feedRepository.openChat(channel.chatId);
-    }
 
     // Watch the provider state to rebuild on changes
     ref.watch(mutedChannelsProvider);

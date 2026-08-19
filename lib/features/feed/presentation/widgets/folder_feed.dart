@@ -6,6 +6,7 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
+import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
@@ -39,6 +40,11 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
 
   @override
   Widget build(BuildContext context) {
+    // Keeps the focus controller alive while the feed is on screen. It owns the
+    // dwell timers behind read tracking and chat focus; listening (rather than
+    // watching) avoids rebuilding the whole list every time focus moves.
+    ref.listen(feedFocusControllerProvider, (_, _) {});
+
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
@@ -122,17 +128,20 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                 }
 
                 final post = posts[index];
-                return PostCard(
-                  post: post,
-                  onTap: () {
-                    ref.read(markPostAsReadProvider(post.id));
-                    context.push('/post/${post.id}');
-                  },
-                  onChannelTap: () =>
-                      NavigationUtils.openChannel(context, post.channelId),
-                  onBookmarkTap: () {
-                    ref.read(bookmarkToggleProvider(post.id));
-                  },
+                return PostVisibilityReporter(
+                  postId: post.id,
+                  child: PostCard(
+                    post: post,
+                    onTap: () {
+                      ref.read(markPostAsReadProvider(post.id));
+                      context.push('/post/${post.id}');
+                    },
+                    onChannelTap: () =>
+                        NavigationUtils.openChannel(context, post.channelId),
+                    onBookmarkTap: () {
+                      ref.read(bookmarkToggleProvider(post.id));
+                    },
+                  ),
                 );
               },
             ),

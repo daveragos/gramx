@@ -472,13 +472,31 @@ class FeedRepository {
     return bookmarkedPosts;
   }
 
-  /// Mark post as read via TDLib.
-  Future<void> markPostAsRead(int chatId, int messageId) async {
-    await _tdlib.sendRequest(td.ViewMessages(
-      chatId: chatId,
-      messageIds: [messageId],
-      forceRead: true,
-    ));
+  /// Acknowledges a post as read with Telegram.
+  ///
+  /// [postId] is the composite `"<chatId>_<messageId>"` form.
+  ///
+  /// [forceRead] tells TDLib to write the read state through even though the
+  /// chat isn't open. Pass false while the chat *is* open — then the ack is the
+  /// canonical "the user is reading this" signal rather than an assertion.
+  /// This is not cosmetic: read state propagates to every Telegram client the
+  /// user owns, so an over-eager true marks posts read on their phone too.
+  Future<void> markPostAsRead(String postId, {bool forceRead = true}) async {
+    final parts = postId.split('_');
+    if (parts.length != 2) return;
+    final chatId = int.tryParse(parts[0]);
+    final messageId = int.tryParse(parts[1]);
+    if (chatId == null || messageId == null) return;
+
+    try {
+      await _tdlib.sendRequest(td.ViewMessages(
+        chatId: chatId,
+        messageIds: [messageId],
+        forceRead: forceRead,
+      ));
+    } catch (e) {
+      debugPrint('[FeedRepo] markPostAsRead failed for $postId: $e');
+    }
   }
 
   /// Notify TDLib that the user has opened a chat.
