@@ -54,9 +54,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // A folder with no channels is a dead end, so it doesn't get a tab. While
     // a folder's contents are still loading we keep it — dropping a tab that
     // then reappears is worse than a brief empty one.
+    // Hide a folder only when we positively know it holds no channels. While
+    // it is loading, or if the lookup failed, the tab stays — a folder that
+    // vanishes because of a race is much worse than a briefly empty tab.
     bool folderHasChannels(int folderId) {
       final ids = ref.watch(folderChannelIdsProvider(folderId));
-      return ids.isLoading || (ids.value?.isNotEmpty ?? false);
+      final known = ids.value;
+      if (known == null) return true;
+      return known.isNotEmpty;
     }
 
     final tabItems = [

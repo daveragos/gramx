@@ -33,6 +33,12 @@ class FolderRepository {
   /// chat. That fan-out ran once per folder tab, so a handful of folders
   /// multiplied straight into the request budget — see `docs/TDLIB.md`.
   Future<List<int>> getFolderChannelChatIds(int folderId) async {
+    // The cache is what resolves each id below, and it is filled by the update
+    // stream — so this has to wait for it. Reading too early returned nothing,
+    // and a FutureProvider caches that nothing forever: every folder looked
+    // empty and every folder tab disappeared.
+    await _chatCache.ensureLoaded();
+
     final chatList = td.ChatListFolder(chatFolderId: folderId);
 
     try {
@@ -52,8 +58,11 @@ class FolderRepository {
       final channelIds = <int>[];
       for (final chatId in res.chatIds) {
         final chat = _chatCache.chat(chatId);
-        if (chat == null) continue;
-        if (ChatCacheState.isChannel(chat)) channelIds.add(chatId);
+        // A cache miss means "we don't know", not "not a channel". Keeping the
+        // id errs towards showing the folder, which is the recoverable mistake.
+        if (chat == null || ChatCacheState.isChannel(chat)) {
+          channelIds.add(chatId);
+        }
       }
       return channelIds;
     } catch (e) {

@@ -69,7 +69,10 @@ class PostActionBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
-    final activeEmoji = post.chosenReactions.isNotEmpty
+    final hasOwnReaction = post.chosenReactions.isNotEmpty;
+    // Show your own reaction when you have one; otherwise preview the most
+    // common one so the button says what tapping it would join.
+    final activeEmoji = hasOwnReaction
         ? post.chosenReactions.first
         : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
     final reactionKey = GlobalKey();
@@ -126,13 +129,12 @@ class PostActionBar extends ConsumerWidget {
                 if (activeEmoji != null)
                   Text(activeEmoji, style: const TextStyle(fontSize: 16))
                 else
+                  // Filled and coloured only when *this* user reacted. Keying
+                  // it off the total made every popular post look like you had
+                  // already reacted to it.
                   Icon(
-                    post.chosenReactions.isNotEmpty || totalReactions > 0
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: post.chosenReactions.isNotEmpty || totalReactions > 0
-                        ? AppColors.like
-                        : secondaryColor,
+                    hasOwnReaction ? Icons.favorite : Icons.favorite_border,
+                    color: hasOwnReaction ? AppColors.like : secondaryColor,
                     size: 18,
                   ),
                 if (totalReactions > 0) ...[
@@ -140,7 +142,7 @@ class PostActionBar extends ConsumerWidget {
                   Text(
                     TimeUtils.formatCount(totalReactions),
                     style: AppTypography.actionCount(
-                      color: post.chosenReactions.isNotEmpty ? AppColors.like : secondaryColor,
+                      color: hasOwnReaction ? AppColors.like : secondaryColor,
                     ),
                   ),
                 ],

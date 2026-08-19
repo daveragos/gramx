@@ -8,6 +8,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -212,23 +213,15 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     if (current == null) return;
     final updated = current.map((p) {
       if (p.id == postId) {
-        final newReactions = Map<String, int>.from(p.reactions);
-        final newChosen = Set<String>.from(p.chosenReactions);
-        if (newChosen.contains(emoji)) {
-          // User is removing their reaction
-          newChosen.remove(emoji);
-          final count = (newReactions[emoji] ?? 1) - 1;
-          if (count <= 0) {
-            newReactions.remove(emoji);
-          } else {
-            newReactions[emoji] = count;
-          }
-        } else {
-          // User is adding a reaction
-          newChosen.add(emoji);
-          newReactions[emoji] = (newReactions[emoji] ?? 0) + 1;
-        }
-        return p.copyWith(reactions: newReactions, chosenReactions: newChosen);
+        final next = applyReactionChoice(
+          reactions: p.reactions,
+          chosen: p.chosenReactions,
+          emoji: emoji,
+        );
+        return p.copyWith(
+          reactions: next.reactions,
+          chosenReactions: next.chosen,
+        );
       }
       return p;
     }).toList();
@@ -237,6 +230,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   /// Live update reactions from TDLib UpdateMessageReactions stream
   void updateReactionsLive(String postId, Map<String, int> reactions, Set<String> chosenReactions) {
+    // The server has spoken, so the optimistic guess must step aside or it
+    // keeps overriding every future update for this post.
+    ref.read(optimisticPostUpdatesProvider.notifier).clearReactions(postId);
+
     final current = state.value;
     if (current == null) return;
     final updated = current.map((p) {
@@ -492,7 +489,12 @@ final postCommentsProvider =
   if (chatId == null || messageId == null) return [];
 
   final repo = ref.watch(feedRepositoryProvider);
-  return repo.fetchPostComments(chatId, messageId);
+  final comments = await repo.fetchPostComments(chatId, messageId);
+
+  // Comments aren't in the feed list, so without this a reaction tapped here
+  // showed nothing at all until the thread was refetched.
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
+  return comments.map((c) => applyPostOverrides(c, overrides)).toList();
 });
 
 /// Marks a post read because the user explicitly opened it.
@@ -587,30 +589,50 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
 
   void toggleReaction(String postId, String emoji, Post currentPost) {
     final currentData = state[postId] ?? {};
-    final Map<String, int> reactions = Map<String, int>.from(currentData['reactions'] ?? currentPost.reactions);
-    final Set<String> chosen = Set<String>.from(currentData['chosenReactions'] ?? currentPost.chosenReactions);
-
-    if (chosen.contains(emoji)) {
-      chosen.remove(emoji);
-      final count = (reactions[emoji] ?? 1) - 1;
-      if (count <= 0) {
-        reactions.remove(emoji);
-      } else {
-        reactions[emoji] = count;
-      }
-    } else {
-      chosen.add(emoji);
-      reactions[emoji] = (reactions[emoji] ?? 0) + 1;
-    }
+    final next = applyReactionChoice(
+      reactions: (currentData['reactions'] as Map<String, int>?) ??
+          currentPost.reactions,
+      chosen: (currentData['chosenReactions'] as Set<String>?) ??
+          currentPost.chosenReactions,
+      emoji: emoji,
+    );
 
     state = {
       ...state,
       postId: {
         ...currentData,
-        'reactions': reactions,
-        'chosenReactions': chosen,
+        'reactions': next.reactions,
+        'chosenReactions': next.chosen,
       },
     };
+  }
+
+  /// Drops the optimistic reaction guess for a post.
+  ///
+  /// Called when the server tells us the real counts. Without this the guess
+  /// stayed on top of every later update, so reaction counts looked frozen —
+  /// the live stream was arriving and being masked.
+  void clearReactions(String postId) {
+    final currentData = state[postId];
+    if (currentData == null) return;
+    if (!currentData.containsKey('reactions') &&
+        !currentData.containsKey('chosenReactions')) {
+      return;
+    }
+
+    final remaining = Map<String, dynamic>.from(currentData)
+      ..remove('reactions')
+      ..remove('chosenReactions');
+
+    final next = Map<String, Map<String, dynamic>>.from(state);
+    // Bookmark and read overrides for this post must survive; only drop the
+    // whole entry once nothing is left in it.
+    if (remaining.isEmpty) {
+      next.remove(postId);
+    } else {
+      next[postId] = remaining;
+    }
+    state = next;
   }
 
   void toggleBookmark(String postId, Post currentPost) {

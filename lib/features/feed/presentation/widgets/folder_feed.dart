@@ -195,6 +195,9 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           children: [
             RefreshIndicator(
           color: AppColors.accent,
+          // The list starts under the header, so without this the spinner
+          // animates behind it and the pull looks like it did nothing.
+          edgeOffset: widget.topPadding,
           onRefresh: () async {
             // A refresh re-fetches everything, so held-back arrivals would be
             // duplicated by it — drop them rather than showing a stale pill.

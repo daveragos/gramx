@@ -772,7 +772,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final replyAuthor = comment.replyToAuthorTitle ?? 'post';
 
     final totalReactions = comment.reactions.values.fold<int>(0, (a, b) => a + b);
-    final isLiked = comment.chosenReactions.isNotEmpty || totalReactions > 0;
+    // "Someone reacted" is not "I reacted" — the heart only fills for your own.
+    final isLiked = comment.chosenReactions.isNotEmpty;
 
     return IntrinsicHeight(
       child: Row(
