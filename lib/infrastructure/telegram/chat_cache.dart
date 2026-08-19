@@ -33,12 +33,25 @@ class ChatCacheState {
     return list;
   }
 
-  /// Broadcast channels only, most recently active first.
+  /// Broadcast channels the user is actually subscribed to, most recent first.
+  ///
+  /// Membership matters as much as type here. TDLib emits `UpdateNewChat` for
+  /// *any* chat it learns about, not just ones the user joined — resolving a
+  /// forwarded post's origin, or searching public channels, both pull strangers
+  /// into the cache. Without the [isSubscribed] check their posts end up in the
+  /// feed, which is how a channel nobody follows starts appearing in it.
   List<td.Chat> get channels {
-    final list = chats.values.where(isChannel).toList();
+    final list =
+        chats.values.where((c) => isChannel(c) && isSubscribed(c)).toList();
     list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
     return list;
   }
+
+  /// Whether the user is a member of this chat.
+  ///
+  /// A chat list position is the signal: TDLib places a chat in Main or Archive
+  /// only for chats the user is in. A chat merely resolved by id has none.
+  static bool isSubscribed(td.Chat chat) => chat.positions.isNotEmpty;
 
   /// A chat's sort order within the main chat list, or 0 if it isn't in it.
   static int mainListOrder(td.Chat chat) {

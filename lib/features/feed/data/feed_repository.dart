@@ -394,7 +394,13 @@ class FeedRepository {
 
     for (final message in messages) {
       final chat = _chatCache.chat(message.chatId);
-      if (chat == null || !ChatCacheState.isChannel(chat)) continue;
+      // Membership matters here too: TDLib streams updates for chats it merely
+      // knows about, and those must not reach the feed.
+      if (chat == null ||
+          !ChatCacheState.isChannel(chat) ||
+          !ChatCacheState.isSubscribed(chat)) {
+        continue;
+      }
       if (!messagesByChatId.containsKey(chat.id)) chats.add(chat);
       messagesByChatId.putIfAbsent(chat.id, () => []).add(message);
     }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
@@ -52,6 +53,12 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   @override
   Future<List<Post>> build() async {
+    // Rebuild when sign-in completes. A build that ran before TDLib was
+    // authorised resolves to an empty feed and, without this dependency, never
+    // retries — which is why the feed sat on its loading state until the app
+    // was restarted.
+    ref.watch(authControllerProvider.select((auth) => auth.step));
+
     final repo = ref.watch(feedRepositoryProvider);
     final syncService = ref.watch(syncServiceProvider);
 

@@ -147,10 +147,47 @@ void main() {
   group('ChatCacheState.channels', () {
     test('returns only broadcast channels', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1, isChannel: true)));
-      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -2, isChannel: false)));
+      state.apply(TdFixtures.newChat(
+          TdFixtures.chat(id: -1, isChannel: true, mainOrder: 10)));
+      state.apply(TdFixtures.newChat(
+          TdFixtures.chat(id: -2, isChannel: false, mainOrder: 10)));
 
       expect(state.channels.map((c) => c.id), [-1]);
+    });
+
+    // The regression this guards: resolving a forwarded post's origin calls
+    // GetChat, TDLib answers with UpdateNewChat, and that channel entered the
+    // cache. Without a membership check its posts entered the feed — so a
+    // channel the user never subscribed to started appearing.
+    test('excludes channels the user is not subscribed to', () {
+      final state = ChatCacheState();
+      state.apply(TdFixtures.newChat(
+          TdFixtures.chat(id: -1, mainOrder: 10)));
+      // No chat-list position: TDLib knows this chat, the user is not in it.
+      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -2, mainOrder: 0)));
+
+      expect(state.channels.map((c) => c.id), [-1]);
+    });
+
+    test('a chat in the archive still counts as subscribed', () {
+      final state = ChatCacheState();
+      state.apply(TdFixtures.newChat(TdFixtures.chat(
+        id: -1,
+        positions: [TdFixtures.archiveListPosition(order: 5)],
+      )));
+
+      expect(state.channels.map((c) => c.id), [-1]);
+    });
+
+    test('isSubscribed keys off chat-list position', () {
+      expect(
+        ChatCacheState.isSubscribed(TdFixtures.chat(id: -1, mainOrder: 3)),
+        isTrue,
+      );
+      expect(
+        ChatCacheState.isSubscribed(TdFixtures.chat(id: -2, mainOrder: 0)),
+        isFalse,
+      );
     });
 
     test('sorts by main-list order, most recently active first', () {
@@ -162,9 +199,12 @@ void main() {
       expect(state.channels.map((c) => c.id), [-2, -3, -1]);
     });
 
-    test('a chat with no main-list position sorts last, not crashes', () {
+    test('an archived channel sorts below one in the main list', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1, mainOrder: 0)));
+      state.apply(TdFixtures.newChat(TdFixtures.chat(
+        id: -1,
+        positions: [TdFixtures.archiveListPosition(order: 900)],
+      )));
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -2, mainOrder: 5)));
 
       expect(state.channels.map((c) => c.id), [-2, -1]);

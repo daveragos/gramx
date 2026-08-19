@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -9,6 +10,10 @@ import 'package:gramx/infrastructure/database/database_provider.dart';
 
 /// Provides the list of all channels (non-hidden).
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
+  // Same reasoning as FeedNotifier.build: a pre-auth build returns nothing and
+  // must not become the permanent answer.
+  ref.watch(authControllerProvider.select((auth) => auth.step));
+
   final repo = ref.watch(channelRepositoryProvider);
   return repo.getSubscribedChannels();
 });
