@@ -6,6 +6,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
@@ -13,162 +14,261 @@ class FeedRepository {
   final TdlibService _tdlib;
   final AppDatabase _db;
   final SyncService _syncService;
+  final ChatCache _chatCache;
 
-  FeedRepository(this._tdlib, this._db, this._syncService);
+  /// How many posts we aim to hold per channel in the merged feed.
+  static const int postsPerChannel = 30;
 
-  /// Fetch feed posts from all subscribed channels.
-  /// Uses parallel fetching and local-first loading for speed.
-  Future<List<Post>> fetchFeedPosts() async {
-    // 1. Get all chats from TDLib
-    final chatsObj = await _tdlib.sendRequest(
-      const td.GetChats(chatList: td.ChatListMain(), limit: 100),
-    );
-    if (chatsObj is! td.Chats) return [];
+  /// Channels the throttled backfill will fetch real history for, busiest first.
+  ///
+  /// Telegram caps `GetChatHistory` at roughly 30 requests per 30 seconds
+  /// sustained, so this number and [backfillThrottle] are a matched pair. Don't
+  /// raise one without the other — see `docs/TDLIB.md`.
+  static const int backfillTopChannels = 30;
 
-    // 2. Fetch all chat objects in PARALLEL
-    final chatFutures = chatsObj.chatIds.map(
-      (chatId) => _tdlib.sendRequest(td.GetChat(chatId: chatId)),
-    );
-    final chatResults = await Future.wait(chatFutures);
+  /// Gap between backfill requests. Just over one second keeps us under the cap
+  /// with headroom for the requests the user's own taps generate.
+  static const Duration backfillThrottle = Duration(milliseconds: 1100);
 
-    // 3. Filter to channel chats only and trigger avatar downloads
-    final channelChats = <td.Chat>[];
-    for (final result in chatResults) {
-      if (result is td.Chat) {
-        final type = result.type;
-        if (type is td.ChatTypeSupergroup && type.isChannel) {
-          channelChats.add(result);
-          _syncService.downloadChatAvatar(result);
-        }
-      }
-    }
+  /// Channels one "load older" page will reach back into. Pagination is a
+  /// user-driven path, but it repeats on every scroll to the bottom, so it is
+  /// bounded too.
+  static const int paginationChannelsPerPage = 10;
 
-    if (channelChats.isEmpty) return [];
+  /// Cap on how many unknown forwarded-from channels we will name per feed
+  /// build. Bounded so a feed full of forwards can't become a fan-out.
+  static const int _maxForwardLookups = 10;
 
-    // 4. Fetch channel histories (local first, then remote for unread posts)
-    final historyFutures = channelChats.map((chat) async {
-      final localRes = await _tdlib.sendRequest(td.GetChatHistory(
-        chatId: chat.id,
-        fromMessageId: 0,
-        offset: 0,
-        limit: 30,
-        onlyLocal: true,
-      ));
-      if (localRes is td.Messages && localRes.messages.length >= 5 && chat.unreadCount == 0) {
-        return localRes;
-      }
-      // Fetch remote history from Telegram server for unread posts
-      final remoteRes = await _tdlib.sendRequest(td.GetChatHistory(
-        chatId: chat.id,
-        fromMessageId: 0,
-        offset: 0,
-        limit: 30,
-        onlyLocal: false,
-      ));
-      return remoteRes is td.Messages ? remoteRes : localRes;
-    });
-    final historyResults = await Future.wait(historyFutures);
+  FeedRepository(this._tdlib, this._db, this._syncService, this._chatCache);
 
-    // 5. Collect all messages and build chat map
-    final allMessages = <td.Message>[];
-    final chatMap = <int, td.Chat>{};
-    final knownChatTitles = <int, String>{};
-
-    for (int i = 0; i < channelChats.length; i++) {
-      chatMap[channelChats[i].id] = channelChats[i];
-      knownChatTitles[channelChats[i].id] = channelChats[i].title;
-      if (historyResults[i] is td.Messages) {
-        allMessages.addAll((historyResults[i] as td.Messages).messages);
-      }
-    }
-
-    // Resolve forwarded channel names in parallel
-    final unresolvedFwdChatIds = <int>{};
-    for (final msg in allMessages) {
-      final fwd = msg.forwardInfo?.origin;
-      if (fwd is td.MessageOriginChannel && !knownChatTitles.containsKey(fwd.chatId)) {
-        unresolvedFwdChatIds.add(fwd.chatId);
-      } else if (fwd is td.MessageOriginChat && !knownChatTitles.containsKey(fwd.senderChatId)) {
-        unresolvedFwdChatIds.add(fwd.senderChatId);
-      }
-    }
-
-    if (unresolvedFwdChatIds.isNotEmpty) {
-      final fwdResults = await Future.wait(
-        unresolvedFwdChatIds.map((id) => _tdlib.sendRequest(td.GetChat(chatId: id))),
-      );
-      for (final res in fwdResults) {
-        if (res is td.Chat) {
-          knownChatTitles[res.id] = res.title;
-        }
-      }
-    }
-
-    // 6. Get bookmark keys
+  /// Composite keys (`chatId_messageId`) of every bookmarked post.
+  Future<Set<String>> _bookmarkKeys() async {
     final bookmarks = await _db.select(_db.bookmarkEntries).get();
-    final bookmarkKeys =
-        bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
-
-    // 7. Group albums and map to Posts
-    final postsByChatId = <int, List<Post>>{};
-    final messagesByChatId = <int, List<td.Message>>{};
-    for (final msg in allMessages) {
-      messagesByChatId.putIfAbsent(msg.chatId, () => []).add(msg);
-    }
-    for (final entry in messagesByChatId.entries) {
-      final chat = chatMap[entry.key];
-      if (chat != null) {
-        postsByChatId[entry.key] = TdlibMappers.mergeAlbumMessages(
-          entry.value,
-          chat,
-          bookmarkedKeys: bookmarkKeys,
-          knownChatTitles: knownChatTitles,
-        );
-      }
-    }
-
-    // 8. Flatten, sort by date desc
-    final allPosts = postsByChatId.values.expand((e) => e).toList()
-      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
-
-    return allPosts;
+    return bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
   }
 
-  /// Fetch older posts for pagination.
-  /// Takes a map of chatId -> oldestMessageId to continue from.
+  /// Reads a chat's history from TDLib's local database only.
+  ///
+  /// `onlyLocal: true` never reaches the server, so this is outside the flood
+  /// budget and safe to run across every channel at once. It can legitimately
+  /// return nothing on a cold cache.
+  Future<List<td.Message>> _localHistory(int chatId, {int limit = 30}) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetChatHistory(
+        chatId: chatId,
+        fromMessageId: 0,
+        offset: 0,
+        limit: limit,
+        onlyLocal: true,
+      ));
+      return res is td.Messages ? res.messages : const [];
+    } catch (e) {
+      debugPrint('[FeedRepo] Local history failed for $chatId: $e');
+      return const [];
+    }
+  }
+
+  static List<td.Message> _dedupeMessages(List<td.Message> messages) {
+    final byId = <int, td.Message>{};
+    for (final m in messages) {
+      byId[m.id] = m;
+    }
+    final list = byId.values.toList()..sort((a, b) => b.id.compareTo(a.id));
+    return list;
+  }
+
+  /// Builds the merged feed with **no per-channel network requests**.
+  ///
+  /// Two cheap phases: the chat cache's `lastMessage` (already delivered by the
+  /// update stream, so free) and a local-only history read (never touches the
+  /// server). Real history for the busiest channels arrives afterwards via
+  /// [backfillRecentHistory], which is throttled.
+  ///
+  /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
+  /// per channel. Doing so over a 200-channel list is an instant account-global
+  /// FLOOD_WAIT — see `docs/TDLIB.md`.
+  Future<List<Post>> fetchFeedPosts() async {
+    await _chatCache.ensureLoaded();
+    final channelChats = _chatCache.channels;
+    if (channelChats.isEmpty) return [];
+
+    for (final chat in channelChats) {
+      _syncService.downloadChatAvatar(chat);
+    }
+
+    final messagesByChatId = <int, List<td.Message>>{};
+
+    // Phase 1 — one free post per channel, straight off the update stream.
+    for (final chat in channelChats) {
+      final last = chat.lastMessage;
+      if (last != null) messagesByChatId[chat.id] = [last];
+    }
+
+    // Phase 2 — whatever TDLib already has on disk.
+    final localHistories = await Future.wait(
+      channelChats.map((chat) => _localHistory(chat.id, limit: postsPerChannel)),
+    );
+    for (var i = 0; i < channelChats.length; i++) {
+      final chatId = channelChats[i].id;
+      messagesByChatId[chatId] = _dedupeMessages([
+        ...?messagesByChatId[chatId],
+        ...localHistories[i],
+      ]);
+    }
+
+    return _buildPosts(messagesByChatId, channelChats);
+  }
+
+  /// Fetches real history for the busiest channels, one request at a time.
+  ///
+  /// Yields the growing post list after each channel so the feed fills in
+  /// progressively instead of stalling on a batch. Throttled to
+  /// [backfillThrottle] and abandoned on the first rate-limit — the penalty for
+  /// overrunning is applied to the user's Telegram account, not to this app.
+  Stream<List<Post>> backfillRecentHistory() async* {
+    final channelChats = _chatCache.channels;
+    if (channelChats.isEmpty) return;
+
+    final targets = channelChats.take(backfillTopChannels).toList();
+    final messagesByChatId = <int, List<td.Message>>{};
+    var produced = false;
+
+    for (final chat in targets) {
+      try {
+        final res = await _tdlib.sendRequest(td.GetChatHistory(
+          chatId: chat.id,
+          fromMessageId: 0,
+          offset: 0,
+          limit: postsPerChannel,
+          onlyLocal: false,
+        ));
+        if (res is td.Messages && res.messages.isNotEmpty) {
+          messagesByChatId[chat.id] = _dedupeMessages(res.messages);
+          produced = true;
+        }
+      } on TdlibRequestException catch (e) {
+        if (e.isFloodWait) {
+          debugPrint('[FeedRepo] Backfill stopped — rate limited: $e');
+          break;
+        }
+        debugPrint('[FeedRepo] Backfill skipped ${chat.id}: $e');
+      } catch (e) {
+        debugPrint('[FeedRepo] Backfill skipped ${chat.id}: $e');
+      }
+
+      if (produced) {
+        yield await _buildPosts(messagesByChatId, targets);
+      }
+      await Future<void>.delayed(backfillThrottle);
+    }
+  }
+
+  /// Loads one page of older posts, reaching back into a bounded set of channels.
+  ///
+  /// Only the channels whose oldest loaded post is *newest* can extend the
+  /// merged feed backwards — the others already reach further back than the
+  /// current frontier. Fetching just those keeps a scroll-to-bottom at
+  /// [paginationChannelsPerPage] requests instead of one per subscription.
   Future<List<Post>> fetchOlderPosts(Map<int, int> oldestMessageIds) async {
     if (oldestMessageIds.isEmpty) return [];
 
-    final bookmarks = await _db.select(_db.bookmarkEntries).get();
-    final bookmarkKeys =
-        bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
+    final frontier = oldestMessageIds.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final page = frontier.take(paginationChannelsPerPage);
 
-    // Fetch older history for each channel in PARALLEL
-    final futures = oldestMessageIds.entries.map((entry) async {
-      final chatObj =
-          await _tdlib.sendRequest(td.GetChat(chatId: entry.key));
-      if (chatObj is! td.Chat) return <Post>[];
+    final chats = <td.Chat>[];
+    final messagesByChatId = <int, List<td.Message>>{};
 
-      final history = await _tdlib.sendRequest(td.GetChatHistory(
-        chatId: entry.key,
-        fromMessageId: entry.value,
-        offset: 0,
-        limit: 30,
-        onlyLocal: false,
-      ));
-      if (history is! td.Messages || history.messages.isEmpty) return <Post>[];
+    for (final entry in page) {
+      final chat = _chatCache.chat(entry.key);
+      if (chat == null) continue;
+      chats.add(chat);
 
-      return TdlibMappers.mergeAlbumMessages(
-        history.messages,
-        chatObj,
+      try {
+        final history = await _tdlib.sendRequest(td.GetChatHistory(
+          chatId: entry.key,
+          fromMessageId: entry.value,
+          offset: 0,
+          limit: postsPerChannel,
+          onlyLocal: false,
+        ));
+        if (history is td.Messages && history.messages.isNotEmpty) {
+          messagesByChatId[entry.key] = _dedupeMessages(history.messages);
+        }
+      } on TdlibRequestException catch (e) {
+        if (e.isFloodWait) {
+          debugPrint('[FeedRepo] Pagination stopped — rate limited: $e');
+          break;
+        }
+        debugPrint('[FeedRepo] Pagination skipped ${entry.key}: $e');
+      } catch (e) {
+        debugPrint('[FeedRepo] Pagination skipped ${entry.key}: $e');
+      }
+    }
+
+    if (messagesByChatId.isEmpty) return [];
+    return _buildPosts(messagesByChatId, chats);
+  }
+
+  /// Maps raw messages into sorted [Post]s, resolving forwarded-channel names.
+  Future<List<Post>> _buildPosts(
+    Map<int, List<td.Message>> messagesByChatId,
+    List<td.Chat> chats,
+  ) async {
+    final chatMap = {for (final c in chats) c.id: c};
+    final bookmarkKeys = await _bookmarkKeys();
+
+    final knownChatTitles = <int, String>{};
+    for (final chat in chats) {
+      knownChatTitles[chat.id] = chat.title;
+    }
+
+    // Name forwarded-from channels. The cache answers most of these for free;
+    // only genuinely unknown chats cost a request, and that is capped.
+    final unresolved = <int>{};
+    for (final messages in messagesByChatId.values) {
+      for (final msg in messages) {
+        final origin = msg.forwardInfo?.origin;
+        final originId = switch (origin) {
+          td.MessageOriginChannel() => origin.chatId,
+          td.MessageOriginChat() => origin.senderChatId,
+          _ => null,
+        };
+        if (originId == null || knownChatTitles.containsKey(originId)) continue;
+
+        final cached = _chatCache.chat(originId);
+        if (cached != null) {
+          knownChatTitles[originId] = cached.title;
+        } else {
+          unresolved.add(originId);
+        }
+      }
+    }
+
+    for (final id in unresolved.take(_maxForwardLookups)) {
+      try {
+        final res = await _tdlib.sendRequest(td.GetChat(chatId: id));
+        if (res is td.Chat) knownChatTitles[res.id] = res.title;
+      } catch (_) {
+        // A private or deleted origin channel; the card falls back to the
+        // author signature.
+      }
+    }
+
+    final posts = <Post>[];
+    for (final entry in messagesByChatId.entries) {
+      final chat = chatMap[entry.key];
+      if (chat == null) continue;
+      posts.addAll(TdlibMappers.mergeAlbumMessages(
+        entry.value,
+        chat,
         bookmarkedKeys: bookmarkKeys,
-      );
-    });
+        knownChatTitles: knownChatTitles,
+      ));
+    }
 
-    final results = await Future.wait(futures);
-    final allPosts = results.expand((e) => e).toList()
-      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
-    return allPosts;
+    posts.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    return posts;
   }
 
   /// Fetch posts for a single channel (local-first fallback).
@@ -192,7 +292,7 @@ class FeedRepository {
     }
     if (chatObj is! td.Chat) return [];
 
-    final resolvedChatId = (chatObj as td.Chat).id;
+    final resolvedChatId = chatObj.id;
 
     // 1. Try local history first for instant rendering
     td.TdObject history = await _tdlib.sendRequest(td.GetChatHistory(
@@ -537,5 +637,6 @@ final feedRepositoryProvider = Provider<FeedRepository>((ref) {
     ref.watch(tdlibServiceProvider),
     ref.watch(databaseProvider),
     ref.watch(syncServiceProvider),
+    ref.watch(chatCacheProvider),
   );
 });

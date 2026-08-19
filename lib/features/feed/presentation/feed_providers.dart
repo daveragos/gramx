@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,7 @@ import 'package:gramx/infrastructure/sync/sync_service.dart';
 class FeedNotifier extends AsyncNotifier<List<Post>> {
   final Map<int, int> _oldestMessageIds = {};
   bool _isLoadingMore = false;
+  StreamSubscription<List<Post>>? _backfillSub;
 
   @override
   Future<List<Post>> build() async {
@@ -28,11 +30,43 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
         updateMetadataLive(update.postId, viewCount: update.viewCount, forwardCount: update.forwardCount);
       }
     });
-    ref.onDispose(() => sub.cancel());
+    ref.onDispose(() {
+      sub.cancel();
+      _backfillSub?.cancel();
+    });
 
     final posts = await repo.fetchFeedPosts();
     _updateOldestIds(posts);
+    _startBackfill(repo);
     return posts;
+  }
+
+  /// Fills the feed in behind the first paint.
+  ///
+  /// A cold start only volunteers one post per channel (plus whatever is cached
+  /// locally), so real history arrives here — throttled, one channel at a time,
+  /// merged as it lands rather than in one batch at the end.
+  void _startBackfill(FeedRepository repo) {
+    _backfillSub?.cancel();
+    _backfillSub = repo.backfillRecentHistory().listen(
+      _mergeBackfilled,
+      onError: (Object e) => debugPrint('[Feed] Backfill error: $e'),
+    );
+  }
+
+  /// Adds posts we don't already have, leaving existing entries untouched so
+  /// optimistic reaction and bookmark state survives.
+  void _mergeBackfilled(List<Post> incoming) {
+    final current = state.value ?? [];
+    final existingIds = current.map((p) => p.id).toSet();
+    final additions =
+        incoming.where((p) => !existingIds.contains(p.id)).toList();
+    if (additions.isEmpty) return;
+
+    _updateOldestIds(additions);
+    final merged = [...current, ...additions]
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    state = AsyncData(merged);
   }
 
   /// Track the oldest messageId per channel for cursor-based pagination.
@@ -71,14 +105,16 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   /// Full refresh: re-fetch from scratch (for pull-to-refresh).
   Future<void> refresh() async {
+    _backfillSub?.cancel();
     _oldestMessageIds.clear();
     state = const AsyncLoading();
+    final repo = ref.read(feedRepositoryProvider);
     state = await AsyncValue.guard(() async {
-      final repo = ref.read(feedRepositoryProvider);
       final posts = await repo.fetchFeedPosts();
       _updateOldestIds(posts);
       return posts;
     });
+    if (state.hasValue) _startBackfill(repo);
   }
 
   /// Optimistically toggle bookmark on a post without re-fetching the feed.

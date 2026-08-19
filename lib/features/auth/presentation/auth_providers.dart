@@ -6,6 +6,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -421,6 +422,10 @@ class AuthController extends Notifier<AuthState> {
 
       await db.delete(db.bookmarkEntries).go();
       await db.delete(db.accounts).go();
+
+      // Chats are account-scoped — a stale cache would leak the previous
+      // account's channels into the next sign-in's feed.
+      ref.read(chatCacheProvider).clear();
 
       state = const AuthState(step: AuthStep.loginMethodSelection);
     } catch (e) {
