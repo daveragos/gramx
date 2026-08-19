@@ -44,5 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-/docs
+# NOTE: /docs is tracked — it holds the project documentation (ARCHITECTURE,
+# TDLIB, ROADMAP, UI). Generated dartdoc output is covered by **/doc/api/ above.
+
 /lib/core/config/app_config.dart
