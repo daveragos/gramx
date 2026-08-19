@@ -62,52 +62,71 @@ abstract class TdFixtures {
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) {
-    return td.Chat.fromJson(<String, dynamic>{
-      '@type': 'chat',
-      'id': id,
-      'type': {
-        '@type': 'chatTypeSupergroup',
-        'supergroup_id': id.abs() % 1000000,
-        'is_channel': isChannel,
-      },
-      'title': title,
-      'accent_color_id': 0,
-      'background_custom_emoji_id': 0,
-      'profile_accent_color_id': 0,
-      'profile_background_custom_emoji_id': 0,
-      'permissions': _permissions,
-      'last_message': lastMessage,
-      'positions': positions ??
-          (mainOrder == 0
-              ? <Map<String, dynamic>>[]
-              : [mainListPosition(order: mainOrder)]),
-      'chat_lists': <Map<String, dynamic>>[],
-      'has_protected_content': false,
-      'is_translatable': false,
-      'is_marked_as_unread': false,
-      'view_as_topics': false,
-      'has_scheduled_messages': false,
-      'can_be_deleted_only_for_self': false,
-      'can_be_deleted_for_all_users': false,
-      'can_be_reported': false,
-      'default_disable_notification': false,
-      'unread_count': unreadCount,
-      'last_read_inbox_message_id': 0,
-      'last_read_outbox_message_id': 0,
-      'unread_mention_count': 0,
-      'unread_reaction_count': 0,
-      'notification_settings': _notificationSettings,
-      'available_reactions': {
-        '@type': 'chatAvailableReactionsAll',
-        'max_reaction_count': 11,
-      },
-      'message_auto_delete_time': 0,
-      'theme_name': '',
-      'video_chat': _videoChat,
-      'reply_markup_message_id': 0,
-      'client_data': '',
-    });
+    return td.Chat.fromJson(_chatJson(
+      id: id,
+      title: title,
+      isChannel: isChannel,
+      mainOrder: mainOrder,
+      unreadCount: unreadCount,
+      lastMessage: lastMessage,
+      positions: positions,
+    ));
   }
+
+  static Map<String, dynamic> _chatJson({
+    required int id,
+    String title = 'Test Channel',
+    bool isChannel = true,
+    int mainOrder = 0,
+    int unreadCount = 0,
+    Map<String, dynamic>? lastMessage,
+    List<Map<String, dynamic>>? positions,
+  }) =>
+      <String, dynamic>{
+        '@type': 'chat',
+        'id': id,
+        'type': {
+          '@type': 'chatTypeSupergroup',
+          'supergroup_id': id.abs() % 1000000,
+          'is_channel': isChannel,
+        },
+        'title': title,
+        'accent_color_id': 0,
+        'background_custom_emoji_id': 0,
+        'profile_accent_color_id': 0,
+        'profile_background_custom_emoji_id': 0,
+        'permissions': _permissions,
+        'last_message': lastMessage,
+        'positions': positions ??
+            (mainOrder == 0
+                ? <Map<String, dynamic>>[]
+                : [mainListPosition(order: mainOrder)]),
+        'chat_lists': <Map<String, dynamic>>[],
+        'has_protected_content': false,
+        'is_translatable': false,
+        'is_marked_as_unread': false,
+        'view_as_topics': false,
+        'has_scheduled_messages': false,
+        'can_be_deleted_only_for_self': false,
+        'can_be_deleted_for_all_users': false,
+        'can_be_reported': false,
+        'default_disable_notification': false,
+        'unread_count': unreadCount,
+        'last_read_inbox_message_id': 0,
+        'last_read_outbox_message_id': 0,
+        'unread_mention_count': 0,
+        'unread_reaction_count': 0,
+        'notification_settings': _notificationSettings,
+        'available_reactions': {
+          '@type': 'chatAvailableReactionsAll',
+          'max_reaction_count': 11,
+        },
+        'message_auto_delete_time': 0,
+        'theme_name': '',
+        'video_chat': _videoChat,
+        'reply_markup_message_id': 0,
+        'client_data': '',
+      };
 
   static Map<String, dynamic> mainListPosition({required int order}) => {
         '@type': 'chatPosition',
@@ -180,6 +199,56 @@ abstract class TdFixtures {
   }) =>
       td.Message.fromJson(
         textMessageJson(id: id, chatId: chatId, text: text, date: date),
+      );
+
+  /// A basic-group chat — used to check supergroup lookups degrade safely.
+  static td.Chat basicGroupChat({required int id, String title = 'Group'}) {
+    final json = _chatJson(id: id, title: title);
+    json['type'] = {'@type': 'chatTypeBasicGroup', 'basic_group_id': id.abs()};
+    return td.Chat.fromJson(json);
+  }
+
+  static td.UpdateSupergroup supergroup({
+    required int id,
+    int memberCount = 0,
+    bool isVerified = false,
+    bool isChannel = true,
+    String? username,
+  }) =>
+      td.UpdateSupergroup(
+        supergroup: td.Supergroup.fromJson(<String, dynamic>{
+          '@type': 'supergroup',
+          'id': id,
+          'usernames': username == null
+              ? null
+              : {
+                  '@type': 'usernames',
+                  'active_usernames': [username],
+                  'disabled_usernames': <String>[],
+                  'editable_username': username,
+                },
+          'date': 0,
+          'status': {'@type': 'chatMemberStatusMember', 'member_until_date': 0},
+          'member_count': memberCount,
+          'boost_level': 0,
+          'has_linked_chat': false,
+          'has_location': false,
+          'sign_messages': false,
+          'show_message_sender': false,
+          'join_to_send_messages': false,
+          'join_by_request': false,
+          'is_slow_mode_enabled': false,
+          'is_channel': isChannel,
+          'is_broadcast_group': false,
+          'is_forum': false,
+          'is_verified': isVerified,
+          'has_sensitive_content': false,
+          'restriction_reason': '',
+          'is_scam': false,
+          'is_fake': false,
+          'has_active_stories': false,
+          'has_unread_active_stories': false,
+        }),
       );
 
   static td.UpdateNewChat newChat(td.Chat chat) =>

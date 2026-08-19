@@ -171,6 +171,37 @@ void main() {
     });
   });
 
+  group('ChatCacheState supergroups', () {
+    test('UpdateSupergroup is mirrored and looked up by chat', () {
+      final state = ChatCacheState();
+      final chat = TdFixtures.chat(id: -1001234);
+      state.apply(TdFixtures.newChat(chat));
+
+      expect(state.supergroupForChat(chat), isNull,
+          reason: 'nothing volunteered yet');
+
+      final supergroupId = (chat.type as td.ChatTypeSupergroup).supergroupId;
+      state.apply(TdFixtures.supergroup(
+        id: supergroupId,
+        memberCount: 4200,
+        isVerified: true,
+        username: 'news',
+      ));
+
+      final found = state.supergroupForChat(chat);
+      expect(found?.memberCount, 4200);
+      expect(found?.isVerified, isTrue);
+      expect(found?.usernames?.activeUsernames.first, 'news');
+    });
+
+    test('a non-supergroup chat resolves to null instead of throwing', () {
+      final state = ChatCacheState();
+      // Basic-group chats have no supergroup id to look up.
+      final chat = TdFixtures.basicGroupChat(id: -55);
+      expect(state.supergroupForChat(chat), isNull);
+    });
+  });
+
   group('ChatCacheState.clear', () {
     test('drops chats and buffered messages', () {
       final state = ChatCacheState();
@@ -180,9 +211,12 @@ void main() {
         message: TdFixtures.textMessage(id: 1, chatId: -99),
       ));
 
+      state.apply(TdFixtures.supergroup(id: 7));
+
       state.clear();
 
       expect(state.chats, isEmpty);
+      expect(state.supergroups, isEmpty);
       expect(state.pendingLastMessages, isEmpty);
     });
   });

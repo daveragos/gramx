@@ -11,6 +11,13 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 class ChatCacheState {
   final Map<int, td.Chat> chats = {};
 
+  /// Supergroup records keyed by supergroup id (not chat id).
+  ///
+  /// TDLib volunteers these through `UpdateSupergroup`, and they carry the
+  /// member count, verified flag and username that the channel list shows — so
+  /// mirroring them removes a `GetSupergroup` per channel.
+  final Map<int, td.Supergroup> supergroups = {};
+
   /// `UpdateChatLastMessage` can arrive before the `UpdateNewChat` that
   /// introduces its chat. Stash those and flush them when the chat lands,
   /// otherwise the newest post of a channel is silently dropped on cold start.
@@ -82,9 +89,20 @@ class ChatCacheState {
         chats[update.chatId] = existing.copyWith(photo: update.photo);
         return true;
 
+      case td.UpdateSupergroup():
+        supergroups[update.supergroup.id] = update.supergroup;
+        return true;
+
       default:
         return false;
     }
+  }
+
+  /// The supergroup record behind a chat, if TDLib has volunteered it.
+  td.Supergroup? supergroupForChat(td.Chat chat) {
+    final type = chat.type;
+    if (type is! td.ChatTypeSupergroup) return null;
+    return supergroups[type.supergroupId];
   }
 
   void _flushPendingLastMessage(int chatId) {
@@ -113,6 +131,7 @@ class ChatCacheState {
 
   void clear() {
     chats.clear();
+    supergroups.clear();
     pendingLastMessages.clear();
   }
 }
@@ -163,6 +182,12 @@ class ChatCache {
   }
 
   td.Chat? chat(int chatId) => _state.chats[chatId];
+
+  /// The supergroup record behind a chat, if TDLib has volunteered it.
+  td.Supergroup? supergroupForChat(td.Chat chat) =>
+      _state.supergroupForChat(chat);
+
+  td.Supergroup? supergroup(int supergroupId) => _state.supergroups[supergroupId];
 
   /// Every cached chat that is a broadcast channel, most recently active first.
   List<td.Chat> get channels => _state.channels;

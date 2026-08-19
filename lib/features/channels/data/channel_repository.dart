@@ -1,40 +1,60 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/channels/domain/channel.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 class ChannelRepository {
   final TdlibService _tdlib;
+  final ChatCache _chatCache;
 
-  ChannelRepository(this._tdlib);
+  /// Ceiling on `GetSupergroup` calls issued while building the channel list.
+  ///
+  /// The cache normally answers every one of these for free; this only covers
+  /// supergroups whose `UpdateSupergroup` we somehow missed, and exists so a
+  /// gap in the cache degrades into slightly stale rows rather than a fan-out.
+  static const int _maxSupergroupLookups = 15;
 
-  /// Get all subscribed broadcast channels.
+  ChannelRepository(this._tdlib, this._chatCache);
+
+  /// Every subscribed broadcast channel, most recently active first.
+  ///
+  /// Reads entirely from [ChatCache] — chats and supergroups both arrive on the
+  /// update stream, so the common path costs zero requests.
+  ///
+  /// Deliberately does **not** fetch `SupergroupFullInfo` here. That call is
+  /// networked (TDLib caches it for about a minute), it was previously issued
+  /// once per channel, and the only field it contributes is the description,
+  /// which this list does not show. The channel profile fetches it on demand.
   Future<List<Channel>> getSubscribedChannels() async {
-    final chatsObj = await _tdlib.sendRequest(const td.GetChats(chatList: td.ChatListMain(), limit: 200));
-    if (chatsObj is! td.Chats) return [];
-    
-    final channels = <Channel>[];
-    for (final chatId in chatsObj.chatIds) {
-      final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
-      if (chatObj is td.Chat) {
-        final type = chatObj.type;
-        if (type is td.ChatTypeSupergroup && type.isChannel) {
-          td.Supergroup? supergroup;
-          td.SupergroupFullInfo? fullInfo;
-          
-          try {
-            final sgObj = await _tdlib.sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
-            if (sgObj is td.Supergroup) supergroup = sgObj;
-            
-            final fiObj = await _tdlib.sendRequest(td.GetSupergroupFullInfo(supergroupId: type.supergroupId));
-            if (fiObj is td.SupergroupFullInfo) fullInfo = fiObj;
-          } catch (_) {}
+    await _chatCache.ensureLoaded();
+    final channelChats = _chatCache.channels;
+    if (channelChats.isEmpty) return [];
 
-          channels.add(TdlibMappers.mapChatToChannel(chatObj, supergroup: supergroup, fullInfo: fullInfo));
+    var lookups = 0;
+    final channels = <Channel>[];
+
+    for (final chat in channelChats) {
+      var supergroup = _chatCache.supergroupForChat(chat);
+
+      if (supergroup == null && lookups < _maxSupergroupLookups) {
+        final type = chat.type;
+        if (type is td.ChatTypeSupergroup) {
+          lookups++;
+          try {
+            final res = await _tdlib
+                .sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+            if (res is td.Supergroup) supergroup = res;
+          } catch (_) {
+            // Fall through — the row renders without member count or username.
+          }
         }
       }
+
+      channels.add(TdlibMappers.mapChatToChannel(chat, supergroup: supergroup));
     }
+
     return channels;
   }
 
@@ -50,9 +70,12 @@ class ChannelRepository {
 
     td.Chat? chatObj;
 
-    // 1. If numeric string, try GetChat first
+    // 1. If numeric string, check the cache, then try GetChat.
     final rawId = int.tryParse(trimmed);
     if (rawId != null) {
+      chatObj = _chatCache.chat(rawId);
+    }
+    if (rawId != null && chatObj == null) {
       try {
         final res = await _tdlib.sendRequest(td.GetChat(chatId: rawId));
         if (res is td.Chat) {
@@ -142,24 +165,61 @@ class ChannelRepository {
     return null;
   }
 
-  /// Search global public channels matching query
+  /// Public channels matching [query], searched across all of Telegram.
+  ///
+  /// Capped at [maxSearchResults]. This used to call `getChannelByIdentifier`
+  /// per hit, which meant `GetChat` + `GetSupergroup` + `GetSupergroupFullInfo`
+  /// for every result — three networked requests each, on a path the user
+  /// triggers by typing. Search rows only need the title, avatar, username and
+  /// member count, so full info is left for the profile screen.
+  static const int maxSearchResults = 20;
+
   Future<List<Channel>> searchPublicChannels(String query) async {
     if (query.trim().isEmpty) return [];
     try {
       final res = await _tdlib.sendRequest(td.SearchPublicChats(query: query));
-      if (res is td.Chats) {
-        final channels = <Channel>[];
-        for (final chatId in res.chatIds) {
-          final ch = await getChannelByChatId(chatId);
-          if (ch != null) channels.add(ch);
+      if (res is! td.Chats) return [];
+
+      final channels = <Channel>[];
+      for (final chatId in res.chatIds.take(maxSearchResults)) {
+        final chat = _chatCache.chat(chatId) ??
+            await _fetchChat(chatId);
+        if (chat == null) continue;
+
+        final type = chat.type;
+        if (type is! td.ChatTypeSupergroup || !type.isChannel) continue;
+
+        var supergroup = _chatCache.supergroupForChat(chat);
+        if (supergroup == null) {
+          try {
+            final sg = await _tdlib
+                .sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+            if (sg is td.Supergroup) supergroup = sg;
+          } catch (_) {
+            // Row still renders, just without the member count.
+          }
         }
-        return channels;
+
+        channels.add(TdlibMappers.mapChatToChannel(chat, supergroup: supergroup));
       }
+      return channels;
     } catch (_) {}
     return [];
+  }
+
+  Future<td.Chat?> _fetchChat(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      return res is td.Chat ? res : null;
+    } catch (_) {
+      return null;
+    }
   }
 }
 
 final channelRepositoryProvider = Provider<ChannelRepository>((ref) {
-  return ChannelRepository(ref.watch(tdlibServiceProvider));
+  return ChannelRepository(
+    ref.watch(tdlibServiceProvider),
+    ref.watch(chatCacheProvider),
+  );
 });
