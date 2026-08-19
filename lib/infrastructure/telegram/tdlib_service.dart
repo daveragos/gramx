@@ -8,6 +8,7 @@ import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gramx/core/config/app_config.dart';
 import 'package:gramx/infrastructure/telegram/database_key_store.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_receiver.dart';
 
 /// A failed TDLib request, carrying the numeric error code.
 ///
@@ -67,6 +68,10 @@ class TdlibService {
   int? _clientId;
   Future<void>? _initializeMemoizer;
   Timer? _pollTimer;
+
+  /// Non-null while updates are arriving on a background isolate. When null,
+  /// the polling fallback owns receiving instead.
+  TdlibReceiver? _receiver;
 
   final _updatesController = StreamController<td.TdObject>.broadcast();
   final _invokesController = StreamController<Map<String, dynamic>>.broadcast();
@@ -259,8 +264,8 @@ class TdlibService {
       _clientId = TdPlugin.instance.tdCreateClientId();
       _updateStatus('TDLib client initialized (ID: $_clientId)');
 
-      // Start non-blocking polling
-      _startPolling();
+      // Start receiving (isolate if possible, polling otherwise)
+      await _startReceiving();
 
       // Query current authorization state immediately to seed the service
       try {
@@ -298,6 +303,24 @@ class TdlibService {
 
   int _emptyDrains = 0;
   Duration _pollInterval = _activePollInterval;
+
+  /// Starts receiving updates.
+  ///
+  /// Prefers a background isolate running TDLib's blocking receive, which keeps
+  /// both the native wait and the JSON parse off the UI thread. Falls back to
+  /// polling here if the isolate can't be started — on a platform that links
+  /// TDLib statically, for instance — so a failure degrades to the previous
+  /// behaviour rather than a client that receives nothing.
+  ///
+  /// Exactly one of the two runs: `td_receive` must not be called concurrently
+  /// for the same client.
+  Future<void> _startReceiving() async {
+    _receiver = TdlibReceiver(onPayload: _handlePayload);
+    if (await _receiver!.start()) return;
+
+    _receiver = null;
+    _startPolling();
+  }
 
   /// Non-blocking polling loop, backing off while nothing is arriving.
   void _startPolling() {
@@ -343,29 +366,39 @@ class TdlibService {
       drained++;
 
       try {
-        final map = jsonDecode(response) as Map<String, dynamic>;
-
-        // Presence of the key — not a non-null value — is what marks a reply
-        // to one of our requests, matching how TDLib echoes it back.
-        if (map.containsKey('@extra')) {
-          final extra = map['@extra']?.toString();
-          final completer =
-              extra != null ? _pendingRequests.remove(extra) : null;
-          if (completer != null) {
-            _completeRequest(completer, map);
-          } else {
-            _invokesController.add(map);
-          }
-        } else {
-          final object = convertMapToObject(map);
-          if (object != null) _handleIncomingUpdate(object);
-        }
+        _handlePayload(jsonDecode(response) as Map<String, dynamic>);
       } catch (e) {
         debugPrint('[TDLib] JSON decode error on update: $e');
       }
     }
 
     _adjustPollRate(drainedAnything: drained > 0);
+  }
+
+  /// Whether a payload is a reply to a request we sent.
+  ///
+  /// Presence of the key — not a non-null value — is what marks a reply,
+  /// matching how TDLib echoes `@extra` back. Checking for a non-null value
+  /// instead would misroute a reply carrying a null one into the update stream.
+  @visibleForTesting
+  static bool isRequestReply(Map<String, dynamic> payload) =>
+      payload.containsKey('@extra');
+
+  /// Routes one decoded TDLib payload, from either receive path.
+  void _handlePayload(Map<String, dynamic> map) {
+    if (isRequestReply(map)) {
+      final extra = map['@extra']?.toString();
+      final completer = extra != null ? _pendingRequests.remove(extra) : null;
+      if (completer != null) {
+        _completeRequest(completer, map);
+      } else {
+        _invokesController.add(map);
+      }
+      return;
+    }
+
+    final object = convertMapToObject(map);
+    if (object != null) _handleIncomingUpdate(object);
   }
 
   void _completeRequest(
@@ -550,6 +583,8 @@ class TdlibService {
       _updateStatus('Resetting TDLib local data...');
       _pollTimer?.cancel();
       _pollTimer = null;
+      await _receiver?.stop();
+      _receiver = null;
       _clientId = null;
       _initializeMemoizer = null;
       _currentAuthState = null;
@@ -573,6 +608,8 @@ class TdlibService {
   Future<void> dispose() async {
     _pollTimer?.cancel();
     _pollTimer = null;
+    await _receiver?.stop();
+    _receiver = null;
     await _updatesController.close();
     await _invokesController.close();
     await _authEventController.close();
