@@ -6,6 +6,7 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
+import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 
 class TdlibMappers {
   static String? _parseFormattedText(dynamic raw) {
@@ -142,6 +143,11 @@ class TdlibMappers {
     } else if (content is td.MessagePoll) {
       bodyText = _parseFormattedText(content.poll.question);
       pollObj = _parsePoll(content.poll);
+    } else {
+      // Content we don't draw yet still gets a label. Falling through silently
+      // produced a card with a header, a timestamp, an action bar and nothing
+      // between them — see MessageContentSupport.
+      bodyText = MessageContentSupport.describe(content);
     }
 
     final Map<String, int> reactionsMap = {};
@@ -542,6 +548,10 @@ class TdlibMappers {
     final result = <Post>[];
 
     for (final m in messages) {
+      // Telegram's own notices about the chat — pins, renames, joins — are
+      // noise in a reading feed.
+      if (!MessageContentSupport.belongsInFeed(m.content)) continue;
+
       final albumId = m.mediaAlbumId.toInt();
       if (albumId == 0) {
         result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'), knownChatTitles: knownChatTitles));
