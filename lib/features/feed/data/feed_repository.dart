@@ -42,6 +42,20 @@ class FeedRepository {
 
   FeedRepository(this._tdlib, this._db, this._syncService, this._chatCache);
 
+  /// Picks the channels whose oldest loaded post is newest.
+  ///
+  /// Those are the only ones that can extend a merged feed backwards — every
+  /// other channel already reaches further back than the current frontier, so
+  /// paging it adds nothing the user would see.
+  static List<MapEntry<int, int>> selectPaginationFrontier(
+    Map<int, int> oldestMessageIds, {
+    required int limit,
+  }) {
+    final entries = oldestMessageIds.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries.take(limit).toList();
+  }
+
   /// Composite keys (`chatId_messageId`) of every bookmarked post.
   Future<Set<String>> _bookmarkKeys() async {
     final bookmarks = await _db.select(_db.bookmarkEntries).get();
@@ -173,9 +187,10 @@ class FeedRepository {
   Future<List<Post>> fetchOlderPosts(Map<int, int> oldestMessageIds) async {
     if (oldestMessageIds.isEmpty) return [];
 
-    final frontier = oldestMessageIds.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final page = frontier.take(paginationChannelsPerPage);
+    final page = selectPaginationFrontier(
+      oldestMessageIds,
+      limit: paginationChannelsPerPage,
+    );
 
     final chats = <td.Chat>[];
     final messagesByChatId = <int, List<td.Message>>{};

@@ -57,11 +57,26 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     }
   }
 
+  /// Chat ids this tab shows, or null for the "All" tab.
+  ///
+  /// Pagination is scoped to these so a narrow folder doesn't page every
+  /// channel the user follows just to add a couple of rows.
+  Set<int>? _visibleChatIds() {
+    final folderId = int.tryParse(widget.folderId);
+    if (widget.folderId == 'All' || folderId == null) return null;
+
+    final allowed = ref.read(folderChannelIdsProvider(folderId)).value;
+    if (allowed == null) return null;
+    return allowed.map(int.tryParse).whereType<int>().toSet();
+  }
+
   void _loadMore() async {
     if (_isLoadingMore) return;
     setState(() => _isLoadingMore = true);
     try {
-      await ref.read(feedPostsProvider.notifier).loadMore();
+      await ref
+          .read(feedPostsProvider.notifier)
+          .loadMore(allowedChatIds: _visibleChatIds());
     } catch (_) {
     } finally {
       if (mounted) setState(() => _isLoadingMore = false);

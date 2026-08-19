@@ -11,6 +11,18 @@ import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
+/// Narrows pagination cursors to a set of chats.
+///
+/// A null [allowedChatIds] means "no folder filter" and passes everything
+/// through, which is what the All tab wants.
+Map<int, int> narrowCursors(Map<int, int> cursors, Set<int>? allowedChatIds) {
+  if (allowedChatIds == null) return cursors;
+  return {
+    for (final entry in cursors.entries)
+      if (allowedChatIds.contains(entry.key)) entry.key: entry.value,
+  };
+}
+
 /// Merges [incoming] posts into [current], newest first.
 ///
 /// Posts already present win: their entry is kept untouched so optimistic
@@ -108,13 +120,22 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     }
   }
 
-  /// Load more (older) posts and APPEND to existing state.
-  Future<void> loadMore() async {
+  /// Loads older posts and appends them.
+  ///
+  /// [allowedChatIds] narrows the request to one folder's channels. Without it,
+  /// scrolling to the bottom of a three-channel folder tab paged *every*
+  /// subscription and then filtered almost all of it away — so the visible list
+  /// barely grew and the scroll listener fired again immediately.
+  Future<void> loadMore({Set<int>? allowedChatIds}) async {
     if (_isLoadingMore || _oldestMessageIds.isEmpty) return;
+
+    final cursors = narrowCursors(_oldestMessageIds, allowedChatIds);
+    if (cursors.isEmpty) return;
+
     _isLoadingMore = true;
     try {
       final repo = ref.read(feedRepositoryProvider);
-      final olderPosts = await repo.fetchOlderPosts(_oldestMessageIds);
+      final olderPosts = await repo.fetchOlderPosts(cursors);
       if (olderPosts.isNotEmpty) {
         _updateOldestIds(olderPosts);
         final current = state.value ?? [];
