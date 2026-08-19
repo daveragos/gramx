@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
-import 'package:gramx/app/theme/app_theme.dart';
+import 'package:gramx/features/settings/data/app_settings.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
@@ -17,12 +18,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  // Feed Preferences state
-  bool _autoPlayVideos = false;
-
   @override
   Widget build(BuildContext context) {
-    final currentTheme = ref.watch(appThemeModeProvider);
+    final settings = ref.watch(settingsProvider);
+    final currentTheme = settings.themeMode;
     final accountAsync = ref.watch(activeAccountProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -198,7 +197,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.lightBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.lightTextPrimary,
-                    onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.light),
+                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.light),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -210,7 +209,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.dimBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.dimTextPrimary,
-                    onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.dim),
+                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.dim),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -222,7 +221,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.darkBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.darkTextPrimary,
-                    onTap: () => ref.read(appThemeModeProvider.notifier).setThemeMode(AppThemeMode.dark),
+                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.dark),
                   ),
                 ),
               ],
@@ -235,11 +234,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionHeader(title: 'PREFERENCES', secondaryColor: secondaryColor),
           SwitchListTile(
             secondary: Icon(Icons.play_circle_outline, color: primaryColor),
-            title: Text('Auto-play videos', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('Videos play automatically in your feed', style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text('Auto-play videos and GIFs',
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(
+              'Play silently while they are on screen',
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
             activeThumbColor: AppColors.accent,
-            value: _autoPlayVideos,
-            onChanged: (val) => setState(() => _autoPlayVideos = val),
+            value: settings.autoPlayEnabled,
+            onChanged: (val) =>
+                ref.read(settingsProvider.notifier).toggleAutoPlay(val),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 

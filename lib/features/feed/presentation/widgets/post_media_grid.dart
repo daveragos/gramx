@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
@@ -427,44 +430,98 @@ class _MediaTile extends ConsumerWidget {
   }
 }
 
-class _GifVideoPlayerTile extends StatefulWidget {
+class _GifVideoPlayerTile extends ConsumerStatefulWidget {
   final String path;
   const _GifVideoPlayerTile({required this.path});
 
   @override
-  State<_GifVideoPlayerTile> createState() => _GifVideoPlayerTileState();
+  ConsumerState<_GifVideoPlayerTile> createState() =>
+      _GifVideoPlayerTileState();
 }
 
-class _GifVideoPlayerTileState extends State<_GifVideoPlayerTile> {
+class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
+  /// A tile must be at least this visible before it is worth a decoder.
+  static const double _playThreshold = 0.5;
+
   VideoPlayerController? _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _initController();
-  }
-
-  Future<void> _initController() async {
-    try {
-      _controller = VideoPlayerController.file(File(widget.path));
-      await _controller!.initialize();
-      await _controller!.setLooping(true);
-      await _controller!.setVolume(0.0);
-      await _controller!.play();
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint('[GifTile] Error initializing video player: $e');
-    }
-  }
+  bool _holdsBudget = false;
+  bool _starting = false;
 
   @override
   void dispose() {
+    _releaseBudget();
     _controller?.dispose();
     super.dispose();
   }
 
+  void _releaseBudget() {
+    if (!_holdsBudget) return;
+    _holdsBudget = false;
+    ref.read(inlinePlayerBudgetProvider).release();
+  }
+
+  /// Starts playing only when the tile is genuinely on screen, auto-play is on,
+  /// and the shared budget has room.
+  Future<void> _start() async {
+    if (_controller != null || _starting) return;
+    if (!ref.read(autoPlayEnabledProvider)) return;
+
+    final budget = ref.read(inlinePlayerBudgetProvider);
+    if (!budget.tryAcquire()) return;
+    _holdsBudget = true;
+    _starting = true;
+
+    try {
+      final controller = VideoPlayerController.file(File(widget.path));
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.setVolume(0.0);
+      await controller.play();
+
+      if (!mounted) {
+        await controller.dispose();
+        _releaseBudget();
+        return;
+      }
+      setState(() => _controller = controller);
+    } catch (e) {
+      debugPrint('[GifTile] Error initializing video player: $e');
+      _releaseBudget();
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Tears the player down when the tile scrolls away, freeing its slot for
+  /// whatever the user is actually looking at.
+  Future<void> _stop() async {
+    final controller = _controller;
+    if (controller == null) {
+      _releaseBudget();
+      return;
+    }
+    if (mounted) setState(() => _controller = null);
+    await controller.dispose();
+    _releaseBudget();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return VisibilityDetector(
+      key: Key('gif-${widget.path}'),
+      onVisibilityChanged: (info) {
+        if (!mounted) return;
+        if (info.visibleFraction >= _playThreshold) {
+          _start();
+        } else {
+          _stop();
+        }
+      },
+      child: _buildTile(context),
+    );
+  }
+
+  Widget _buildTile(BuildContext context) {
     if (_controller != null && _controller!.value.isInitialized) {
       return Stack(
         fit: StackFit.expand,

@@ -1,20 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
-
-enum AppThemeMode { light, dim, dark }
-
-class AppThemeModeNotifier extends Notifier<AppThemeMode> {
-  @override
-  AppThemeMode build() => AppThemeMode.dark;
-
-  void setThemeMode(AppThemeMode mode) {
-    state = mode;
-  }
-}
-
-final appThemeModeProvider = NotifierProvider<AppThemeModeNotifier, AppThemeMode>(AppThemeModeNotifier.new);
+import 'package:gramx/features/settings/data/app_settings.dart';
 
 class AppTheme {
   static ThemeData light() {
