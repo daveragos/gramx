@@ -329,6 +329,33 @@ class FeedRepository {
     );
   }
 
+  /// Maps messages that arrived on the update stream into posts.
+  ///
+  /// Costs nothing beyond the bookmark lookup — the messages are already in
+  /// hand and the chats come from the cache. Messages from chats we don't
+  /// follow, or that aren't channels, are dropped.
+  Future<List<Post>> mapIncomingMessages(List<td.Message> messages) async {
+    if (messages.isEmpty) return [];
+
+    final chats = <td.Chat>[];
+    final messagesByChatId = <int, List<td.Message>>{};
+
+    for (final message in messages) {
+      final chat = _chatCache.chat(message.chatId);
+      if (chat == null || !ChatCacheState.isChannel(chat)) continue;
+      if (!messagesByChatId.containsKey(chat.id)) chats.add(chat);
+      messagesByChatId.putIfAbsent(chat.id, () => []).add(message);
+    }
+
+    if (messagesByChatId.isEmpty) return [];
+
+    for (final entry in messagesByChatId.entries) {
+      messagesByChatId[entry.key] = _dedupeMessages(entry.value);
+    }
+
+    return _buildPosts(messagesByChatId, chats);
+  }
+
   /// A shareable t.me link for a post.
   ///
   /// Asks TDLib for the canonical link first — it knows about usernames,

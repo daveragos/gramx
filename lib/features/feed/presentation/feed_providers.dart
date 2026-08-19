@@ -11,6 +11,26 @@ import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
+/// Merges [incoming] posts into [current], newest first.
+///
+/// Posts already present win: their entry is kept untouched so optimistic
+/// reaction, bookmark and read state survives a refetch of the same post.
+List<Post> mergePostsNewestFirst(List<Post> current, List<Post> incoming) {
+  if (incoming.isEmpty) return current;
+
+  final seen = current.map((p) => p.id).toSet();
+  final additions = <Post>[];
+  for (final post in incoming) {
+    // `seen` grows as we go, so a batch containing the same post twice — which
+    // happens when an album's members race each other — yields one entry.
+    if (seen.add(post.id)) additions.add(post);
+  }
+  if (additions.isEmpty) return current;
+
+  return [...current, ...additions]
+    ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+}
+
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
 class FeedNotifier extends AsyncNotifier<List<Post>> {
@@ -64,8 +84,17 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     if (additions.isEmpty) return;
 
     _updateOldestIds(additions);
-    final merged = [...current, ...additions]
-      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    state = AsyncData(mergePostsNewestFirst(current, additions));
+  }
+
+  /// Splices freshly arrived posts into the feed.
+  ///
+  /// Called when the user taps the "new posts" pill — never automatically, so
+  /// the list never shifts under someone mid-read.
+  void prependPosts(List<Post> incoming) {
+    final current = state.value ?? [];
+    final merged = mergePostsNewestFirst(current, incoming);
+    if (identical(merged, current)) return;
     state = AsyncData(merged);
   }
 
@@ -89,14 +118,8 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       if (olderPosts.isNotEmpty) {
         _updateOldestIds(olderPosts);
         final current = state.value ?? [];
-        final existingIds = current.map((p) => p.id).toSet();
-        final newPosts =
-            olderPosts.where((p) => !existingIds.contains(p.id)).toList();
-        if (newPosts.isNotEmpty) {
-          final merged = [...current, ...newPosts]
-            ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
-          state = AsyncData(merged);
-        }
+        final merged = mergePostsNewestFirst(current, olderPosts);
+        if (!identical(merged, current)) state = AsyncData(merged);
       }
     } finally {
       _isLoadingMore = false;
@@ -495,60 +518,54 @@ Post applyPostOverrides(Post post, Map<String, Map<String, dynamic>> overrides) 
   );
 }
 
+/// Applies the folder and hidden-channel filters to a list of posts.
+///
+/// Shared by the feed itself and by the pending-arrivals pill, so a tab's
+/// "N new posts" count can never disagree with what that tab would show.
+List<Post> filterPostsForFolder(Ref ref, List<Post> posts, String folderIdStr) {
+  final mutedChannelIds = ref.watch(mutedChannelsProvider);
+
+  var list = posts;
+  if (mutedChannelIds.isNotEmpty) {
+    list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
+  }
+
+  final folderId = int.tryParse(folderIdStr);
+  if (folderIdStr == 'All' || folderId == null) return list;
+
+  final allowed = ref.watch(folderChannelIdsProvider(folderId)).value;
+  if (allowed == null) return const [];
+  if (allowed.isEmpty) return const [];
+
+  return list
+      .where((post) =>
+          allowed.contains(post.channelId) ||
+          allowed.contains(post.chatId.toString()))
+      .toList();
+}
+
 /// Filtered posts by folder/category and excluding muted channels.
+///
 /// Synchronous Provider returning `AsyncValue<List<Post>>` to ensure instant 0ms
 /// state updates when post actions (reactions, bookmarks) occur.
 final filteredFeedPostsProvider =
     Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
   final postsAsync = ref.watch(feedPostsProvider);
-  final mutedChannelIds = ref.watch(mutedChannelsProvider);
   final overrides = ref.watch(optimisticPostUpdatesProvider);
 
-  if (folderIdStr == 'All') {
-    return postsAsync.whenData((posts) {
-      var list = posts;
-      if (mutedChannelIds.isNotEmpty) {
-        list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
-      }
-      return list.map((p) => applyPostOverrides(p, overrides)).toList();
-    });
-  }
-
   final folderId = int.tryParse(folderIdStr);
-  if (folderId == null) {
-    return postsAsync.whenData((posts) {
-      var list = posts;
-      if (mutedChannelIds.isNotEmpty) {
-        list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
-      }
-      return list.map((p) => applyPostOverrides(p, overrides)).toList();
-    });
-  }
-
-  final folderChannelsAsync = ref.watch(folderChannelIdsProvider(folderId));
-
-  if (folderChannelsAsync.isLoading && !folderChannelsAsync.hasValue) {
-    return const AsyncValue.loading();
-  }
-  if (folderChannelsAsync.hasError && !folderChannelsAsync.hasValue) {
-    return AsyncValue.error(folderChannelsAsync.error!, folderChannelsAsync.stackTrace!);
-  }
-
-  final allowedChannelIdsStr = folderChannelsAsync.value ?? {};
-
-  return postsAsync.whenData((posts) {
-    var filtered = posts;
-    if (mutedChannelIds.isNotEmpty) {
-      filtered = filtered.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
+  if (folderIdStr != 'All' && folderId != null) {
+    final folderChannelsAsync = ref.watch(folderChannelIdsProvider(folderId));
+    if (folderChannelsAsync.isLoading && !folderChannelsAsync.hasValue) {
+      return const AsyncValue.loading();
     }
-    if (allowedChannelIdsStr.isEmpty) {
-      return [];
+    if (folderChannelsAsync.hasError && !folderChannelsAsync.hasValue) {
+      return AsyncValue.error(
+          folderChannelsAsync.error!, folderChannelsAsync.stackTrace!);
     }
-    return filtered
-        .where((post) =>
-            allowedChannelIdsStr.contains(post.channelId) ||
-            allowedChannelIdsStr.contains(post.chatId.toString()))
-        .map((p) => applyPostOverrides(p, overrides))
-        .toList();
-  });
+  }
+
+  return postsAsync.whenData((posts) => filterPostsForFolder(ref, posts, folderIdStr)
+      .map((p) => applyPostOverrides(p, overrides))
+      .toList());
 });

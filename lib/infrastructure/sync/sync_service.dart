@@ -17,6 +17,15 @@ class LiveReactionsUpdate extends LivePostUpdate {
   LiveReactionsUpdate(this.postId, this.reactions, this.chosenReactions);
 }
 
+/// A message that just arrived in a chat we follow.
+///
+/// Previously `UpdateNewMessage` only triggered a media download and the
+/// message itself was dropped, so a feed left open never gained a post.
+class LiveNewMessage extends LivePostUpdate {
+  final td.Message message;
+  LiveNewMessage(this.message);
+}
+
 class LiveInteractionUpdate extends LivePostUpdate {
   final String postId;
   final int? viewCount;
@@ -134,6 +143,7 @@ class SyncService {
 
     if (update is td.UpdateNewMessage) {
       _downloadMessageMedia(update.message);
+      _liveUpdateController.add(LiveNewMessage(update.message));
     } else if (update is td.UpdateFile) {
       final file = update.file;
       if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty) {

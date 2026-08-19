@@ -8,6 +8,7 @@ import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
 class FolderFeed extends ConsumerStatefulWidget {
@@ -25,7 +26,27 @@ class FolderFeed extends ConsumerStatefulWidget {
 }
 
 class _FolderFeedState extends ConsumerState<FolderFeed> {
+  final ScrollController _scrollController = ScrollController();
   bool _isLoadingMore = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Commits pending arrivals, then returns to the top so the user lands on
+  /// the newest post rather than wherever the insert pushed them.
+  void _showNewPosts() {
+    ref.read(pendingPostsProvider.notifier).accept();
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   void _loadMore() async {
     if (_isLoadingMore) return;
@@ -46,6 +67,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     ref.listen(feedFocusControllerProvider, (_, _) {});
 
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
+    final pendingCount =
+        ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
 
@@ -97,10 +120,14 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           );
         }
 
-        return RefreshIndicator(
+        return Stack(
+          children: [
+            RefreshIndicator(
           color: AppColors.accent,
           onRefresh: () async {
-            // Use stateful refresh instead of invalidate
+            // A refresh re-fetches everything, so held-back arrivals would be
+            // duplicated by it — drop them rather than showing a stale pill.
+            ref.read(pendingPostsProvider.notifier).discard();
             await ref.read(feedPostsProvider.notifier).refresh();
           },
           child: NotificationListener<ScrollNotification>(
@@ -112,6 +139,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               return false;
             },
             child: ListView.builder(
+              controller: _scrollController,
               padding: EdgeInsets.zero,
               itemCount: posts.length + (_isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
@@ -146,8 +174,78 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               },
             ),
           ),
+            ),
+            if (pendingCount > 0)
+              Positioned(
+                top: AppSpacing.md,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: _NewPostsPill(
+                    count: pendingCount,
+                    onTap: _showNewPosts,
+                  ),
+                ),
+              ),
+          ],
         );
       },
+    );
+  }
+}
+
+/// The "N new posts" affordance. Tapping it is the only way arrivals enter the
+/// feed — see [PendingPostsNotifier].
+class _NewPostsPill extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _NewPostsPill({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? '1 new post' : '$count new posts';
+
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.arrow_upward_rounded,
+                    color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
