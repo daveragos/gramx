@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +30,25 @@ enum ShellTab {
   /// The route this tab's branch is rooted at. The router reads it from here so
   /// the tab order and the branch order cannot drift apart.
   final String path;
+}
+
+/// Shared chrome geometry and motion.
+///
+/// The header and the bottom bar move together, so they share one duration and
+/// curve — different values made the two halves of the frame disagree, which is
+/// what read as jumpy.
+abstract class ShellChrome {
+  static const double bottomBarHeight = 56;
+  static const Duration slideDuration = Duration(milliseconds: 220);
+  static const Curve slideCurve = Curves.easeOutCubic;
+
+  /// Blur behind the bars, so content scrolling under them stays legible
+  /// without a hard opaque band.
+  static const double blurSigma = 18;
+
+  /// How opaque the tint over that blur is. Enough to carry text contrast,
+  /// little enough that the content still reads as continuing underneath.
+  static const double tintOpacity = 0.72;
 }
 
 /// Hosts the tab bar and the drawer around whichever branch is showing.
@@ -108,36 +129,82 @@ class _AppShellState extends ConsumerState<AppShell> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
-      body: navigationShell,
-      drawer: const AppDrawer(),
-      bottomNavigationBar: ClipRect(
-        // Collapsing the height rather than sliding keeps the feed from
-        // scrolling under a bar that still occupies layout space.
-        child: AnimatedAlign(
-          alignment: Alignment.topCenter,
-          heightFactor: isVisible ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: borderColor, width: 0.5)),
-            ),
-            child: BottomNavigationBar(
-              currentIndex: navigationShell.currentIndex,
-              onTap: _onTap,
-              items: [
-                for (final tab in ShellTab.values)
-                  BottomNavigationBarItem(
-                    icon: Icon(tab.icon),
-                    activeIcon: Icon(tab.activeIcon),
-                    label: tab.label,
-                    tooltip: tab.label,
+        drawer: const AppDrawer(),
+        // The bar overlays the content instead of sitting in the layout.
+        // Collapsing its height animated a relayout every frame, which is what
+        // made hiding it feel like the page was resizing rather than sliding.
+        body: Stack(
+          children: [
+            navigationShell,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: AnimatedSlide(
+                offset: isVisible ? Offset.zero : const Offset(0, 1),
+                duration: ShellChrome.slideDuration,
+                curve: ShellChrome.slideCurve,
+                child: BlurredChrome(
+                  border: Border(
+                    top: BorderSide(color: borderColor, width: 0.5),
                   ),
-              ],
+                  child: SizedBox(
+                    height: ShellChrome.bottomBarHeight +
+                        MediaQuery.of(context).padding.bottom,
+                    child: BottomNavigationBar(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      currentIndex: navigationShell.currentIndex,
+                      onTap: _onTap,
+                      items: [
+                        for (final tab in ShellTab.values)
+                          BottomNavigationBarItem(
+                            icon: Icon(tab.icon),
+                            activeIcon: Icon(tab.activeIcon),
+                            label: tab.label,
+                            tooltip: tab.label,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+/// A translucent surface that blurs whatever scrolls beneath it.
+///
+/// Used for both bars so they read as one material. A plain opaque band cuts
+/// the page in two; the blur keeps the content visibly continuing underneath.
+class BlurredChrome extends StatelessWidget {
+  final Widget child;
+  final BoxBorder? border;
+
+  const BlurredChrome({super.key, required this.child, this.border});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: ShellChrome.blurSigma,
+          sigmaY: ShellChrome.blurSigma,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor
+                .withValues(alpha: ShellChrome.tintOpacity),
+            border: border,
+          ),
+          child: child,
+        ),
       ),
     );
   }

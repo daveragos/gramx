@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -21,11 +22,21 @@ class FolderFeed extends ConsumerStatefulWidget {
   /// Room reserved for the sliding header, which overlays this list.
   final double topPadding;
 
+  /// Room reserved for the bottom bar, which also overlays this list.
+  final double bottomPadding;
+
+  /// Where the top of the content sits once the header has slid away — the
+  /// status bar inset. The "new posts" pill follows this so it stays near the
+  /// top of the screen instead of stranding where the header used to be.
+  final double collapsedTopPadding;
+
   const FolderFeed({
     super.key,
     required this.folderTitle,
     required this.folderId,
     this.topPadding = 0,
+    this.bottomPadding = 0,
+    this.collapsedTopPadding = 0,
   });
 
   @override
@@ -114,6 +125,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
     final pendingCount =
         ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
+    final chromeVisible = ref.watch(chromeVisibleProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
 
@@ -224,7 +236,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
             },
             child: ListView.builder(
               controller: _scrollController,
-              padding: EdgeInsets.only(top: widget.topPadding),
+              padding: EdgeInsets.only(
+                top: widget.topPadding,
+                bottom: widget.bottomPadding,
+              ),
               itemCount: threads.length + (_isLoadingMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == threads.length) {
@@ -255,8 +270,17 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           ),
             ),
             if (pendingCount > 0)
-              Positioned(
-                top: widget.topPadding + AppSpacing.md,
+              // Tracks the header: the pill sits just under it when it's
+              // showing, and rises to just under the status bar when it isn't.
+              // Pinning it to the header's reserved height left it floating in
+              // the middle of the screen once the header slid away.
+              AnimatedPositioned(
+                duration: ShellChrome.slideDuration,
+                curve: ShellChrome.slideCurve,
+                top: (chromeVisible
+                        ? widget.topPadding
+                        : widget.collapsedTopPadding) +
+                    AppSpacing.md,
                 left: 0,
                 right: 0,
                 child: Center(

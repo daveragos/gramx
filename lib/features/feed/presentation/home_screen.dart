@@ -127,8 +127,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         folderTitle: item.title,
                         folderId: item.id,
                         topPadding: headerHeight,
+                        // The bar overlays the list, so the last post needs
+                        // room to clear it.
+                        bottomPadding: ShellChrome.bottomBarHeight +
+                            MediaQuery.of(context).padding.bottom,
+                        // Where the pill sits once the header is gone.
+                        collapsedTopPadding:
+                            MediaQuery.of(context).padding.top,
                       );
                     }).toList(),
+                  ),
+
+                  // A blurred strip keeps the status bar legible once the
+                  // header has slid away from behind it.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: chromeVisible ? 0 : 1,
+                        duration: ShellChrome.slideDuration,
+                        curve: ShellChrome.slideCurve,
+                        child: BlurredChrome(
+                          child: SizedBox(
+                            height: MediaQuery.of(context).padding.top,
+                            width: double.infinity,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
 
                   Positioned(
@@ -137,8 +165,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     right: 0,
                     child: AnimatedSlide(
                       offset: chromeVisible ? Offset.zero : const Offset(0, -1),
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
+                      duration: ShellChrome.slideDuration,
+                      curve: ShellChrome.slideCurve,
                       child: _FeedHeader(
                         height: headerHeight,
                         displayName: displayName,
@@ -227,13 +255,11 @@ class _FeedHeader extends ConsumerWidget {
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        border: Border(bottom: BorderSide(color: border, width: 0.5)),
-      ),
-      child: SafeArea(
+    return BlurredChrome(
+      border: Border(bottom: BorderSide(color: border, width: 0.5)),
+      child: SizedBox(
+        height: height,
+        child: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -288,6 +314,7 @@ class _FeedHeader extends ConsumerWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
