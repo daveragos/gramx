@@ -48,7 +48,7 @@ abstract mixin class $ChannelCopyWith<$Res>  {
   factory $ChannelCopyWith(Channel value, $Res Function(Channel) _then) = _$ChannelCopyWithImpl;
 @useResult
 $Res call({
- String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, DateTime? lastPostAt
+ String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, DateTime? lastPostAt
 });
 
 
@@ -65,7 +65,7 @@ class _$ChannelCopyWithImpl<$Res>
 
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? lastPostAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? lastPostAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -80,6 +80,7 @@ as int,isVerified: null == isVerified ? _self.isVerified : isVerified // ignore:
 as bool,isFavorite: null == isFavorite ? _self.isFavorite : isFavorite // ignore: cast_nullable_to_non_nullable
 as bool,isMuted: null == isMuted ? _self.isMuted : isMuted // ignore: cast_nullable_to_non_nullable
 as bool,isHidden: null == isHidden ? _self.isHidden : isHidden // ignore: cast_nullable_to_non_nullable
+as bool,isJoined: null == isJoined ? _self.isJoined : isJoined // ignore: cast_nullable_to_non_nullable
 as bool,lastPostAt: freezed == lastPostAt ? _self.lastPostAt : lastPostAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
@@ -166,10 +167,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  DateTime? lastPostAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Channel() when $default != null:
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
   return orElse();
 
 }
@@ -187,10 +188,10 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  DateTime? lastPostAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)  $default,) {final _that = this;
 switch (_that) {
 case _Channel():
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -207,10 +208,10 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  DateTime? lastPostAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Channel() when $default != null:
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
   return null;
 
 }
@@ -274,7 +275,7 @@ abstract mixin class _$ChannelCopyWith<$Res> implements $ChannelCopyWith<$Res> {
   factory _$ChannelCopyWith(_Channel value, $Res Function(_Channel) _then) = __$ChannelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, DateTime? lastPostAt
+ String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, DateTime? lastPostAt
 });
 
 
@@ -291,7 +292,7 @@ class __$ChannelCopyWithImpl<$Res>
 
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? lastPostAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? lastPostAt = freezed,}) {
   return _then(_Channel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -306,6 +307,7 @@ as int,isVerified: null == isVerified ? _self.isVerified : isVerified // ignore:
 as bool,isFavorite: null == isFavorite ? _self.isFavorite : isFavorite // ignore: cast_nullable_to_non_nullable
 as bool,isMuted: null == isMuted ? _self.isMuted : isMuted // ignore: cast_nullable_to_non_nullable
 as bool,isHidden: null == isHidden ? _self.isHidden : isHidden // ignore: cast_nullable_to_non_nullable
+as bool,isJoined: null == isJoined ? _self.isJoined : isJoined // ignore: cast_nullable_to_non_nullable
 as bool,lastPostAt: freezed == lastPostAt ? _self.lastPostAt : lastPostAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));

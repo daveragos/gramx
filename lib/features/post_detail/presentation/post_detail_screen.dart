@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   Post? _replyTargetPost;
   final Set<String> _expandedCommentIds = {};
 
+  StreamSubscription<LivePostUpdate>? _liveSub;
+  Timer? _refreshDebounce;
+
+  /// Replies arrive in bursts. Waiting a beat turns a conversation into one
+  /// refetch instead of one per message.
+  static const Duration _commentsRefreshDebounce = Duration(milliseconds: 600);
+
   @override
   void initState() {
     super.initState();
@@ -50,10 +58,33 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         }
       });
     }
+    _watchForNewComments();
+  }
+
+  /// Keeps an open thread current.
+  ///
+  /// Comments live in the channel's linked discussion group, not the channel
+  /// itself, so we match on the chat id of the comments already loaded. Only
+  /// runs while this screen is mounted.
+  void _watchForNewComments() {
+    _liveSub = ref.read(syncServiceProvider).livePostUpdates.listen((update) {
+      if (update is! LiveNewMessage) return;
+
+      final loaded = ref.read(postCommentsProvider(widget.postId)).value;
+      if (loaded == null || loaded.isEmpty) return;
+      if (update.message.chatId != loaded.first.chatId) return;
+
+      _refreshDebounce?.cancel();
+      _refreshDebounce = Timer(_commentsRefreshDebounce, () {
+        if (mounted) ref.invalidate(postCommentsProvider(widget.postId));
+      });
+    });
   }
 
   @override
   void dispose() {
+    _liveSub?.cancel();
+    _refreshDebounce?.cancel();
     _commentController.dispose();
     _commentFocusNode.dispose();
     super.dispose();

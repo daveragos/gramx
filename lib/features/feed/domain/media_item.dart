@@ -3,6 +3,36 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'media_item.freezed.dart';
 part 'media_item.g.dart';
 
+/// How an animated sticker is encoded.
+///
+/// Telegram ships three, and they need three different renderers — treating
+/// them all as images (which this app used to do) leaves TGS and WebM broken.
+enum StickerFormat {
+  /// Still or animated WebP. Flutter's Image widget animates these natively.
+  webp,
+
+  /// Gzipped Lottie JSON. Decoded with the lottie package after gunzip.
+  tgs,
+
+  /// VP9 video with an alpha channel. Android's hardware decoder drops the
+  /// alpha plane, so this falls back to the static thumbnail for now.
+  webm,
+
+  /// Not a sticker, or a format we don't recognise.
+  unknown;
+
+  static StickerFormat fromTdName(String? typeName) => switch (typeName) {
+        'stickerFormatWebp' => StickerFormat.webp,
+        'stickerFormatTgs' => StickerFormat.tgs,
+        'stickerFormatWebm' => StickerFormat.webm,
+        _ => StickerFormat.unknown,
+      };
+
+  /// Whether this app can currently animate the format.
+  bool get isAnimatable =>
+      this == StickerFormat.webp || this == StickerFormat.tgs;
+}
+
 enum MediaType {
   photo,
   video,
@@ -33,6 +63,8 @@ abstract class MediaItem with _$MediaItem {
     int? fileId,
     /// TDLib file ID for the thumbnail file.
     int? thumbnailFileId,
+    /// How a sticker is encoded. Only meaningful for [MediaType.sticker].
+    @Default(StickerFormat.unknown) StickerFormat stickerFormat,
   }) = _MediaItem;
 
   factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);

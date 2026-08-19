@@ -21,6 +21,9 @@ _MediaItem _$MediaItemFromJson(Map<String, dynamic> json) => _MediaItem(
   minithumbnail: json['minithumbnail'] as String?,
   fileId: (json['fileId'] as num?)?.toInt(),
   thumbnailFileId: (json['thumbnailFileId'] as num?)?.toInt(),
+  stickerFormat:
+      $enumDecodeNullable(_$StickerFormatEnumMap, json['stickerFormat']) ??
+      StickerFormat.unknown,
 );
 
 Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
@@ -39,6 +42,7 @@ Map<String, dynamic> _$MediaItemToJson(_MediaItem instance) =>
       'minithumbnail': instance.minithumbnail,
       'fileId': instance.fileId,
       'thumbnailFileId': instance.thumbnailFileId,
+      'stickerFormat': _$StickerFormatEnumMap[instance.stickerFormat]!,
     };
 
 const _$MediaTypeEnumMap = {
@@ -49,4 +53,11 @@ const _$MediaTypeEnumMap = {
   MediaType.audio: 'audio',
   MediaType.voice: 'voice',
   MediaType.sticker: 'sticker',
+};
+
+const _$StickerFormatEnumMap = {
+  StickerFormat.webp: 'webp',
+  StickerFormat.tgs: 'tgs',
+  StickerFormat.webm: 'webm',
+  StickerFormat.unknown: 'unknown',
 };

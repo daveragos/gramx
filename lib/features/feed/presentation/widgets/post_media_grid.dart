@@ -13,6 +13,7 @@ import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewe
 import 'package:gramx/features/feed/presentation/widgets/full_screen_video_viewer.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_audio_player.dart';
+import 'package:gramx/features/feed/presentation/widgets/sticker_tile.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
@@ -218,7 +219,9 @@ class _MediaTile extends ConsumerWidget {
 
     Widget contentWidget;
 
-    if (item.type == MediaType.gif && isDownloaded) {
+    if (item.type == MediaType.sticker) {
+      contentWidget = Center(child: StickerTile(item: item));
+    } else if (item.type == MediaType.gif && isDownloaded) {
       contentWidget = _GifVideoPlayerTile(path: resolvedPath);
     } else if (isDownloaded) {
       contentWidget = Hero(

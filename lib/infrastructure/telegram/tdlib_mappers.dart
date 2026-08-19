@@ -485,13 +485,18 @@ class TdlibMappers {
 
       list.add(MediaItem(
         id: stickerPath,
-        type: MediaType.photo,
+        // Not MediaType.photo: a TGS sticker is gzipped Lottie JSON and a WebM
+        // sticker is video, so handing either to an image widget renders
+        // nothing. The tile picks a renderer from stickerFormat.
+        type: MediaType.sticker,
         url: stickerPath,
         thumbnailUrl: thumbPath,
         width: sticker.width,
         height: sticker.height,
         fileId: stickerFile.id,
         thumbnailFileId: thumbFile?.id,
+        stickerFormat:
+            StickerFormat.fromTdName(sticker.format.currentObjectId),
         localPath: stickerFile.local.isDownloadingCompleted ? stickerFile.local.path : null,
       ));
     } else if (content is td.MessageVoiceNote) {

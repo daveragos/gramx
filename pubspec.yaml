@@ -47,6 +47,7 @@ dependencies:
   url_launcher: ^6.3.2
   country_picker: ^2.0.28
   visibility_detector: ^0.4.0+2
+  lottie: ^3.5.1
 
 dev_dependencies:
   flutter_test:
