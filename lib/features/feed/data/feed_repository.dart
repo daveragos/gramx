@@ -408,6 +408,45 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, chats);
   }
 
+  /// Forwards a post into another Telegram chat.
+  ///
+  /// This is what the repeat icon should always have done — it displayed
+  /// `forwardCount` while being wired to "copy a link".
+  Future<bool> forwardPost({
+    required Post post,
+    required int toChatId,
+  }) async {
+    try {
+      final res = await _tdlib.sendRequest(td.ForwardMessages(
+        chatId: toChatId,
+        messageThreadId: 0,
+        fromChatId: post.chatId,
+        messageIds: [post.messageId],
+        options: const td.MessageSendOptions(
+          disableNotification: false,
+          fromBackground: false,
+          protectContent: false,
+          updateOrderOfInstalledStickerSets: false,
+          effectId: 0,
+          sendingId: 0,
+          onlyPreview: false,
+        ),
+        // Forward with attribution rather than silently copying the content.
+        sendCopy: false,
+        removeCaption: false,
+      ));
+      return res is td.Messages;
+    } catch (e) {
+      debugPrint('[FeedRepo] Forward failed: $e');
+      return false;
+    }
+  }
+
+  /// Chats a post can be forwarded into, most recently active first.
+  ///
+  /// Read straight from the cache, so opening the picker costs no requests.
+  List<td.Chat> forwardTargets() => _chatCache.allChats;
+
   /// A shareable t.me link for a post.
   ///
   /// Asks TDLib for the canonical link first — it knows about usernames,

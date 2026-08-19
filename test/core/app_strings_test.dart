@@ -36,6 +36,8 @@ void main() {
       expect(AppStrings.commentFailed('boom'), contains('boom'));
       expect(AppStrings.a11yCurrentReaction('🔥'), contains('🔥'));
       expect(AppStrings.mediaPosition('Photo', 2, 4), 'Photo 2 of 4');
+      expect(AppStrings.forwardSent('Saved'), contains('Saved'));
+      expect(AppStrings.forwardFailed('Saved'), contains('Saved'));
     });
   });
 

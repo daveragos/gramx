@@ -23,6 +23,16 @@ class ChatCacheState {
   /// otherwise the newest post of a channel is silently dropped on cold start.
   final Map<int, td.UpdateChatLastMessage> pendingLastMessages = {};
 
+  /// Every cached chat, most recently active first.
+  ///
+  /// Includes groups and private chats, which the feed ignores but the forward
+  /// picker needs — and they are already here, so listing them costs nothing.
+  List<td.Chat> get allChats {
+    final list = chats.values.toList();
+    list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
+    return list;
+  }
+
   /// Broadcast channels only, most recently active first.
   List<td.Chat> get channels {
     final list = chats.values.where(isChannel).toList();
@@ -191,6 +201,10 @@ class ChatCache {
 
   /// Every cached chat that is a broadcast channel, most recently active first.
   List<td.Chat> get channels => _state.channels;
+
+  /// Every cached chat, most recently active first — including groups and
+  /// private chats, which the forward picker offers as destinations.
+  List<td.Chat> get allChats => _state.allChats;
 
   bool get isEmpty => _state.chats.isEmpty;
 

@@ -61,6 +61,18 @@ abstract class AppStrings {
   static String a11yCurrentReaction(String emoji) =>
       'Your reaction $emoji. Double tap to remove, long press to change';
 
+  // ── Forwarding ─────────────────────────────────────────────────────────────
+  static const forwardTitle = 'Forward to';
+  static const forwardSearchHint = 'Search chats';
+  static const forwardNoChats = 'No chats to forward to';
+  static const a11yForward = 'Forward post';
+  static const a11yViews = 'views';
+
+  static String forwardFailed(String chatTitle) =>
+      "Couldn't forward to $chatTitle.";
+
+  static String forwardSent(String chatTitle) => 'Forwarded to $chatTitle.';
+
   // ── Comments ───────────────────────────────────────────────────────────────
   static const commentPosted = 'Comment posted!';
   static const commentEmpty = 'No comments yet';

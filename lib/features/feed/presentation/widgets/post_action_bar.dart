@@ -8,6 +8,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/widgets/forward_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
 
 class PostActionBar extends ConsumerWidget {
@@ -53,6 +54,18 @@ class PostActionBar extends ConsumerWidget {
     }
   }
 
+  Future<void> _forward(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sent = await ForwardSheet.show(context, post);
+    if (!sent) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(AppStrings.forwardSent(post.channelTitle)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
@@ -74,15 +87,15 @@ class PostActionBar extends ConsumerWidget {
           onTap: onReplyTap,
         ),
 
-        // Forward count. A statistic, not a control: this app cannot forward a
-        // post to a Telegram chat yet, and wiring the repeat icon to "copy a
-        // link" made it lie about what it does. Sharing lives on the share
-        // icon. See ROADMAP T5-1.
-        PostStat(
+        // Forward. Now genuinely forwards the message rather than copying a
+        // link, which is what the count beside it has always meant.
+        PostActionButton(
           icon: Icons.repeat,
           count: post.forwardCount,
           color: secondaryColor,
-          semanticLabel: 'forwards',
+          activeColor: AppColors.repost,
+          semanticLabel: AppStrings.a11yForward,
+          onTap: () => _forward(context),
         ),
 
         // Reaction Button (Instant toggle on tap, overlay picker on long-press)
@@ -143,7 +156,7 @@ class PostActionBar extends ConsumerWidget {
           icon: Icons.bar_chart,
           count: post.viewCount,
           color: secondaryColor,
-          semanticLabel: 'views',
+          semanticLabel: AppStrings.a11yViews,
         ),
 
         // Bookmark & Share Row
