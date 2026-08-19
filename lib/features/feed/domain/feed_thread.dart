@@ -16,8 +16,19 @@ class FeedThread {
 
   bool get hasReplies => replies.isNotEmpty;
 
-  /// Every post in the thread, root first.
+  /// Every post in the thread, root first — the order it was written in.
   List<Post> get allPosts => [root, ...replies];
+
+  /// The post that most recently arrived.
+  ///
+  /// This is what the collapsed card shows. A thread surfaces in the feed
+  /// *because* of its newest post, so showing the root instead displayed an
+  /// old timestamp and hid the new message behind an expand-and-scroll.
+  Post get latest => replies.isEmpty ? root : replies.last;
+
+  /// Everything except [latest], oldest first — the context behind it.
+  List<Post> get earlier =>
+      replies.isEmpty ? const [] : allPosts.sublist(0, allPosts.length - 1);
 
   /// The most recent post anywhere in the thread. A thread is as fresh as its
   /// newest message, so a follow-up to an old post still surfaces.

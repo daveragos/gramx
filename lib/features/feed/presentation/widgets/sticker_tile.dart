@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 /// Renders a Telegram sticker with the decoder its format actually needs.
 ///
@@ -17,7 +19,7 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 /// * **WebM** — VP9 with an alpha channel, which Android's hardware decoder
 ///   drops. Falls back to the static thumbnail rather than showing a black
 ///   square; a real decoder is a much larger piece of work.
-class StickerTile extends StatelessWidget {
+class StickerTile extends ConsumerWidget {
   final MediaItem item;
 
   /// Stickers are square-ish and small; this keeps one from dominating a card.
@@ -26,8 +28,15 @@ class StickerTile extends StatelessWidget {
   const StickerTile({super.key, required this.item});
 
   @override
-  Widget build(BuildContext context) {
-    final path = item.localPath;
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the download so the sticker appears the moment its file lands,
+    // rather than staying on the fallback until the card happens to rebuild.
+    final fileId = item.fileId;
+    final downloaded = fileId != null && fileId != 0
+        ? ref.watch(fileDownloadProvider(fileId)).value
+        : null;
+
+    final path = downloaded ?? item.localPath;
     final size = _preferredSize();
 
     if (path == null || path.isEmpty) {

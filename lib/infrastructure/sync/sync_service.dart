@@ -122,6 +122,13 @@ class SyncService {
       _downloadFile(content.video.thumbnail!.file.id);
     } else if (content is td.MessageAnimation && content.animation.thumbnail != null) {
       _downloadFile(content.animation.thumbnail!.file.id);
+    } else if (content is td.MessageSticker) {
+      // Stickers were never queued, so their file never landed and the tile
+      // rendered its "can't show this" fallback forever. The sticker *is* the
+      // message, so it downloads in full rather than as a thumbnail.
+      _downloadFile(content.sticker.sticker.id);
+      final thumbnail = content.sticker.thumbnail;
+      if (thumbnail != null) _downloadFile(thumbnail.file.id);
     } else if (content is td.MessageText && content.linkPreview != null) {
       final lp = content.linkPreview!;
       final previewType = lp.type;

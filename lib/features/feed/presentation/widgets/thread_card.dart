@@ -43,47 +43,46 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
     final secondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
+    Widget cardFor(Post post) => PostVisibilityReporter(
+          postId: post.id,
+          child: PostCard(
+            post: post,
+            onTap: () => widget.onOpenPost(post),
+            onChannelTap: () => widget.onOpenChannel(post),
+          ),
+        );
+
+    // Indented under a rail, so earlier posts read as context for the one
+    // below rather than as new top-level cards.
+    Widget contextCardFor(Post post) => Padding(
+          padding: const EdgeInsets.only(left: AppSpacing.xl),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: secondary.withValues(alpha: 0.3)),
+              ),
+            ),
+            child: cardFor(post),
+          ),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PostVisibilityReporter(
-          postId: thread.root.id,
-          child: PostCard(
-            post: thread.root,
-            onTap: () => widget.onOpenPost(thread.root),
-            onChannelTap: () => widget.onOpenChannel(thread.root),
-          ),
-        ),
         if (thread.hasReplies) ...[
-          if (_expanded)
-            // Indented and rail-lined so the follow-ups read as belonging to
-            // the post above rather than as new top-level cards.
-            for (final reply in thread.replies)
-              Padding(
-                padding: const EdgeInsets.only(left: AppSpacing.xl),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border(
-                      left: BorderSide(color: secondary.withValues(alpha: 0.3)),
-                    ),
-                  ),
-                  child: PostVisibilityReporter(
-                    postId: reply.id,
-                    child: PostCard(
-                      post: reply,
-                      onTap: () => widget.onOpenPost(reply),
-                      onChannelTap: () => widget.onOpenChannel(reply),
-                    ),
-                  ),
-                ),
-              ),
+          // The toggle sits above the newest post, because expanding reveals
+          // what came *before* it.
           _ThreadToggle(
-            count: thread.replies.length,
+            count: thread.earlier.length,
             expanded: _expanded,
             color: secondary,
             onTap: () => setState(() => _expanded = !_expanded),
           ),
+          if (_expanded)
+            for (final post in thread.earlier) contextCardFor(post),
         ],
+        // The newest post is what surfaced this thread, so it is the card.
+        cardFor(thread.latest),
       ],
     );
   }

@@ -108,6 +108,40 @@ void main() {
           threads.single.replies.single.publishedAt);
     });
 
+    // A thread surfaces because of its newest post, so that is what the
+    // collapsed card must show — otherwise the card carries an old timestamp
+    // and the new message is hidden behind expand-and-scroll.
+    test('latest is the newest post, earlier is everything before it', () {
+      final thread = groupIntoThreads([
+        post(messageId: 1, minutesAgo: 30),
+        post(messageId: 2, minutesAgo: 20, replyTo: 1),
+        post(messageId: 3, minutesAgo: 2, replyTo: 1),
+      ]).single;
+
+      expect(thread.latest.messageId, 3);
+      expect(thread.earlier.map((p) => p.messageId), [1, 2]);
+    });
+
+    test('a thread with no replies is its own latest, with no earlier', () {
+      final thread = groupIntoThreads([post(messageId: 1, minutesAgo: 5)]).single;
+
+      expect(thread.latest.messageId, 1);
+      expect(thread.earlier, isEmpty);
+    });
+
+    test('latest plus earlier covers every post exactly once', () {
+      final thread = groupIntoThreads([
+        post(messageId: 1, minutesAgo: 30),
+        post(messageId: 2, minutesAgo: 20, replyTo: 1),
+        post(messageId: 3, minutesAgo: 10, replyTo: 2),
+      ]).single;
+
+      expect(
+        [...thread.earlier, thread.latest].map((p) => p.messageId),
+        thread.allPosts.map((p) => p.messageId),
+      );
+    });
+
     test('allPosts lists the root first', () {
       final threads = groupIntoThreads([
         post(messageId: 1, minutesAgo: 30),

@@ -179,10 +179,11 @@ abstract class AppStrings {
   static const replyUnavailable = 'Message unavailable';
 
   // ── Threads ────────────────────────────────────────────────────────────────
-  static const threadHide = 'Hide thread';
+  static const threadHide = 'Hide earlier posts';
 
-  static String threadShow(int count) =>
-      count == 1 ? 'Show 1 more post' : 'Show $count more posts';
+  static String threadShow(int count) => count == 1
+      ? 'Show 1 earlier post in this thread'
+      : 'Show $count earlier posts in this thread';
 
   // ── Video ──────────────────────────────────────────────────────────────────
   static const videoUnavailable = "This video isn't available.";

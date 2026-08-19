@@ -5,6 +5,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
+import 'package:gramx/features/feed/presentation/widgets/custom_emoji_span.dart';
 
 class TextEntityRenderer extends StatelessWidget {
   final String text;
@@ -171,16 +172,20 @@ class TextEntityRenderer extends StatelessWidget {
           ),
         );
       case TextEntityType.customEmoji:
-        // We'll render custom emojis as inline widget span using fallback text,
-        // but with a tiny star icon indicating a premium emoji.
-        return TextSpan(
-          children: [
-            TextSpan(text: entityText, style: baseStyle),
-            const WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: Icon(Icons.star, size: 10, color: Colors.amber),
-            ),
-          ],
+        final emojiId = int.tryParse(entity.customEmojiId ?? '');
+        if (emojiId == null) {
+          return TextSpan(text: entityText, style: baseStyle);
+        }
+        // Draws the real artwork once it resolves, and the plain character
+        // until then. The old version appended a gold star to every one, which
+        // made a post full of premium emoji unreadable.
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: CustomEmojiGlyph(
+            customEmojiId: emojiId,
+            fallbackText: entityText,
+            size: (baseStyle.fontSize ?? 15) * 1.25,
+          ),
         );
       case TextEntityType.unknown:
         return TextSpan(
