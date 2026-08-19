@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -7,6 +9,12 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class FoldersScreen extends ConsumerWidget {
   const FoldersScreen({super.key});
+
+  /// Opens a folder as the feed's tab rather than duplicating the feed here.
+  void openFolderTab(BuildContext context, WidgetRef ref, int folderId) {
+    ref.read(requestedFolderProvider.notifier).request(folderId.toString());
+    StatefulNavigationShell.of(context).goBranch(ShellTab.home.index);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -16,7 +24,6 @@ class FoldersScreen extends ConsumerWidget {
     final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     final foldersAsync = ref.watch(foldersProvider);
-    final folderChannelsMapAsync = const AsyncValue.data(<String, List<int>>{});
 
     return Scaffold(
       appBar: AppBar(
@@ -63,53 +70,40 @@ class FoldersScreen extends ConsumerWidget {
             );
           }
 
-          return folderChannelsMapAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            ),
-            error: (err, _) => Center(
-              child: Text('Error: $err'),
-            ),
-            data: (folderChannelsMap) {
-              return ListView.separated(
-                itemCount: folders.length,
-                separatorBuilder: (context, index) => const Divider(),
-                itemBuilder: (context, index) {
-                  final folder = folders[index];
-                  final channelIds = folderChannelsMap[folder.id.toString()] ?? [];
-                  final channelCount = channelIds.length;
+          return ListView.separated(
+            itemCount: folders.length,
+            separatorBuilder: (context, index) => const Divider(),
+            itemBuilder: (context, index) {
+              final folder = folders[index];
+              // Real counts: folderChannelIdsProvider already resolves exactly
+              // this. The screen previously read a hardcoded empty map, so every
+              // row said "0 channels".
+              final countAsync = ref.watch(folderChannelIdsProvider(folder.id));
 
-                  return ListTile(
-                    leading: const Icon(
-                      Icons.folder_outlined,
-                      color: AppColors.accent,
-                      size: 28,
-                    ),
-                    title: Text(
-                      folder.title,
-                      style: AppTypography.subheading(color: primaryColor),
-                    ),
-                    subtitle: Text(
-                      '$channelCount ${channelCount == 1 ? 'channel' : 'channels'}',
-                      style: AppTypography.actionCount(color: secondaryColor),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: secondaryColor,
-                    ),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Viewing folder detail is coming in a future phase. Filter by folders on the home screen tabs!',
-                            style: AppTypography.body(color: Colors.white),
-                          ),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                  );
-                },
+              return ListTile(
+                leading: const Icon(
+                  Icons.folder_outlined,
+                  color: AppColors.accent,
+                  size: 28,
+                ),
+                title: Text(
+                  parseFolderTitle(folder.title),
+                  style: AppTypography.subheading(color: primaryColor),
+                ),
+                subtitle: Text(
+                  countAsync.when(
+                    data: (ids) => ids.length == 1
+                        ? '1 channel'
+                        : '${ids.length} channels',
+                    loading: () => 'Counting…',
+                    error: (_, _) => 'Count unavailable',
+                  ),
+                  style: AppTypography.actionCount(color: secondaryColor),
+                ),
+                trailing: Icon(Icons.chevron_right, color: secondaryColor),
+                // Folders are read as tabs on the feed, so this opens the
+                // matching tab rather than duplicating the feed here.
+                onTap: () => openFolderTab(context, ref, folder.id),
               );
             },
           );

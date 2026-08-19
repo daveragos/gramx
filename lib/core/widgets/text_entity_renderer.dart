@@ -11,10 +11,18 @@ class TextEntityRenderer extends StatelessWidget {
   final List<TextEntity> entities;
   final TextStyle? style;
 
+  /// Called when a hashtag is tapped.
+  ///
+  /// Supplied by the caller rather than handled here: `core/` must not reach
+  /// into a feature's providers. Null leaves hashtags styled as plain text, so
+  /// they never look tappable when they aren't.
+  final ValueChanged<String>? onHashtagTap;
+
   const TextEntityRenderer({
     super.key,
     required this.text,
     required this.entities,
+    this.onHashtagTap,
     this.style,
   });
 
@@ -144,9 +152,15 @@ class TextEntityRenderer extends StatelessWidget {
             ..onTap = () => _handleMentionTap(context, entityText),
         );
       case TextEntityType.hashtag:
+        // Only render as a link when something will actually happen.
+        if (onHashtagTap == null) {
+          return TextSpan(text: entityText, style: baseStyle);
+        }
         return TextSpan(
           text: entityText,
           style: accentStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => onHashtagTap!(entityText),
         );
       case TextEntityType.spoiler:
         return WidgetSpan(

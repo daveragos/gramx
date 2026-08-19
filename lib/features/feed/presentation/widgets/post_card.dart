@@ -11,6 +11,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
@@ -263,6 +264,8 @@ class PostCard extends ConsumerWidget {
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
                           TextEntityRenderer(
+                            onHashtagTap: (tag) =>
+                                openHashtagSearch(context, ref, tag),
                             text: post.text!,
                             entities: post.entities,
                             style: AppTypography.body(color: primaryTextColor),

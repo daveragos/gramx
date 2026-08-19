@@ -139,6 +139,14 @@ class AppDrawer extends ConsumerWidget {
               onTap: () => _goToTab(context, ShellTab.channels),
             ),
             DrawerNavItem(
+              icon: Icons.folder_outlined,
+              title: 'Folders',
+              onTap: () {
+                Navigator.pop(context);
+                GoRouter.of(context).push('/folders');
+              },
+            ),
+            DrawerNavItem(
               icon: Icons.settings_outlined,
               title: 'Settings & Privacy',
               onTap: () {

@@ -6,6 +6,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/settings/data/app_settings.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
+import 'package:gramx/features/settings/data/storage_repository.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
@@ -18,6 +19,29 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _isClearingCache = false;
+
+  /// Clears TDLib's media cache and reports what was actually freed.
+  Future<void> _clearCache() async {
+    setState(() => _isClearingCache = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final freed = await ref.read(storageRepositoryProvider).clear();
+      ref.invalidate(storageUsageProvider);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(freed.isEmpty
+              ? 'Nothing to clear.'
+              : 'Freed ${freed.formattedSize} of cached media.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isClearingCache = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
@@ -251,20 +275,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionHeader(title: 'DATA AND STORAGE', secondaryColor: secondaryColor),
           ListTile(
             leading: Icon(Icons.storage_outlined, color: primaryColor),
-            title: Text('Media Storage & Cache', style: AppTypography.body(color: primaryColor)),
-            subtitle: Text('Manage offline media and data cache', style: AppTypography.actionCount(color: secondaryColor)),
-            trailing: const Text('Clear', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 14)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Storage cache cleared.',
-                    style: AppTypography.body(color: Colors.white),
+            title: Text('Media Storage & Cache',
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(
+              ref.watch(storageUsageProvider).when(
+                    data: (usage) => usage.isEmpty
+                        ? 'No cached media'
+                        : '${usage.formattedSize} of downloaded media',
+                    loading: () => 'Checking…',
+                    error: (_, _) => 'Downloaded photos, video and files',
                   ),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+            trailing: _isClearingCache
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.error),
+                  )
+                : const Text('Clear',
+                    style: TextStyle(
+                        color: AppColors.error,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+            onTap: _isClearingCache ? null : _clearCache,
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
@@ -274,20 +309,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text('Version', style: AppTypography.body(color: primaryColor)),
             trailing: Text('v0.1.0', style: AppTypography.actionCount(color: secondaryColor)),
-          ),
-          Divider(height: 1, thickness: 0.5, color: borderColor),
-          ListTile(
-            leading: Icon(Icons.shield_outlined, color: primaryColor),
-            title: Text('Privacy Policy', style: AppTypography.body(color: primaryColor)),
-            trailing: Icon(Icons.chevron_right, color: secondaryColor),
-            onTap: () {},
-          ),
-          Divider(height: 1, thickness: 0.5, color: borderColor),
-          ListTile(
-            leading: Icon(Icons.help_outline, color: primaryColor),
-            title: Text('Help Center', style: AppTypography.body(color: primaryColor)),
-            trailing: Icon(Icons.chevron_right, color: secondaryColor),
-            onTap: () {},
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 

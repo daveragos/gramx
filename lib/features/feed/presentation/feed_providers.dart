@@ -433,6 +433,47 @@ final markPostAsReadProvider =
   await ref.read(feedRepositoryProvider).markPostAsRead(postId);
 });
 
+/// Reads a chat-folder title, whatever shape TDLib hands it over in.
+///
+/// The field has been a plain String and a FormattedText across TDLib versions,
+/// and arrives as a decoded map in some paths, so all three are handled.
+String parseFolderTitle(dynamic rawTitle) {
+  if (rawTitle == null) return 'Folder';
+  if (rawTitle is String) return rawTitle;
+  if (rawTitle is td.FormattedText) return rawTitle.text;
+  if (rawTitle is Map) {
+    final text = rawTitle['text'];
+    if (text is String) return text;
+  }
+  try {
+    final text = (rawTitle as dynamic).text;
+    if (text is String) return text;
+  } catch (_) {}
+  return rawTitle.toString();
+}
+
+/// A folder the user asked to open from somewhere other than the feed.
+///
+/// The folders screen sets this and switches to the Home tab; the feed consumes
+/// it once and selects the matching tab.
+class RequestedFolderNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void request(String folderId) => state = folderId;
+
+  /// Reads and clears, so the request fires once rather than on every rebuild.
+  String? consume() {
+    final value = state;
+    if (value != null) state = null;
+    return value;
+  }
+}
+
+final requestedFolderProvider =
+    NotifierProvider<RequestedFolderNotifier, String?>(
+        RequestedFolderNotifier.new);
+
 /// Provides user's dynamic folders synced from Telegram (StreamProvider for real-time reactivity)
 final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
   final tdlib = ref.watch(tdlibServiceProvider);

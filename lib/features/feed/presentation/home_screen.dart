@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -75,24 +74,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
 
-    String parseTitle(dynamic rawTitle) {
-      if (rawTitle == null) return 'Folder';
-      if (rawTitle is String) return rawTitle;
-      if (rawTitle is td.FormattedText) return rawTitle.text;
-      if (rawTitle is Map) {
-        final textVal = rawTitle['text'];
-        if (textVal is String) return textVal;
-      }
-      try {
-        final text = (rawTitle as dynamic).text;
-        if (text != null && text is String) return text;
-      } catch (_) {}
-      return rawTitle.toString();
-    }
-
     final tabItems = [
       (title: 'All', id: 'All'),
-      ...dynamicFolders.map((f) => (title: parseTitle(f.title), id: f.id.toString())),
+      ...dynamicFolders.map((f) => (title: parseFolderTitle(f.title), id: f.id.toString())),
     ];
 
     return channelsAsync.when(
@@ -136,7 +120,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         return DefaultTabController(
           length: tabItems.length,
-          child: PopScope(
+          child: _FolderTabRequestHandler(
+            folderIds: tabItems.map((t) => t.id).toList(),
+            child: PopScope(
             canPop: false,
             onPopInvokedWithResult: (didPop, result) {
               if (didPop) return;
@@ -270,9 +256,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             ),
+            ),
           ),
         );
       },
     );
+  }
+}
+
+/// Selects the folder tab another screen asked for.
+///
+/// Lives under [DefaultTabController] so it can reach the controller, and
+/// consumes the request so it fires once rather than on every rebuild.
+class _FolderTabRequestHandler extends ConsumerWidget {
+  final List<String> folderIds;
+  final Widget child;
+
+  const _FolderTabRequestHandler({
+    required this.folderIds,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<String?>(requestedFolderProvider, (_, next) {
+      if (next == null) return;
+      final index = folderIds.indexOf(next);
+      if (index < 0) return;
+
+      ref.read(requestedFolderProvider.notifier).consume();
+      // The controller lives above this widget but below the listener's
+      // callback, which runs outside build — safe to touch here.
+      DefaultTabController.of(context).animateTo(index);
+    });
+
+    return child;
   }
 }

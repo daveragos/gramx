@@ -72,13 +72,15 @@ class PostActionBar extends ConsumerWidget {
           onTap: onReplyTap,
         ),
 
-        // Repost Button
-        PostActionButton(
+        // Forward count. A statistic, not a control: this app cannot forward a
+        // post to a Telegram chat yet, and wiring the repeat icon to "copy a
+        // link" made it lie about what it does. Sharing lives on the share
+        // icon. See ROADMAP T5-1.
+        PostStat(
           icon: Icons.repeat,
           count: post.forwardCount,
           color: secondaryColor,
-          activeColor: AppColors.repost,
-          onTap: onShareTap,
+          semanticLabel: 'forwards',
         ),
 
         // Reaction Button (Instant toggle on tap, overlay picker on long-press)
@@ -126,12 +128,13 @@ class PostActionBar extends ConsumerWidget {
           ),
         ),
 
-        // View Count (Stats)
-        PostActionButton(
+        // View count — also a statistic. It was rendered as a button with no
+        // onTap, so it looked pressable and wasn't.
+        PostStat(
           icon: Icons.bar_chart,
           count: post.viewCount,
           color: secondaryColor,
-          activeColor: secondaryColor,
+          semanticLabel: 'views',
         ),
 
         // Bookmark & Share Row
@@ -164,6 +167,46 @@ class PostActionBar extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// A read-only figure in the action bar.
+///
+/// Deliberately not a [PostActionButton]: an icon that responds to touch but
+/// changes nothing is worse than one that plainly doesn't.
+class PostStat extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final Color color;
+  final String semanticLabel;
+
+  const PostStat({
+    super.key,
+    required this.icon,
+    required this.count,
+    required this.color,
+    required this.semanticLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$count $semanticLabel',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          if (count > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              TimeUtils.formatCount(count),
+              style: AppTypography.actionCount(color: color),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
@@ -269,6 +270,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               // Post text
                               if (post.text != null && post.text!.isNotEmpty) ...[
                                 TextEntityRenderer(
+                                  onHashtagTap: (tag) =>
+                                      openHashtagSearch(context, ref, tag),
                                   text: post.text!,
                                   entities: post.entities,
                                   style: AppTypography.bodyLarge(color: primaryColor),

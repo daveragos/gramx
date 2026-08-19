@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -599,4 +600,14 @@ class _ExploreView extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Opens the search tab with [hashtag] already entered.
+///
+/// Lives here so the tag lands in the same provider the search screen reads,
+/// and so `core/`'s text renderer needs no knowledge of search.
+void openHashtagSearch(BuildContext context, WidgetRef ref, String hashtag) {
+  ref.read(searchQueryProvider.notifier).setQuery(hashtag);
+  ref.read(searchCategoryProvider.notifier).setCategory(SearchCategory.posts);
+  StatefulNavigationShell.of(context).goBranch(ShellTab.search.index);
 }
