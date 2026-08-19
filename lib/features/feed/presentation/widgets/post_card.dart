@@ -221,12 +221,16 @@ class PostCard extends ConsumerWidget {
                              ),
                              if (!post.isRead) ...[
                                const SizedBox(width: 6),
-                               Container(
-                                 width: 7,
-                                 height: 7,
-                                 decoration: const BoxDecoration(
-                                   color: AppColors.accent,
-                                   shape: BoxShape.circle,
+                               // State carried by colour alone needs a label.
+                               Semantics(
+                                 label: 'Unread',
+                                 child: Container(
+                                   width: 7,
+                                   height: 7,
+                                   decoration: const BoxDecoration(
+                                     color: AppColors.accent,
+                                     shape: BoxShape.circle,
+                                   ),
                                  ),
                                ),
                              ],

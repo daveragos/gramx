@@ -156,13 +156,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           forceElevated: innerBoxIsScrolled,
                           leading: Padding(
                             padding: const EdgeInsets.all(AppSpacing.sm),
-                            child: ChannelAvatar(
-                              title: displayName,
-                              avatarPath: accountAsync.value?.avatarPath,
-                              radius: AppSpacing.avatarSizeSmall / 2,
-                              onTap: () {
-                                Scaffold.of(context).openDrawer();
-                              },
+                            child: Semantics(
+                              button: true,
+                              label: 'Open navigation menu',
+                              child: ChannelAvatar(
+                                title: displayName,
+                                avatarPath: accountAsync.value?.avatarPath,
+                                radius: AppSpacing.avatarSizeSmall / 2,
+                                onTap: () {
+                                  Scaffold.of(context).openDrawer();
+                                },
+                              ),
                             ),
                           ),
                           title: Text(
@@ -173,6 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           actions: [
                             IconButton(
                               icon: const Icon(Icons.search_rounded),
+                              tooltip: 'Search',
                               color: primaryTextColor,
                               onPressed: () {
                                 // Switch tab rather than push: /search is a
@@ -216,7 +221,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       left: 0,
                       right: 0,
                       child: Center(
-                        child: GestureDetector(
+                        child: Semantics(
+                          button: true,
+                          label: 'Scroll to top',
+                          child: GestureDetector(
                           onTap: _scrollToTop,
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -250,6 +258,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ],
                             ),
                           ),
+                        ),
                         ),
                       ),
                     ),

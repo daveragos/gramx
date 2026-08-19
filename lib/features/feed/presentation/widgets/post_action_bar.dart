@@ -69,6 +69,9 @@ class PostActionBar extends ConsumerWidget {
           count: post.replyCount,
           color: secondaryColor,
           activeColor: AppColors.reply,
+          semanticLabel: post.replyCount == 0
+              ? 'Reply'
+              : 'Reply, ${post.replyCount} comments',
           onTap: onReplyTap,
         ),
 
@@ -86,7 +89,14 @@ class PostActionBar extends ConsumerWidget {
         // Reaction Button (Instant toggle on tap, overlay picker on long-press)
         KeyedSubtree(
           key: reactionKey,
-          child: GestureDetector(
+          child: Semantics(
+            button: true,
+            label: post.chosenReactions.isNotEmpty
+                ? 'Your reaction ${post.chosenReactions.first}. '
+                    'Double tap to remove, long press to change'
+                : 'React to this post',
+            excludeSemantics: true,
+            child: GestureDetector(
             onLongPress: () {
               HapticFeedback.mediumImpact();
               _showReactionPicker(context, ref, reactionKey);
@@ -126,6 +136,7 @@ class PostActionBar extends ConsumerWidget {
               ],
             ),
           ),
+          ),
         ),
 
         // View count — also a statistic. It was rendered as a button with no
@@ -141,27 +152,35 @@ class PostActionBar extends ConsumerWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onBookmarkTap();
-              },
-              child: Icon(
-                post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                color: post.isBookmarked ? AppColors.accent : secondaryColor,
-                size: 18,
+            Semantics(
+              button: true,
+              label: post.isBookmarked ? 'Remove bookmark' : 'Bookmark post',
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onBookmarkTap();
+                },
+                child: Icon(
+                  post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                  color: post.isBookmarked ? AppColors.accent : secondaryColor,
+                  size: 18,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.lg),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onShareTap();
-              },
-              child: Icon(
-                Icons.ios_share,
-                color: secondaryColor,
-                size: 18,
+            Semantics(
+              button: true,
+              label: 'Copy link to post',
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  onShareTap();
+                },
+                child: Icon(
+                  Icons.ios_share,
+                  color: secondaryColor,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -218,17 +237,32 @@ class PostActionButton extends StatelessWidget {
   final Color activeColor;
   final VoidCallback? onTap;
 
+  /// Spoken description. Icon-only controls are unreachable without one.
+  final String? semanticLabel;
+
   const PostActionButton({
     super.key,
     required this.icon,
     required this.count,
     required this.color,
     required this.activeColor,
+    this.semanticLabel,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final button = _buildButton(context);
+    if (semanticLabel == null) return button;
+    return Semantics(
+      button: onTap != null,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: button,
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         if (onTap != null) {

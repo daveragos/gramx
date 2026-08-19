@@ -55,7 +55,11 @@ class AppDrawer extends ConsumerWidget {
                         avatarPath: accountAsync.value?.avatarPath,
                         radius: 24,
                       ),
-                      Icon(Icons.more_vert, color: secondaryColor),
+                      // Purely decorative for now — announcing it would offer
+                      // a control that does nothing.
+                      ExcludeSemantics(
+                        child: Icon(Icons.more_vert, color: secondaryColor),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),

@@ -185,6 +185,21 @@ class PostMediaGrid extends StatelessWidget {
   }
 }
 
+/// Spoken description for a media tile. Photos and videos in a post were
+/// entirely invisible to a screen reader before this.
+String describeMedia(MediaItem item, int index, int total) {
+  final kind = switch (item.type) {
+    MediaType.photo => 'Photo',
+    MediaType.video => 'Video',
+    MediaType.gif => 'GIF',
+    MediaType.sticker => 'Sticker',
+    MediaType.document => item.fileName ?? 'Document',
+    MediaType.audio => item.fileName ?? 'Audio track',
+    MediaType.voice => 'Voice message',
+  };
+  return total > 1 ? '$kind ${index + 1} of $total' : kind;
+}
+
 class _MediaTile extends ConsumerWidget {
   final MediaItem item;
   final int index;
@@ -345,15 +360,21 @@ class _MediaTile extends ConsumerWidget {
       );
     }
 
-    return GestureDetector(
-      onTap: () => _handleTap(context, ref, resolvedPath, heroTag),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeIn,
-        switchOutCurve: Curves.easeOut,
-        child: KeyedSubtree(
-          key: ValueKey(isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}'),
-          child: contentWidget,
+    return Semantics(
+      button: true,
+      label: describeMedia(item, index, allMedia.length),
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => _handleTap(context, ref, resolvedPath, heroTag),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchInCurve: Curves.easeIn,
+          switchOutCurve: Curves.easeOut,
+          child: KeyedSubtree(
+            key: ValueKey(
+                isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}'),
+            child: contentWidget,
+          ),
         ),
       ),
     );
