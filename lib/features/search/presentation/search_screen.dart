@@ -9,6 +9,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
+import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -81,22 +82,54 @@ class SearchFocusNotifier extends Notifier<int> {
 final searchFocusTriggerProvider =
     NotifierProvider<SearchFocusNotifier, int>(SearchFocusNotifier.new);
 
-/// Filtered posts based on search query.
+/// Posts matching the query, searched on Telegram's servers.
+///
+/// Runs off the debounced query, since each search is a request.
+final searchedPostsProvider =
+    FutureProvider<List<Post>>((ref) async {
+  final query = ref.watch(debouncedSearchQueryProvider).trim();
+  if (query.isEmpty) return const [];
+  return ref.watch(feedRepositoryProvider).searchPosts(query);
+});
+
+/// Substring match over posts already loaded in the feed.
+///
+/// Instant, and shown while the server search is still in flight so results
+/// don't blank out between keystrokes. Kept as a fallback rather than the whole
+/// feature — it can only ever find what is already in memory.
+List<Post> matchLoadedPosts(List<Post> posts, String query) {
+  final needle = query.toLowerCase().trim();
+  if (needle.isEmpty) return posts;
+
+  return posts.where((post) {
+    final textMatch = post.text?.toLowerCase().contains(needle) ?? false;
+    final channelMatch = post.channelTitle.toLowerCase().contains(needle);
+    final usernameMatch =
+        post.channelUsername?.toLowerCase().contains(needle) ?? false;
+    return textMatch || channelMatch || usernameMatch;
+  }).toList();
+}
+
+/// Search results: server hits once they land, local matches until then.
 final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
-  final query = ref.watch(searchQueryProvider).toLowerCase().trim();
+  final query = ref.watch(searchQueryProvider).trim();
   final postsAsync = ref.watch(feedPostsProvider);
 
   if (query.isEmpty) return postsAsync;
 
-  return postsAsync.whenData((posts) {
-    return posts.where((post) {
-      final textMatch = post.text?.toLowerCase().contains(query) ?? false;
-      final channelMatch = post.channelTitle.toLowerCase().contains(query);
-      final usernameMatch =
-          post.channelUsername?.toLowerCase().contains(query) ?? false;
-      return textMatch || channelMatch || usernameMatch;
-    }).toList();
-  });
+  final local = postsAsync.whenData((posts) => matchLoadedPosts(posts, query));
+  final remote = ref.watch(searchedPostsProvider);
+
+  return remote.when(
+    data: (results) {
+      // Union: a loaded post the server didn't return is still a valid hit,
+      // and vice versa.
+      final localHits = local.value ?? const <Post>[];
+      return AsyncValue.data(mergePostsNewestFirst(results, localHits));
+    },
+    loading: () => local.isLoading ? const AsyncValue.loading() : local,
+    error: (_, _) => local,
+  );
 });
 
 enum SearchCategory { all, channels, posts }

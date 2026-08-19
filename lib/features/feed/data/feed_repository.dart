@@ -329,6 +329,43 @@ class FeedRepository {
     );
   }
 
+  /// How many search hits one page returns.
+  static const int searchPageSize = 40;
+
+  /// Searches posts across every channel the user follows.
+  ///
+  /// This is a real server-side search. The previous behaviour was a substring
+  /// match over whatever happened to be in memory — roughly the last 30 posts
+  /// per channel — so anything read last week simply wasn't findable.
+  ///
+  /// `onlyInChannels` keeps group and private chats out of a channel reader's
+  /// results.
+  Future<List<Post>> searchPosts(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final res = await _tdlib.sendRequest(td.SearchMessages(
+        chatList: const td.ChatListMain(),
+        onlyInChannels: true,
+        query: trimmed,
+        offset: '',
+        limit: searchPageSize,
+        minDate: 0,
+        maxDate: 0,
+      ));
+
+      if (res is! td.FoundMessages) return [];
+      return await mapIncomingMessages(res.messages);
+    } on TdlibRequestException catch (e) {
+      debugPrint('[FeedRepo] searchPosts failed: $e');
+      rethrow;
+    } catch (e) {
+      debugPrint('[FeedRepo] searchPosts failed: $e');
+      return [];
+    }
+  }
+
   /// Maps messages that arrived on the update stream into posts.
   ///
   /// Costs nothing beyond the bookmark lookup — the messages are already in
