@@ -8,8 +8,61 @@ import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gramx/core/config/app_config.dart';
 
+/// A failed TDLib request, carrying the numeric error code.
+///
+/// The code is what makes rate limiting detectable — collapsing a [td.TdError]
+/// into a bare `Exception` throws it away and leaves 420/429 indistinguishable
+/// from a bad request.
+///
+/// [toString] deliberately returns only [message]: the auth screens surface it
+/// to the user verbatim, so a type prefix would leak internals into sign-in.
+class TdlibRequestException implements Exception {
+  /// TDLib error code — 400 bad request, 401 unauthorised, 420/429 flood wait.
+  final int code;
+
+  /// Raw Telegram error string, e.g. `PHONE_NUMBER_INVALID`.
+  final String message;
+
+  const TdlibRequestException(this.code, this.message);
+
+  /// True when Telegram is rate-limiting the account.
+  bool get isFloodWait =>
+      code == TdlibService.floodWaitCode || code == TdlibService.tooManyRequestsCode;
+
+  /// Seconds Telegram asked us to wait, or null if the message didn't say.
+  int? get retryAfterSeconds => TdlibService.parseRetryAfter(message);
+
+  @override
+  String toString() => message;
+}
+
 /// Service wrapper around native TDLib (handy_tdlib).
 class TdlibService {
+  /// TDLib's own flood-wait code.
+  static const int floodWaitCode = 420;
+
+  /// HTTP-style rate-limit code TDLib also emits. Both must be recognised.
+  static const int tooManyRequestsCode = 429;
+
+  /// Longest flood wait we will sit through inside [sendRequest]. Past this the
+  /// request is rejected locally so callers fail fast instead of hanging.
+  static const Duration maxInlineFloodWait = Duration(seconds: 45);
+
+  /// Used when Telegram reports a flood wait without a parseable duration.
+  static const Duration _defaultFloodWait = Duration(seconds: 5);
+
+  static final RegExp _retryAfterPattern =
+      RegExp(r'(?:FLOOD_WAIT_|retry after\s*)(\d+)', caseSensitive: false);
+
+  /// Extracts the retry delay from a TDLib error message.
+  ///
+  /// Handles both `FLOOD_WAIT_30` and `Too Many Requests: retry after 30`.
+  static int? parseRetryAfter(String message) {
+    final match = _retryAfterPattern.firstMatch(message);
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
+
   int? _clientId;
   Future<void>? _initializeMemoizer;
   Timer? _pollTimer;
@@ -24,6 +77,93 @@ class TdlibService {
   td.AuthorizationState? _currentAuthState;
   String _lastStatusMessage = 'Initializing TDLib...';
   final Completer<void> _tdlibReadyCompleter = Completer<void>();
+
+  /// Single client-wide flood-wait deadline. One gate for every request — a
+  /// per-call-site retry races on release and immediately re-floods.
+  DateTime? _floodWaitUntil;
+  final _floodWaitController = StreamController<DateTime?>.broadcast();
+
+  /// When Telegram is rate-limiting this account, the moment the limit lifts.
+  /// Null when clear. Reading it also clears an expired deadline.
+  DateTime? get floodWaitUntil {
+    final until = _floodWaitUntil;
+    if (until == null) return null;
+    if (!until.isAfter(DateTime.now())) {
+      _clearFloodWait();
+      return null;
+    }
+    return until;
+  }
+
+  /// Emits the new deadline whenever rate limiting starts, and null when it lifts.
+  Stream<DateTime?> get floodWaitUpdates => _floodWaitController.stream;
+
+  /// Records a flood-wait deadline if [code] is a rate-limit code.
+  ///
+  /// Called for both request replies and global updates — TDLib's own
+  /// background requests can trip the limit without any call of ours failing.
+  void _noteError(int code, String message) {
+    if (code != floodWaitCode && code != tooManyRequestsCode) return;
+
+    final seconds = parseRetryAfter(message);
+    final wait = seconds != null ? Duration(seconds: seconds) : _defaultFloodWait;
+    final until = DateTime.now().add(wait);
+
+    // Only ever extend the deadline, never shorten it.
+    final current = _floodWaitUntil;
+    if (current != null && !until.isAfter(current)) return;
+
+    _floodWaitUntil = until;
+    _floodWaitController.add(until);
+    debugPrint(
+      '[TDLib] Rate limited (code $code): $message — gating requests for ${wait.inSeconds}s',
+    );
+  }
+
+  void _clearFloodWait() {
+    if (_floodWaitUntil == null) return;
+    _floodWaitUntil = null;
+    if (!_floodWaitController.isClosed) _floodWaitController.add(null);
+    debugPrint('[TDLib] Rate limit lifted — resuming requests');
+  }
+
+  /// True for requests TDLib answers from its own database without reaching the
+  /// server.
+  ///
+  /// These bypass the flood gate: a rate limit must not stop the app from
+  /// reading content it already has on disk, or a flood wait would black out
+  /// the cached feed instead of just pausing new fetches.
+  static bool _isLocalOnlyRequest(td.TdFunction function) {
+    if (function is td.GetChatHistory) return function.onlyLocal;
+    return function is td.GetMessageLocally;
+  }
+
+  /// Parks until the flood-wait deadline lifts.
+  ///
+  /// Loops rather than sleeping once, so a fresh flood recorded while we are
+  /// parked extends the wait instead of releasing a burst of requests early.
+  Future<void> _awaitFloodGate(td.TdFunction function) async {
+    while (true) {
+      final until = _floodWaitUntil;
+      if (until == null) return;
+
+      final remaining = until.difference(DateTime.now());
+      if (remaining <= Duration.zero) {
+        _clearFloodWait();
+        return;
+      }
+
+      if (remaining > maxInlineFloodWait) {
+        throw TdlibRequestException(
+          floodWaitCode,
+          'FLOOD_WAIT_${remaining.inSeconds}',
+        );
+      }
+
+      // Small grace so the deadline is genuinely past when we re-check.
+      await Future<void>.delayed(remaining + const Duration(milliseconds: 50));
+    }
+  }
 
   void _markTdlibReady() {
     if (!_tdlibReadyCompleter.isCompleted) {
@@ -163,7 +303,10 @@ class TdlibService {
             final object = convertJsonToObject(jsonEncode(map));
             if (object != null) {
               if (object is td.TdError) {
-                completer.completeError(Exception(object.message));
+                _noteError(object.code, object.message);
+                completer.completeError(
+                  TdlibRequestException(object.code, object.message),
+                );
               } else {
                 completer.complete(object);
               }
@@ -195,12 +338,17 @@ class TdlibService {
       await initialize();
     }
 
-    // Gate non-init requests until TDLib parameters are configured
+    // Gate non-init requests until TDLib parameters are configured, then behind
+    // the flood-wait deadline. Bootstrap calls bypass both — without them the
+    // client can never recover from a rate limit.
     if (function is! td.SetTdlibParameters && function is! td.GetAuthorizationState) {
       try {
         await _tdlibReadyCompleter.future.timeout(const Duration(seconds: 10));
       } catch (e) {
         debugPrint('[TDLib] Gate wait note: $e');
+      }
+      if (!_isLocalOnlyRequest(function)) {
+        await _awaitFloodGate(function);
       }
     }
 
@@ -235,6 +383,9 @@ class TdlibService {
     } else if (object is td.UpdateChatFolders) {
       _chatFolders = object.chatFolders;
     } else if (object is td.TdError) {
+      // TDLib's own background requests can trip the rate limit without any
+      // request of ours failing, so global errors feed the gate too.
+      _noteError(object.code, object.message);
       debugPrint('[TDLib Global Error] ${object.code}: ${object.message}');
     }
     // Only broadcast completed file updates to UI stream listeners
@@ -339,6 +490,7 @@ class TdlibService {
     await _authEventController.close();
     await _statusMessageController.close();
     await _fileUpdateController.close();
+    await _floodWaitController.close();
     _clientId = null;
   }
 }
