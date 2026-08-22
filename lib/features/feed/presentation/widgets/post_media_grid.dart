@@ -10,6 +10,7 @@ import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_video_viewer.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
@@ -21,7 +22,11 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 class PostMediaGrid extends StatelessWidget {
   final List<MediaItem> media;
 
-  const PostMediaGrid({super.key, required this.media});
+  /// The post this media belongs to. Passed through to the full-screen viewer
+  /// so it can show who posted it and offer the same actions as the card.
+  final Post? post;
+
+  const PostMediaGrid({super.key, required this.media, this.post});
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +113,7 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: item.width > 0 && item.height > 0
           ? (item.width / item.height).clamp(0.5, 2.0)
           : 16 / 9,
-      child: _MediaTile(item: item, index: 0, allMedia: allVisual),
+      child: _MediaTile(item: item, index: 0, allMedia: allVisual, post: post),
     );
   }
 
@@ -117,9 +122,9 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
           const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
+          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
         ],
       ),
     );
@@ -130,14 +135,14 @@ class PostMediaGrid extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
+          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
           const SizedBox(width: AppSpacing.mediaGap),
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
                 const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual, post: post)),
               ],
             ),
           ),
@@ -157,9 +162,9 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual)),
+                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual)),
+                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
               ],
             ),
           ),
@@ -167,13 +172,14 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual)),
+                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual, post: post)),
                 const SizedBox(width: AppSpacing.mediaGap),
                 Expanded(
                   child: _MediaTile(
                     item: items[3],
                     index: 3,
                     allMedia: allVisual,
+                    post: post,
                     extraCount: extraCount,
                   ),
                 ),
@@ -207,12 +213,14 @@ class _MediaTile extends ConsumerWidget {
   final MediaItem item;
   final int index;
   final List<MediaItem> allMedia;
+  final Post? post;
   final int? extraCount;
 
   const _MediaTile({
     required this.item,
     required this.index,
     required this.allMedia,
+    this.post,
     this.extraCount,
   });
 
@@ -438,6 +446,7 @@ class _MediaTile extends ConsumerWidget {
         videoPath: videoPath,
         fileId: item.fileId,
         thumbnailPath: item.thumbnailUrl,
+        post: post,
       );
     } else {
       final imageItems = allMedia
@@ -460,6 +469,7 @@ class _MediaTile extends ConsumerWidget {
           items: imageItems,
           initialIndex: initialIndex >= 0 && initialIndex < imageItems.length ? initialIndex : 0,
           tag: heroTag,
+          post: post,
         );
       }
     }

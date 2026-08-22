@@ -316,7 +316,7 @@ class PostCard extends ConsumerWidget {
                         // Media Grid
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
-                          PostMediaGrid(media: post.media),
+                          PostMediaGrid(media: post.media, post: post),
                         ],
 
                         // Horizontal Reactions Scroll Bar

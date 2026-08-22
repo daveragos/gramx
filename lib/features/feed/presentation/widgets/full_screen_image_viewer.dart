@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/presentation/widgets/media_viewer_chrome.dart';
 
 /// Full-screen multi-image gallery viewer modal with immersive system UI hiding,
 /// unconstrained zoom, swipe page view, and bottom counter pill.
@@ -9,11 +11,16 @@ class FullScreenImageViewer extends StatefulWidget {
   final int initialIndex;
   final String tag;
 
+  /// The post these images belong to, so the viewer carries its identity and
+  /// actions instead of leaving the reader on a bare black screen.
+  final Post? post;
+
   const FullScreenImageViewer({
     super.key,
     required this.items,
     this.initialIndex = 0,
     required this.tag,
+    this.post,
   });
 
   static void show(
@@ -21,6 +28,7 @@ class FullScreenImageViewer extends StatefulWidget {
     required List<String> items,
     int initialIndex = 0,
     required String tag,
+    Post? post,
   }) {
     if (items.isEmpty) return;
     Navigator.of(context).push(
@@ -32,6 +40,7 @@ class FullScreenImageViewer extends StatefulWidget {
             items: items,
             initialIndex: initialIndex,
             tag: tag,
+            post: post,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -49,6 +58,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   late PageController _pageController;
   late int _currentIndex;
   final Map<int, TransformationController> _transformControllers = {};
+  bool _showChrome = true;
 
   @override
   void initState() {
@@ -101,113 +111,49 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          // Swipeable Multi-Image PageView
-          PageView.builder(
-            controller: _pageController,
-            itemCount: widget.items.length,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
+    return MediaViewerChrome(
+      post: widget.post,
+      showChrome: _showChrome,
+      pageIndicator: MediaPageDots(
+        count: widget.items.length,
+        index: _currentIndex,
+      ),
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.items.length,
+        onPageChanged: (index) => setState(() => _currentIndex = index),
+        itemBuilder: (context, index) {
+          final item = widget.items[index];
+          final transformController = _getController(index);
+
+          return GestureDetector(
+            // A single tap clears the furniture so the picture can be looked
+            // at on its own.
+            onTap: () => setState(() => _showChrome = !_showChrome),
+            onDoubleTap: () {
+              if (transformController.value != Matrix4.identity()) {
+                transformController.value = Matrix4.identity();
+              } else {
+                transformController.value = Matrix4.identity()
+                  ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
+              }
             },
-            itemBuilder: (context, index) {
-              final item = widget.items[index];
-              final transformController = _getController(index);
-
-              return GestureDetector(
-                onDoubleTap: () {
-                  if (transformController.value != Matrix4.identity()) {
-                    transformController.value = Matrix4.identity();
-                  } else {
-                    transformController.value = Matrix4.identity()
-                      ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
-                  }
-                },
-                child: Center(
-                  child: Hero(
-                    tag: index == widget.initialIndex ? widget.tag : '${widget.tag}_$index',
-                    child: InteractiveViewer(
-                      transformationController: transformController,
-                      clipBehavior: Clip.none,
-                      minScale: 0.8,
-                      maxScale: 5.0,
-                      child: _buildImage(item),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Top Header Bar
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.download_rounded, color: Colors.white, size: 24),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Image saved to device gallery'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 24),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Sharing image...'),
-                              duration: Duration(seconds: 1),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Bottom Page Counter Pill (if multiple images)
-          if (widget.items.length > 1)
-            Positioned(
-              bottom: 32,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    '${_currentIndex + 1} / ${widget.items.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+            child: Center(
+              child: Hero(
+                tag: index == widget.initialIndex
+                    ? widget.tag
+                    : '${widget.tag}_$index',
+                child: InteractiveViewer(
+                  transformationController: transformController,
+                  clipBehavior: Clip.none,
+                  minScale: 0.8,
+                  maxScale: 5.0,
+                  child: _buildImage(item),
                 ),
               ),
             ),
-        ],
+          );
+        },
       ),
     );
   }

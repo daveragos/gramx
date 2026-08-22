@@ -191,6 +191,11 @@ abstract class AppStrings {
 
   static String videoDownloading(int percent) => 'Downloading… $percent%';
 
+  static const videoPlay = 'Play';
+  static const videoPause = 'Pause';
+  static const videoMute = 'Mute';
+  static const videoUnmute = 'Unmute';
+
   // ── Spoilers ───────────────────────────────────────────────────────────────
   static const spoilerHidden = 'Hidden by a spoiler';
   static const spoilerTapToReveal = 'Tap to reveal';
