@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/core/config/app_links.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -298,6 +300,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // 6. ABOUT & SUPPORT SECTION
           _SectionHeader(title: AppStrings.settingsSectionAbout, secondaryColor: secondaryColor),
+          _LinkTile(
+            icon: Icons.person_outline_rounded,
+            title: AppStrings.settingsDeveloper,
+            subtitle: AppStrings.settingsDeveloperBody,
+            url: AppLinks.developer,
+            primaryColor: primaryColor,
+            secondaryColor: secondaryColor,
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          _LinkTile(
+            icon: Icons.volunteer_activism_rounded,
+            title: AppStrings.settingsSupport,
+            subtitle: AppStrings.settingsSupportBody,
+            url: AppLinks.support,
+            primaryColor: primaryColor,
+            secondaryColor: secondaryColor,
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          _LinkTile(
+            icon: Icons.code_rounded,
+            title: AppStrings.settingsSource,
+            subtitle: AppStrings.settingsSourceBody,
+            url: AppLinks.repository,
+            primaryColor: primaryColor,
+            secondaryColor: secondaryColor,
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
             leading: Icon(Icons.privacy_tip_outlined, color: primaryColor),
             title: Text(AppStrings.settingsPrivacy,
@@ -422,6 +451,51 @@ class _XThemeSegmentTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A row that leaves the app.
+///
+/// Says so with the open-in-new glyph, and reports a failure rather than
+/// swallowing it — the same rule the link previews follow.
+class _LinkTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String url;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  const _LinkTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.url,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: primaryColor),
+      title: Text(title, style: AppTypography.body(color: primaryColor)),
+      subtitle:
+          Text(subtitle, style: AppTypography.actionCount(color: secondaryColor)),
+      trailing:
+          Icon(Icons.open_in_new_rounded, size: 18, color: secondaryColor),
+      onTap: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final opened = await openExternalUrl(normalizeUrl(url));
+        if (opened) return;
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(AppStrings.settingsLinkFailed),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
     );
   }
 }

@@ -232,6 +232,15 @@ abstract class AppStrings {
   static const settingsStorageClear = 'Clear';
   static const settingsStorageNothingToClear = 'Nothing to clear.';
 
+  static const settingsDeveloper = 'Made by RaGoose';
+  static const settingsDeveloperBody = 'One person, in Addis Ababa';
+  static const settingsSupport = 'Support the developer';
+  static const settingsSupportBody =
+      'Buy me a coffee, and keep this being built ❤️';
+  static const settingsSource = 'Star or contribute on GitHub';
+  static const settingsSourceBody = 'gramX is open source — issues welcome 🚀';
+  static const settingsLinkFailed = "Couldn't open that link.";
+
   static const settingsPrivacy = 'Privacy Policy';
   static const settingsPrivacyBody = 'What is stored, and what leaves your phone';
   static const settingsTerms = 'Terms of Service';
