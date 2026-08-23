@@ -10,7 +10,9 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
-import 'package:gramx/core/widgets/text_entity_renderer.dart';
+import 'package:gramx/core/widgets/expandable_text.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
+import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
@@ -26,6 +28,12 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 class PostCard extends ConsumerWidget {
   final Post post;
   final bool isHighlighted;
+
+  /// Whether to draw the hairline that closes the card.
+  ///
+  /// A thread draws its own after the "earlier posts" toggle, so the post it
+  /// belongs to must not close the group early.
+  final bool showDivider;
   final VoidCallback? onTap;
   final VoidCallback? onChannelTap;
   final VoidCallback? onBookmarkTap;
@@ -36,6 +44,7 @@ class PostCard extends ConsumerWidget {
     super.key,
     required this.post,
     this.isHighlighted = false,
+    this.showDivider = true,
     this.onTap,
     this.onChannelTap,
     this.onBookmarkTap,
@@ -219,7 +228,7 @@ class PostCard extends ConsumerWidget {
                             ],
                              if (post.authorSignature != null && post.authorSignature!.isNotEmpty) ...[
                                Text(
-                                 '~ ${post.authorSignature}',
+                                 '@${post.authorSignature}',
                                  style: AppTypography.actionCount(color: AppColors.accent)
                                      .copyWith(fontSize: 11.5, fontWeight: FontWeight.w600),
                                ),
@@ -279,16 +288,25 @@ class PostCard extends ConsumerWidget {
                           _buildQuotedReplyCard(context, ref, post, isDark, secondaryColor),
                         ],
 
-                        // Text content with link launcher
+                        // Text content with link launcher. Long posts clamp
+                        // with a "Show more" rather than pushing every other
+                        // channel off the screen.
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
-                          TextEntityRenderer(
+                          ExpandableText(
                             onHashtagTap: (tag) =>
                                 openHashtagSearch(context, ref, tag),
                             text: post.text!,
                             entities: post.entities,
                             style: AppTypography.body(color: primaryTextColor),
                           ),
+                        ],
+
+                        // Content this build can't draw. The label alone was a
+                        // dead end; Telegram itself can still show it.
+                        if (post.unsupportedKind != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          _OpenInTelegramButton(post: post),
                         ],
 
                         // Link preview
@@ -322,6 +340,9 @@ class PostCard extends ConsumerWidget {
                         // Horizontal Reactions Scroll Bar
                         if (post.reactions.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),
+                          // Swallows taps so scrolling the reaction strip, or
+                          // missing a chip, doesn't open the post. Not a
+                          // control: it has no affordance of its own.
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () {},
@@ -400,7 +421,12 @@ class PostCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(color: theme.dividerTheme.color, height: 0.5, thickness: 0.5),
+            if (showDivider)
+              Divider(
+                color: theme.dividerTheme.color,
+                height: 0.5,
+                thickness: 0.5,
+              ),
           ],
         ),
       ),
@@ -550,6 +576,43 @@ class PostCard extends ConsumerWidget {
         Icons.image_outlined,
         size: 18,
         color: AppColors.accent,
+      ),
+    );
+  }
+}
+
+/// Sends the reader to Telegram for a message this build cannot render.
+class _OpenInTelegramButton extends ConsumerWidget {
+  final Post post;
+
+  const _OpenInTelegramButton({required this.post});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.open_in_new, size: 16),
+        label: const Text(AppStrings.postOpenInTelegram),
+        onPressed: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final link = await ref.read(feedRepositoryProvider).postLink(post) ??
+              TelegramIds.postLink(
+                chatId: post.chatId,
+                messageId: post.messageId,
+                username: post.channelUsername,
+              );
+          final opened =
+              link != null && await openExternalUrl(normalizeUrl(link));
+          if (!opened) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text(AppStrings.postCannotOpenTelegram),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
       ),
     );
   }

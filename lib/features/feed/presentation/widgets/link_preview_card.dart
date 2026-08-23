@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -34,15 +35,22 @@ class LinkPreviewCard extends ConsumerWidget {
     }
   }
 
-  Future<void> _openUrl() async {
-    try {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('[LinkPreview] Could not launch URL $url: $e');
-    }
+  /// Opens the previewed link.
+  ///
+  /// The card is the biggest tap target for the link in the whole post, so it
+  /// has to work: it used to ask `canLaunchUrl` first, which answers false on
+  /// Android 11+ unless the intent is declared in the manifest — so the card
+  /// silently did nothing while the same link in the post text opened fine.
+  Future<void> _openUrl(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final opened = await openExternalUrl(normalizeUrl(url));
+    if (opened) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(AppStrings.linkCouldNotOpen(url)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -59,7 +67,7 @@ class LinkPreviewCard extends ConsumerWidget {
     final hasImage = (imageUrl != null && imageUrl!.isNotEmpty) || (imageFileId != null && imageFileId! > 0);
 
     return InkWell(
-      onTap: _openUrl,
+      onTap: () => _openUrl(context),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(

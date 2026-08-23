@@ -74,11 +74,25 @@ abstract class MessageContentSupport {
       td.MessageStory() => '📖 Story',
       td.MessagePaidMedia() => '🔒 Paid media',
       td.MessageAnimatedEmoji() => '😀 Animated emoji',
-      td.MessageUnsupported() =>
-        'Unsupported message — open in Telegram to view',
-      _ => 'Unsupported message — open in Telegram to view',
+      td.MessageUnsupported() => unsupportedLabel,
+      _ => unsupportedLabel,
     };
   }
+
+  /// Content we have no card for at all.
+  ///
+  /// Distinct from content we can *label* — a location or a giveaway is a known
+  /// thing with a known name, whereas `messageUnsupported` is TDLib telling us
+  /// this build cannot represent the message. Only the latter is worth sending
+  /// the reader to Telegram for.
+  static bool isUnsupported(td.MessageContent content) {
+    if (isRendered(content) || isServiceMessage(content)) return false;
+    return describe(content) == unsupportedLabel;
+  }
+
+  /// The label for content this build cannot represent.
+  static const String unsupportedLabel =
+      'Unsupported message — open in Telegram to view';
 
   /// Whether this message should appear in the feed at all.
   static bool belongsInFeed(td.MessageContent content) =>

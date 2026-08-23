@@ -43,10 +43,12 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
     final secondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
-    Widget cardFor(Post post) => PostVisibilityReporter(
+    Widget cardFor(Post post, {bool showDivider = true}) =>
+        PostVisibilityReporter(
           postId: post.id,
           child: PostCard(
             post: post,
+            showDivider: showDivider,
             onTap: () => widget.onOpenPost(post),
             onChannelTap: () => widget.onOpenChannel(post),
           ),
@@ -62,27 +64,31 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
                 left: BorderSide(color: secondary.withValues(alpha: 0.3)),
               ),
             ),
-            child: cardFor(post),
+            child: cardFor(post, showDivider: false),
           ),
         );
 
+    if (!thread.hasReplies) return cardFor(thread.root);
+
+    // The toggle sits under the post and above the hairline that closes the
+    // feed item, so the whole thread — newest post, its history, the control
+    // that reveals it — reads as one block between two break lines.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (thread.hasReplies) ...[
-          // The toggle sits above the newest post, because expanding reveals
-          // what came *before* it.
-          _ThreadToggle(
-            count: thread.earlier.length,
-            expanded: _expanded,
-            color: secondary,
-            onTap: () => setState(() => _expanded = !_expanded),
-          ),
-          if (_expanded)
-            for (final post in thread.earlier) contextCardFor(post),
-        ],
         // The newest post is what surfaced this thread, so it is the card.
-        cardFor(thread.latest),
+        cardFor(thread.latest, showDivider: false),
+        if (_expanded)
+          // Newest first, matching the feed itself: reading downwards walks
+          // backwards through the thread.
+          for (final post in thread.earlier.reversed) contextCardFor(post),
+        _ThreadToggle(
+          count: thread.earlier.length,
+          expanded: _expanded,
+          color: secondary,
+          onTap: () => setState(() => _expanded = !_expanded),
+        ),
+        Divider(color: theme.dividerTheme.color, height: 0.5, thickness: 0.5),
       ],
     );
   }

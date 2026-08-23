@@ -12,6 +12,7 @@ _TextEntity _$TextEntityFromJson(Map<String, dynamic> json) => _TextEntity(
   type: $enumDecode(_$TextEntityTypeEnumMap, json['type']),
   url: json['url'] as String?,
   customEmojiId: json['customEmojiId'] as String?,
+  language: json['language'] as String?,
 );
 
 Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
@@ -21,6 +22,7 @@ Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
       'type': _$TextEntityTypeEnumMap[instance.type]!,
       'url': instance.url,
       'customEmojiId': instance.customEmojiId,
+      'language': instance.language,
     };
 
 const _$TextEntityTypeEnumMap = {
@@ -30,10 +32,19 @@ const _$TextEntityTypeEnumMap = {
   TextEntityType.strikethrough: 'strikethrough',
   TextEntityType.code: 'code',
   TextEntityType.codeBlock: 'codeBlock',
+  TextEntityType.blockQuote: 'blockQuote',
+  TextEntityType.expandableBlockQuote: 'expandableBlockQuote',
   TextEntityType.url: 'url',
   TextEntityType.textUrl: 'textUrl',
   TextEntityType.mention: 'mention',
+  TextEntityType.mentionName: 'mentionName',
   TextEntityType.hashtag: 'hashtag',
+  TextEntityType.cashtag: 'cashtag',
+  TextEntityType.botCommand: 'botCommand',
+  TextEntityType.emailAddress: 'emailAddress',
+  TextEntityType.phoneNumber: 'phoneNumber',
+  TextEntityType.bankCardNumber: 'bankCardNumber',
+  TextEntityType.mediaTimestamp: 'mediaTimestamp',
   TextEntityType.spoiler: 'spoiler',
   TextEntityType.customEmoji: 'customEmoji',
   TextEntityType.unknown: 'unknown',

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
@@ -118,6 +119,7 @@ class TdlibMappers {
     int? linkPreviewFileId;
     List<TextEntity> textEntities = [];
     Poll? pollObj;
+    String? unsupportedKind;
 
     final content = message.content;
     if (content is td.MessageText) {
@@ -194,6 +196,13 @@ class TdlibMappers {
       // produced a card with a header, a timestamp, an action bar and nothing
       // between them — see MessageContentSupport.
       bodyText = MessageContentSupport.describe(content);
+      if (MessageContentSupport.isUnsupported(content)) {
+        // Carried so the card can offer Telegram rather than ending in a
+        // sentence the reader can do nothing with. The type name is logged
+        // because "unsupported" is otherwise unactionable in a bug report.
+        unsupportedKind = content.currentObjectId;
+        debugPrint('[Mapper] Unrendered content: ${content.currentObjectId}');
+      }
     }
 
     final Map<String, int> reactionsMap = {};
@@ -402,6 +411,7 @@ class TdlibMappers {
       authorSignature: message.authorSignature.isNotEmpty ? message.authorSignature : null,
       entities: textEntities,
       poll: pollObj,
+      unsupportedKind: unsupportedKind,
     );
   }
 
@@ -680,6 +690,11 @@ class TdlibMappers {
         String? url;
         String? customEmojiId;
 
+        String? language;
+
+        // Every branch of TDLib's union gets a name. Anything left out arrives
+        // as 'unknown' and renders as plain text, which is how block quotes and
+        // fenced code lost their formatting.
         if (type is td.TextEntityTypeBold) {
           typeStr = 'bold';
         } else if (type is td.TextEntityTypeItalic) {
@@ -690,10 +705,17 @@ class TdlibMappers {
           typeStr = 'strikethrough';
         } else if (type is td.TextEntityTypeCode) {
           typeStr = 'code';
+        } else if (type is td.TextEntityTypePreCode) {
+          // Checked before Pre: PreCode is not a subclass, but keeping the
+          // language-bearing case first makes the intent obvious.
+          typeStr = 'codeBlock';
+          language = type.language;
         } else if (type is td.TextEntityTypePre) {
           typeStr = 'codeBlock';
-        } else if (type is td.TextEntityTypePreCode) {
-          typeStr = 'codeBlock';
+        } else if (type is td.TextEntityTypeBlockQuote) {
+          typeStr = 'blockQuote';
+        } else if (type is td.TextEntityTypeExpandableBlockQuote) {
+          typeStr = 'expandableBlockQuote';
         } else if (type is td.TextEntityTypeUrl) {
           typeStr = 'url';
         } else if (type is td.TextEntityTypeTextUrl) {
@@ -701,8 +723,22 @@ class TdlibMappers {
           url = type.url;
         } else if (type is td.TextEntityTypeMention) {
           typeStr = 'mention';
+        } else if (type is td.TextEntityTypeMentionName) {
+          typeStr = 'mentionName';
         } else if (type is td.TextEntityTypeHashtag) {
           typeStr = 'hashtag';
+        } else if (type is td.TextEntityTypeCashtag) {
+          typeStr = 'cashtag';
+        } else if (type is td.TextEntityTypeBotCommand) {
+          typeStr = 'botCommand';
+        } else if (type is td.TextEntityTypeEmailAddress) {
+          typeStr = 'emailAddress';
+        } else if (type is td.TextEntityTypePhoneNumber) {
+          typeStr = 'phoneNumber';
+        } else if (type is td.TextEntityTypeBankCardNumber) {
+          typeStr = 'bankCardNumber';
+        } else if (type is td.TextEntityTypeMediaTimestamp) {
+          typeStr = 'mediaTimestamp';
         } else if (type is td.TextEntityTypeSpoiler) {
           typeStr = 'spoiler';
         } else if (type is td.TextEntityTypeCustomEmoji) {
@@ -716,6 +752,7 @@ class TdlibMappers {
           'type': typeStr,
           'url': ?url,
           'customEmojiId': ?customEmojiId,
+          'language': ?language,
         };
       }).toList();
       return jsonEncode(list);

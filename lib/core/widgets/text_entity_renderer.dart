@@ -1,7 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/app/theme/app_spacing.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
@@ -11,6 +14,9 @@ class TextEntityRenderer extends StatelessWidget {
   final String text;
   final List<TextEntity> entities;
   final TextStyle? style;
+
+  /// Clamp the rendered text to this many lines. Null renders in full.
+  final int? maxLines;
 
   /// Called when a hashtag is tapped.
   ///
@@ -25,6 +31,7 @@ class TextEntityRenderer extends StatelessWidget {
     required this.entities,
     this.onHashtagTap,
     this.style,
+    this.maxLines,
   });
 
   @override
@@ -36,6 +43,7 @@ class TextEntityRenderer extends StatelessWidget {
       return SelectableText(
         text,
         style: defaultStyle,
+        maxLines: maxLines,
       );
     }
 
@@ -80,6 +88,7 @@ class TextEntityRenderer extends StatelessWidget {
 
     return SelectableText.rich(
       TextSpan(children: spans),
+      maxLines: maxLines,
     );
   }
 
@@ -116,25 +125,27 @@ class TextEntityRenderer extends StatelessWidget {
           style: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
         );
       case TextEntityType.code:
-        return TextSpan(
-          text: entityText,
-          style: baseStyle.copyWith(
-            fontFamily: 'monospace',
-            backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey[850]
-                : Colors.grey[200],
-          ),
+        // A background on a TextSpan paints tight against the glyphs with no
+        // padding and no corners, which is why inline code read as unstyled
+        // text with a grey smear behind it. A real chip is the fix.
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: InlineCodeChip(text: entityText, style: baseStyle),
         );
       case TextEntityType.codeBlock:
-        return TextSpan(
-          text: '\n$entityText\n',
-          style: baseStyle.copyWith(
-            fontFamily: 'monospace',
-            height: 1.5,
-            backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey[900]
-                : Colors.grey[100],
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: CodeBlock(
+            text: entityText,
+            language: entity.language,
+            style: baseStyle,
           ),
+        );
+      case TextEntityType.blockQuote:
+      case TextEntityType.expandableBlockQuote:
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: QuoteBlock(text: entityText, style: baseStyle),
         );
       case TextEntityType.url:
       case TextEntityType.textUrl:
@@ -152,6 +163,32 @@ class TextEntityRenderer extends StatelessWidget {
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleMentionTap(context, entityText),
         );
+      case TextEntityType.mentionName:
+        // Telegram gives a user id rather than a username here, and this app
+        // has no user profile screen — so it is coloured, not tappable.
+        return TextSpan(text: entityText, style: accentStyle);
+      case TextEntityType.emailAddress:
+        return TextSpan(
+          text: entityText,
+          style: accentStyle.copyWith(decoration: TextDecoration.none),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => _handleLinkTap(context, 'mailto:$entityText'),
+        );
+      case TextEntityType.phoneNumber:
+        return TextSpan(
+          text: entityText,
+          style: accentStyle.copyWith(decoration: TextDecoration.none),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => _handleLinkTap(
+                context, 'tel:${entityText.replaceAll(' ', '')}'),
+        );
+      case TextEntityType.cashtag:
+      case TextEntityType.botCommand:
+      case TextEntityType.bankCardNumber:
+      case TextEntityType.mediaTimestamp:
+        // Real marks Telegram applies, but nothing in this app acts on them.
+        // Styled plainly rather than dressed up as links that go nowhere.
+        return TextSpan(text: entityText, style: baseStyle);
       case TextEntityType.hashtag:
         // Only render as a link when something will actually happen.
         if (onHashtagTap == null) {
@@ -197,13 +234,7 @@ class TextEntityRenderer extends StatelessWidget {
 
   Future<void> _handleLinkTap(BuildContext context, String rawUrl) async {
     try {
-      String formattedUrl = rawUrl;
-      if (!formattedUrl.startsWith('http://') &&
-          !formattedUrl.startsWith('https://') &&
-          !formattedUrl.startsWith('tg://')) {
-        formattedUrl = 'https://$formattedUrl';
-      }
-      final uri = Uri.parse(formattedUrl);
+      final uri = normalizeUrl(rawUrl);
 
       // In-app handling for Telegram t.me links
       if (uri.host == 't.me' || uri.host == 'telegram.me' || uri.host == 'www.t.me') {
@@ -229,17 +260,13 @@ class TextEntityRenderer extends StatelessWidget {
         }
       }
 
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        await launchUrl(uri, mode: LaunchMode.platformDefault);
-      }
+      await openExternalUrl(uri);
     } catch (e) {
       debugPrint('[TextEntityRenderer] Could not launch URL $rawUrl: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not open link: $rawUrl'),
+            content: Text(AppStrings.linkCouldNotOpen(rawUrl)),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -298,6 +325,147 @@ class _SpoilerWidgetState extends State<SpoilerWidget> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Monospaced text inside a sentence, as a padded chip.
+class InlineCodeChip extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+
+  const InlineCodeChip({super.key, required this.text, required this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: style.copyWith(
+          fontFamily: 'monospace',
+          fontFamilyFallback: const ['Courier'],
+          fontSize: (style.fontSize ?? 15) * 0.92,
+        ),
+      ),
+    );
+  }
+}
+
+/// A fenced code block: full width, scrollable sideways, copyable.
+///
+/// Code does not wrap — wrapping it is what made pasted snippets unreadable —
+/// so the block scrolls horizontally instead.
+class CodeBlock extends StatelessWidget {
+  final String text;
+  final String? language;
+  final TextStyle style;
+
+  const CodeBlock({
+    super.key,
+    required this.text,
+    required this.style,
+    this.language,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    final codeStyle = style.copyWith(
+      fontFamily: 'monospace',
+      fontFamilyFallback: const ['Courier'],
+      fontSize: (style.fontSize ?? 15) * 0.92,
+      height: 1.4,
+    );
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  language?.isNotEmpty == true
+                      ? language!
+                      : AppStrings.codeBlockLabel,
+                  style: AppTypography.actionCount(color: secondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                iconSize: 16,
+                visualDensity: VisualDensity.compact,
+                tooltip: AppStrings.codeBlockCopy,
+                icon: Icon(Icons.copy_rounded, color: secondary),
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await Clipboard.setData(ClipboardData(text: text));
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(AppStrings.codeBlockCopied),
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.sm,
+              0,
+              AppSpacing.sm,
+              AppSpacing.sm,
+            ),
+            child: Text(text, style: codeStyle),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A quoted passage — Telegram's block quote, drawn the way it draws it.
+class QuoteBlock extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+
+  const QuoteBlock({super.key, required this.text, required this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: const EdgeInsets.only(left: AppSpacing.sm, top: 2, bottom: 2),
+      decoration: const BoxDecoration(
+        border: Border(
+          left: BorderSide(color: AppColors.accent, width: 3),
+        ),
+      ),
+      child: Text(text, style: style.copyWith(fontStyle: FontStyle.italic)),
     );
   }
 }

@@ -56,6 +56,7 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   replyToThumbnailFileId: (json['replyToThumbnailFileId'] as num?)?.toInt(),
   hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
   authorSignature: json['authorSignature'] as String?,
+  unsupportedKind: json['unsupportedKind'] as String?,
   entities:
       (json['entities'] as List<dynamic>?)
           ?.map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
@@ -102,6 +103,7 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyToThumbnailFileId': instance.replyToThumbnailFileId,
   'hasDiscussionGroup': instance.hasDiscussionGroup,
   'authorSignature': instance.authorSignature,
+  'unsupportedKind': instance.unsupportedKind,
   'entities': instance.entities,
   'poll': _pollToJson(instance.poll),
 };

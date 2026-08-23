@@ -48,6 +48,11 @@ abstract class Post with _$Post {
     int? replyToThumbnailFileId,
     @Default(false) bool hasDiscussionGroup,
     String? authorSignature,
+
+    /// Set when Telegram sent content this app cannot draw — the TDLib type
+    /// name, so the card can offer to open it in Telegram instead of showing a
+    /// dead sentence.
+    String? unsupportedKind,
     @Default([]) List<TextEntity> entities,
     @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? poll,
   }) = _Post;
