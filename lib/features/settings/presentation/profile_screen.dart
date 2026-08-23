@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
@@ -23,7 +25,8 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Profile', style: AppTypography.heading(color: primaryColor)),
+        title: Text(AppStrings.profileTitle,
+            style: AppTypography.heading(color: primaryColor)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Divider(height: 1, thickness: 0.5, color: borderColor),
@@ -31,7 +34,10 @@ class ProfileScreen extends ConsumerWidget {
       ),
       body: accountAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: AppColors.error))),
+        error: (err, _) => Center(
+          child: Text(AppStrings.profileError(err),
+              style: const TextStyle(color: AppColors.error)),
+        ),
         data: (account) {
           final isLoggedIn = account != null;
 
@@ -104,7 +110,10 @@ class ProfileScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isLoggedIn ? (account.displayName ?? 'Telegram User') : 'Guest User',
+                        isLoggedIn
+                            ? (account.displayName ??
+                                AppStrings.drawerAccountFallback)
+                            : AppStrings.profileGuestName,
                         style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
                       ),
                       const SizedBox(height: 2),
@@ -115,7 +124,7 @@ class ProfileScreen extends ConsumerWidget {
                         )
                       else
                         Text(
-                          '@guest',
+                          AppStrings.profileGuestHandle,
                           style: AppTypography.username(color: secondaryColor).copyWith(fontSize: 15),
                         ),
                     ],
@@ -133,7 +142,7 @@ class ProfileScreen extends ConsumerWidget {
                     bottom: AppSpacing.xs,
                   ),
                   child: Text(
-                    'ACCOUNT DETAILS',
+                    AppStrings.profileSectionDetails,
                     style: TextStyle(
                       color: secondaryColor,
                       fontSize: 13,
@@ -144,23 +153,43 @@ class ProfileScreen extends ConsumerWidget {
                 ),
 
                 if (isLoggedIn) ...[
-                  ListTile(
-                    leading: Icon(Icons.phone_outlined, color: primaryColor),
-                    title: Text('Phone Number', style: AppTypography.body(color: primaryColor)),
-                    subtitle: Text(account.phoneNumber ?? 'Not provided', style: AppTypography.actionCount(color: secondaryColor)),
+                  // Both details are the kind of thing you copy into a support
+                  // form, so tapping copies rather than doing nothing.
+                  _CopyableDetail(
+                    icon: Icons.phone_outlined,
+                    label: AppStrings.profilePhone,
+                    value: account.phoneNumber,
+                    primaryColor: primaryColor,
+                    secondaryColor: secondaryColor,
+                  ),
+                  Divider(height: 1, thickness: 0.5, color: borderColor),
+                  _CopyableDetail(
+                    icon: Icons.badge_outlined,
+                    label: AppStrings.profileTelegramId,
+                    value: account.telegramUserId,
+                    primaryColor: primaryColor,
+                    secondaryColor: secondaryColor,
                   ),
                   Divider(height: 1, thickness: 0.5, color: borderColor),
                   ListTile(
-                    leading: Icon(Icons.badge_outlined, color: primaryColor),
-                    title: Text('Telegram ID', style: AppTypography.body(color: primaryColor)),
-                    subtitle: Text(account.telegramUserId, style: AppTypography.actionCount(color: secondaryColor)),
+                    leading: Icon(Icons.settings_outlined, color: primaryColor),
+                    title: Text(AppStrings.profileOpenSettings,
+                        style: AppTypography.body(color: primaryColor)),
+                    subtitle: Text(AppStrings.profileOpenSettingsBody,
+                        style:
+                            AppTypography.actionCount(color: secondaryColor)),
+                    trailing: Icon(Icons.chevron_right, color: secondaryColor),
+                    onTap: () => context.push('/settings'),
                   ),
                   Divider(height: 1, thickness: 0.5, color: borderColor),
                 ] else ...[
                   ListTile(
                     leading: Icon(Icons.info_outline, color: primaryColor),
-                    title: Text('Status', style: AppTypography.body(color: primaryColor)),
-                    subtitle: Text('Offline / Not Logged In', style: AppTypography.actionCount(color: secondaryColor)),
+                    title: Text(AppStrings.profileStatus,
+                        style: AppTypography.body(color: primaryColor)),
+                    subtitle: Text(AppStrings.profileStatusOffline,
+                        style:
+                            AppTypography.actionCount(color: secondaryColor)),
                   ),
                   Divider(height: 1, thickness: 0.5, color: borderColor),
                 ],
@@ -181,7 +210,9 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ),
                           onPressed: () => _confirmLogout(context, ref),
-                          child: const Text('Log out', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: const Text(AppStrings.settingsLogOut,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
                         )
                       : ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -196,7 +227,9 @@ class ProfileScreen extends ConsumerWidget {
                           onPressed: () {
                             context.push('/auth');
                           },
-                          child: const Text('Log in with Telegram', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: const Text(AppStrings.profileLogIn,
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -212,17 +245,19 @@ class ProfileScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Log out of gramX?'),
-        content: const Text('You will need to re-login to access your synced Telegram timeline and channels.'),
+        title: const Text(AppStrings.settingsLogOutTitle),
+        content: const Text(AppStrings.settingsLogOutBody),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text(AppStrings.settingsCancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Log out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+            child: const Text(AppStrings.settingsLogOut,
+                style: TextStyle(
+                    color: AppColors.error, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -234,5 +269,56 @@ class ProfileScreen extends ConsumerWidget {
         context.go('/auth');
       }
     }
+  }
+}
+
+/// An account detail that can be copied.
+///
+/// These rows are the only place the reader can get at their own Telegram id or
+/// phone number, and reading a number off a screen to type it somewhere else is
+/// a bad time — so the row does something when tapped.
+class _CopyableDetail extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  const _CopyableDetail({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = value?.isNotEmpty == true
+        ? value!
+        : AppStrings.profileNotProvided;
+    final canCopy = value?.isNotEmpty == true;
+
+    return ListTile(
+      leading: Icon(icon, color: primaryColor),
+      title: Text(label, style: AppTypography.body(color: primaryColor)),
+      subtitle:
+          Text(shown, style: AppTypography.actionCount(color: secondaryColor)),
+      trailing:
+          canCopy ? Icon(Icons.copy_rounded, size: 18, color: secondaryColor) : null,
+      onTap: canCopy
+          ? () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await Clipboard.setData(ClipboardData(text: value!));
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(AppStrings.profileCopied),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          : null,
+    );
   }
 }
