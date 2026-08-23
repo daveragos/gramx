@@ -733,14 +733,41 @@ class FeedRepository {
     final messageId = int.tryParse(parts[1]);
     if (chatId == null || messageId == null) return;
 
+    await markMessagesRead(
+      chatId: chatId,
+      messageIds: [messageId],
+      forceRead: forceRead,
+    );
+  }
+
+  /// Acknowledges messages as read, and reports what went wrong.
+  ///
+  /// Returns null on success, or the error to log. Read acks used to be
+  /// fire-and-forget: a flood wait or a moment offline lost them silently, and
+  /// the reader's Telegram kept showing everything unread with nothing to
+  /// explain it. The caller ([ReadReceiptQueue]) retries.
+  ///
+  /// The source is stated rather than left for TDLib to infer from whether the
+  /// chat happens to be open. Read state is exactly the thing that must not
+  /// depend on a guess.
+  Future<String?> markMessagesRead({
+    required int chatId,
+    required List<int> messageIds,
+    bool forceRead = true,
+  }) async {
+    if (messageIds.isEmpty) return null;
+
     try {
-      await _tdlib.sendRequest(td.ViewMessages(
+      final result = await _tdlib.sendRequest(td.ViewMessages(
         chatId: chatId,
-        messageIds: [messageId],
+        messageIds: messageIds,
+        source: const td.MessageSourceChatHistory(),
         forceRead: forceRead,
       ));
+      if (result is td.Ok) return null;
+      return 'TDLib answered ${result.runtimeType}';
     } catch (e) {
-      debugPrint('[FeedRepo] markPostAsRead failed for $postId: $e');
+      return e.toString();
     }
   }
 

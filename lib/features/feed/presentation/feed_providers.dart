@@ -9,6 +9,7 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
+import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -512,7 +513,13 @@ final markPostAsReadProvider =
     FutureProvider.family<void, String>((ref, postId) async {
   ref.read(optimisticPostUpdatesProvider.notifier).markRead(postId);
   ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
-  await ref.read(feedRepositoryProvider).markPostAsRead(postId);
+
+  // Through the queue, so this ack is batched with whatever the dwell tracker
+  // has already collected for the same chat — then sent immediately, because
+  // opening a post is as deliberate as read intent gets.
+  final queue = ref.read(readReceiptQueueProvider.notifier);
+  queue.add(postId);
+  await queue.flush();
 });
 
 /// Reads a chat-folder title, whatever shape TDLib hands it over in.

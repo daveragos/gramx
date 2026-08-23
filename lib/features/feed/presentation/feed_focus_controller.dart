@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_tracker.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 
 /// Drives read tracking and chat focus from what is actually on screen.
 ///
@@ -35,6 +36,10 @@ class FeedFocusController extends Notifier<String?> {
     ref.onDispose(() {
       _ticker?.cancel();
       _ticker = null;
+      // Anything held back must go out now: the reader has left the feed, and
+      // a receipt that waits for a timer that will never fire is a lost read.
+      ref.read(readReceiptQueueProvider.notifier).flush();
+
       final chatId = _openChatId;
       if (chatId != null) {
         // Fire-and-forget: the container is going away either way.
@@ -99,13 +104,11 @@ class FeedFocusController extends Notifier<String?> {
     ref.read(optimisticPostUpdatesProvider.notifier).markRead(postId);
     ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
 
-    // forceRead is the "the chat isn't open, take my word for it" flag. While
-    // the chat IS open, TDLib treats the ack as genuine reading, which is the
-    // honest signal — and avoids writing through on posts merely scrolled past.
-    ref.read(feedRepositoryProvider).markPostAsRead(
-          postId,
-          forceRead: _openChatId != chatId,
-        );
+    // Queued rather than sent: a scroll through six posts of one channel is one
+    // acknowledgement, and the queue retries the ones that fail. Read state is
+    // the reader's, on every device they own — losing it to a flood wait is not
+    // acceptable, and it used to be silent.
+    ref.read(readReceiptQueueProvider.notifier).add(postId);
   }
 
   /// Keeps at most one chat open, as TDLib expects.
@@ -119,6 +122,8 @@ class FeedFocusController extends Notifier<String?> {
 
     _openChatId = nextChatId;
     if (nextChatId != null) repo.openChat(nextChatId);
+    // The queue needs this to know whether an ack has to force the read.
+    ref.read(readReceiptQueueProvider.notifier).setOpenChat(nextChatId);
   }
 
   /// Post ids are `"<chatId>_<messageId>"`. See docs/ARCHITECTURE.md.
