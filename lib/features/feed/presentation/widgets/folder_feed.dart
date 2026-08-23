@@ -124,6 +124,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
     final pendingCount =
         ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
+    final backlogIds = ref.watch(backlogIdsProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
 
@@ -154,8 +155,9 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
       ),
       data: (posts) {
         if (posts.isNotEmpty) _hasLoadedOnce = true;
-        // Collapse a channel's own follow-ups so one burst takes one slot.
-        final threads = groupIntoThreads(posts);
+        // Collapse a channel's own follow-ups so one burst takes one slot, and
+        // weave in the unread backlog — see buildFeedEntries.
+        final entries = buildFeedEntries(posts, backlogIds: backlogIds);
         if (posts.isEmpty) {
           if (isSyncing) {
             return const FeedSkeleton();
@@ -234,9 +236,9 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                       top: widget.topPadding,
                       bottom: widget.bottomPadding,
                     ),
-                    itemCount: threads.length + (_isLoadingMore ? 1 : 0),
+                    itemCount: entries.length + (_isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
-                      if (index == threads.length) {
+                      if (index == entries.length) {
                         return const Padding(
                           padding: EdgeInsets.all(16.0),
                           child: Center(
@@ -248,10 +250,11 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                         );
                       }
 
-                      final thread = threads[index];
+                      final entry = entries[index];
                       return ThreadCard(
-                        key: ValueKey(thread.root.id),
-                        thread: thread,
+                        key: ValueKey(entry.thread.root.id),
+                        thread: entry.thread,
+                        isBacklog: entry.isBacklog,
                         onOpenPost: (post) {
                           ref.read(markPostAsReadProvider(post.id));
                           context.push('/post/${post.id}');

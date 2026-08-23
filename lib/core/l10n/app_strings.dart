@@ -28,6 +28,7 @@ abstract class AppStrings {
   static const feedCaughtUpBody =
       'Posts you have read are cleared on refresh. New ones will appear here.';
   static const feedScrollToTop = 'Top';
+  static const feedBacklogLabel = 'Unread from earlier';
   static const feedPressBackAgain = 'Press back again to exit';
   static const feedCommentsDisabled = 'Comments are disabled for this channel.';
   static const feedOriginalChannelUnavailable =

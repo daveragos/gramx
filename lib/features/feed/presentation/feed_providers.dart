@@ -66,6 +66,29 @@ List<Post> mergePostsNewestFirst(List<Post> current, List<Post> incoming) {
     ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 }
 
+/// Posts the unread sweep lifted out of the backlog.
+///
+/// Held apart from the feed list, and fixed until a refresh, because the blend
+/// has to be stable: choosing "the oldest unread currently loaded" would
+/// reshuffle the top of the feed every time pagination brought older posts in.
+class BacklogIdsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  void add(Iterable<String> ids) {
+    if (ids.isEmpty) return;
+    final next = {...state, ...ids};
+    if (next.length != state.length) state = next;
+  }
+
+  void clear() {
+    if (state.isNotEmpty) state = const {};
+  }
+}
+
+final backlogIdsProvider =
+    NotifierProvider<BacklogIdsNotifier, Set<String>>(BacklogIdsNotifier.new);
+
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
 class FeedNotifier extends AsyncNotifier<List<Post>> {
@@ -102,6 +125,28 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     return posts;
   }
 
+  /// Looks behind each channel's read cursor, once the fresh backfill is done.
+  ///
+  /// Deliberately last: it shares the request budget with the backfill, and
+  /// what's new matters more than what's owed. Failures are silent by design —
+  /// a backlog that doesn't arrive costs a blend, not the feed.
+  Future<void> _sweepUnread(FeedRepository repo) async {
+    try {
+      final backlog = await repo.fetchUnreadBacklog();
+      if (backlog.isEmpty) return;
+
+      ref.read(backlogIdsProvider.notifier).add(backlog.map((p) => p.id));
+      final current = state.value ?? [];
+      final merged = mergePostsNewestFirst(current, backlog);
+      if (!identical(merged, current)) {
+        _updateOldestIds(backlog);
+        state = AsyncData(merged);
+      }
+    } catch (e) {
+      debugPrint('[Feed] Unread sweep failed: $e');
+    }
+  }
+
   /// Fills the feed in behind the first paint.
   ///
   /// A cold start only volunteers one post per channel (plus whatever is cached
@@ -112,6 +157,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _backfillSub = repo.backfillRecentHistory().listen(
       _mergeBackfilled,
       onError: (Object e) => debugPrint('[Feed] Backfill error: $e'),
+      onDone: () => _sweepUnread(repo),
     );
   }
 
@@ -183,6 +229,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// gesture asks for. See [dropAlreadyRead] for exactly which ones go.
   Future<void> refresh() async {
     _backfillSub?.cancel();
+    // The blend is fixed between refreshes; this is the moment it is allowed
+    // to change, which is what "stays until you refresh" means.
+    ref.read(backlogIdsProvider.notifier).clear();
     final seenBefore = (state.value ?? const <Post>[]).map((p) => p.id).toSet();
 
     _oldestMessageIds.clear();

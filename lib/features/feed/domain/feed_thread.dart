@@ -125,3 +125,100 @@ List<FeedThread> groupIntoThreads(List<Post> posts) {
   threads.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
   return threads;
 }
+
+/// One row of the feed: a thread, and where it came from.
+///
+/// The feed is not purely chronological any more — see [buildFeedEntries] — so
+/// a row has to be able to say "this is older, and you hadn't read it", or a
+/// three-day-old post appearing between two fresh ones just looks like a bug.
+class FeedEntry {
+  final FeedThread thread;
+
+  /// True when this row was lifted out of the unread backlog rather than
+  /// arriving in its chronological place.
+  final bool isBacklog;
+
+  const FeedEntry({required this.thread, this.isBacklog = false});
+}
+
+/// How many chronological rows sit between two backlog rows.
+///
+/// One in four: enough that a backlog actually shrinks while reading, few
+/// enough that the feed still reads as "what's new" rather than as a chore
+/// list. The first slot is never a backlog row — the top of the feed is the
+/// newest post, always.
+const int kDefaultBlendEvery = 4;
+
+/// Builds the feed's rows: newest first, with unread backlog woven in.
+///
+/// [posts] is the merged feed, any order — it is sorted here. [backlogIds] are
+/// posts the unread sweep pulled from behind each channel's read cursor; they
+/// are lifted out of their chronological position rather than copied, so the
+/// same post never appears twice.
+///
+/// Deliberately a pure function of a *fixed* backlog set. Picking the oldest
+/// unread out of whatever happens to be loaded would reshuffle the top of the
+/// feed every time pagination brought older posts in, which is the one thing a
+/// reading surface must never do.
+List<FeedEntry> buildFeedEntries(
+  List<Post> posts, {
+  Set<String> backlogIds = const {},
+  int blendEvery = kDefaultBlendEvery,
+}) {
+  if (posts.isEmpty) return const [];
+
+  final backlogPosts = <Post>[];
+  final freshPosts = <Post>[];
+  for (final post in posts) {
+    // Reading a backlog post does not move it. The set only changes on a
+    // refresh, so nothing shifts under the reader's thumb mid-scroll — the
+    // same rule the "new posts" pill follows.
+    if (backlogIds.contains(post.id)) {
+      backlogPosts.add(post);
+    } else {
+      freshPosts.add(post);
+    }
+  }
+
+  // Threads are grouped within each pool, never across: a backlog post and a
+  // fresh one from the same channel are two different reading moments.
+  final fresh = groupIntoThreads(freshPosts);
+  final backlog = groupIntoThreads(backlogPosts)
+    // Oldest first — the backlog is read forwards, the way it was written.
+    ..sort((a, b) => a.lastActivity.compareTo(b.lastActivity));
+
+  if (backlog.isEmpty) {
+    return [for (final thread in fresh) FeedEntry(thread: thread)];
+  }
+  if (fresh.isEmpty) {
+    // Nothing new at all. Falling back to newest-first keeps the feed's one
+    // promise — the top is the most recent thing — rather than opening on
+    // something from last week.
+    final newestFirst = backlog.reversed;
+    return [
+      for (final thread in newestFirst) FeedEntry(thread: thread, isBacklog: true),
+    ];
+  }
+
+  final entries = <FeedEntry>[];
+  final remaining = List<FeedThread>.from(backlog);
+  var sinceBacklog = 0;
+
+  for (final thread in fresh) {
+    entries.add(FeedEntry(thread: thread));
+    sinceBacklog++;
+
+    if (sinceBacklog >= blendEvery - 1 && remaining.isNotEmpty) {
+      entries.add(FeedEntry(thread: remaining.removeAt(0), isBacklog: true));
+      sinceBacklog = 0;
+    }
+  }
+
+  // Whatever is left goes on the end rather than being dropped: an unread post
+  // the reader never sees is worse than one late in the list.
+  for (final thread in remaining) {
+    entries.add(FeedEntry(thread: thread, isBacklog: true));
+  }
+
+  return entries;
+}

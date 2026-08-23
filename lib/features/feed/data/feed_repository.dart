@@ -31,6 +31,20 @@ class FeedRepository {
   /// with headroom for the requests the user's own taps generate.
   static const Duration backfillThrottle = Duration(milliseconds: 1100);
 
+  /// Channels the unread sweep looks behind the read cursor for.
+  ///
+  /// Shares the budget with [backfillTopChannels] and runs after it: one
+  /// request at a time at [backfillThrottle], abandoned on the first
+  /// rate-limit. A bounded, throttled sweep — not a fan-out. See
+  /// `docs/TDLIB.md`.
+  static const int unreadSweepTopChannels = 30;
+
+  /// Unread posts lifted per channel per sweep.
+  ///
+  /// Small on purpose: a backlog is read a few posts at a time, and one
+  /// channel sitting on four hundred unread must not become the feed.
+  static const int unreadPerChannel = 5;
+
   /// Channels one "load older" page will reach back into. Pagination is a
   /// user-driven path, but it repeats on every scroll to the bottom, so it is
   /// bounded too.
@@ -176,6 +190,63 @@ class FeedRepository {
       }
       await Future<void>.delayed(backfillThrottle);
     }
+  }
+
+  /// The oldest unread posts sitting behind each channel's read cursor.
+  ///
+  /// The feed is newest-first, so a channel's older unread posts are only
+  /// reachable by scrolling past everything newer — which nobody does, and the
+  /// backlog only grows. This lifts a few of them out per channel so the feed
+  /// can weave them in; see `buildFeedEntries`.
+  ///
+  /// Same budget shape as [backfillRecentHistory]: the busiest channels only,
+  /// one request at a time, abandoned on the first rate-limit. Channels with
+  /// nothing unread cost nothing — they are never requested.
+  Future<List<Post>> fetchUnreadBacklog() async {
+    final targets = _chatCache.channels
+        .where((chat) => chat.unreadCount > 0)
+        .take(unreadSweepTopChannels)
+        .toList();
+    if (targets.isEmpty) return const [];
+
+    final messagesByChatId = <int, List<td.Message>>{};
+
+    for (final chat in targets) {
+      try {
+        final res = await _tdlib.sendRequest(td.GetChatHistory(
+          chatId: chat.id,
+          // From the read cursor, with a negative offset: TDLib reads that as
+          // "the messages *after* this one", which is precisely the oldest
+          // unread. Asking from 0 returns the newest, which the feed already
+          // has.
+          fromMessageId: chat.lastReadInboxMessageId,
+          offset: -unreadPerChannel,
+          limit: unreadPerChannel,
+          onlyLocal: false,
+        ));
+        if (res is td.Messages && res.messages.isNotEmpty) {
+          final unread = res.messages
+              .where((m) => m.id > chat.lastReadInboxMessageId)
+              .toList();
+          if (unread.isNotEmpty) {
+            messagesByChatId[chat.id] = _dedupeMessages(unread);
+          }
+        }
+      } on TdlibRequestException catch (e) {
+        if (e.isFloodWait) {
+          debugPrint('[FeedRepo] Unread sweep stopped — rate limited: $e');
+          break;
+        }
+        debugPrint('[FeedRepo] Unread sweep skipped ${chat.id}: $e');
+      } catch (e) {
+        debugPrint('[FeedRepo] Unread sweep skipped ${chat.id}: $e');
+      }
+
+      await Future<void>.delayed(backfillThrottle);
+    }
+
+    if (messagesByChatId.isEmpty) return const [];
+    return _buildPosts(messagesByChatId, targets);
   }
 
   /// Loads one page of older posts, reaching back into a bounded set of channels.
