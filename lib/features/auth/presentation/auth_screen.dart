@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gramx/app/theme/app_colors.dart';
-import 'package:gramx/app/theme/app_spacing.dart';
-import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_code_page.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_error_banner.dart';
@@ -55,9 +52,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final authState = ref.watch(authControllerProvider);
     final controller = ref.read(authControllerProvider.notifier);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
 
     return PopScope(
       canPop: false,
@@ -99,17 +93,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   child: _buildPage(authState, controller),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xxl, 0, AppSpacing.xxl, AppSpacing.lg,
-                ),
-                child: Text(
-                  'gramX • Powered by official TDLib MTProto engine\n'
-                  'No third-party push • No tracking',
-                  style: AppTypography.actionCount(color: secondaryColor.withValues(alpha: 0.7)),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ],

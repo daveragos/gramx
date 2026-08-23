@@ -298,6 +298,13 @@ abstract class AppStrings {
       "You haven't subscribed to any channels yet. Add public Telegram channels "
       'to build your custom feed.';
   static const onboardingLogIn = 'Log in with Telegram';
+  static const authTagline =
+      'Your Telegram channels, as one timeline.';
+  static const authContinueWithPhone = 'Continue with Phone Number';
+  static const authLogInWithQr = 'Log in via QR Code';
+  static const authGeneratingQr = 'Generating QR…';
+  static const authConnecting = 'Connecting to Telegram';
+  static const authResetConnection = 'Reset Connection';
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 

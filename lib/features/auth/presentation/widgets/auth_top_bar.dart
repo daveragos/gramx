@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
-import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class AuthTopBar extends StatelessWidget {
@@ -24,34 +22,23 @@ class AuthTopBar extends StatelessWidget {
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
-      child: Row(
-        children: [
-          if (showBack)
-            IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              // Leaves the attempt standing but stops it driving the screen —
-              // see AuthController.goBackToSelection.
-              onPressed: () => controller.goBackToSelection(),
-              tooltip: 'Back',
-            )
-          else
-            const SizedBox(width: 48),
-          Expanded(
-            child: Center(
-              child: Text(
-                'gramX',
-                style: AppTypography.heading(
-                  color: AppColors.accent,
-                ).copyWith(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+      // Just the way back. The app says its name once, under its own icon,
+      // where someone is actually looking — a wordmark above that repeats it
+      // is furniture.
+      child: SizedBox(
+        height: 48,
+        child: showBack
+            ? Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  // Leaves the attempt standing but stops it driving the
+                  // screen — see AuthController.goBackToSelection.
+                  onPressed: () => controller.goBackToSelection(),
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 48),
-        ],
+              )
+            : null,
       ),
     );
   }

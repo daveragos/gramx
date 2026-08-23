@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class AuthLoadingPage extends StatelessWidget {
@@ -33,43 +34,24 @@ class AuthLoadingPage extends StatelessWidget {
               animation: pulseController,
               builder: (context, child) {
                 final scale = 1.0 + (pulseController.value * 0.08);
+                // The same mark the sign-in screen shows. A blue circle with
+                // a paper plane was a different-looking screen for the moment
+                // before connecting finished, which read as the app flashing
+                // an older design at you.
                 return Transform.scale(
                   scale: scale,
-                  child: Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.accent,
-                          AppColors.accent.withValues(alpha: 0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.accent.withValues(
-                            alpha: 0.3 + (pulseController.value * 0.25),
-                          ),
-                          blurRadius: 24,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.send_rounded,
-                      color: Colors.white,
-                      size: 44,
-                    ),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 88,
+                    height: 88,
+                    semanticLabel: AppStrings.appName,
                   ),
                 );
               },
             ),
             const SizedBox(height: 36),
             Text(
-              'Connecting to Telegram',
+              AppStrings.authConnecting,
               style: AppTypography.heading(color: theme.colorScheme.onSurface).copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
@@ -108,7 +90,7 @@ class AuthLoadingPage extends StatelessWidget {
               onPressed: () => controller.resetSession(),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text(
-                'Reset Connection',
+                AppStrings.authResetConnection,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
