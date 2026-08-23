@@ -6,7 +6,6 @@ void main() {
     final links = {
       'support': AppLinks.support,
       'repository': AppLinks.repository,
-      'developer': AppLinks.developer,
     };
 
     test('every link is absolute and https', () {

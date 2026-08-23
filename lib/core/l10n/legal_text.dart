@@ -114,10 +114,8 @@ abstract class LegalTexts {
         'Tapping a link in a post opens it in your browser. From that point '
             'you are on that website, and it can see your visit as any website '
             'you open would.',
-        'Settings has three links of its own — the developer, a way to support '
-            'the work, and the source code. They open in your browser too, and '
-            'nothing about you is added to them: they are the same addresses '
-            'for everybody.',
+        'Settings has two links of its own — a way to support the work, and '
+            'the source code. They open in your browser too.',
       ]),
       LegalSection('Deleting your data', [
         'Logging out signs the session out of Telegram and clears the local '

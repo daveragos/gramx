@@ -232,13 +232,10 @@ abstract class AppStrings {
   static const settingsStorageClear = 'Clear';
   static const settingsStorageNothingToClear = 'Nothing to clear.';
 
-  static const settingsDeveloper = 'Made by RaGoose';
-  static const settingsDeveloperBody = 'One person, in Addis Ababa';
-  static const settingsSupport = 'Support the developer';
-  static const settingsSupportBody =
-      'Buy me a coffee, and keep this being built ❤️';
-  static const settingsSource = 'Star or contribute on GitHub';
-  static const settingsSourceBody = 'gramX is open source — issues welcome 🚀';
+  static const settingsSupport = 'Support the Developer AKA RaGoose';
+  static const settingsSupportBody = 'Support the developer and the project ❤️';
+  static const settingsSource = 'Contribute on GitHub';
+  static const settingsSourceBody = 'Help build the future of gramX 🚀';
   static const settingsLinkFailed = "Couldn't open that link.";
 
   static const settingsPrivacy = 'Privacy Policy';

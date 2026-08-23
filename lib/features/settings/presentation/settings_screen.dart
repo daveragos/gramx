@@ -301,15 +301,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // 6. ABOUT & SUPPORT SECTION
           _SectionHeader(title: AppStrings.settingsSectionAbout, secondaryColor: secondaryColor),
           _LinkTile(
-            icon: Icons.person_outline_rounded,
-            title: AppStrings.settingsDeveloper,
-            subtitle: AppStrings.settingsDeveloperBody,
-            url: AppLinks.developer,
-            primaryColor: primaryColor,
-            secondaryColor: secondaryColor,
-          ),
-          Divider(height: 1, thickness: 0.5, color: borderColor),
-          _LinkTile(
             icon: Icons.volunteer_activism_rounded,
             title: AppStrings.settingsSupport,
             subtitle: AppStrings.settingsSupportBody,

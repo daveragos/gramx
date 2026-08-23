@@ -10,7 +10,4 @@ abstract class AppLinks {
 
   /// This app's source.
   static const String repository = 'https://github.com/daveragos/gramx';
-
-  /// The person who made it.
-  static const String developer = 'https://github.com/daveragos';
 }
