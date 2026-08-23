@@ -135,7 +135,24 @@ abstract class AppStrings {
       '$formattedCount subscribers';
 
   static const channelsFilterAll = 'All';
+
+  // ── Muting ─────────────────────────────────────────────────────────────────
+  static const muteSheetTitle = 'Mute this channel';
+  static const muteSheetBody =
+      'Its posts stay out of your feed until the mute lifts. Nothing is '
+      'unsubscribed, and your Telegram is untouched.';
+  static const muteOneHour = '1 hour';
+  static const muteEightHours = '8 hours';
+  static const muteTwoDays = '2 days';
+  static const muteForever = 'Until I unmute';
+
+  static String channelMutedFor(String duration) =>
+      duration == muteForever ? 'Muted.' : 'Muted for $duration.';
+
+  static String channelsMutedUntil(String when) => 'Muted until $when';
+
   static const channelsMutedLabel = 'Muted — hidden from your feed';
+  static const channelsMutedIndefinitely = 'Muted — hidden until you unmute';
   static const channelsMuteAction = 'Mute this channel';
   static const channelsUnmuteAction = 'Unmute this channel';
   static const channelsNoMutedTitle = 'Nothing muted';

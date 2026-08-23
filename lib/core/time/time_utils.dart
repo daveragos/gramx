@@ -23,6 +23,23 @@ abstract class TimeUtils {
     return DateFormat('h:mm a · MMM d, yyyy').format(dateTime);
   }
 
+  /// A deadline, said the way a person would: a time today, a weekday this
+  /// week, a date beyond that. Used for "muted until …".
+  static String untilWhen(DateTime deadline, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    final difference = deadline.difference(reference);
+
+    if (difference.isNegative) return 'now';
+    if (difference.inHours < 12 ||
+        (deadline.year == reference.year &&
+            deadline.month == reference.month &&
+            deadline.day == reference.day)) {
+      return DateFormat('HH:mm').format(deadline);
+    }
+    if (difference.inDays < 7) return DateFormat('EEEE HH:mm').format(deadline);
+    return DateFormat('MMM d').format(deadline);
+  }
+
   /// Formats a count: 1000 -> '1K', 1000000 -> '1M'
   static String formatCount(int count) {
     if (count < 1000) return count.toString();

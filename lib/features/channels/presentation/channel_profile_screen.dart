@@ -10,6 +10,7 @@ import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -95,13 +96,17 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     ref.listen(feedFocusControllerProvider, (_, _) {});
 
     ref.watch(mutedChannelsProvider);
-    final isMuted = ref
-        .read(mutedChannelsProvider.notifier)
-        .isMuted(
-          widget.channelId,
-          chatId: channel?.chatId,
-          username: channel?.username,
-        );
+    final mutes = ref.read(mutedChannelsProvider.notifier);
+    final isMuted = mutes.isMuted(
+      widget.channelId,
+      chatId: channel?.chatId,
+      username: channel?.username,
+    );
+    final mutedUntil = mutes.mutedUntil(
+      widget.channelId,
+      chatId: channel?.chatId,
+      username: channel?.username,
+    );
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -118,32 +123,25 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: isMuted ? 'Show posts in feed' : 'Hide posts from feed',
-            onPressed: () {
-              ref
-                  .read(mutedChannelsProvider.notifier)
-                  .toggleMute(
-                    widget.channelId,
-                    chatId: channel?.chatId,
-                    username: channel?.username,
-                  );
-              final newlyMuted = !isMuted;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    newlyMuted
-                        ? AppStrings.channelHiddenFromFeed
-                        : AppStrings.channelVisibleInFeed,
-                  ),
-                  duration: const Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            tooltip: isMuted
+                ? (mutedUntil != null
+                    ? AppStrings.channelsMutedUntil(
+                        TimeUtils.untilWhen(mutedUntil))
+                    : AppStrings.channelsUnmuteAction)
+                : AppStrings.channelsMuteAction,
+            // Asks for how long, rather than muting forever by default —
+            // see MuteSheet.
+            onPressed: () => MuteSheet.show(
+              context,
+              ref,
+              channelId: widget.channelId,
+              chatId: channel?.chatId,
+              username: channel?.username,
+            ),
             icon: Icon(
               isMuted
-                  ? Icons.visibility_off_outlined
-                  : Icons.visibility_outlined,
+                  ? Icons.notifications_off_rounded
+                  : Icons.notifications_none_rounded,
               color: isMuted ? AppColors.error : primaryColor,
             ),
           ),

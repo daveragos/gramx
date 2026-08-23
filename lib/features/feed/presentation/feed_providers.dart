@@ -9,6 +9,7 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
+import 'package:gramx/features/feed/presentation/mute_registry.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -361,14 +362,102 @@ final bookmarkToggleProvider =
   await repo.toggleBookmark(chatId, messageId);
 });
 
-/// Provider managing muted channel IDs with local file persistence.
+/// The channels hidden from the feed, with their expiry times.
+///
+/// State is the set of ids muted *right now*, so every reader of it — the feed
+/// filter, the channel list — stays a plain set membership test. The rules and
+/// the expiry times live in [MuteRegistry].
 class MutedChannelsNotifier extends Notifier<Set<String>> {
   static const String _fileName = 'muted_channels.json';
 
+  MuteRegistry _registry = MuteRegistry();
+  Timer? _expiryTimer;
+
   @override
   Set<String> build() {
+    ref.onDispose(() {
+      _expiryTimer?.cancel();
+      _expiryTimer = null;
+    });
     _loadFromDisk();
     return {};
+  }
+
+  /// When a channel's mute lifts, or null if it is indefinite or not muted.
+  DateTime? mutedUntil(String channelId, {int? chatId, String? username}) =>
+      _registry.mutedUntil(
+        channelId,
+        chatId: chatId,
+        username: username,
+        now: DateTime.now(),
+      );
+
+  bool isMuted(String channelId, {int? chatId, String? username}) =>
+      _registry.isMuted(
+        channelId,
+        chatId: chatId,
+        username: username,
+        now: DateTime.now(),
+      );
+
+  /// Mutes a channel for [duration], or lifts the mute if it already has one.
+  ///
+  /// Timed mutes are what Telegram offers, and what a reader actually wants:
+  /// "not during this news cycle" is a different thing from "never again", and
+  /// only one of them should require remembering to undo it.
+  void mute(
+    String channelId, {
+    int? chatId,
+    String? username,
+    MuteDuration duration = MuteDuration.forever,
+  }) {
+    final now = DateTime.now();
+    _registry.mute(
+      channelId,
+      chatId: chatId,
+      username: username,
+      until: duration.expiryFrom(now),
+    );
+    _commit();
+  }
+
+  void unmute(String channelId, {int? chatId, String? username}) {
+    _registry.unmute(channelId, chatId: chatId, username: username);
+    _commit();
+  }
+
+  /// Mutes indefinitely, or unmutes. Kept for the plain on/off affordances.
+  void toggleMute(String channelId, {int? chatId, String? username}) {
+    if (isMuted(channelId, chatId: chatId, username: username)) {
+      unmute(channelId, chatId: chatId, username: username);
+    } else {
+      mute(channelId, chatId: chatId, username: username);
+    }
+  }
+
+  /// Publishes the registry as the active id set, saves it, and arms the timer
+  /// for the next expiry — so a mute lifts on its own rather than at whatever
+  /// moment the app next happens to rebuild.
+  void _commit() {
+    final now = DateTime.now();
+    _registry.pruneExpired(now);
+    state = _registry.activeIds(now);
+    _saveToDisk();
+    _scheduleExpiry();
+  }
+
+  void _scheduleExpiry() {
+    _expiryTimer?.cancel();
+    _expiryTimer = null;
+
+    final now = DateTime.now();
+    final next = _registry.nextExpiry(now);
+    if (next == null) return;
+
+    // A second of slack, so the timer never fires a hair before the deadline
+    // and leaves the mute in place until something else pokes it.
+    final delay = next.difference(now) + const Duration(seconds: 1);
+    _expiryTimer = Timer(delay, _commit);
   }
 
   Future<File> _getFile() async {
@@ -379,11 +468,10 @@ class MutedChannelsNotifier extends Notifier<Set<String>> {
   Future<void> _loadFromDisk() async {
     try {
       final file = await _getFile();
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        final List<dynamic> list = jsonDecode(content);
-        state = list.map((e) => e.toString()).toSet();
-      }
+      if (!await file.exists()) return;
+      // Tolerates the old shape — a bare list of ids with no expiry.
+      _registry = MuteRegistry.fromJson(jsonDecode(await file.readAsString()));
+      _commit();
     } catch (e) {
       debugPrint('[MutedChannels] Error loading from disk: $e');
     }
@@ -392,41 +480,10 @@ class MutedChannelsNotifier extends Notifier<Set<String>> {
   Future<void> _saveToDisk() async {
     try {
       final file = await _getFile();
-      await file.writeAsString(jsonEncode(state.toList()));
+      await file.writeAsString(jsonEncode(_registry.toJson()));
     } catch (e) {
       debugPrint('[MutedChannels] Error saving to disk: $e');
     }
-  }
-
-  void toggleMute(String channelId, {int? chatId, String? username}) {
-    final idsToToggle = <String>{
-      channelId,
-      if (chatId != null) chatId.toString(),
-      if (chatId != null) chatId.abs().toString(),
-      if (chatId != null) '-100${chatId.abs()}',
-      if (username != null && username.isNotEmpty) username,
-    };
-
-    final isCurrentlyMuted = state.any((id) => idsToToggle.contains(id));
-
-    if (isCurrentlyMuted) {
-      state = state.where((id) => !idsToToggle.contains(id)).toSet();
-    } else {
-      state = {...state, ...idsToToggle};
-    }
-    _saveToDisk();
-  }
-
-  bool isMuted(String channelId, {int? chatId, String? username}) {
-    if (state.isEmpty) return false;
-    final idsToCheck = <String>{
-      channelId,
-      if (chatId != null) chatId.toString(),
-      if (chatId != null) chatId.abs().toString(),
-      if (chatId != null) '-100${chatId.abs()}',
-      if (username != null && username.isNotEmpty) username,
-    };
-    return state.any((id) => idsToCheck.contains(id));
   }
 }
 
@@ -586,14 +643,12 @@ final folderChannelIdsProvider =
 
 bool _isPostMuted(Post post, Set<String> mutedIds) {
   if (mutedIds.isEmpty) return false;
-  final possibleIds = <String>{
+  // One place decides what a channel is called; see MuteRegistry.aliasesOf.
+  return MuteRegistry.aliasesOf(
     post.channelId,
-    post.chatId.toString(),
-    post.chatId.abs().toString(),
-    '-100${post.chatId.abs()}',
-    if (post.channelUsername != null) post.channelUsername!,
-  };
-  return possibleIds.any((id) => mutedIds.contains(id));
+    chatId: post.chatId,
+    username: post.channelUsername,
+  ).any(mutedIds.contains);
 }
 
 class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dynamic>>> {

@@ -11,6 +11,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// Which slice of the subscription list is on screen.
@@ -220,11 +221,17 @@ class _ChannelRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(mutedChannelsProvider);
-    final muted = ref.read(mutedChannelsProvider.notifier).isMuted(
-          channel.id,
-          chatId: channel.chatId,
-          username: channel.username,
-        );
+    final mutes = ref.read(mutedChannelsProvider.notifier);
+    final muted = mutes.isMuted(
+      channel.id,
+      chatId: channel.chatId,
+      username: channel.username,
+    );
+    final mutedUntil = mutes.mutedUntil(
+      channel.id,
+      chatId: channel.chatId,
+      username: channel.username,
+    );
 
     return InkWell(
       onTap: () => NavigationUtils.openChannel(context, channel.id),
@@ -286,10 +293,15 @@ class _ChannelRow extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Muted state is otherwise carried only by the icon's colour.
+                  // Muted state is otherwise carried only by the icon's
+                  // colour — and a timed mute has to say when it lifts, or the
+                  // reader has no way to tell it apart from a permanent one.
                   if (muted)
                     Text(
-                      AppStrings.channelsMutedLabel,
+                      mutedUntil != null
+                          ? AppStrings.channelsMutedUntil(
+                              TimeUtils.untilWhen(mutedUntil))
+                          : AppStrings.channelsMutedIndefinitely,
                       style: AppTypography.actionCount(color: AppColors.error),
                     ),
                 ],
@@ -303,22 +315,13 @@ class _ChannelRow extends ConsumerWidget {
                 muted ? Icons.notifications_off : Icons.notifications_none,
                 color: muted ? AppColors.error : secondaryColor,
               ),
-              onPressed: () {
-                ref.read(mutedChannelsProvider.notifier).toggleMute(
-                      channel.id,
-                      chatId: channel.chatId,
-                      username: channel.username,
-                    );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(muted
-                        ? AppStrings.channelVisibleInFeed
-                        : AppStrings.channelHiddenFromFeed),
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
+              onPressed: () => MuteSheet.show(
+                context,
+                ref,
+                channelId: channel.id,
+                chatId: channel.chatId,
+                username: channel.username,
+              ),
             ),
           ],
         ),
