@@ -48,3 +48,9 @@ app.*.map.json
 # TDLIB, ROADMAP, UI). Generated dartdoc output is covered by **/doc/api/ above.
 
 /lib/core/config/app_config.dart
+
+# Release signing. The keystore lives outside the repository; key.properties
+# holds its passwords. Losing either means no signed update is possible.
+android/key.properties
+*.jks
+*.keystore

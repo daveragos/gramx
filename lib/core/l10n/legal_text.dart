@@ -38,10 +38,7 @@ class LegalDocument {
 
 abstract class LegalTexts {
   /// Where to write with a question about either document.
-  ///
-  /// Set this before handing builds to anyone: an address nobody reads is the
-  /// same as no address at all.
-  static const String contactEmail = 'you@example.com';
+  static const String contactEmail = 'daveyeinde@gmail.com';
 
   static const String lastUpdated = '23 August 2026';
 
