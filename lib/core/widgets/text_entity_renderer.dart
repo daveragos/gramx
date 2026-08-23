@@ -5,6 +5,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
+import 'package:gramx/core/text/text_clamp.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
@@ -461,14 +462,44 @@ class CodeBlock extends StatelessWidget {
 }
 
 /// A quoted passage — Telegram's block quote, drawn the way it draws it.
-class QuoteBlock extends StatelessWidget {
+///
+/// Collapses when it is long, on the same rule the post body uses. Without
+/// this a quoted wall of text was rendered whole: the post's own "Show more"
+/// could not clamp it, because a quote is a widget inside the paragraph rather
+/// than more lines of it, and `maxLines` does not reach inside a widget.
+class QuoteBlock extends StatefulWidget {
   final String text;
   final TextStyle style;
 
   const QuoteBlock({super.key, required this.text, required this.style});
 
   @override
+  State<QuoteBlock> createState() => _QuoteBlockState();
+}
+
+class _QuoteBlockState extends State<QuoteBlock> {
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(QuoteBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A recycled card showing a different post must not inherit this one's
+    // expanded state.
+    if (oldWidget.text != widget.text) _expanded = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    final clampable =
+        shouldClampText(widget.text, maxLines: kCollapsedQuoteLines);
+    final collapsed = clampable && !_expanded;
+    final label = _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -478,7 +509,35 @@ class QuoteBlock extends StatelessWidget {
           left: BorderSide(color: AppColors.accent, width: 3),
         ),
       ),
-      child: Text(text, style: style.copyWith(fontStyle: FontStyle.italic)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.text,
+            maxLines: collapsed ? kCollapsedQuoteLines : null,
+            overflow: collapsed ? TextOverflow.ellipsis : null,
+            style: widget.style.copyWith(fontStyle: FontStyle.italic),
+          ),
+          if (clampable)
+            Semantics(
+              button: true,
+              label: label,
+              excludeSemantics: true,
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2, bottom: 2),
+                  child: Text(
+                    label,
+                    style: AppTypography.actionCount(color: secondary)
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

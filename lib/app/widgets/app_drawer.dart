@@ -4,21 +4,26 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
-import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class AppDrawer extends ConsumerWidget {
-  const AppDrawer({super.key});
+  /// Switches to a bottom-bar tab.
+  ///
+  /// Supplied by the shell rather than looked up here:
+  /// `StatefulNavigationShell.of` searches the widget tree, and the drawer is a
+  /// *sibling* of the navigation shell, not a descendant. The lookup could
+  /// never succeed, so "Saved messages" and "Subscribed channels" closed the
+  /// drawer and did nothing else.
+  final void Function(ShellTab tab) onSelectTab;
 
-  void _goToTab(BuildContext context, WidgetRef ref, ShellTab tab) {
+  const AppDrawer({super.key, required this.onSelectTab});
+
+  void _goToTab(BuildContext context, ShellTab tab) {
     Navigator.pop(context);
-    // Same reason as the bottom bar: the destination branch may have been left
-    // scrolled with its header retired.
-    ref.read(chromeOffsetProvider.notifier).show(animate: false);
-    StatefulNavigationShell.of(context).goBranch(tab.index);
+    onSelectTab(tab);
   }
 
   @override
@@ -138,12 +143,12 @@ class AppDrawer extends ConsumerWidget {
             DrawerNavItem(
               icon: Icons.bookmark_border_rounded,
               title: AppStrings.drawerBookmarks,
-              onTap: () => _goToTab(context, ref, ShellTab.bookmarks),
+              onTap: () => _goToTab(context, ShellTab.bookmarks),
             ),
             DrawerNavItem(
               icon: Icons.list_alt_rounded,
               title: AppStrings.drawerChannels,
-              onTap: () => _goToTab(context, ref, ShellTab.channels),
+              onTap: () => _goToTab(context, ShellTab.channels),
             ),
             DrawerNavItem(
               icon: Icons.folder_outlined,

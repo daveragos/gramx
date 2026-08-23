@@ -11,7 +11,6 @@ import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/features/settings/data/storage_repository.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
-import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -191,16 +190,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
 
-          // 2. YOUR ACCOUNT SECTION
-          _SectionHeader(title: AppStrings.settingsSectionAccount, secondaryColor: secondaryColor),
-          ListTile(
-            leading: Icon(Icons.person_outline, color: primaryColor),
-            title: Text(AppStrings.settingsAccountInfo, style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.settingsAccountInfoBody, style: AppTypography.actionCount(color: secondaryColor)),
-            trailing: Icon(Icons.chevron_right, color: secondaryColor),
-            onTap: () => context.push('/profile'),
-          ),
-          Divider(height: 1, thickness: 0.5, color: borderColor),
+          // The account section is gone: it linked to the profile, which linked
+          // back here. The drawer reaches both directly.
 
           _SectionHeader(title: AppStrings.settingsSectionDisplay, secondaryColor: secondaryColor),
           Padding(
@@ -335,65 +326,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          accountAsync.when(
-            data: (acc) => acc != null
-                ? Column(
-                    children: [
-                      const SizedBox(height: AppSpacing.md),
-                      ListTile(
-                        leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-                        title: const Text(
-                          AppStrings.settingsLogOut,
-                          style: TextStyle(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        onTap: () => _confirmLogout(context, ref),
-                      ),
-                      Divider(height: 1, thickness: 0.5, color: borderColor),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-            loading: () => const SizedBox.shrink(),
-            error: (err, stack) => const SizedBox.shrink(),
-          ),
+          // Logging out lives on the profile, beside the account it ends.
           const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
   }
 
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.settingsLogOutTitle),
-        content: const Text(AppStrings.settingsLogOutBody),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(AppStrings.settingsCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(AppStrings.settingsLogOut,
-                style: TextStyle(
-                    color: AppColors.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await ref.read(authControllerProvider.notifier).logout();
-      if (context.mounted) {
-        context.go('/auth');
-      }
-    }
-  }
 }
 
 class _SectionHeader extends StatelessWidget {

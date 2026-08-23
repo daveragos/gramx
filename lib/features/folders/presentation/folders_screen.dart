@@ -12,9 +12,13 @@ class FoldersScreen extends ConsumerWidget {
   const FoldersScreen({super.key});
 
   /// Opens a folder as the feed's tab rather than duplicating the feed here.
+  ///
+  /// This screen is pushed above the shell, so it cannot reach the navigation
+  /// shell either — same trap as the drawer. Going to the feed's route lands
+  /// on the right branch, and the request below selects the tab once there.
   void openFolderTab(BuildContext context, WidgetRef ref, int folderId) {
     ref.read(requestedFolderProvider.notifier).request(folderId.toString());
-    StatefulNavigationShell.of(context).goBranch(ShellTab.home.index);
+    context.go(ShellTab.home.path);
   }
 
   @override

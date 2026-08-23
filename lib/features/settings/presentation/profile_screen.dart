@@ -21,7 +21,6 @@ class ProfileScreen extends ConsumerWidget {
     final primaryColor = theme.colorScheme.onSurface;
     final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final bgColor = isDark ? AppColors.darkBackground : AppColors.lightBackground;
 
     return Scaffold(
       appBar: AppBar(
@@ -45,63 +44,47 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Banner Backdrop
-                    Container(
-                      height: 120,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurfaceVariant,
-                        border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.grid_view_rounded,
-                          color: isDark ? Colors.white10 : Colors.black12,
-                          size: 48,
-                        ),
-                      ),
-                    ),
-
-                    // Avatar Overlapping Banner
-                    Positioned(
-                      left: AppSpacing.lg,
-                      bottom: -40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: bgColor, width: 4),
-                        ),
-                        child: () {
-                          final path = account?.avatarPath;
-                          if (path != null && path.isNotEmpty) {
-                            final file = File(path);
-                            if (file.existsSync()) {
-                              return CircleAvatar(
-                                radius: 40,
-                                backgroundImage: FileImage(file),
-                              );
-                            }
-                          }
+                // No cover banner: a grey box with a stock grid glyph in
+                // it is not a header, it is a placeholder that was never
+                // filled. Telegram has no cover image to put there.
+                const SizedBox(height: AppSpacing.xl),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: () {
+                      final path = account?.avatarPath;
+                      if (path != null && path.isNotEmpty) {
+                        final file = File(path);
+                        if (file.existsSync()) {
                           return CircleAvatar(
                             radius: 40,
-                            backgroundColor: AppColors.accent,
-                            child: Text(
-                              isLoggedIn && (account.displayName?.isNotEmpty ?? false)
-                                  ? account.displayName![0].toUpperCase()
-                                  : 'U',
-                              style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                            ),
+                            backgroundImage: FileImage(file),
                           );
-                        }(),
-                      ),
-                    ),
-                  ],
+                        }
+                      }
+                      return CircleAvatar(
+                        radius: 40,
+                        backgroundColor: AppColors.accent,
+                        child: Text(
+                          isLoggedIn &&
+                                  (account.displayName?.isNotEmpty ?? false)
+                              ? account.displayName![0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      );
+                    }(),
+                  ),
                 ),
 
-                const SizedBox(height: 52),
+                const SizedBox(height: AppSpacing.lg),
 
                 // 2. Profile Details & Handle
                 Padding(
@@ -134,52 +117,16 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
                 Divider(height: 1, thickness: 0.5, color: borderColor),
 
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: AppSpacing.lg,
-                    right: AppSpacing.lg,
-                    top: AppSpacing.lg,
-                    bottom: AppSpacing.xs,
-                  ),
-                  child: Text(
-                    AppStrings.profileSectionDetails,
-                    style: TextStyle(
-                      color: secondaryColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-
+                // One detail, no section header over it, and no row leading
+                // back to Settings — Settings used to link here, and this
+                // linked back.
                 if (isLoggedIn) ...[
-                  // Both details are the kind of thing you copy into a support
-                  // form, so tapping copies rather than doing nothing.
                   _CopyableDetail(
                     icon: Icons.phone_outlined,
                     label: AppStrings.profilePhone,
                     value: account.phoneNumber,
                     primaryColor: primaryColor,
                     secondaryColor: secondaryColor,
-                  ),
-                  Divider(height: 1, thickness: 0.5, color: borderColor),
-                  _CopyableDetail(
-                    icon: Icons.badge_outlined,
-                    label: AppStrings.profileTelegramId,
-                    value: account.telegramUserId,
-                    primaryColor: primaryColor,
-                    secondaryColor: secondaryColor,
-                  ),
-                  Divider(height: 1, thickness: 0.5, color: borderColor),
-                  ListTile(
-                    leading: Icon(Icons.settings_outlined, color: primaryColor),
-                    title: Text(AppStrings.profileOpenSettings,
-                        style: AppTypography.body(color: primaryColor)),
-                    subtitle: Text(AppStrings.profileOpenSettingsBody,
-                        style:
-                            AppTypography.actionCount(color: secondaryColor)),
-                    trailing: Icon(Icons.chevron_right, color: secondaryColor),
-                    onTap: () => context.push('/settings'),
                   ),
                   Divider(height: 1, thickness: 0.5, color: borderColor),
                 ] else ...[

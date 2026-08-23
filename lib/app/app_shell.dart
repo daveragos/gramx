@@ -146,7 +146,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       },
       child: Scaffold(
         key: shellScaffoldKey,
-        drawer: const AppDrawer(),
+        // The drawer cannot reach the navigation shell by itself — it is a
+        // sibling of it in the tree — so switching tabs is handed to it.
+        drawer: AppDrawer(onSelectTab: (tab) => _onTap(tab.index)),
         // The bar overlays the content instead of sitting in the layout.
         // Collapsing its height animated a relayout every frame, which is what
         // made hiding it feel like the page was resizing rather than sliding.

@@ -58,6 +58,63 @@ void main() {
     expect(find.byType(QuoteBlock), findsOneWidget);
   });
 
+  group('QuoteBlock', () {
+    // The reported bug: the post's own "Show more" cannot clamp a quote,
+    // because a quote is a widget inside the paragraph rather than more lines
+    // of it — so a quoted wall of text was rendered whole.
+    testWidgets('a long quote collapses, and the toggle opens it',
+        (tester) async {
+      final long = List.generate(30, (i) => 'quoted line $i').join('\n');
+      await tester.pumpWidget(wrap(
+        TextEntityRenderer(
+          text: long,
+          entities: [
+            TextEntity(
+              offset: 0,
+              length: long.length,
+              type: TextEntityType.blockQuote,
+            ),
+          ],
+        ),
+      ));
+
+      final collapsed = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(QuoteBlock),
+          matching: find.byType(Text),
+        ).first,
+      );
+      expect(collapsed.maxLines, kCollapsedQuoteLines);
+      expect(find.text(AppStrings.postShowMore), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.postShowMore));
+      await tester.pump();
+
+      final expanded = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(QuoteBlock),
+          matching: find.byType(Text),
+        ).first,
+      );
+      expect(expanded.maxLines, isNull);
+      expect(find.text(AppStrings.postShowLess), findsOneWidget);
+    });
+
+    testWidgets('a short quote gets no toggle', (tester) async {
+      await tester.pumpWidget(wrap(
+        const TextEntityRenderer(
+          text: 'they said this',
+          entities: [
+            TextEntity(offset: 0, length: 14, type: TextEntityType.blockQuote),
+          ],
+        ),
+      ));
+
+      expect(find.byType(QuoteBlock), findsOneWidget);
+      expect(find.text(AppStrings.postShowMore), findsNothing);
+    });
+  });
+
   group('ExpandableText', () {
     testWidgets('a short post gets no toggle', (tester) async {
       await tester.pumpWidget(wrap(

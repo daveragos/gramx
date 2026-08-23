@@ -3,31 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/text/text_clamp.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 
-/// How many lines a collapsed post shows before "Show more".
-const int kCollapsedPostLines = 10;
-
-/// Roughly how many characters fit in [kCollapsedPostLines] on a phone.
-const int kCollapsedPostChars = 480;
-
-/// Whether [text] is long enough to be worth collapsing.
-///
-/// Deliberately a plain rule over the string rather than a layout measurement:
-/// a `TextPainter` pass would have to guess the size of every custom emoji and
-/// spoiler in the post, and getting that wrong shows a "Show more" that expands
-/// to nothing. Erring towards not clamping is the safe direction — the cost is
-/// a slightly long post, not a lying control.
-bool shouldClampText(
-  String text, {
-  int maxLines = kCollapsedPostLines,
-  int maxChars = kCollapsedPostChars,
-}) {
-  if (text.isEmpty) return false;
-  if ('\n'.allMatches(text).length >= maxLines) return true;
-  return text.length > maxChars;
-}
+export 'package:gramx/core/text/text_clamp.dart';
 
 ///
 /// Only long posts get the control: a four-line post with a "Show more" that
