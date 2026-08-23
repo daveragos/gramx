@@ -51,6 +51,7 @@ void main() {
         'keystore', // how the local database is protected
         'analytics',
         'logging out', // how someone gets their data off the device
+        'source code', // the links Settings offers on its own
       ]) {
         expect(text, contains(claim),
             reason: 'the policy no longer mentions $claim');
