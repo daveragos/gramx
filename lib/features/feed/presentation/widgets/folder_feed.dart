@@ -157,7 +157,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         if (posts.isNotEmpty) _hasLoadedOnce = true;
         // Collapse a channel's own follow-ups so one burst takes one slot, and
         // weave in the unread backlog — see buildFeedEntries.
-        final entries = buildFeedEntries(posts, backlogIds: backlogIds);
+        final entries = buildFeedEntries(posts, backlogOrder: backlogIds);
         if (posts.isEmpty) {
           if (isSyncing) {
             return const FeedSkeleton();
@@ -254,7 +254,6 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                       return ThreadCard(
                         key: ValueKey(entry.thread.root.id),
                         thread: entry.thread,
-                        isBacklog: entry.isBacklog,
                         onOpenPost: (post) {
                           ref.read(markPostAsReadProvider(post.id));
                           context.push('/post/${post.id}');

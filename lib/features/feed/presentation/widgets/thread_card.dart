@@ -19,18 +19,12 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 class ThreadCard extends ConsumerStatefulWidget {
   final FeedThread thread;
 
-  /// True when this row was lifted out of the unread backlog rather than
-  /// arriving in its chronological place. It gets a line saying so: an
-  /// unexplained three-day-old post between two fresh ones reads as a bug.
-  final bool isBacklog;
-
   final void Function(Post post) onOpenPost;
   final void Function(Post post) onOpenChannel;
 
   const ThreadCard({
     super.key,
     required this.thread,
-    this.isBacklog = false,
     required this.onOpenPost,
     required this.onOpenChannel,
   });
@@ -75,16 +69,7 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
           ),
         );
 
-    if (!thread.hasReplies) {
-      if (!widget.isBacklog) return cardFor(thread.root);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _BacklogLabel(color: secondary),
-          cardFor(thread.root),
-        ],
-      );
-    }
+    if (!thread.hasReplies) return cardFor(thread.root);
 
     // The toggle sits under the post and above the hairline that closes the
     // feed item, so the whole thread — newest post, its history, the control
@@ -92,7 +77,6 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.isBacklog) _BacklogLabel(color: secondary),
         // The newest post is what surfaced this thread, so it is the card.
         cardFor(thread.latest, showDivider: false),
         if (_expanded)
@@ -159,36 +143,6 @@ class _ThreadToggle extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Says why an older post is sitting between two fresh ones.
-class _BacklogLabel extends StatelessWidget {
-  final Color color;
-
-  const _BacklogLabel({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.postPadding,
-        AppSpacing.sm,
-        AppSpacing.postPadding,
-        0,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.history_rounded, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            AppStrings.feedBacklogLabel,
-            style: AppTypography.actionCount(color: color)
-                .copyWith(fontWeight: FontWeight.w600),
-          ),
-        ],
       ),
     );
   }

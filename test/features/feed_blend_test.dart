@@ -22,6 +22,76 @@ List<bool> backlogFlags(List<FeedEntry> entries) =>
     [for (final e in entries) e.isBacklog];
 
 void main() {
+  group('orderBacklogIds', () {
+    // Straight chronological order clusters: one quiet channel contributes a
+    // run of consecutive rows and the mix reads as that channel.
+    test('rotates channels instead of emptying one at a time', () {
+      final ordered = orderBacklogIds([
+        post('-100_1', 500, chatId: -100),
+        post('-100_2', 400, chatId: -100),
+        post('-100_3', 300, chatId: -100),
+        post('-200_1', 450, chatId: -200),
+        post('-200_2', 350, chatId: -200),
+        post('-300_1', 480, chatId: -300),
+      ]);
+
+      expect(ordered, [
+        '-100_1', '-300_1', '-200_1', // one from each, oldest channel first
+        '-100_2', '-200_2',
+        '-100_3',
+      ]);
+    });
+
+    test('within a channel, oldest first', () {
+      final ordered = orderBacklogIds([
+        post('-100_2', 100, chatId: -100),
+        post('-100_1', 900, chatId: -100),
+      ]);
+
+      expect(ordered, ['-100_1', '-100_2']);
+    });
+
+    test('no two neighbours share a channel while others have posts left', () {
+      final ordered = orderBacklogIds([
+        for (var i = 1; i <= 4; i++) post('-100_$i', 500 - i, chatId: -100),
+        for (var i = 1; i <= 4; i++) post('-200_$i', 500 - i, chatId: -200),
+      ]);
+
+      for (var i = 0; i < ordered.length - 1; i++) {
+        expect(ordered[i].split('_').first,
+            isNot(ordered[i + 1].split('_').first));
+      }
+    });
+  });
+
+  group('selectBacklogCandidates', () {
+    test('the newest posts are left where they are', () {
+      final posts = [for (var i = 1; i <= 40; i++) post('-100_$i', i)];
+      final candidates = selectBacklogCandidates(posts, freshWindow: 25);
+
+      // Positions 1..25 are the fresh window; 26..40 are candidates.
+      expect(candidates, hasLength(15));
+      expect(candidates, isNot(contains('-100_1')));
+      expect(candidates, contains('-100_40'));
+    });
+
+    test('posts already read are not candidates', () {
+      final posts = [
+        for (var i = 1; i <= 30; i++) post('-100_$i', i, isRead: i > 25),
+      ];
+
+      expect(selectBacklogCandidates(posts, freshWindow: 25), isEmpty);
+    });
+
+    // Unread is unread: one that arrived with the ordinary backfill belongs in
+    // the mix on the same terms as one the unread sweep went and fetched.
+    test('a short feed has nothing behind the window to offer', () {
+      final posts = [for (var i = 1; i <= 10; i++) post('-100_$i', i)];
+      expect(selectBacklogCandidates(posts, freshWindow: 25), isEmpty);
+    });
+  });
+
+
   group('buildFeedEntries', () {
     test('with no backlog it is the feed it always was: newest first', () {
       final entries = buildFeedEntries([
@@ -45,26 +115,27 @@ void main() {
           for (var i = 1; i <= 8; i++) post('-100_$i', i),
           post('-200_1', 5000, chatId: -200),
         ],
-        backlogIds: {'-200_1'},
+        backlogOrder: const ['-200_1'],
       );
 
       expect(entries.first.isBacklog, isFalse);
       expect(entries.first.thread.root.id, '-100_1');
     });
 
-    test('backlog rows land one in every four', () {
+    test('backlog rows land one in every three', () {
       final entries = buildFeedEntries(
         [
           for (var i = 1; i <= 9; i++) post('-100_$i', i),
           for (var i = 1; i <= 3; i++)
             post('-200_$i', 5000 + i, chatId: -200),
         ],
-        backlogIds: {'-200_1', '-200_2', '-200_3'},
+        backlogOrder: const ['-200_1', '-200_2', '-200_3'],
       );
 
-      expect(backlogFlags(entries).take(8), [
-        false, false, false, true, // three fresh, then one owed
-        false, false, false, true,
+      expect(backlogFlags(entries).take(9), [
+        false, false, true, // two fresh, then one owed
+        false, false, true,
+        false, false, true,
       ]);
     });
 
@@ -76,7 +147,7 @@ void main() {
           post('-200_1', 5000, chatId: -200),
           post('-200_2', 9000, chatId: -200),
         ],
-        backlogIds: {'-200_1', '-200_2'},
+        backlogOrder: const ['-200_2', '-200_1'],
       );
 
       final backlogOrder = [
@@ -93,7 +164,7 @@ void main() {
           for (var i = 1; i <= 6; i++) post('-100_$i', i),
           post('-200_1', 5000, chatId: -200),
         ],
-        backlogIds: {'-200_1'},
+        backlogOrder: const ['-200_1'],
       );
 
       expect(idsOf(entries).where((id) => id == '-200_1'), hasLength(1));
@@ -106,36 +177,53 @@ void main() {
           post('-100_2', 2),
           for (var i = 1; i <= 4; i++) post('-200_$i', 5000 + i, chatId: -200),
         ],
-        backlogIds: {'-200_1', '-200_2', '-200_3', '-200_4'},
+        backlogOrder: const ['-200_1', '-200_2', '-200_3', '-200_4'],
       );
 
       expect(idsOf(entries), hasLength(6));
       expect(entries.last.isBacklog, isTrue);
     });
 
-    // Nothing new at all: opening the feed on something from last week would
-    // break the same promise as putting a backlog post first.
-    test('with nothing fresh, the feed stays newest first', () {
+    // Too short to weave into: the feed stays exactly as it was rather than
+    // opening on something from last week.
+    test('a feed shorter than one cadence is left alone', () {
       final entries = buildFeedEntries(
         [
           post('-200_1', 5000, chatId: -200),
           post('-200_2', 9000, chatId: -200),
         ],
-        backlogIds: {'-200_1', '-200_2'},
+        backlogOrder: const ['-200_2', '-200_1'],
       );
 
       expect(idsOf(entries), ['-200_1', '-200_2']);
-      expect(backlogFlags(entries), everyElement(isTrue));
+      expect(backlogFlags(entries), everyElement(isFalse));
+    });
+
+    // The cadence sets the ceiling: lifting everything unread would leave a
+    // reverse-ordered tail of week-old posts under the fresh ones.
+    test('only as many rows are lifted as there are slots for', () {
+      final entries = buildFeedEntries(
+        [
+          for (var i = 1; i <= 6; i++) post('-100_$i', i),
+          for (var i = 1; i <= 6; i++) post('-200_$i', 5000 + i, chatId: -200),
+        ],
+        backlogOrder: [for (var i = 1; i <= 6; i++) '-200_$i'],
+      );
+
+      // Twelve rows, so four slots — the other two backlog posts keep their
+      // chronological place at the end.
+      expect(backlogFlags(entries).where((flag) => flag), hasLength(4));
+      expect(entries, hasLength(12));
     });
 
     // The reason the backlog set is fixed rather than recomputed: pagination
     // must not reshuffle what the reader is looking at.
     test('loading older posts does not move the rows already on screen', () {
       final firstPage = [for (var i = 1; i <= 8; i++) post('-100_$i', i)];
-      final backlog = {'-200_1'};
+      const backlog = ['-200_1'];
       final before = buildFeedEntries(
         [...firstPage, post('-200_1', 5000, chatId: -200)],
-        backlogIds: backlog,
+        backlogOrder: backlog,
       );
 
       final after = buildFeedEntries(
@@ -145,7 +233,7 @@ void main() {
           // A page of older posts arrives, unread ones among them.
           for (var i = 20; i <= 30; i++) post('-300_$i', 1000 + i, chatId: -300),
         ],
-        backlogIds: backlog,
+        backlogOrder: backlog,
       );
 
       expect(idsOf(after).take(before.length), idsOf(before));
@@ -159,7 +247,7 @@ void main() {
               for (var i = 1; i <= 8; i++) post('-100_$i', i),
               post('-200_1', 5000, chatId: -200, isRead: read),
             ],
-            backlogIds: {'-200_1'},
+            backlogOrder: const ['-200_1'],
           );
 
       expect(idsOf(build(read: true)), idsOf(build(read: false)));

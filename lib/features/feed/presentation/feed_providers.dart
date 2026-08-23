@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
@@ -66,28 +67,35 @@ List<Post> mergePostsNewestFirst(List<Post> current, List<Post> incoming) {
     ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 }
 
-/// Posts the unread sweep lifted out of the backlog.
+/// The running pool of unread posts eligible for the mix, in the order they
+/// should be used.
 ///
-/// Held apart from the feed list, and fixed until a refresh, because the blend
-/// has to be stable: choosing "the oldest unread currently loaded" would
-/// reshuffle the top of the feed every time pagination brought older posts in.
-class BacklogIdsNotifier extends Notifier<Set<String>> {
+/// Ordered and append-only, not a set: the blend has to be stable. Re-deriving
+/// "the oldest unread currently loaded" on every build would reshuffle the
+/// rows the reader is looking at each time pagination brought older posts in.
+/// It is cleared on refresh, and only then.
+class BacklogIdsNotifier extends Notifier<List<String>> {
   @override
-  Set<String> build() => const {};
+  List<String> build() => const [];
 
+  /// Appends ids not already pooled, keeping the order they arrived in.
   void add(Iterable<String> ids) {
-    if (ids.isEmpty) return;
-    final next = {...state, ...ids};
-    if (next.length != state.length) state = next;
+    final known = state.toSet();
+    final additions = [
+      for (final id in ids)
+        if (known.add(id)) id,
+    ];
+    if (additions.isEmpty) return;
+    state = [...state, ...additions];
   }
 
   void clear() {
-    if (state.isNotEmpty) state = const {};
+    if (state.isNotEmpty) state = const [];
   }
 }
 
 final backlogIdsProvider =
-    NotifierProvider<BacklogIdsNotifier, Set<String>>(BacklogIdsNotifier.new);
+    NotifierProvider<BacklogIdsNotifier, List<String>>(BacklogIdsNotifier.new);
 
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
@@ -135,13 +143,16 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       final backlog = await repo.fetchUnreadBacklog();
       if (backlog.isEmpty) return;
 
-      ref.read(backlogIdsProvider.notifier).add(backlog.map((p) => p.id));
+      // Round-robin across channels, so a channel sitting on a week of unread
+      // doesn't take every backlog slot in a row.
+      ref.read(backlogIdsProvider.notifier).add(orderBacklogIds(backlog));
       final current = state.value ?? [];
       final merged = mergePostsNewestFirst(current, backlog);
       if (!identical(merged, current)) {
         _updateOldestIds(backlog);
         state = AsyncData(merged);
       }
+      _poolBacklogCandidates();
     } catch (e) {
       debugPrint('[Feed] Unread sweep failed: $e');
     }
@@ -172,6 +183,20 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
     _updateOldestIds(additions);
     state = AsyncData(mergePostsNewestFirst(current, additions));
+    _poolBacklogCandidates();
+  }
+
+  /// Offers everything unread behind the fresh window to the mix.
+  ///
+  /// Not only what the unread sweep fetched: a post from three days ago that
+  /// arrived with the ordinary backfill is exactly as unread, and belongs in
+  /// the mix on the same terms.
+  void _poolBacklogCandidates() {
+    final posts = state.value;
+    if (posts == null || posts.isEmpty) return;
+    ref
+        .read(backlogIdsProvider.notifier)
+        .add(selectBacklogCandidates(posts));
   }
 
   /// Splices freshly arrived posts into the feed.
@@ -216,6 +241,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
         final current = state.value ?? [];
         final merged = mergePostsNewestFirst(current, olderPosts);
         if (!identical(merged, current)) state = AsyncData(merged);
+        _poolBacklogCandidates();
       }
     } finally {
       _isLoadingMore = false;
