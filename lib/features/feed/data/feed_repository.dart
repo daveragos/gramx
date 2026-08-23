@@ -200,6 +200,58 @@ class FeedRepository {
     }
   }
 
+  /// Unread posts behind each channel's read cursor that TDLib already holds.
+  ///
+  /// Local-only, so it costs nothing and is off the request budget entirely —
+  /// which is the point: the feed's first paint can carry a real mix of old
+  /// unread posts without waiting on a single network round trip. The
+  /// networked [fetchUnreadBacklog] runs later and goes deeper.
+  ///
+  /// A cold cache legitimately answers with nothing; that is not an error, it
+  /// just means the mix arrives with the throttled sweep instead.
+  Future<List<Post>> fetchCachedUnreadBacklog() async {
+    final targets = _chatCache.channels
+        .where((chat) => chat.unreadCount > 0)
+        .take(unreadSweepTopChannels)
+        .toList();
+    if (targets.isEmpty) return const [];
+
+    final histories = await Future.wait(
+      targets.map((chat) => _localUnread(chat)),
+    );
+
+    final messagesByChatId = <int, List<td.Message>>{};
+    for (var i = 0; i < targets.length; i++) {
+      if (histories[i].isEmpty) continue;
+      messagesByChatId[targets[i].id] = _dedupeMessages(histories[i]);
+    }
+    if (messagesByChatId.isEmpty) return const [];
+
+    return _buildPosts(messagesByChatId, targets);
+  }
+
+  /// The oldest unread messages of one chat, from TDLib's own database.
+  Future<List<td.Message>> _localUnread(td.Chat chat) async {
+    try {
+      final res = await _tdlib.sendRequest(td.GetChatHistory(
+        chatId: chat.id,
+        // A negative offset from the read cursor is TDLib's way of saying "the
+        // messages after this one" — the oldest unread rather than the newest.
+        fromMessageId: chat.lastReadInboxMessageId,
+        offset: -unreadPerChannel,
+        limit: unreadPerChannel,
+        onlyLocal: true,
+      ));
+      if (res is! td.Messages) return const [];
+      return res.messages
+          .where((m) => m.id > chat.lastReadInboxMessageId)
+          .toList();
+    } catch (e) {
+      debugPrint('[FeedRepo] Local unread failed for ${chat.id}: $e');
+      return const [];
+    }
+  }
+
   /// The oldest unread posts sitting behind each channel's read cursor.
   ///
   /// The feed is newest-first, so a channel's older unread posts are only

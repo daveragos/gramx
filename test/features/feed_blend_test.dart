@@ -75,6 +75,16 @@ void main() {
       expect(candidates, contains('-100_40'));
     });
 
+    // The first painted feed is short — one post per channel plus whatever
+    // TDLib had cached — so the window has to be small enough that a cold
+    // start still has something to mix in.
+    test('a cold start has candidates as soon as the feed is painted', () {
+      final posts = [for (var i = 1; i <= 30; i++) post('-100_$i', i)];
+
+      expect(selectBacklogCandidates(posts), isNotEmpty);
+      expect(kFreshWindow, lessThan(30));
+    });
+
     test('posts already read are not candidates', () {
       final posts = [
         for (var i = 1; i <= 30; i++) post('-100_$i', i, isRead: i > 25),

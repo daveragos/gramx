@@ -104,6 +104,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   bool _isLoadingMore = false;
   StreamSubscription<List<Post>>? _backfillSub;
 
+  /// Set on dispose. The background passes below outlive a rebuild, and
+  /// writing state after that throws.
+  bool _disposed = false;
+
   @override
   Future<List<Post>> build() async {
     // Rebuild when sign-in completes. A build that ran before TDLib was
@@ -123,14 +127,43 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       }
     });
     ref.onDispose(() {
+      _disposed = true;
       sub.cancel();
       _backfillSub?.cancel();
     });
 
     final posts = await repo.fetchFeedPosts();
     _updateOldestIds(posts);
+    // The mix has to be there in the first painted feed, not arrive twenty
+    // seconds later while the reader is already scrolling. Both of these are
+    // free: one reads what was just loaded, the other reads TDLib's own cache.
+    _poolBacklogCandidates(posts);
+    _primeBacklogFromCache(repo);
     _startBackfill(repo);
     return posts;
+  }
+
+  /// Fills the mix from TDLib's cache, without waiting for the network.
+  ///
+  /// Deliberately not awaited by `build`: it must not add a millisecond to the
+  /// time the skeleton is on screen. It lands a beat after the first paint,
+  /// which in practice is before the reader has finished looking at the top of
+  /// the feed.
+  Future<void> _primeBacklogFromCache(FeedRepository repo) async {
+    try {
+      final cached = await repo.fetchCachedUnreadBacklog();
+      if (cached.isEmpty || _disposed) return;
+
+      ref.read(backlogIdsProvider.notifier).add(orderBacklogIds(cached));
+      final current = state.value ?? [];
+      final merged = mergePostsNewestFirst(current, cached);
+      if (!identical(merged, current)) {
+        _updateOldestIds(cached);
+        state = AsyncData(merged);
+      }
+    } catch (e) {
+      debugPrint('[Feed] Priming the backlog failed: $e');
+    }
   }
 
   /// Looks behind each channel's read cursor, once the fresh backfill is done.
@@ -141,7 +174,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   Future<void> _sweepUnread(FeedRepository repo) async {
     try {
       final backlog = await repo.fetchUnreadBacklog();
-      if (backlog.isEmpty) return;
+      if (backlog.isEmpty || _disposed) return;
 
       // Round-robin across channels, so a channel sitting on a week of unread
       // doesn't take every backlog slot in a row.
@@ -191,8 +224,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// Not only what the unread sweep fetched: a post from three days ago that
   /// arrived with the ordinary backfill is exactly as unread, and belongs in
   /// the mix on the same terms.
-  void _poolBacklogCandidates() {
-    final posts = state.value;
+  void _poolBacklogCandidates([List<Post>? loaded]) {
+    // Takes the list explicitly during `build`, where `state` is not set yet.
+    final posts = loaded ?? state.value;
     if (posts == null || posts.isEmpty) return;
     ref
         .read(backlogIdsProvider.notifier)

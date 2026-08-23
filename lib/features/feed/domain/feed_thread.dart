@@ -153,7 +153,7 @@ const int kDefaultBlendEvery = 3;
 /// Everything unread behind this window is a candidate for the mix, whether it
 /// arrived from the unread sweep or was already loaded: an unread post from
 /// three days ago is exactly as unread as one from three hours ago.
-const int kFreshWindow = 25;
+const int kFreshWindow = 15;
 
 /// Orders unread posts for the mix: a different channel each time, oldest
 /// first within a channel.
