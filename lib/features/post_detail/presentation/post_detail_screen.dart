@@ -19,7 +19,8 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
-import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
+import 'package:gramx/features/feed/presentation/widgets/reaction_control.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -79,7 +80,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
       _refreshDebounce?.cancel();
       _refreshDebounce = Timer(_commentsRefreshDebounce, () {
-        if (mounted) ref.invalidate(postCommentsProvider(widget.postId));
+        if (mounted) ref.invalidate(postCommentsFetchProvider(widget.postId));
       });
     });
   }
@@ -116,25 +117,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  void _showReactionPicker(BuildContext context, Post post, GlobalKey key) async {
-    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null) {
-      final offset = renderBox.localToGlobal(Offset.zero);
-      final rect = offset & renderBox.size;
-      final availableEmojis = await ref.read(feedRepositoryProvider).getAvailableReactions(post.chatId);
-      final selectedEmoji = post.chosenReactions.isNotEmpty ? post.chosenReactions.first : null;
-      if (context.mounted) {
-        ReactionPickerOverlay.show(
-          context: context,
-          targetRect: rect,
-          availableEmojis: availableEmojis,
-          selectedEmoji: selectedEmoji,
-          onEmojiSelected: (emoji) => _toggleReaction(post, emoji),
-        );
-      }
-    }
-  }
-
   void _toggleReaction(Post post, String emoji) {
     ref.read(optimisticPostUpdatesProvider.notifier).toggleReaction(post.id, emoji, post);
     ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
@@ -144,18 +126,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       reactionEmoji: emoji,
       isCurrentlyLiked: post.chosenReactions.contains(emoji),
     );
-    ref.invalidate(postDetailProvider(widget.postId));
-  }
-
-  void _handleReactionTap(BuildContext context, Post post, GlobalKey key) {
-    HapticFeedback.lightImpact();
-    if (post.chosenReactions.isNotEmpty) {
-      _toggleReaction(post, post.chosenReactions.first);
-    } else if (post.reactions.keys.isNotEmpty) {
-      _toggleReaction(post, post.reactions.keys.first);
-    } else {
-      _showReactionPicker(context, post, key);
-    }
+    // No invalidate: the optimistic override is applied synchronously and the
+    // live update stream reconciles it. Refetching here dropped the screen —
+    // post, thread and scroll position — back to a spinner on every tap.
   }
 
   void _sendComment(int chatId, int messageId) async {
@@ -171,7 +144,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         text,
         replyToMessageId: targetReply?.messageId,
       );
-      ref.invalidate(postCommentsProvider(widget.postId));
+      ref.invalidate(postCommentsFetchProvider(widget.postId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -213,7 +186,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (err, _) => Center(child: Text(AppStrings.postError(err))),
         data: (post) {
           if (post == null) {
             // Usually a forward from a private channel, or a deleted post.
@@ -224,10 +197,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
           final totalReactions =
               post.reactions.values.fold<int>(0, (a, b) => a + b);
-          final activeEmoji = post.chosenReactions.isNotEmpty
-              ? post.chosenReactions.first
-              : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
-          final reactionKey = GlobalKey();
 
           return Column(
             children: [
@@ -235,8 +204,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 child: RefreshIndicator(
                   color: AppColors.accent,
                   onRefresh: () async {
-                    ref.invalidate(postDetailProvider(widget.postId));
-                    ref.invalidate(postCommentsProvider(widget.postId));
+                    ref.invalidate(postDetailFetchProvider(widget.postId));
+                    ref.invalidate(postCommentsFetchProvider(widget.postId));
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -421,7 +390,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       color: primaryColor),
                                 ),
                                 const SizedBox(width: 4),
-                                Text('Reposts',
+                                Text(AppStrings.statReposts,
                                     style: AppTypography.body(
                                         color: secondaryColor)),
                                 const SizedBox(width: AppSpacing.lg),
@@ -433,7 +402,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       color: primaryColor),
                                 ),
                                 const SizedBox(width: 4),
-                                Text('Likes',
+                                Text(AppStrings.statLikes,
                                     style: AppTypography.body(
                                         color: secondaryColor)),
                                 const SizedBox(width: AppSpacing.lg),
@@ -445,7 +414,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       color: primaryColor),
                                 ),
                                 const SizedBox(width: 4),
-                                Text('Views',
+                                Text(AppStrings.statViews,
                                     style: AppTypography.body(
                                         color: secondaryColor)),
                               ],
@@ -453,80 +422,47 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ),
                         const Divider(height: 1),
-                        // Action bar
+                        // The feed's own action bar, rather than a second copy
+                        // that drifted: the repeat icon here used to copy a
+                        // link instead of forwarding, and the reaction button
+                        // could only ever add the channel's top reaction.
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xxxl,
-                              vertical: AppSpacing.sm),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  if (post.hasDiscussionGroup && isLoggedIn) {
-                                    _commentFocusNode.requestFocus();
-                                  } else if (!post.hasDiscussionGroup) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Comments are disabled for this channel.'),
-                                        behavior: SnackBarBehavior.floating,
-                                        duration: Duration(seconds: 2),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: Icon(Icons.chat_bubble_outline,
-                                    color: secondaryColor, size: 22),
-                              ),
-                              GestureDetector(
-                                onTap: () => _handleShare(context, post),
-                                child: Icon(Icons.repeat, color: secondaryColor, size: 22),
-                              ),
-                              KeyedSubtree(
-                                key: reactionKey,
-                                child: GestureDetector(
-                                  onTap: () => _handleReactionTap(context, post, reactionKey),
-                                  onLongPress: () {
-                                    HapticFeedback.mediumImpact();
-                                    _showReactionPicker(context, post, reactionKey);
-                                  },
-                                  child: activeEmoji != null
-                                      ? Text(activeEmoji, style: const TextStyle(fontSize: 20))
-                                      : Icon(
-                                          post.chosenReactions.isNotEmpty
-                                              ? Icons.favorite
-                                              : Icons.favorite_border,
-                                          color: post.chosenReactions.isNotEmpty
-                                              ? AppColors.like
-                                              : secondaryColor,
-                                          size: 22,
-                                        ),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  ref.read(optimisticPostUpdatesProvider.notifier).toggleBookmark(post.id, post);
-                                  ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
-                                  ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
-                                  ref.invalidate(bookmarkedPostsProvider);
-                                  ref.invalidate(postDetailProvider(widget.postId));
-                                },
-                                child: Icon(
-                                  post.isBookmarked
-                                      ? Icons.bookmark
-                                      : Icons.bookmark_border,
-                                  color: post.isBookmarked
-                                      ? AppColors.accent
-                                      : secondaryColor,
-                                  size: 22,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () => _handleShare(context, post),
-                                child: Icon(Icons.ios_share,
-                                    color: secondaryColor, size: 22),
-                              ),
-                            ],
+                            horizontal: AppSpacing.postPadding,
+                            vertical: AppSpacing.sm,
+                          ),
+                          child: PostActionBar(
+                            post: post,
+                            secondaryColor: secondaryColor,
+                            onBookmarkTap: () {
+                              ref
+                                  .read(optimisticPostUpdatesProvider.notifier)
+                                  .toggleBookmark(post.id, post);
+                              ref
+                                  .read(feedPostsProvider.notifier)
+                                  .toggleBookmarkOptimistic(post.id);
+                              ref
+                                  .read(feedRepositoryProvider)
+                                  .toggleBookmark(post.chatId, post.messageId);
+                              ref.invalidate(bookmarkedPostsProvider);
+                            },
+                            onSelectReaction: (emoji) =>
+                                _toggleReaction(post, emoji),
+                            onReplyTap: () {
+                              if (post.hasDiscussionGroup && isLoggedIn) {
+                                _commentFocusNode.requestFocus();
+                              } else if (!post.hasDiscussionGroup) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text(AppStrings.feedCommentsDisabled),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            onShareTap: () => _handleShare(context, post),
                           ),
                         ),
                         const Divider(height: 1),
@@ -536,14 +472,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Comments',
+                              Text(AppStrings.commentsHeading,
                                   style: AppTypography.subheading(
                                       color: primaryColor)),
                               const SizedBox(height: AppSpacing.lg),
                               if (!post.hasDiscussionGroup)
                                 Center(
                                   child: Text(
-                                    'Comments are disabled for this channel.',
+                                    AppStrings.feedCommentsDisabled,
                                     style: AppTypography.body(color: secondaryColor),
                                     textAlign: TextAlign.center,
                                   ),
@@ -551,7 +487,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               else if (!isLoggedIn)
                                 Center(
                                   child: Text(
-                                    'Log in to Telegram to post comments.',
+                                    AppStrings.commentsLoginPrompt,
                                     style: AppTypography.body(color: secondaryColor),
                                     textAlign: TextAlign.center,
                                   ),
@@ -771,10 +707,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         comment.replyToAuthorTitle != null;
     final replyAuthor = comment.replyToAuthorTitle ?? 'post';
 
-    final totalReactions = comment.reactions.values.fold<int>(0, (a, b) => a + b);
-    // "Someone reacted" is not "I reacted" — the heart only fills for your own.
-    final isLiked = comment.chosenReactions.isNotEmpty;
-
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -847,7 +779,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     Row(
                       children: [
                         Text(
-                          'Replying to ',
+                          AppStrings.commentReplyingTo,
                           style: AppTypography.body(color: secondaryColor).copyWith(fontSize: 12.5),
                         ),
                         Text(
@@ -936,36 +868,19 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         ),
                       ),
 
-                      // Like / Reaction Icon + Count
-                      InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          final emoji = comment.chosenReactions.isNotEmpty
-                              ? comment.chosenReactions.first
-                              : '❤️';
-                          _toggleReaction(comment, emoji);
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
-                                size: 16,
-                                color: isLiked ? AppColors.like : secondaryColor,
-                              ),
-                              if (totalReactions > 0) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  TimeUtils.formatCount(totalReactions),
-                                  style: AppTypography.actionCount(
-                                    color: isLiked ? AppColors.like : secondaryColor,
-                                  ).copyWith(fontSize: 12),
-                                ),
-                              ],
-                            ],
-                          ),
+                      // Reactions, with the post's own control: any reaction
+                      // the chat allows, not a hard-coded heart.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        child: ReactionControl(
+                          post: comment,
+                          color: secondaryColor,
+                          iconSize: 16,
+                          emojiSize: 15,
+                          countFontSize: 12,
+                          onSelectReaction: (emoji) =>
+                              _toggleReaction(comment, emoji),
                         ),
                       ),
 
@@ -1034,7 +949,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Replying to @${_replyTargetPost!.channelTitle}',
+                        AppStrings.commentReplyingToAuthor(
+                            _replyTargetPost!.channelTitle),
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,

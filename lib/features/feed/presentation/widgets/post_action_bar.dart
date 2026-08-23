@@ -7,9 +7,8 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/feed/domain/post.dart';
-import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/widgets/forward_sheet.dart';
-import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
+import 'package:gramx/features/feed/presentation/widgets/reaction_control.dart';
 
 class PostActionBar extends ConsumerWidget {
   final Post post;
@@ -29,31 +28,6 @@ class PostActionBar extends ConsumerWidget {
     required this.onShareTap,
   });
 
-  void _showReactionPicker(BuildContext context, WidgetRef ref, GlobalKey key) async {
-    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox != null) {
-      final offset = renderBox.localToGlobal(Offset.zero);
-      final rect = offset & renderBox.size;
-      
-      final activeEmoji = post.chosenReactions.isNotEmpty
-          ? post.chosenReactions.first
-          : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
-
-      // Fetch dynamic available reactions
-      final availableEmojis = await ref.read(feedRepositoryProvider).getAvailableReactions(post.chatId);
-      
-      if (context.mounted) {
-        ReactionPickerOverlay.show(
-          context: context,
-          targetRect: rect,
-          availableEmojis: availableEmojis,
-          selectedEmoji: activeEmoji,
-          onEmojiSelected: onSelectReaction,
-        );
-      }
-    }
-  }
-
   Future<void> _forward(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final sent = await ForwardSheet.show(context, post);
@@ -68,15 +42,6 @@ class PostActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
-    final hasOwnReaction = post.chosenReactions.isNotEmpty;
-    // Show your own reaction when you have one; otherwise preview the most
-    // common one so the button says what tapping it would join.
-    final activeEmoji = hasOwnReaction
-        ? post.chosenReactions.first
-        : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
-    final reactionKey = GlobalKey();
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -101,55 +66,12 @@ class PostActionBar extends ConsumerWidget {
           onTap: () => _forward(context),
         ),
 
-        // Reaction Button (Instant toggle on tap, overlay picker on long-press)
-        KeyedSubtree(
-          key: reactionKey,
-          child: Semantics(
-            button: true,
-            label: post.chosenReactions.isNotEmpty
-                ? AppStrings.a11yCurrentReaction(post.chosenReactions.first)
-                : AppStrings.a11yReact,
-            excludeSemantics: true,
-            child: GestureDetector(
-            onLongPress: () {
-              HapticFeedback.mediumImpact();
-              _showReactionPicker(context, ref, reactionKey);
-            },
-            onTap: () {
-              HapticFeedback.lightImpact();
-              if (post.chosenReactions.isNotEmpty) {
-                onSelectReaction(post.chosenReactions.first);
-              } else {
-                _showReactionPicker(context, ref, reactionKey);
-              }
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (activeEmoji != null)
-                  Text(activeEmoji, style: const TextStyle(fontSize: 16))
-                else
-                  // Filled and coloured only when *this* user reacted. Keying
-                  // it off the total made every popular post look like you had
-                  // already reacted to it.
-                  Icon(
-                    hasOwnReaction ? Icons.favorite : Icons.favorite_border,
-                    color: hasOwnReaction ? AppColors.like : secondaryColor,
-                    size: 18,
-                  ),
-                if (totalReactions > 0) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    TimeUtils.formatCount(totalReactions),
-                    style: AppTypography.actionCount(
-                      color: hasOwnReaction ? AppColors.like : secondaryColor,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          ),
+        // Reaction. Tap toggles your own choice, long press picks a new one
+        // — the same control comments use, so the two can't drift apart.
+        ReactionControl(
+          post: post,
+          color: secondaryColor,
+          onSelectReaction: onSelectReaction,
         ),
 
         // View count — also a statistic. It was rendered as a button with no

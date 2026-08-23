@@ -314,8 +314,13 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 final feedPostsProvider =
     AsyncNotifierProvider<FeedNotifier, List<Post>>(FeedNotifier.new);
 
-/// Provides a single post by its composite ID (chatId_messageId).
-final postDetailProvider =
+/// Fetches a single post by its composite ID (chatId_messageId).
+///
+/// Deliberately blind to optimistic overrides: watching them here made every
+/// reaction tap re-run this future, which is a TDLib request and a full
+/// loading state for the screen. Read [postDetailProvider] instead, which
+/// layers the overrides on synchronously.
+final postDetailFetchProvider =
     FutureProvider.family<Post?, String>((ref, postId) async {
   final parts = postId.split('_');
   if (parts.length != 2) return null;
@@ -324,11 +329,18 @@ final postDetailProvider =
   if (chatId == null || messageId == null) return null;
 
   final repo = ref.watch(feedRepositoryProvider);
-  final post = await repo.fetchSinglePost(chatId, messageId);
-  if (post == null) return null;
+  return repo.fetchSinglePost(chatId, messageId);
+});
 
+/// A single post with optimistic state applied.
+///
+/// Synchronous, so a reaction or a bookmark shows instantly and costs nothing.
+final postDetailProvider =
+    Provider.family<AsyncValue<Post?>, String>((ref, postId) {
   final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return applyPostOverrides(post, overrides);
+  return ref.watch(postDetailFetchProvider(postId)).whenData(
+        (post) => post == null ? null : applyPostOverrides(post, overrides),
+      );
 });
 
 /// Toggle bookmark action — call this to flip bookmark state.
@@ -421,25 +433,6 @@ final mutedChannelsProvider =
     NotifierProvider<MutedChannelsNotifier, Set<String>>(
         MutedChannelsNotifier.new);
 
-/// Whether the app chrome — bottom bar, feed header and folder tabs — is shown.
-///
-/// One flag for both so they move together. Scrolling down hands the whole
-/// screen to the reader; scrolling up brings the furniture back.
-class ChromeVisibilityNotifier extends Notifier<bool> {
-  @override
-  bool build() => true;
-
-  void show() => state = true;
-  void hide() => state = false;
-  void setVisible(bool visible) {
-    if (state != visible) state = visible;
-  }
-}
-
-final chromeVisibleProvider =
-    NotifierProvider<ChromeVisibilityNotifier, bool>(
-        ChromeVisibilityNotifier.new);
-
 /// The folder tab currently on screen.
 ///
 /// The bottom bar needs this: re-tapping Home should return the *visible* feed
@@ -479,8 +472,13 @@ final feedScrollToTopProvider =
     NotifierProvider<FeedScrollToTopNotifier, ScrollToTopRequest?>(
         FeedScrollToTopNotifier.new);
 
-/// Provider for real-time post comments thread
-final postCommentsProvider =
+/// Fetches a post's comment thread from its linked discussion group.
+///
+/// Overrides are applied by [postCommentsProvider] rather than here. Watching
+/// them inside the future meant reacting to one comment refetched the entire
+/// thread — the whole screen dropped to a spinner and scrolled back to the top
+/// on every tap.
+final postCommentsFetchProvider =
     FutureProvider.family<List<Post>, String>((ref, postId) async {
   final parts = postId.split('_');
   if (parts.length != 2) return [];
@@ -489,12 +487,20 @@ final postCommentsProvider =
   if (chatId == null || messageId == null) return [];
 
   final repo = ref.watch(feedRepositoryProvider);
-  final comments = await repo.fetchPostComments(chatId, messageId);
+  return repo.fetchPostComments(chatId, messageId);
+});
 
-  // Comments aren't in the feed list, so without this a reaction tapped here
-  // showed nothing at all until the thread was refetched.
+/// The comment thread with optimistic reaction state applied.
+///
+/// Comments aren't in the feed list, so without this layer a reaction tapped
+/// here showed nothing at all until the thread was refetched.
+final postCommentsProvider =
+    Provider.family<AsyncValue<List<Post>>, String>((ref, postId) {
   final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return comments.map((c) => applyPostOverrides(c, overrides)).toList();
+  return ref.watch(postCommentsFetchProvider(postId)).whenData(
+        (comments) =>
+            comments.map((c) => applyPostOverrides(c, overrides)).toList(),
+      );
 });
 
 /// Marks a post read because the user explicitly opened it.
