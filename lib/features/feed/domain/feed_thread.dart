@@ -66,6 +66,12 @@ List<FeedThread> groupIntoThreads(List<Post> posts) {
   String? parentKeyOf(Post post) {
     final replyTo = post.replyToMessageId;
     if (replyTo == null || replyTo == post.messageId) return null;
+    // A reply into another chat is a quote, not a thread — and message ids are
+    // only unique within a chat, so treating one as a parent can collapse two
+    // unrelated posts into the same card.
+    if (post.replyToChatId != null && post.replyToChatId != post.chatId) {
+      return null;
+    }
     final key = '${post.chatId}_$replyTo';
     return byKey.containsKey(key) ? key : null;
   }

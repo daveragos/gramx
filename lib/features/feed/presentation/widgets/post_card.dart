@@ -442,8 +442,10 @@ class PostCard extends ConsumerWidget {
 
     void goToOriginalPost() {
       if (post.replyToMessageId != null) {
-        final targetPostId = '${post.chatId}_${post.replyToMessageId}';
-        NavigationUtils.openPost(context, targetPostId);
+        // A reply can point into another chat; assuming this one asked for a
+        // message id that doesn't exist there and reported "post not found".
+        final chatId = post.replyToChatId ?? post.chatId;
+        NavigationUtils.openPost(context, '${chatId}_${post.replyToMessageId}');
       } else {
         NavigationUtils.openChannel(context, post.channelId);
       }

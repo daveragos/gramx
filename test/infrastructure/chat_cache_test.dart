@@ -17,6 +17,37 @@ void main() {
       expect(state.chats[-100123]?.title, 'News');
     });
 
+    // A post counts as read when its id is behind the chat's read cursor.
+    // Folding in only the unread count left everything read during a session
+    // still looking unread — so a refresh handed the reader back what they had
+    // just finished, and the unread sweep kept re-fetching it.
+    test('UpdateChatReadInbox advances the read cursor, not just the count',
+        () {
+      state.apply(TdFixtures.newChat(
+          TdFixtures.chat(id: -100123, unreadCount: 7)));
+
+      final changed = state.apply(td.UpdateChatReadInbox(
+        chatId: -100123,
+        lastReadInboxMessageId: 4194304,
+        unreadCount: 2,
+      ));
+
+      expect(changed, isTrue);
+      expect(state.chats[-100123]?.lastReadInboxMessageId, 4194304);
+      expect(state.chats[-100123]?.unreadCount, 2);
+    });
+
+    test('UpdateChatReadInbox for an unknown chat changes nothing', () {
+      expect(
+        state.apply(td.UpdateChatReadInbox(
+          chatId: -100999,
+          lastReadInboxMessageId: 1,
+          unreadCount: 0,
+        )),
+        isFalse,
+      );
+    });
+
     test('UpdateChatLastMessage updates a known chat', () {
       final chat = TdFixtures.chat(id: -100123);
       state.apply(TdFixtures.newChat(chat));

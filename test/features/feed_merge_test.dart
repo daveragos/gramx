@@ -38,6 +38,33 @@ void main() {
       expect(kept.map((p) => p.id), ['-1_2']);
     });
 
+    // The reported bug: a post finished seconds before the refresh came
+    // straight back, because the acknowledgement was still queued and
+    // Telegram's cursor had not moved yet.
+    test('drops posts this app marked read, before Telegram agrees', () {
+      final fetched = [
+        post('-1_1', minutesAgo: 10, isRead: false),
+        post('-1_2', minutesAgo: 5, isRead: false),
+      ];
+
+      final kept = dropAlreadyRead(
+        fetched,
+        {'-1_1', '-1_2'},
+        readHere: {'-1_1'},
+      );
+
+      expect(kept.map((p) => p.id), ['-1_2']);
+    });
+
+    test('a post read here but never on screen still survives', () {
+      final fetched = [post('-1_1', minutesAgo: 10)];
+
+      expect(
+        dropAlreadyRead(fetched, const {}, readHere: {'-1_1'}),
+        hasLength(1),
+      );
+    });
+
     // Filtering on "read" alone would empty the feed on a cold start —
     // everything older than the read cursor is read.
     test('keeps read posts that were never on screen', () {

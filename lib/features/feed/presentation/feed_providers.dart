@@ -31,19 +31,29 @@ Map<int, int> narrowCursors(Map<int, int> cursors, Set<int>? allowedChatIds) {
 /// Removes posts the reader has already finished with.
 ///
 /// A post is dropped only when *both* are true: it was on screen before the
-/// refresh ([seenBefore]) and Telegram now considers it read. That pairing
-/// matters —
+/// refresh ([seenBefore]) and it counts as read. That pairing matters —
 ///
 /// * filtering on read alone would empty the feed on a cold start, since
 ///   everything older than the read cursor is read;
 /// * filtering on seen alone would drop unread posts the reader deliberately
 ///   scrolled past to come back to.
 ///
+/// "Counts as read" means Telegram's cursor **or** this app's own record
+/// ([readHere]). Trusting only the cursor meant a post read seconds ago came
+/// straight back on refresh, because the acknowledgement was still queued —
+/// and being handed back what you just finished is the opposite of what the
+/// gesture asks for.
+///
 /// New posts and posts still unread always survive.
-List<Post> dropAlreadyRead(List<Post> posts, Set<String> seenBefore) {
+List<Post> dropAlreadyRead(
+  List<Post> posts,
+  Set<String> seenBefore, {
+  Set<String> readHere = const {},
+}) {
   if (seenBefore.isEmpty) return posts;
   return posts
-      .where((p) => !(p.isRead && seenBefore.contains(p.id)))
+      .where((p) =>
+          !((p.isRead || readHere.contains(p.id)) && seenBefore.contains(p.id)))
       .toList();
 }
 
@@ -297,8 +307,13 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _oldestMessageIds.clear();
     state = const AsyncLoading();
     final repo = ref.read(feedRepositoryProvider);
+    final readHere = ref.read(optimisticPostUpdatesProvider.notifier).readPostIds;
     state = await AsyncValue.guard(() async {
-      final posts = dropAlreadyRead(await repo.fetchFeedPosts(), seenBefore);
+      final posts = dropAlreadyRead(
+        await repo.fetchFeedPosts(),
+        seenBefore,
+        readHere: readHere,
+      );
       _updateOldestIds(posts);
       return posts;
     });
@@ -824,6 +839,15 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
       },
     };
   }
+
+  /// Posts this app has marked read, whatever Telegram's cursor says yet.
+  ///
+  /// A refresh uses this so a post finished seconds ago doesn't come back
+  /// while its acknowledgement is still queued.
+  Set<String> get readPostIds => {
+        for (final entry in state.entries)
+          if (entry.value['isRead'] == true) entry.key,
+      };
 
   void markRead(String postId) {
     final currentData = state[postId] ?? {};

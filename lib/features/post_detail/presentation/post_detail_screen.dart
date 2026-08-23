@@ -1039,7 +1039,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     void goToOriginalPost() {
       if (post.replyToMessageId != null) {
-        final targetPostId = '${post.chatId}_${post.replyToMessageId}';
+        // The reply may live in another chat — see Post.replyToChatId.
+        final targetPostId =
+            '${post.replyToChatId ?? post.chatId}_${post.replyToMessageId}';
         context.push('/post/$targetPostId');
       } else {
         context.push('/channel/${post.channelId}');

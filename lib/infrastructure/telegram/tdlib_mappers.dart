@@ -219,9 +219,15 @@ class TdlibMappers {
     int? replyToMessageId;
     String? replyToThumbnailUrl;
     int? replyToThumbnailFileId;
+    int? replyToChatId;
     final replyTo = message.replyTo;
     if (replyTo is td.MessageReplyToMessage) {
       replyToMessageId = replyTo.messageId;
+      // 0 means "same chat"; anything else is a reply across chats, and losing
+      // it is what made a reachable post report itself as not found.
+      replyToChatId = replyTo.chatId != 0 && replyTo.chatId != chat.id
+          ? replyTo.chatId
+          : null;
 
       // Author title resolution
       final origin = replyTo.origin;
@@ -244,7 +250,8 @@ class TdlibMappers {
       }
 
       // Resolved separately when TDLib didn't inline the content.
-      replyToText ??= knownReplyExcerpts?['${chat.id}_${replyTo.messageId}'];
+      replyToText ??= knownReplyExcerpts?[
+          '${replyToChatId ?? chat.id}_${replyTo.messageId}'];
 
       // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
@@ -382,6 +389,7 @@ class TdlibMappers {
       replyToText: replyToText,
       replyToAuthorTitle: replyToAuthorTitle,
       replyToMessageId: replyToMessageId,
+      replyToChatId: replyToChatId,
       replyToThumbnailUrl: replyToThumbnailUrl,
       replyToThumbnailFileId: replyToThumbnailFileId,
       hasDiscussionGroup: hasDiscussionGroup,

@@ -44,6 +44,13 @@ abstract class Post with _$Post {
     String? replyToText,
     String? replyToAuthorTitle,
     int? replyToMessageId,
+
+    /// The chat the replied-to message lives in, when it isn't this one.
+    ///
+    /// Telegram lets a message reply across chats. Assuming the reply target
+    /// shares [chatId] sends the reader to a message id in the wrong chat,
+    /// which reports itself as "post not found" however reachable it is.
+    int? replyToChatId,
     String? replyToThumbnailUrl,
     int? replyToThumbnailFileId,
     @Default(false) bool hasDiscussionGroup,

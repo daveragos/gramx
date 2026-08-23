@@ -149,7 +149,14 @@ class ChatCacheState {
       case td.UpdateChatReadInbox():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        chats[update.chatId] = existing.copyWith(unreadCount: update.unreadCount);
+        // The cursor matters as much as the count: a post counts as read when
+        // its id is behind `lastReadInboxMessageId`. Folding in only the count
+        // left every post read during a session still looking unread, so a
+        // refresh handed the reader back what they had just finished.
+        chats[update.chatId] = existing.copyWith(
+          unreadCount: update.unreadCount,
+          lastReadInboxMessageId: update.lastReadInboxMessageId,
+        );
         return true;
 
       case td.UpdateChatTitle():
