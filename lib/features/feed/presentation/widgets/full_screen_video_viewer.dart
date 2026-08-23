@@ -44,7 +44,8 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
     String? thumbnailPath,
     Post? post,
   }) {
-    return Navigator.of(context).push(
+    // Root navigator, so the shell's bottom bar isn't painted over the video.
+    return Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => FullScreenVideoViewer(
@@ -88,7 +89,9 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
       _errorMessage = AppStrings.videoUnavailable;
       return;
     }
-    ref.read(syncServiceProvider).downloadFileWithPriority(fileId, priority: 32);
+    ref
+        .read(syncServiceProvider)
+        .downloadFileWithPriority(fileId, priority: 32);
   }
 
   Future<void> _initializePlayer(String path) async {
@@ -178,37 +181,42 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
       post: widget.post,
       showChrome: _showControls,
       controls: _isInitialized ? _buildScrubber() : null,
-      child: GestureDetector(
-        onTap: () => setState(() => _showControls = !_showControls),
-        child: Center(
-          child: _hasError
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline,
-                        color: AppColors.error, size: 48),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        _errorMessage ?? AppStrings.videoUnavailable,
-                        style: const TextStyle(color: Colors.white70),
-                        textAlign: TextAlign.center,
+      child: DragToDismiss(
+        child: GestureDetector(
+          onTap: () => setState(() => _showControls = !_showControls),
+          child: Center(
+            child: _hasError
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppColors.error,
+                        size: 48,
                       ),
-                    ),
-                  ],
-                )
-              : _isInitialized
-                  ? AspectRatio(
-                      aspectRatio: _controller.value.aspectRatio > 0
-                          ? _controller.value.aspectRatio
-                          : 16 / 9,
-                      child: VideoPlayer(_controller),
-                    )
-                  : _LoadingPoster(
-                      thumbnailPath: widget.thumbnailPath,
-                      progress: _downloadProgress(),
-                    ),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          _errorMessage ?? AppStrings.videoUnavailable,
+                          style: const TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  )
+                : _isInitialized
+                ? AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio > 0
+                        ? _controller.value.aspectRatio
+                        : 16 / 9,
+                    child: VideoPlayer(_controller),
+                  )
+                : _LoadingPoster(
+                    thumbnailPath: widget.thumbnailPath,
+                    progress: _downloadProgress(),
+                  ),
+          ),
         ),
       ),
     );
@@ -270,7 +278,9 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
                   ? AppStrings.videoUnmute
                   : AppStrings.videoMute,
               onPressed: () => setState(() {
-                _controller.setVolume(_controller.value.volume == 0 ? 1.0 : 0.0);
+                _controller.setVolume(
+                  _controller.value.volume == 0 ? 1.0 : 0.0,
+                );
               }),
             ),
           ],
@@ -300,9 +310,7 @@ class _LoadingPoster extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         if (hasThumb)
-          Center(
-            child: Image.file(File(thumb), fit: BoxFit.contain),
-          ),
+          Center(child: Image.file(File(thumb), fit: BoxFit.contain)),
         Container(color: Colors.black.withValues(alpha: hasThumb ? 0.45 : 0)),
         Center(
           child: Column(

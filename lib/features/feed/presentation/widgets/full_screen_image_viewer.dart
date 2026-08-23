@@ -31,7 +31,9 @@ class FullScreenImageViewer extends StatefulWidget {
     Post? post,
   }) {
     if (items.isEmpty) return;
-    Navigator.of(context).push(
+    // Root navigator: a branch's own navigator sits *under* the shell's bottom
+    // bar, so the viewer opened with the tab bar still painted over the photo.
+    Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.95),
@@ -60,6 +62,10 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   final Map<int, TransformationController> _transformControllers = {};
   bool _showChrome = true;
 
+  /// Whether the current page is scaled past 1:1, which changes what a drag
+  /// means — panning the picture rather than closing the viewer.
+  bool _isZoomed = false;
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +86,12 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     super.dispose();
   }
 
+  void _syncZoomState(int index) {
+    final scale = _getController(index).value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.01;
+    if (zoomed != _isZoomed) setState(() => _isZoomed = zoomed);
+  }
+
   TransformationController _getController(int index) {
     return _transformControllers.putIfAbsent(
       index,
@@ -93,16 +105,17 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
         pathOrUrl,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
+          child: Icon(
+            Icons.broken_image_rounded,
+            color: Colors.white54,
+            size: 64,
+          ),
         ),
       );
     }
     final file = File(pathOrUrl);
     if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.contain,
-      );
+      return Image.file(file, fit: BoxFit.contain);
     }
     return const Center(
       child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
@@ -118,42 +131,49 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
         count: widget.items.length,
         index: _currentIndex,
       ),
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.items.length,
-        onPageChanged: (index) => setState(() => _currentIndex = index),
-        itemBuilder: (context, index) {
-          final item = widget.items[index];
-          final transformController = _getController(index);
+      child: DragToDismiss(
+        // A zoomed image pans instead; dismissing from under the reader's
+        // finger while they are inspecting a detail would be maddening.
+        enabled: !_isZoomed,
+        child: PageView.builder(
+          controller: _pageController,
+          itemCount: widget.items.length,
+          onPageChanged: (index) => setState(() => _currentIndex = index),
+          itemBuilder: (context, index) {
+            final item = widget.items[index];
+            final transformController = _getController(index);
 
-          return GestureDetector(
-            // A single tap clears the furniture so the picture can be looked
-            // at on its own.
-            onTap: () => setState(() => _showChrome = !_showChrome),
-            onDoubleTap: () {
-              if (transformController.value != Matrix4.identity()) {
-                transformController.value = Matrix4.identity();
-              } else {
-                transformController.value = Matrix4.identity()
-                  ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
-              }
-            },
-            child: Center(
-              child: Hero(
-                tag: index == widget.initialIndex
-                    ? widget.tag
-                    : '${widget.tag}_$index',
-                child: InteractiveViewer(
-                  transformationController: transformController,
-                  clipBehavior: Clip.none,
-                  minScale: 0.8,
-                  maxScale: 5.0,
-                  child: _buildImage(item),
+            return GestureDetector(
+              // A single tap clears the furniture so the picture can be
+              // looked at on its own.
+              onTap: () => setState(() => _showChrome = !_showChrome),
+              onDoubleTap: () {
+                if (transformController.value != Matrix4.identity()) {
+                  transformController.value = Matrix4.identity();
+                } else {
+                  transformController.value = Matrix4.identity()
+                    ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
+                }
+                _syncZoomState(index);
+              },
+              child: Center(
+                child: Hero(
+                  tag: index == widget.initialIndex
+                      ? widget.tag
+                      : '${widget.tag}_$index',
+                  child: InteractiveViewer(
+                    transformationController: transformController,
+                    clipBehavior: Clip.none,
+                    minScale: 0.8,
+                    maxScale: 5.0,
+                    onInteractionEnd: (_) => _syncZoomState(index),
+                    child: _buildImage(item),
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

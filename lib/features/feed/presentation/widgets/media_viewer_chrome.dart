@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
+import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
@@ -124,6 +126,9 @@ class MediaViewerChrome extends ConsumerWidget {
 /// The gradient exists so white controls stay legible over a light photo —
 /// without it the whole row disappears against a bright image.
 class _BottomSheetChrome extends ConsumerWidget {
+  /// Lines of caption shown before "Show more".
+  static const int _captionLines = 3;
+
   final Post post;
   final Widget? controls;
   final Widget? pageIndicator;
@@ -206,11 +211,22 @@ class _BottomSheetChrome extends ConsumerWidget {
               ),
               if (post.text != null && post.text!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  post.text!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.body(color: Colors.white),
+                // Collapsed to a few lines with its own toggle. A long caption
+                // rendered in full pushed the picture off the top of the
+                // screen, which is the opposite of what a viewer is for.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  child: SingleChildScrollView(
+                    child: ExpandableText(
+                      text: post.text!,
+                      entities: post.entities,
+                      style: AppTypography.body(color: Colors.white),
+                      maxLines: _captionLines,
+                      linkColor: Colors.white,
+                    ),
+                  ),
                 ),
               ],
               if (controls != null) ...[
@@ -237,14 +253,79 @@ class _BottomSheetChrome extends ConsumerWidget {
                         isCurrentlyLiked: post.chosenReactions.contains(emoji),
                       );
                 },
-                // Replying and sharing belong to the post, not the viewer;
-                // closing first keeps the reader where those make sense.
-                onReplyTap: () => Navigator.of(context).pop(),
+                // Comments live on the post, so close the viewer and open
+                // it — popping alone just dropped the reader back in the feed
+                // with nothing to show for the tap.
+                onReplyTap: () {
+                  final router = GoRouter.of(context);
+                  final atPost =
+                      router.state.uri.path == '/post/${post.id}';
+                  Navigator.of(context).pop();
+                  if (!atPost) router.push('/post/${post.id}?focusReply=true');
+                },
                 onShareTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Lets a downward (or upward) drag close the viewer, the way every gallery
+/// does. The media follows the finger and fades, so a half-committed pull
+/// shows what letting go would do.
+class DragToDismiss extends StatefulWidget {
+  final Widget child;
+
+  /// Where the drag is allowed to start from. Zoomed images consume their own
+  /// pans, so the viewer disables this while the image is scaled up.
+  final bool enabled;
+
+  const DragToDismiss({super.key, required this.child, this.enabled = true});
+
+  @override
+  State<DragToDismiss> createState() => _DragToDismissState();
+}
+
+class _DragToDismissState extends State<DragToDismiss> {
+  /// How far the drag has to travel, or how fast it has to be thrown, before
+  /// letting go dismisses rather than snapping back.
+  static const double _dismissDistance = 120;
+  static const double _dismissVelocity = 700;
+
+  double _offset = 0;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+
+    final height = MediaQuery.of(context).size.height;
+    final progress = (_offset.abs() / height).clamp(0.0, 1.0);
+
+    return GestureDetector(
+      onVerticalDragStart: (_) => setState(() => _dragging = true),
+      onVerticalDragUpdate: (details) =>
+          setState(() => _offset += details.delta.dy),
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (_offset.abs() > _dismissDistance ||
+            velocity.abs() > _dismissVelocity) {
+          Navigator.of(context).maybePop();
+          return;
+        }
+        setState(() {
+          _offset = 0;
+          _dragging = false;
+        });
+      },
+      child: AnimatedContainer(
+        duration: _dragging ? Duration.zero : const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _offset, 0),
+        child: Opacity(opacity: 1 - progress * 0.8, child: widget.child),
       ),
     );
   }
