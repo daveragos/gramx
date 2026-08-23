@@ -80,6 +80,15 @@ abstract class LegalTexts {
             'along with when each mute expires.',
         'None of this leaves the device.',
       ]),
+      LegalSection('Keeping it safe', [
+        'The local database is encrypted, and the key that opens it is held by '
+            'your device\'s keystore rather than by the app. Someone with the '
+            'files alone cannot read them.',
+        'Nothing gramX stores is unique to it: everything is a copy of what is '
+            'already in your Telegram account, so losing the phone loses '
+            'nothing that ending the session from another device does not '
+            'protect.',
+      ]),
       LegalSection('What the app does to your Telegram account', [
         'This is a real Telegram client, so reading here changes things there. '
             'Specifically, gramX will: mark posts as read once they have been '
@@ -118,12 +127,6 @@ abstract class LegalTexts {
         'You need a Telegram account to use gramX, so you must be old enough '
             'to have one where you live.',
       ]),
-      LegalSection('This is beta software', [
-        'gramX is being tested. It can be wrong, it can lose locally stored '
-            'state, and it can stop working after an update. Anything it holds '
-            'is a copy of what is in your Telegram account, so nothing is lost '
-            'for good, but treat the app as unfinished.',
-      ]),
       LegalSection('Changes', [
         'If what the app stores or sends changes, this policy changes with it, '
             'and the date at the top moves. Continuing to use the app after '
@@ -136,8 +139,8 @@ abstract class LegalTexts {
     title: 'Terms of Service',
     lastUpdated: lastUpdated,
     summary:
-        'An unofficial Telegram reader, handed to you as-is while it is still '
-        'being built.',
+        'An independent reader for Telegram channels, and the terms it comes '
+        'with.',
     sections: [
       LegalSection('What you are agreeing to', [
         'By using gramX you accept these terms. If you do not, do not sign in.',
@@ -152,14 +155,14 @@ abstract class LegalTexts {
         'You are responsible for what you send, react to, forward and post '
             'through this app, exactly as if you had done it in Telegram.',
       ]),
-      LegalSection('Beta software, provided as-is', [
-        'This is an unfinished app given to testers. It comes with no '
-            'warranty of any kind: it may fail, show the wrong thing, or stop '
-            'working entirely, and features may change or disappear between '
-            'builds.',
+      LegalSection('The app is provided as it is', [
+        'gramX comes with no warranty of any kind. Software has faults, and '
+            'this app depends on a service it does not control: it may show '
+            'the wrong thing, stop working, or change as Telegram changes.',
         'To the extent the law allows, the developer is not liable for any '
             'loss arising from using it — including lost read state, missed '
-            'posts, or anything that follows from a bug.',
+            'posts, or anything that follows from a fault.',
+        'Features may change or be removed between versions.',
       ]),
       LegalSection('Your account\'s standing with Telegram', [
         'Telegram rate-limits accounts that make too many requests. gramX '

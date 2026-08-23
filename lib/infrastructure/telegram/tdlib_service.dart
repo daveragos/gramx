@@ -524,7 +524,7 @@ class TdlibService {
           deviceModel: 'gramX',
           systemVersion: 'Android/iOS',
           // What Telegram shows for this session under Settings → Devices,
-          // so it has to be the version the tester is actually running.
+          // so it has to be the version actually installed.
           applicationVersion: AppStrings.appVersion,
         );
 

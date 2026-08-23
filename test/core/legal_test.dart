@@ -64,13 +64,15 @@ void main() {
           .toLowerCase();
 
       expect(text, contains('not made by, affiliated with, or endorsed by'));
-      expect(text, contains('beta'));
+      // The disclaimer and the liability limit are the load-bearing parts.
+      expect(text, contains('no warranty'));
+      expect(text, contains('not liable'));
       expect(text, contains('rate-limit'));
     });
   });
 
   group('version', () {
-    // Three places show it and Telegram shows a fourth, in the tester's own
+    // Three places show it and Telegram shows a fourth, in the reader's own
     // device list. One constant feeds them all; this keeps it in step with the
     // version the build is actually stamped with.
     test('matches pubspec.yaml', () {
