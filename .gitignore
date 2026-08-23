@@ -54,3 +54,7 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Working notes, kept out of the repository. They live on disk and keep
+# guiding the work; they are not part of what gets published.
+docs/
