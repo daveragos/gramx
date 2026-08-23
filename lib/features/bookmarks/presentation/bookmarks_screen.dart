@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -31,46 +32,48 @@ class BookmarksScreen extends ConsumerWidget {
     final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final bookmarksAsync = ref.watch(bookmarkedPostsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          AppStrings.bookmarksTitle,
-          style: AppTypography.heading(color: primaryColor),
-        ),
-      ),
-      body: bookmarksAsync.when(
+    return ChromeScaffold(
+      header: const ChromeHeaderRow(title: AppStrings.bookmarksTitle),
+      body: (context, topPadding, bottomPadding) => bookmarksAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
         error: (err, _) => Center(
-          child: Text('Error loading bookmarks: $err'),
+          child: Padding(
+            padding: EdgeInsets.only(top: topPadding),
+            child: Text(AppStrings.bookmarksError(err)),
+          ),
         ),
         data: (posts) {
           if (posts.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xxl),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.bookmark_outline,
-                      color: AppColors.accent,
-                      size: 80,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      AppStrings.bookmarksEmptyTitle,
-                      style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      AppStrings.bookmarksEmptyBody,
-                      style: AppTypography.body(color: secondaryColor),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+            return Padding(
+              padding: EdgeInsets.only(top: topPadding),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xxl),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.bookmark_outline,
+                        color: AppColors.accent,
+                        size: 80,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        AppStrings.bookmarksEmptyTitle,
+                        style: AppTypography.heading(color: primaryColor)
+                            .copyWith(fontSize: 22),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        AppStrings.bookmarksEmptyBody,
+                        style: AppTypography.body(color: secondaryColor),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -78,11 +81,12 @@ class BookmarksScreen extends ConsumerWidget {
 
           return RefreshIndicator(
             color: AppColors.accent,
+            edgeOffset: topPadding,
             onRefresh: () async {
               ref.invalidate(bookmarkedPostsProvider);
             },
             child: ListView.builder(
-              padding: EdgeInsets.zero,
+              padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
               itemCount: posts.length,
               itemBuilder: (context, index) {
                 final post = posts[index];
@@ -92,7 +96,8 @@ class BookmarksScreen extends ConsumerWidget {
                     ref.read(markPostAsReadProvider(post.id));
                     context.push('/post/${post.id}');
                   },
-                  onChannelTap: () => NavigationUtils.openChannel(context, post.channelId),
+                  onChannelTap: () =>
+                      NavigationUtils.openChannel(context, post.channelId),
                   onBookmarkTap: () {
                     ref.read(bookmarkToggleProvider(post.id));
                   },

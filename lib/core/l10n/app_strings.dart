@@ -87,9 +87,33 @@ abstract class AppStrings {
 
   static String commentFailed(Object error) => 'Failed to post comment: $error';
 
+  static const commentsHeading = 'Comments';
+  static const commentsLoginPrompt = 'Log in to Telegram to post comments.';
+  static const commentReplyingTo = 'Replying to ';
+
+  static String commentReplyingToAuthor(String author) => 'Replying to @$author';
+
+  // ── Post statistics ────────────────────────────────────────────────────────
+  static const statReposts = 'Reposts';
+  static const statLikes = 'Likes';
+  static const statViews = 'Views';
+
+  static String postError(Object error) => 'Error: $error';
+
   // ── Search ─────────────────────────────────────────────────────────────────
   static const searchHint = 'Search posts and channels';
   static const searchNoResults = 'No results found';
+  static const searchClear = 'Clear search';
+  static const searchFilterAll = 'All';
+  static const searchFilterChannels = 'Channels';
+  static const searchFilterPosts = 'Posts';
+  static const searchExploreTitle = 'Explore';
+  static const searchExploreBody = 'Subscribe to channels to discover posts.';
+  static const searchRecentHeading = 'Recent from your channels';
+
+  static String searchChannelsHeading(int count) => 'Channels ($count)';
+
+  static String searchError(Object error) => 'Search failed: $error';
 
   // ── Channels ───────────────────────────────────────────────────────────────
   static const channelsTitle = 'Channels';
@@ -105,6 +129,33 @@ abstract class AppStrings {
 
   static String subscriberCount(int count) =>
       count == 1 ? '1 subscriber' : '$count subscribers';
+
+  /// Already-abbreviated count, for a row that has no room for the long form.
+  static String subscriberCountShort(String formattedCount) =>
+      '$formattedCount subscribers';
+
+  static const channelsFilterAll = 'All';
+  static const channelsMutedLabel = 'Muted — hidden from your feed';
+  static const channelsMuteAction = 'Mute this channel';
+  static const channelsUnmuteAction = 'Unmute this channel';
+  static const channelsNoMutedTitle = 'Nothing muted';
+  static const channelsNoMutedBody =
+      'Muted channels stay in this list so you can bring them back. Mute one '
+      'from here or from its profile.';
+  static const channelsAddBody =
+      'Enter a public Telegram channel username (for example, durov). You will '
+      'be subscribed to it.';
+  static const channelsAddFieldLabel = 'Channel username';
+  static const channelsAddFieldHint = 'durov';
+  static const channelsAddConfirm = 'Add';
+  static const channelsAddNotFound = "Couldn't find that channel.";
+  static const channelsAddJoinFailed = "Couldn't subscribe to that channel.";
+
+  static String channelsFilterMuted(int count) => 'Muted ($count)';
+
+  static String channelsAdded(String title) => 'Subscribed to $title.';
+
+  static String channelsError(Object error) => 'Error loading channels: $error';
 
   // ── Folders ────────────────────────────────────────────────────────────────
   static const foldersTitle = 'Folders';
@@ -124,6 +175,8 @@ abstract class AppStrings {
   static const bookmarksEmptyBody =
       "Don't let the good ones fly away! Bookmark posts to easily find them "
       'again in the future.';
+
+  static String bookmarksError(Object error) => 'Error loading bookmarks: $error';
 
   // ── Settings ───────────────────────────────────────────────────────────────
   static const settingsTitle = 'Settings and privacy';
@@ -164,6 +217,36 @@ abstract class AppStrings {
   static String settingsStorageFreed(String size) =>
       'Freed $size of cached media.';
 
+  // ── Drawer ─────────────────────────────────────────────────────────────────
+  static const drawerProfile = 'My Profile';
+  static const drawerBookmarks = 'Saved Messages & Bookmarks';
+  static const drawerChannels = 'Subscribed Channels';
+  static const drawerFolders = 'Folders';
+  static const drawerSettings = 'Settings & Privacy';
+  static const drawerChannelsCount = 'Channels';
+  static const drawerFoldersCount = 'Folders';
+  static const drawerAccountFallback = 'Telegram User';
+
+  static String appVersionLabel(String version) => 'gramX v$version';
+
+  // ── Profile ────────────────────────────────────────────────────────────────
+  static const profileTitle = 'Profile';
+  static const profileGuestName = 'Guest User';
+  static const profileGuestHandle = '@guest';
+  static const profileSectionDetails = 'ACCOUNT DETAILS';
+  static const profilePhone = 'Phone number';
+  static const profileTelegramId = 'Telegram ID';
+  static const profileNotProvided = 'Not provided';
+  static const profileStatus = 'Status';
+  static const profileStatusOffline = 'Not logged in';
+  static const profileLogIn = 'Log in with Telegram';
+  static const profileCopied = 'Copied to clipboard.';
+  static const profileOpenSettings = 'Settings and privacy';
+  static const profileOpenSettingsBody =
+      'Appearance, playback, storage and your account';
+
+  static String profileError(Object error) => 'Error: $error';
+
   // ── Onboarding & auth ──────────────────────────────────────────────────────
   static const onboardingWelcome = 'Welcome to gramX';
   static const onboardingLoggedOutBody =
@@ -177,6 +260,15 @@ abstract class AppStrings {
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 
   static const replyUnavailable = 'Message unavailable';
+
+  // ── Rich text ──────────────────────────────────────────────────────────────
+  static const codeBlockLabel = 'Code';
+  static const codeBlockCopy = 'Copy code';
+  static const codeBlockCopied = 'Code copied to clipboard.';
+  static const postShowMore = 'Show more';
+  static const postShowLess = 'Show less';
+
+  static String linkCouldNotOpen(String url) => 'Could not open link: $url';
 
   // ── Threads ────────────────────────────────────────────────────────────────
   static const threadHide = 'Hide earlier posts';

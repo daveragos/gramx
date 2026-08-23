@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
-import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -60,8 +59,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   @override
   void deactivate() {
     // Leaving the feed with the bar hidden would strand it off screen on
-    // whatever comes next.
-    ref.read(chromeVisibleProvider.notifier).show();
+    // whatever comes next. No tween — it would play over the next screen.
+    ref.read(chromeOffsetProvider.notifier).show(animate: false);
     super.deactivate();
   }
 
@@ -76,7 +75,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     if (!_scrollController.hasClients) return;
     // Bring the chrome back too — arriving at the top with the header still
     // hidden looks like the app lost its navigation.
-    ref.read(chromeVisibleProvider.notifier).show();
+    ref.read(chromeOffsetProvider.notifier).show();
     _scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 350),
@@ -125,7 +124,6 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
     final pendingCount =
         ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
-    final chromeVisible = ref.watch(chromeVisibleProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final theme = Theme.of(context);
 
@@ -206,83 +204,82 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         return Stack(
           children: [
             RefreshIndicator(
-          color: AppColors.accent,
-          // The list starts under the header, so without this the spinner
-          // animates behind it and the pull looks like it did nothing.
-          edgeOffset: widget.topPadding,
-          onRefresh: () async {
-            // A refresh re-fetches everything, so held-back arrivals would be
-            // duplicated by it — drop them rather than showing a stale pill.
-            ref.read(pendingPostsProvider.notifier).discard();
-            await ref.read(feedPostsProvider.notifier).refresh();
-          },
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              // Scrolling down hides the tab bar, scrolling up brings it back —
-              // the reading surface gets the whole screen while in motion.
-              if (notification is UserScrollNotification) {
-                final nav = ref.read(chromeVisibleProvider.notifier);
-                if (notification.direction == ScrollDirection.reverse) {
-                  nav.hide();
-                } else if (notification.direction == ScrollDirection.forward) {
-                  nav.show();
-                }
-              }
-              if (notification.metrics.pixels >=
-                  notification.metrics.maxScrollExtent - 300) {
-                _loadMore();
-              }
-              return false;
-            },
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.only(
-                top: widget.topPadding,
-                bottom: widget.bottomPadding,
-              ),
-              itemCount: threads.length + (_isLoadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == threads.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.accent,
-                        strokeWidth: 2.5,
-                      ),
-                    ),
-                  );
-                }
-
-                final thread = threads[index];
-                return ThreadCard(
-                  key: ValueKey(thread.root.id),
-                  thread: thread,
-                  onOpenPost: (post) {
-                    ref.read(markPostAsReadProvider(post.id));
-                    context.push('/post/${post.id}');
-                  },
-                  onOpenChannel: (post) =>
-                      NavigationUtils.openChannel(context, post.channelId),
-                );
+              color: AppColors.accent,
+              // The list starts under the header, so without this the spinner
+              // animates behind it and the pull looks like it did nothing.
+              edgeOffset: widget.topPadding,
+              onRefresh: () async {
+                // A refresh re-fetches everything, so held-back arrivals would
+                // be duplicated by it — drop them rather than showing a stale
+                // pill.
+                ref.read(pendingPostsProvider.notifier).discard();
+                await ref.read(feedPostsProvider.notifier).refresh();
               },
-            ),
-          ),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.depth == 0 &&
+                      notification.metrics.pixels >=
+                          notification.metrics.maxScrollExtent - 300) {
+                    _loadMore();
+                  }
+                  return false;
+                },
+                // The header and the bottom bar travel with the content rather
+                // than toggling once a threshold is crossed.
+                child: ChromeScrollObserver(
+                  extent: widget.topPadding,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.only(
+                      top: widget.topPadding,
+                      bottom: widget.bottomPadding,
+                    ),
+                    itemCount: threads.length + (_isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == threads.length) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.accent,
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                        );
+                      }
+
+                      final thread = threads[index];
+                      return ThreadCard(
+                        key: ValueKey(thread.root.id),
+                        thread: thread,
+                        onOpenPost: (post) {
+                          ref.read(markPostAsReadProvider(post.id));
+                          context.push('/post/${post.id}');
+                        },
+                        onOpenChannel: (post) =>
+                            NavigationUtils.openChannel(context, post.channelId),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
             if (pendingCount > 0)
-              // Tracks the header: the pill sits just under it when it's
-              // showing, and rises to just under the status bar when it isn't.
-              // Pinning it to the header's reserved height left it floating in
-              // the middle of the screen once the header slid away.
-              AnimatedPositioned(
-                duration: ShellChrome.slideDuration,
-                curve: ShellChrome.slideCurve,
-                top: (chromeVisible
-                        ? widget.topPadding
-                        : widget.collapsedTopPadding) +
-                    AppSpacing.md,
-                left: 0,
-                right: 0,
+              // The pill belongs to the header: it rides down with it and is
+              // gone once the header is. Offering "3 new posts" while the bar
+              // that owns the feed is off screen just clutters the reading
+              // surface.
+              ChromeMotion(
+                builder: (context, hidden, child) {
+                  final opacity = chromeTiedOpacity(hidden);
+                  if (opacity <= 0) return const SizedBox.shrink();
+                  return Positioned(
+                    top: widget.topPadding * (1 - hidden) + AppSpacing.md,
+                    left: 0,
+                    right: 0,
+                    child: Opacity(opacity: opacity, child: child),
+                  );
+                },
                 child: Center(
                   child: _NewPostsPill(
                     count: pendingCount,

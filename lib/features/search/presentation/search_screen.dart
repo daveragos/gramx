@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -230,10 +232,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final primaryColor = theme.colorScheme.onSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: AppSpacing.md,
-        title: Container(
+    return ChromeScaffold(
+      header: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
+        child: Container(
           height: 40,
           decoration: BoxDecoration(
             color: surfaceColor,
@@ -256,7 +261,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   onChanged: _onQueryChanged,
                   style: AppTypography.body(color: primaryColor),
                   decoration: InputDecoration(
-                    hintText: 'Search posts and channels',
+                    hintText: AppStrings.searchHint,
                     hintStyle: AppTypography.body(color: secondaryColor),
                     border: InputBorder.none,
                     isDense: true,
@@ -265,21 +270,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               if (_isSearching)
-                GestureDetector(
-                  onTap: _clearSearch,
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                    child: Icon(Icons.close, color: secondaryColor, size: 18),
+                Semantics(
+                  button: true,
+                  label: AppStrings.searchClear,
+                  child: GestureDetector(
+                    onTap: _clearSearch,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm),
+                      child:
+                          Icon(Icons.close, color: secondaryColor, size: 18),
+                    ),
                   ),
                 ),
             ],
           ),
         ),
       ),
-      body: _isSearching
-          ? _SearchResults(primaryColor: primaryColor, secondaryColor: secondaryColor)
-          : _ExploreView(primaryColor: primaryColor, secondaryColor: secondaryColor),
+      body: (context, topPadding, bottomPadding) => _isSearching
+          ? _SearchResults(
+              primaryColor: primaryColor,
+              secondaryColor: secondaryColor,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+            )
+          : _ExploreView(
+              primaryColor: primaryColor,
+              secondaryColor: secondaryColor,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+            ),
     );
   }
 }
@@ -288,10 +308,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 class _SearchResults extends ConsumerWidget {
   final Color primaryColor;
   final Color secondaryColor;
+  final double topPadding;
+  final double bottomPadding;
 
   const _SearchResults({
     required this.primaryColor,
     required this.secondaryColor,
+    required this.topPadding,
+    required this.bottomPadding,
   });
 
   @override
@@ -300,111 +324,126 @@ class _SearchResults extends ConsumerWidget {
     final channelsAsync = ref.watch(searchChannelsProvider);
     final postsAsync = ref.watch(searchResultsProvider);
 
-    final showChannels = category == SearchCategory.all || category == SearchCategory.channels;
-    final showPosts = category == SearchCategory.all || category == SearchCategory.posts;
+    final showChannels = category == SearchCategory.all ||
+        category == SearchCategory.channels;
+    final showPosts =
+        category == SearchCategory.all || category == SearchCategory.posts;
 
-    return Column(
-      children: [
-        // Filter Chips Row
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          child: Row(
-            children: [
-              _buildCategoryChip(ref, 'All', SearchCategory.all, category),
-              const SizedBox(width: 8),
-              _buildCategoryChip(ref, 'Channels', SearchCategory.channels, category),
-              const SizedBox(width: 8),
-              _buildCategoryChip(ref, 'Posts', SearchCategory.posts, category),
-            ],
+    return CustomScrollView(
+      slivers: [
+        // The filter chips scroll with the results rather than sitting in a
+        // fixed strip: the header slides away, and a row pinned to where it
+        // used to be would strand itself mid-screen.
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: topPadding + AppSpacing.xs,
+              left: AppSpacing.md,
+              right: AppSpacing.md,
+              bottom: AppSpacing.xs,
+            ),
+            child: Row(
+              children: [
+                _buildCategoryChip(
+                    ref, AppStrings.searchFilterAll, SearchCategory.all, category),
+                const SizedBox(width: 8),
+                _buildCategoryChip(ref, AppStrings.searchFilterChannels,
+                    SearchCategory.channels, category),
+                const SizedBox(width: 8),
+                _buildCategoryChip(ref, AppStrings.searchFilterPosts,
+                    SearchCategory.posts, category),
+              ],
+            ),
           ),
         ),
-        const Divider(height: 1),
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              if (showChannels)
-                channelsAsync.when(
-                  loading: () => const SliverToBoxAdapter(
-                    child: Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.xl),
-                        child: CircularProgressIndicator(color: AppColors.accent),
-                      ),
-                    ),
-                  ),
-                  error: (err, _) => SliverToBoxAdapter(
-                    child: Center(child: Text('Error: $err')),
-                  ),
-                  data: (channels) {
-                    if (channels.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
-
-                    return SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm,
-                            ),
-                            child: Text(
-                              'Channels (${channels.length})',
-                              style: AppTypography.subheading(color: secondaryColor),
-                            ),
-                          ),
-                          ...channels.map((channel) => _ChannelResultTile(
-                                channel: channel,
-                                primaryColor: primaryColor,
-                                secondaryColor: secondaryColor,
-                              )),
-                          const Divider(),
-                        ],
-                      ),
-                    );
-                  },
+        const SliverToBoxAdapter(child: Divider(height: 1)),
+        if (showChannels)
+          channelsAsync.when(
+            loading: () => const SliverToBoxAdapter(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.xl),
+                  child: CircularProgressIndicator(color: AppColors.accent),
                 ),
-              if (showPosts)
-                postsAsync.when(
-                  loading: () => const SliverFillRemaining(
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppColors.accent),
+              ),
+            ),
+            error: (err, _) => SliverToBoxAdapter(
+              child: Center(child: Text(AppStrings.searchError(err))),
+            ),
+            data: (channels) {
+              if (channels.isEmpty) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+
+              return SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
+                      child: Text(
+                        AppStrings.searchChannelsHeading(channels.length),
+                        style:
+                            AppTypography.subheading(color: secondaryColor),
+                      ),
                     ),
-                  ),
-                  error: (err, _) => SliverFillRemaining(
-                    child: Center(child: Text('Error: $err')),
-                  ),
-                  data: (posts) {
-                    if (posts.isEmpty) {
-                      return SliverFillRemaining(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.search_off, size: 48, color: secondaryColor),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                'No posts found',
-                                style: AppTypography.subheading(color: secondaryColor),
-                              ),
-                            ],
-                          ),
+                    ...channels.map((channel) => _ChannelResultTile(
+                          channel: channel,
+                          primaryColor: primaryColor,
+                          secondaryColor: secondaryColor,
+                        )),
+                    const Divider(),
+                  ],
+                ),
+              );
+            },
+          ),
+        if (showPosts)
+          postsAsync.when(
+            loading: () => const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              ),
+            ),
+            error: (err, _) => SliverFillRemaining(
+              child: Center(child: Text(AppStrings.searchError(err))),
+            ),
+            data: (posts) {
+              if (posts.isEmpty) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.search_off,
+                            size: 48, color: secondaryColor),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          AppStrings.searchNoResults,
+                          style: AppTypography.subheading(
+                              color: secondaryColor),
                         ),
-                      );
-                    }
+                      ],
+                    ),
+                  ),
+                );
+              }
 
-                    return SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final post = posts[index];
-                          return PostCard(post: post);
-                        },
-                        childCount: posts.length,
-                      ),
-                    );
-                  },
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => PostCard(post: posts[index]),
+                  childCount: posts.length,
                 ),
-            ],
+              );
+            },
           ),
-        ),
+        SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
       ],
     );
   }
@@ -520,14 +559,18 @@ class _ChannelResultTile extends StatelessWidget {
   }
 }
 
-/// Default explore view when not searching — shows trending/recent posts.
+/// Default explore view when not searching — recent posts from the feed.
 class _ExploreView extends ConsumerWidget {
   final Color primaryColor;
   final Color secondaryColor;
+  final double topPadding;
+  final double bottomPadding;
 
   const _ExploreView({
     required this.primaryColor,
     required this.secondaryColor,
+    required this.topPadding,
+    required this.bottomPadding,
   });
 
   @override
@@ -538,26 +581,29 @@ class _ExploreView extends ConsumerWidget {
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.accent),
       ),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (err, _) => Center(child: Text(AppStrings.searchError(err))),
       data: (posts) {
         if (posts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.explore_outlined, color: secondaryColor, size: 64),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  'Explore',
-                  style: AppTypography.heading(color: primaryColor),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Subscribe to channels to discover posts.',
-                  style: AppTypography.body(color: secondaryColor),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+          return Padding(
+            padding: EdgeInsets.only(top: topPadding),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.explore_outlined, color: secondaryColor, size: 64),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    AppStrings.searchExploreTitle,
+                    style: AppTypography.heading(color: primaryColor),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    AppStrings.searchExploreBody,
+                    style: AppTypography.body(color: secondaryColor),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -566,11 +612,14 @@ class _ExploreView extends ConsumerWidget {
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm,
+                padding: EdgeInsets.only(
+                  top: topPadding + AppSpacing.lg,
+                  left: AppSpacing.lg,
+                  right: AppSpacing.lg,
+                  bottom: AppSpacing.sm,
                 ),
                 child: Text(
-                  'Recent from your channels',
+                  AppStrings.searchRecentHeading,
                   style: AppTypography.subheading(color: secondaryColor),
                 ),
               ),
@@ -595,6 +644,7 @@ class _ExploreView extends ConsumerWidget {
                 childCount: posts.length,
               ),
             ),
+            SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
           ],
         );
       },

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// The tabs in the bottom bar, in order.
@@ -50,6 +51,16 @@ abstract class ShellChrome {
   /// little enough that the content still reads as continuing underneath.
   static const double tintOpacity = 0.72;
 }
+
+/// The shell's own scaffold, so the drawer can be opened from inside a branch.
+///
+/// A branch builds its own `Scaffold`, and `Scaffold.of` finds *that* one — which
+/// has no drawer, so the account avatar in the feed header did nothing at all.
+/// Addressing the shell's scaffold directly is what makes that tap work.
+final GlobalKey<ScaffoldState> shellScaffoldKey = GlobalKey<ScaffoldState>();
+
+/// Opens the app drawer from anywhere inside the shell.
+void openAppDrawer() => shellScaffoldKey.currentState?.openDrawer();
 
 /// Hosts the tab bar and the drawer around whichever branch is showing.
 class AppShell extends ConsumerStatefulWidget {
@@ -105,6 +116,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _onTap(int index) {
     final isRetap = index == navigationShell.currentIndex;
 
+    // Branches stay mounted in the indexed stack, so a tab left mid-scroll
+    // keeps its chrome offset. Arriving on a screen with the header already
+    // retired looks like the app lost its navigation, so every switch starts
+    // with the furniture on screen.
+    ref.read(chromeOffsetProvider.notifier).show(animate: false);
+
     // Re-tapping Home means "take me back to the top of what I'm reading".
     // goBranch alone only resets the branch's route stack.
     if (isRetap && index == ShellTab.home.index) {
@@ -118,7 +135,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isVisible = ref.watch(chromeVisibleProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
@@ -129,6 +145,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
+        key: shellScaffoldKey,
         drawer: const AppDrawer(),
         // The bar overlays the content instead of sitting in the layout.
         // Collapsing its height animated a relayout every frame, which is what
@@ -140,10 +157,11 @@ class _AppShellState extends ConsumerState<AppShell> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: AnimatedSlide(
-                offset: isVisible ? Offset.zero : const Offset(0, 1),
-                duration: ShellChrome.slideDuration,
-                curve: ShellChrome.slideCurve,
+              // Tracks the scroll position rather than toggling: the bar leaves
+              // with the content that pushed it out and comes back with the
+              // content that pulled it in.
+              child: ChromeSlide(
+                fromTop: false,
                 child: BlurredChrome(
                   border: Border(
                     top: BorderSide(color: borderColor, width: 0.5),

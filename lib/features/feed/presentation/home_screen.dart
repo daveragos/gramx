@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -22,9 +23,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  /// App bar plus folder tabs. The feed reserves this much at its top so the
-  /// header can slide away without reflowing the list.
-  static const double _appBarHeight = 56;
+  /// The folder tabs under the app bar. The feed reserves this much extra at
+  /// its top so the header can slide away without reflowing the list.
   static const double _tabBarHeight = 46;
 
   int _currentTabIndex = 0;
@@ -42,11 +42,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accountAsync = ref.watch(activeAccountProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     final String displayName = accountAsync.value?.displayName ?? 'User';
-
-    final chromeVisible = ref.watch(chromeVisibleProvider);
-    final headerHeight = MediaQuery.of(context).padding.top +
-        _appBarHeight +
-        _tabBarHeight;
 
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
@@ -114,80 +109,68 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           length: tabItems.length,
           child: _FolderTabRequestHandler(
             folderIds: tabItems.map((t) => t.id).toList(),
-            child: Scaffold(
-              body: Stack(
-                children: [
-                  // The feed fills the screen and reserves room for the header
-                  // rather than sitting under a collapsing box. Sliding the
-                  // header away leaves the content where it is, so nothing
-                  // jumps mid-scroll.
-                  TabBarView(
-                    children: tabItems.map((item) {
-                      return FolderFeed(
-                        folderTitle: item.title,
-                        folderId: item.id,
-                        topPadding: headerHeight,
-                        // The bar overlays the list, so the last post needs
-                        // room to clear it.
-                        bottomPadding: ShellChrome.bottomBarHeight +
-                            MediaQuery.of(context).padding.bottom,
-                        // Where the pill sits once the header is gone.
-                        collapsedTopPadding:
-                            MediaQuery.of(context).padding.top,
-                      );
-                    }).toList(),
-                  ),
-
-                  // A blurred strip keeps the status bar legible once the
-                  // header has slid away from behind it.
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: AnimatedOpacity(
-                        opacity: chromeVisible ? 0 : 1,
-                        duration: ShellChrome.slideDuration,
-                        curve: ShellChrome.slideCurve,
-                        child: BlurredChrome(
-                          child: SizedBox(
-                            height: MediaQuery.of(context).padding.top,
-                            width: double.infinity,
-                          ),
-                        ),
-                      ),
+            child: ChromeScaffold(
+              // The feed owns four scrollables, one per tab, so each reports
+              // its own scrolling rather than the scaffold guessing which is
+              // on screen.
+              observeScroll: false,
+              headerBottomHeight: _tabBarHeight,
+              header: ChromeHeaderRow(
+                title: AppStrings.appName,
+                leading: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Semantics(
+                    button: true,
+                    label: AppStrings.a11yOpenMenu,
+                    child: ChannelAvatar(
+                      title: displayName,
+                      avatarPath: accountAsync.value?.avatarPath,
+                      radius: AppSpacing.avatarSizeSmall / 2,
+                      // The drawer belongs to the shell's scaffold, not to this
+                      // screen's — `Scaffold.of` here finds the wrong one and
+                      // the tap does nothing.
+                      onTap: openAppDrawer,
                     ),
                   ),
-
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: AnimatedSlide(
-                      offset: chromeVisible ? Offset.zero : const Offset(0, -1),
-                      duration: ShellChrome.slideDuration,
-                      curve: ShellChrome.slideCurve,
-                      child: _FeedHeader(
-                        height: headerHeight,
-                        displayName: displayName,
-                        avatarPath: accountAsync.value?.avatarPath,
-                        tabTitles: tabItems.map((t) => t.title).toList(),
-                        onTabTap: (index) {
-                          ref
-                              .read(activeFolderProvider.notifier)
-                              .set(tabItems[index].id);
-                          if (index == _currentTabIndex) {
-                            // Re-tap on the active tab returns to the top.
-                            ref
-                                .read(feedScrollToTopProvider.notifier)
-                                .request(tabItems[index].id);
-                          }
-                          setState(() => _currentTabIndex = index);
-                        },
-                      ),
-                    ),
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.search_rounded),
+                    tooltip: AppStrings.a11ySearch,
+                    color: primaryTextColor,
+                    // Switch tab rather than push: /search is a shell branch,
+                    // and pushing it would stack a second copy above the bar.
+                    onPressed: () => StatefulNavigationShell.of(context)
+                        .goBranch(ShellTab.search.index),
                   ),
                 ],
+              ),
+              headerBottom: _FolderTabBar(
+                titles: tabItems.map((t) => t.title).toList(),
+                onTabTap: (index) {
+                  ref
+                      .read(activeFolderProvider.notifier)
+                      .set(tabItems[index].id);
+                  if (index == _currentTabIndex) {
+                    // Re-tap on the active tab returns to the top.
+                    ref
+                        .read(feedScrollToTopProvider.notifier)
+                        .request(tabItems[index].id);
+                  }
+                  setState(() => _currentTabIndex = index);
+                },
+              ),
+              body: (context, topPadding, bottomPadding) => TabBarView(
+                children: tabItems.map((item) {
+                  return FolderFeed(
+                    folderTitle: item.title,
+                    folderId: item.id,
+                    topPadding: topPadding,
+                    bottomPadding: bottomPadding,
+                    // Where the pill sits once the header is gone.
+                    collapsedTopPadding: MediaQuery.of(context).padding.top,
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -227,96 +210,33 @@ class _FolderTabRequestHandler extends ConsumerWidget {
   }
 }
 
-/// The feed's app bar and folder tabs, as one sliding surface.
+/// The folder tabs under the feed's app bar.
 ///
-/// Painted opaque and sized explicitly: it overlays the list rather than
-/// occupying layout space, so sliding it away doesn't reflow what's underneath.
-class _FeedHeader extends ConsumerWidget {
-  final double height;
-  final String displayName;
-  final String? avatarPath;
-  final List<String> tabTitles;
+/// Part of the sliding header rather than the list, so switching folders never
+/// costs a relayout of what is being read.
+class _FolderTabBar extends StatelessWidget {
+  final List<String> titles;
   final ValueChanged<int> onTabTap;
 
-  const _FeedHeader({
-    required this.height,
-    required this.displayName,
-    required this.avatarPath,
-    required this.tabTitles,
-    required this.onTabTap,
-  });
+  const _FolderTabBar({required this.titles, required this.onTabTap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
     final secondary =
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    return BlurredChrome(
-      border: Border(bottom: BorderSide(color: border, width: 0.5)),
-      child: SizedBox(
-        height: height,
-        child: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 56,
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    child: Semantics(
-                      button: true,
-                      label: AppStrings.a11yOpenMenu,
-                      child: ChannelAvatar(
-                        title: displayName,
-                        avatarPath: avatarPath,
-                        radius: AppSpacing.avatarSizeSmall / 2,
-                        onTap: () => Scaffold.of(context).openDrawer(),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        AppStrings.appName,
-                        style: AppTypography.heading(color: primary),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search_rounded),
-                    tooltip: AppStrings.a11ySearch,
-                    color: primary,
-                    // Switch tab rather than push: /search is a shell branch,
-                    // and pushing it would stack a second copy above the bar.
-                    onPressed: () => StatefulNavigationShell.of(context)
-                        .goBranch(ShellTab.search.index),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 46,
-              child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                indicatorColor: AppColors.accent,
-                labelColor: primary,
-                unselectedLabelColor: secondary,
-                dividerColor: Colors.transparent,
-                onTap: onTabTap,
-                tabs: [for (final title in tabTitles) Tab(text: title)],
-              ),
-            ),
-          ],
-          ),
-        ),
-      ),
+    return TabBar(
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      indicatorColor: AppColors.accent,
+      labelColor: primary,
+      unselectedLabelColor: secondary,
+      dividerColor: Colors.transparent,
+      onTap: onTabTap,
+      tabs: [for (final title in titles) Tab(text: title)],
     );
   }
 }

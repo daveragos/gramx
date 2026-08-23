@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -11,8 +13,11 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
 
-  void _goToTab(BuildContext context, ShellTab tab) {
+  void _goToTab(BuildContext context, WidgetRef ref, ShellTab tab) {
     Navigator.pop(context);
+    // Same reason as the bottom bar: the destination branch may have been left
+    // scrolled with its header retired.
+    ref.read(chromeOffsetProvider.notifier).show(animate: false);
     StatefulNavigationShell.of(context).goBranch(tab.index);
   }
 
@@ -29,7 +34,8 @@ class AppDrawer extends ConsumerWidget {
     final channelsAsync = ref.watch(channelsProvider);
     final foldersAsync = ref.watch(foldersProvider);
 
-    final String displayName = accountAsync.value?.displayName ?? 'Telegram User';
+    final String displayName =
+        accountAsync.value?.displayName ?? AppStrings.drawerAccountFallback;
     final String username = accountAsync.value?.username != null 
         ? '@${accountAsync.value!.username}' 
         : '';
@@ -47,20 +53,17 @@ class AppDrawer extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ChannelAvatar(
-                        title: displayName,
-                        avatarPath: accountAsync.value?.avatarPath,
-                        radius: 24,
-                      ),
-                      // Purely decorative for now — announcing it would offer
-                      // a control that does nothing.
-                      ExcludeSemantics(
-                        child: Icon(Icons.more_vert, color: secondaryColor),
-                      ),
-                    ],
+                  // The avatar opens the profile, which is what tapping your
+                  // own face means everywhere else. The "⋮" that used to sit
+                  // opposite it did nothing at all, so it is gone.
+                  ChannelAvatar(
+                    title: displayName,
+                    avatarPath: accountAsync.value?.avatarPath,
+                    radius: 24,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push('/profile');
+                    },
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -92,7 +95,7 @@ class AppDrawer extends ConsumerWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Channels',
+                        AppStrings.drawerChannelsCount,
                         style: TextStyle(
                           fontSize: 14,
                           color: secondaryColor,
@@ -109,7 +112,7 @@ class AppDrawer extends ConsumerWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Folders',
+                        AppStrings.drawerFoldersCount,
                         style: TextStyle(
                           fontSize: 14,
                           color: secondaryColor,
@@ -123,7 +126,7 @@ class AppDrawer extends ConsumerWidget {
             const Divider(),
             DrawerNavItem(
               icon: Icons.person_outline_rounded,
-              title: 'My Profile',
+              title: AppStrings.drawerProfile,
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/profile');
@@ -134,17 +137,17 @@ class AppDrawer extends ConsumerWidget {
             // throws away that tab's scroll position.
             DrawerNavItem(
               icon: Icons.bookmark_border_rounded,
-              title: 'Saved Messages & Bookmarks',
-              onTap: () => _goToTab(context, ShellTab.bookmarks),
+              title: AppStrings.drawerBookmarks,
+              onTap: () => _goToTab(context, ref, ShellTab.bookmarks),
             ),
             DrawerNavItem(
               icon: Icons.list_alt_rounded,
-              title: 'Subscribed Channels',
-              onTap: () => _goToTab(context, ShellTab.channels),
+              title: AppStrings.drawerChannels,
+              onTap: () => _goToTab(context, ref, ShellTab.channels),
             ),
             DrawerNavItem(
               icon: Icons.folder_outlined,
-              title: 'Folders',
+              title: AppStrings.drawerFolders,
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/folders');
@@ -152,7 +155,7 @@ class AppDrawer extends ConsumerWidget {
             ),
             DrawerNavItem(
               icon: Icons.settings_outlined,
-              title: 'Settings & Privacy',
+              title: AppStrings.drawerSettings,
               onTap: () {
                 Navigator.pop(context);
                 GoRouter.of(context).push('/settings');
@@ -163,7 +166,7 @@ class AppDrawer extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Text(
-                'gramX v0.1.0',
+                AppStrings.appVersionLabel('0.1.0'),
                 style: TextStyle(color: secondaryColor, fontSize: 12),
               ),
             ),
