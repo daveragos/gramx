@@ -31,6 +31,14 @@ class FeedRepository {
   /// with headroom for the requests the user's own taps generate.
   static const Duration backfillThrottle = Duration(milliseconds: 1100);
 
+  /// How many times opening a channel will ask the server for more history
+  /// before giving up on filling the first page.
+  ///
+  /// TDLib chooses its own batch size and can answer with one message while
+  /// plenty of history remains, so one request is not a page. Bounded because
+  /// even a user-driven path shares the account's request budget.
+  static const int channelHistoryMaxRequests = 4;
+
   /// Channels the unread sweep looks behind the read cursor for.
   ///
   /// Shares the budget with [backfillTopChannels] and runs after it: one
@@ -424,7 +432,8 @@ class FeedRepository {
       }
       if (supergroupId != null) {
         try {
-          final res = await _tdlib.sendRequest(td.CreateSupergroupChat(supergroupId: supergroupId, force: false));
+          final res = await _tdlib.sendRequest(
+              td.CreateSupergroupChat(supergroupId: supergroupId, force: false));
           if (res is td.Chat) chatObj = res;
         } catch (_) {}
       }
@@ -432,36 +441,66 @@ class FeedRepository {
     if (chatObj is! td.Chat) return [];
 
     final resolvedChatId = chatObj.id;
+    final collected = <td.Message>[];
+    final seen = <int>{};
 
-    // 1. Try local history first for instant rendering
-    td.TdObject history = await _tdlib.sendRequest(td.GetChatHistory(
+    void collect(td.TdObject? response) {
+      if (response is! td.Messages) return;
+      for (final message in response.messages) {
+        if (seen.add(message.id)) collected.add(message);
+      }
+    }
+
+    // Local history first, for an instant first paint.
+    collect(await _tdlib.sendRequest(td.GetChatHistory(
       chatId: resolvedChatId,
       fromMessageId: fromMessageId,
       offset: 0,
       limit: limit,
       onlyLocal: true,
-    ));
+    )));
 
-    // For initial loads, require at least 5 local messages before skipping
-    // remote fetch. For pagination loads, always fetch remote.
-    final minExpected = fromMessageId == 0 ? 5 : 1;
-    if (history is! td.Messages || history.messages.length < minExpected) {
-      history = await _tdlib.sendRequest(td.GetChatHistory(
-        chatId: resolvedChatId,
-        fromMessageId: fromMessageId,
-        offset: 0,
-        limit: limit,
-        onlyLocal: false,
-      ));
+    // Then keep asking the server until there is a real page.
+    //
+    // `GetChatHistory` is documented to return **fewer messages than
+    // requested even when the history has not ended** — TDLib picks the batch
+    // size. Asking once and rendering whatever came back is why opening a
+    // channel could land on a single post with nothing to scroll to, and
+    // therefore nothing to trigger pagination either: a dead end.
+    //
+    // Bounded and user-driven, which is the shape `docs/TDLIB.md` allows for
+    // opening a specific channel — never a fan-out over the chat list.
+    var cursor = collected.isEmpty ? fromMessageId : collected.last.id;
+    for (var attempt = 0;
+        attempt < channelHistoryMaxRequests && collected.length < limit;
+        attempt++) {
+      final before = collected.length;
+      try {
+        collect(await _tdlib.sendRequest(td.GetChatHistory(
+          chatId: resolvedChatId,
+          fromMessageId: cursor,
+          offset: 0,
+          limit: limit - collected.length,
+          onlyLocal: false,
+        )));
+      } on TdlibRequestException catch (e) {
+        debugPrint('[FeedRepo] Channel history stopped: $e');
+        break;
+      }
+
+      // Nothing new means the end of the history, not a slow batch.
+      if (collected.length == before) break;
+      cursor = collected.last.id;
     }
-    if (history is! td.Messages) return [];
+
+    if (collected.isEmpty) return [];
 
     final bookmarks = await _db.select(_db.bookmarkEntries).get();
     final bookmarkKeys =
         bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
 
     return TdlibMappers.mergeAlbumMessages(
-      history.messages,
+      collected,
       chatObj,
       bookmarkedKeys: bookmarkKeys,
     );

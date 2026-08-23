@@ -37,6 +37,11 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   bool _isActionLoading = false;
   int? _openedChatId;
 
+  /// Bounds the auto-fill above, so a channel that keeps answering with a
+  /// short page can't turn into a request loop.
+  static const int _maxAutoFills = 3;
+  int _autoFills = 0;
+
   @override
   void initState() {
     super.initState();
@@ -76,18 +81,49 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.hasClients) {
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent * 0.85) {
-        loadMoreChannelPosts(ref, widget.channelId);
-      }
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent * 0.85) {
+      ref.read(olderChannelPostsProvider.notifier).loadMore(widget.channelId);
     }
   }
+
+  /// Loads another page when the first one doesn't fill the screen.
+  ///
+  /// Pagination hangs off the scroll listener, and a list too short to scroll
+  /// never fires it — so a channel that opened with two posts had no way to
+  /// show a third. Bounded, and it stops as soon as the channel says it has
+  /// nothing older.
+  void _fillViewport() {
+    if (_autoFills >= _maxAutoFills) return;
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.maxScrollExtent > 0) return;
+
+    final older = ref.read(olderChannelPostsProvider.notifier);
+    if (older.isLoading(widget.channelId) ||
+        older.isExhausted(widget.channelId)) {
+      return;
+    }
+
+    _autoFills++;
+    older.loadMore(widget.channelId).then((added) {
+      if (added && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _fillViewport());
+      }
+    });
+  }
+
+  Future<void> _refresh() => refreshChannel(ref, widget.channelId);
 
   @override
   Widget build(BuildContext context) {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
     final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
+
+    // After the frame, never during it: this can spend a TDLib request.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fillViewport();
+    });
     final channel = channelAsync.value;
 
     // Watch the provider state to rebuild on changes
@@ -151,26 +187,25 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (err, _) => _Retry(
+          message: AppStrings.channelLoadFailed,
+          detail: err.toString(),
+          onRetry: _refresh,
+        ),
         data: (channel) {
           if (channel == null) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: Text(
-                  'This channel is private or inaccessible.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return _Retry(
+              message: AppStrings.channelUnavailable,
+              onRetry: _refresh,
             );
           }
 
           return RefreshIndicator(
             color: AppColors.accent,
-            onRefresh: () async {
-              ref.invalidate(channelPostsProvider(widget.channelId));
-              ref.invalidate(channelDetailProvider(widget.channelId));
-            },
+            // channelPostsProvider is derived; invalidating it recomputed the
+            // same cached fetch and the pull did nothing at all. The refresh
+            // has to reach the future that does the work.
+            onRefresh: _refresh,
             child: CustomScrollView(
               controller: _scrollController,
               slivers: [
@@ -363,13 +398,20 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
                     ),
                   ),
                   error: (err, _) => SliverFillRemaining(
-                    child: Center(child: Text('Error loading posts: $err')),
+                    hasScrollBody: false,
+                    child: _Retry(
+                      message: AppStrings.channelPostsFailed,
+                      detail: err.toString(),
+                      onRetry: _refresh,
+                    ),
                   ),
                   data: (posts) {
                     if (posts.isEmpty) {
-                      return const SliverFillRemaining(
-                        child: Center(
-                          child: Text(AppStrings.channelNoPosts),
+                      return SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _Retry(
+                          message: AppStrings.channelNoPosts,
+                          onRetry: _refresh,
                         ),
                       );
                     }
@@ -401,6 +443,59 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// A dead end with a way out of it.
+///
+/// Every failure on this screen used to end in a line of text: no retry, and
+/// no scrollable to pull down on either, so a channel that failed to load was
+/// simply stuck until the reader backed out.
+class _Retry extends StatelessWidget {
+  final String message;
+  final String? detail;
+  final Future<void> Function() onRetry;
+
+  const _Retry({required this.message, this.detail, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 40, color: secondary),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              message,
+              style: AppTypography.subheading(color: theme.colorScheme.onSurface),
+              textAlign: TextAlign.center,
+            ),
+            if (detail != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                detail!,
+                style: AppTypography.actionCount(color: secondary),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text(AppStrings.retry),
+            ),
+          ],
+        ),
       ),
     );
   }

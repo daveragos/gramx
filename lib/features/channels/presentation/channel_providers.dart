@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
@@ -25,14 +26,79 @@ final channelDetailProvider =
   return repo.getChannelByIdentifier(channelId);
 });
 
-/// Older posts loaded via pagination for channels (map of channelId to list of posts).
+/// Older posts loaded by paging back through a channel, keyed by channel id.
+///
+/// Owns the in-flight and exhausted flags too: the profile screen asks for
+/// another page from a scroll listener, which fires on every frame near the
+/// bottom. Without a guard that is a request per frame, aimed at an account
+/// with a rate limit.
 class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
+  final Set<String> _loading = {};
+  final Set<String> _exhausted = {};
+
   @override
   Map<String, List<Post>> build() => {};
 
-  void addPosts(String channelId, List<Post> older) {
-    final current = state[channelId] ?? [];
-    state = {...state, channelId: [...current, ...older]};
+  bool isLoading(String channelId) => _loading.contains(channelId);
+
+  /// True once the channel has answered a page request with nothing new, so
+  /// the screen can stop asking and say it has reached the end.
+  bool isExhausted(String channelId) => _exhausted.contains(channelId);
+
+  /// Loads the next page. Returns true if anything new arrived.
+  Future<bool> loadMore(String channelId) async {
+    if (_loading.contains(channelId) || _exhausted.contains(channelId)) {
+      return false;
+    }
+
+    // Read the sources, not the derived provider: channelPostsProvider watches
+    // this notifier, so asking it here is a dependency cycle — Riverpod throws
+    // on it, and the screen's paging died with the first scroll.
+    final current = [
+      ...?ref.read(initialChannelPostsProvider(channelId)).value,
+      ...?state[channelId],
+    ];
+    if (current.isEmpty) return false;
+
+    // The oldest post, not the last one in the list: the list is merged from
+    // two sources and de-duplicated, so its order is not a promise.
+    final oldest = current.reduce(
+        (a, b) => a.messageId <= b.messageId ? a : b);
+
+    _loading.add(channelId);
+    try {
+      final older = await ref
+          .read(feedRepositoryProvider)
+          .fetchChannelPosts(oldest.chatId, fromMessageId: oldest.messageId);
+
+      final known = current.map((p) => p.id).toSet();
+      final additions = older.where((p) => !known.contains(p.id)).toList();
+      if (additions.isEmpty) {
+        _exhausted.add(channelId);
+        return false;
+      }
+
+      state = {
+        ...state,
+        channelId: [...?state[channelId], ...additions],
+      };
+      return true;
+    } catch (e) {
+      debugPrint('[Channel] Loading more posts failed: $e');
+      return false;
+    } finally {
+      _loading.remove(channelId);
+    }
+  }
+
+  /// Drops everything paged in for a channel, so a refresh starts clean
+  /// instead of stacking a second copy of the history under the first.
+  void reset(String channelId) {
+    _loading.remove(channelId);
+    _exhausted.remove(channelId);
+    if (!state.containsKey(channelId)) return;
+    final next = Map<String, List<Post>>.from(state)..remove(channelId);
+    state = next;
   }
 }
 
@@ -70,26 +136,19 @@ final channelPostsProvider =
       final base = feedMap[post.id] ?? post;
       uniqueMap[post.id] = applyPostOverrides(base, overrides);
     }
-    return uniqueMap.values.toList();
+    final posts = uniqueMap.values.toList()
+      // Newest first, whatever order the pages arrived in.
+      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    return posts;
   });
 });
 
-/// Helper function to load more older channel posts on scroll.
-Future<void> loadMoreChannelPosts(WidgetRef ref, String channelId) async {
-  final current = ref.read(channelPostsProvider(channelId)).value ?? [];
-  if (current.isEmpty) return;
-
-  final oldestMessageId = current.last.messageId;
-  final chatId = current.first.chatId;
-
-  final repo = ref.read(feedRepositoryProvider);
-  final older =
-      await repo.fetchChannelPosts(chatId, fromMessageId: oldestMessageId);
-  if (older.isNotEmpty) {
-    ref
-        .read(olderChannelPostsProvider.notifier)
-        .addPosts(channelId, older);
-  }
+/// Reloads a channel from scratch — its details and its history.
+Future<void> refreshChannel(WidgetRef ref, String channelId) async {
+  ref.read(olderChannelPostsProvider.notifier).reset(channelId);
+  ref.invalidate(channelDetailProvider(channelId));
+  ref.invalidate(initialChannelPostsProvider(channelId));
+  await ref.read(initialChannelPostsProvider(channelId).future);
 }
 
 /// Provides the active authenticated account database record.

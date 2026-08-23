@@ -126,6 +126,10 @@ abstract class AppStrings {
   static const channelVisibleInFeed =
       'Visible in feed. Posts from this channel will appear in your feed.';
   static const channelNoPosts = 'No posts found in this channel.';
+  static const channelLoadFailed = "Couldn't load this channel.";
+  static const channelPostsFailed = "Couldn't load this channel's posts.";
+  static const channelUnavailable = 'This channel is private or unavailable.';
+  static const retry = 'Try again';
 
   static String subscriberCount(int count) =>
       count == 1 ? '1 subscriber' : '$count subscribers';
