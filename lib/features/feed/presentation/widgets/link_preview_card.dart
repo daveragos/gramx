@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -135,25 +134,12 @@ class LinkPreviewCard extends ConsumerWidget {
   Widget _buildPreviewImage(WidgetRef ref, bool isDark) {
     final path = imageUrl;
 
-    // 1. Web URL image
-    if (path != null && (path.startsWith('http://') || path.startsWith('https://'))) {
-      return CachedNetworkImage(
-        imageUrl: path,
-        height: 150,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        placeholder: (context, urlStr) => Container(
-          height: 150,
-          color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
-          child: const Center(
-            child: Icon(Icons.link, color: AppColors.accent, size: 28),
-          ),
-        ),
-        errorWidget: (context, urlStr, error) => const SizedBox.shrink(),
-      );
-    }
+    // Previews always arrive as files TDLib has fetched, so there is no branch
+    // here that reaches out to a third-party host. That is deliberate: it is
+    // what lets the privacy policy say this app talks to Telegram and to
+    // nobody else.
 
-    // 2. Local file path image
+    // 1. Local file path image
     if (path != null && path.isNotEmpty) {
       final fileExists = ref.watch(fileExistsProvider(path));
       final exists = fileExists.value ?? false;
@@ -168,7 +154,7 @@ class LinkPreviewCard extends ConsumerWidget {
       }
     }
 
-    // 3. TDLib fileId thumbnail
+    // 2. TDLib fileId thumbnail
     if (imageFileId != null && imageFileId! > 0) {
       // Trigger download preview thumbnail with high priority
       ref.read(syncServiceProvider).downloadFileWithPriority(imageFileId!, priority: 32);

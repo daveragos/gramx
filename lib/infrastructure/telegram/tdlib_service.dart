@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gramx/core/config/app_config.dart';
@@ -520,9 +521,11 @@ class TdlibService {
           apiId: AppConfig.apiId,
           apiHash: AppConfig.apiHash,
           systemLanguageCode: 'en',
-          deviceModel: 'gramX Client',
+          deviceModel: 'gramX',
           systemVersion: 'Android/iOS',
-          applicationVersion: '1.0.0',
+          // What Telegram shows for this session under Settings → Devices,
+          // so it has to be the version the tester is actually running.
+          applicationVersion: AppStrings.appVersion,
         );
 
         final res = await sendRequest(request);

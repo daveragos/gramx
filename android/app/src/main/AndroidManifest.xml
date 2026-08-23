@@ -1,6 +1,20 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Talking to Telegram. Declared here rather than inherited from the
+         handy_tdlib manifest, so the app's one real permission is visible in
+         the app's own file. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- ExoPlayer (via video_player) asks for this to keep the CPU awake
+         during playback. This app only ever plays files TDLib already
+         downloaded, and never sets a wake mode, so the permission would only
+         ever show up in the app's listing without being used. -->
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"
+        tools:node="remove"/>
+
     <application
-        android:label="gramx"
+        android:label="gramX"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

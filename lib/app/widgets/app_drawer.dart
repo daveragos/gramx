@@ -166,7 +166,7 @@ class AppDrawer extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Text(
-                AppStrings.appVersionLabel('0.1.0'),
+                AppStrings.appVersionLabel(),
                 style: TextStyle(color: secondaryColor, fontSize: 12),
               ),
             ),

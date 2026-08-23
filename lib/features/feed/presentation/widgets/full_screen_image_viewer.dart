@@ -99,20 +99,9 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     );
   }
 
+  /// Media always arrives from TDLib as a local file, never as a URL this app
+  /// would fetch itself — see the note in `link_preview_card.dart`.
   Widget _buildImage(String pathOrUrl) {
-    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return Image.network(
-        pathOrUrl,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => const Center(
-          child: Icon(
-            Icons.broken_image_rounded,
-            color: Colors.white54,
-            size: 64,
-          ),
-        ),
-      );
-    }
     final file = File(pathOrUrl);
     if (file.existsSync()) {
       return Image.file(file, fit: BoxFit.contain);

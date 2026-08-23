@@ -18,6 +18,13 @@ abstract class AppStrings {
   // ── App ────────────────────────────────────────────────────────────────────
   static const appName = 'gramX';
 
+  /// The one place the version is written.
+  ///
+  /// It reaches the drawer, the settings screen, and the name Telegram shows
+  /// for this session under Settings → Devices. Keep it in step with
+  /// `pubspec.yaml`; a test fails if the two drift.
+  static const appVersion = '0.1.0';
+
   // ── Feed ───────────────────────────────────────────────────────────────────
   static const feedSyncingTitle = 'Syncing Telegram Feed';
   static const feedSyncingBody =
@@ -225,7 +232,20 @@ abstract class AppStrings {
   static const settingsStorageClear = 'Clear';
   static const settingsStorageNothingToClear = 'Nothing to clear.';
 
+  static const settingsPrivacy = 'Privacy Policy';
+  static const settingsPrivacyBody = 'What is stored, and what leaves your phone';
+  static const settingsTerms = 'Terms of Service';
+  static const settingsTermsBody = 'What this app is, and what it is not';
   static const settingsVersion = 'Version';
+
+  // ── Legal ──────────────────────────────────────────────────────────────────
+  static const legalNotFoundTitle = 'Not found';
+  static const legalNotFoundBody = 'That document does not exist.';
+  static const legalAgreementLead = 'By signing in you agree to the ';
+  static const legalAgreementMiddle = ' and ';
+  static const legalAgreementEnd = '.';
+
+  static String legalLastUpdated(String date) => 'Last updated $date';
   static const settingsLogOut = 'Log out';
   static const settingsLogOutTitle = 'Log out of gramX?';
   static const settingsLogOutBody =
@@ -248,7 +268,8 @@ abstract class AppStrings {
   static const drawerFoldersCount = 'Folders';
   static const drawerAccountFallback = 'Telegram User';
 
-  static String appVersionLabel(String version) => 'gramX v$version';
+  static String appVersionLabel([String version = appVersion]) =>
+      'gramX v$version';
 
   // ── Profile ────────────────────────────────────────────────────────────────
   static const profileTitle = 'Profile';

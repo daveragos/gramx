@@ -1,4 +1,4 @@
-package com.example.gramx
+package dev.ragoose.gramx
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,7 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_inline_error_banner.dart';
 
@@ -20,8 +24,9 @@ class AuthSelectionPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final isSubmitting = authState.isSubmitting;
 
     return Padding(
@@ -86,7 +91,9 @@ class AuthSelectionPage extends StatelessWidget {
                 ),
                 elevation: 0,
               ),
-              onPressed: isSubmitting ? null : () => controller.selectPhoneLogin(),
+              onPressed: isSubmitting
+                  ? null
+                  : () => controller.selectPhoneLogin(),
               icon: const Icon(Icons.phone_android_rounded, size: 20),
               label: const Text(
                 'Continue with Phone Number',
@@ -109,7 +116,9 @@ class AuthSelectionPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(26),
                 ),
               ),
-              onPressed: isSubmitting ? null : () => controller.requestQrLogin(),
+              onPressed: isSubmitting
+                  ? null
+                  : () => controller.requestQrLogin(),
               icon: isSubmitting
                   ? const SizedBox(
                       width: 18,
@@ -122,12 +131,63 @@ class AuthSelectionPage extends StatelessWidget {
                   : const Icon(Icons.qr_code_scanner_rounded, size: 20),
               label: Text(
                 isSubmitting ? 'Generating QR...' : 'Log in via QR Code',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          // Shown before signing in, not buried in settings afterwards: this
+          // is the moment someone hands over a login code, and it is the
+          // moment they should be able to read what they are agreeing to.
+          const LegalAgreementLine(),
           const Spacer(),
         ],
+      ),
+    );
+  }
+}
+
+/// "By signing in you agree to the Terms of Service and Privacy Policy",
+/// with both parts tappable.
+class LegalAgreementLine extends StatelessWidget {
+  const LegalAgreementLine({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+
+    final base = AppTypography.actionCount(color: secondary);
+    final link = base.copyWith(
+      color: AppColors.accent,
+      fontWeight: FontWeight.w600,
+    );
+
+    TextSpan document(String label, String route) => TextSpan(
+      text: label,
+      style: link,
+      recognizer: TapGestureRecognizer()..onTap = () => context.push(route),
+    );
+
+    return Semantics(
+      link: true,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: AppStrings.legalAgreementLead, style: base),
+            document(AppStrings.settingsTerms, LegalTexts.termsRoute),
+            TextSpan(text: AppStrings.legalAgreementMiddle, style: base),
+            document(AppStrings.settingsPrivacy, LegalTexts.privacyRoute),
+            TextSpan(text: AppStrings.legalAgreementEnd, style: base),
+          ],
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }

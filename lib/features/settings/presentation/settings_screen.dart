@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/features/settings/data/app_settings.dart';
@@ -307,9 +308,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // 6. ABOUT & SUPPORT SECTION
           _SectionHeader(title: AppStrings.settingsSectionAbout, secondaryColor: secondaryColor),
           ListTile(
+            leading: Icon(Icons.privacy_tip_outlined, color: primaryColor),
+            title: Text(AppStrings.settingsPrivacy,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.settingsPrivacyBody,
+                style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: Icon(Icons.chevron_right, color: secondaryColor),
+            onTap: () => context.push(LegalTexts.privacyRoute),
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          ListTile(
+            leading: Icon(Icons.gavel_rounded, color: primaryColor),
+            title: Text(AppStrings.settingsTerms,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.settingsTermsBody,
+                style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: Icon(Icons.chevron_right, color: secondaryColor),
+            onTap: () => context.push(LegalTexts.termsRoute),
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text(AppStrings.settingsVersion, style: AppTypography.body(color: primaryColor)),
-            trailing: Text('v0.1.0', style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: Text('v${AppStrings.appVersion}',
+                style: AppTypography.actionCount(color: secondaryColor)),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 

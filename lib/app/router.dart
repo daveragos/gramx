@@ -13,6 +13,7 @@ import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart'
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
 import 'package:gramx/features/settings/presentation/profile_screen.dart';
+import 'package:gramx/features/settings/presentation/legal_screen.dart';
 
 // Navigation keys for each branch
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -52,6 +53,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authStep = ref.read(authControllerProvider).step;
       final location = state.matchedLocation;
       final isOnAuth = location == '/auth';
+
+      // The terms and the privacy policy are readable signed out. The sign-in
+      // screen links to them, and bouncing someone back to the very screen
+      // asking them to agree would be a fine joke and a bad app.
+      if (location.startsWith('/legal/')) return null;
 
       // While TDLib is still initialising, don't redirect — let the user
       // see whatever is currently rendered (splash / loading).
@@ -169,6 +175,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/folders',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const FoldersScreen(),
+      ),
+      // Reachable while signed out as well as in: the sign-in screen links
+      // here, and nobody should have to agree to something they can't read.
+      GoRoute(
+        path: '/legal/:document',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => LegalScreen(
+          documentId: state.pathParameters['document']!,
+        ),
       ),
     ],
   );
