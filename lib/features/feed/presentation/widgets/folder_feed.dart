@@ -13,6 +13,7 @@ import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 import 'package:gramx/features/feed/presentation/widgets/thread_card.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 class FolderFeed extends ConsumerStatefulWidget {
   final String folderTitle;
@@ -126,6 +127,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
     final backlogIds = ref.watch(backlogIdsProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
+    // "Nothing here" and "nothing yet" look identical and mean opposite
+    // things. These two say which one this is.
+    final isWarmingUp = ref.watch(feedWarmupProvider);
+    final channelsKnown = ref.watch(channelsKnownProvider);
     final theme = Theme.of(context);
 
     return feedAsync.when(
@@ -159,8 +164,11 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
         // weave in the unread backlog — see buildFeedEntries.
         final entries = buildFeedEntries(posts, backlogOrder: backlogIds);
         if (posts.isEmpty) {
-          if (isSyncing) {
-            return const FeedSkeleton();
+          if (isSyncing || isWarmingUp || !channelsKnown) {
+            return Padding(
+              padding: EdgeInsets.only(top: widget.topPadding),
+              child: const FeedSkeleton(),
+            );
           }
           // An empty feed after a refresh means the reader finished
           // everything, which is a different message from "this folder has

@@ -148,6 +148,12 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       _backfillSub?.cancel();
     });
 
+    // Only the first fill warms up. A refresh that legitimately empties the
+    // feed should say "you're all caught up", not hide behind a skeleton for
+    // the length of a backfill. Written outside this build: a provider must
+    // not be modified while another is building.
+    Future.microtask(() => ref.read(feedWarmupProvider.notifier).start());
+
     final posts = await repo.fetchFeedPosts();
     _updateOldestIds(posts);
     // The mix has to be there in the first painted feed, not arrive twenty
@@ -216,8 +222,16 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _backfillSub?.cancel();
     _backfillSub = repo.backfillRecentHistory().listen(
       _mergeBackfilled,
-      onError: (Object e) => debugPrint('[Feed] Backfill error: $e'),
-      onDone: () => _sweepUnread(repo),
+      onError: (Object e) {
+        debugPrint('[Feed] Backfill error: $e');
+        ref.read(feedWarmupProvider.notifier).finish();
+      },
+      onDone: () {
+        // Whatever the feed has by now is what it has: an empty list from here
+        // on genuinely means empty.
+        ref.read(feedWarmupProvider.notifier).finish();
+        _sweepUnread(repo);
+      },
     );
   }
 
@@ -232,6 +246,8 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
     _updateOldestIds(additions);
     state = AsyncData(mergePostsNewestFirst(current, additions));
+    // Something to show: the skeleton has served its purpose.
+    ref.read(feedWarmupProvider.notifier).finish();
     _poolBacklogCandidates();
   }
 
@@ -441,6 +457,29 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(updated);
   }
 }
+
+/// True while the feed's first fill is still running.
+///
+/// The first fetch after signing in answers from a cold cache and is often
+/// empty: real history arrives on the throttled backfill, one channel a
+/// second. Telling the reader "no posts" during that window is a lie, and it
+/// is the window they spend staring at the screen — so the feed keeps its
+/// skeleton up until the fill is done or something arrives.
+class FeedWarmupNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void start() {
+    if (!state) state = true;
+  }
+
+  void finish() {
+    if (state) state = false;
+  }
+}
+
+final feedWarmupProvider =
+    NotifierProvider<FeedWarmupNotifier, bool>(FeedWarmupNotifier.new);
 
 /// Main feed posts provider — uses AsyncNotifier for stateful pagination.
 final feedPostsProvider =

@@ -580,6 +580,25 @@ class TdlibService {
     }
   }
 
+  /// Brings the client back after TDLib closed it, keeping the local data.
+  ///
+  /// TDLib closes the client after a log out and answers nothing further until
+  /// a new one exists. On the next launch that read as a broken app —
+  /// "Telegram session closed", offering to wipe local data — when all that is
+  /// needed is a fresh client on the same database. It comes back at
+  /// `WaitPhoneNumber`, which is the sign-in screen.
+  Future<void> restartClient() async {
+    _updateStatus('Reconnecting to Telegram...');
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    await _receiver?.stop();
+    _receiver = null;
+    _clientId = null;
+    _initializeMemoizer = null;
+    _currentAuthState = null;
+    await initialize();
+  }
+
   /// Completely wipe local TDLib database and reset connection.
   Future<void> resetSession() async {
     try {

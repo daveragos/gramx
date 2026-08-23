@@ -181,6 +181,10 @@ class AuthController extends Notifier<AuthState> {
   /// they had just left. Cleared as soon as they pick a method again.
   bool _stayAtChooser = false;
 
+  /// Whether the client has already been restarted after TDLib closed it.
+  /// Reset once a healthy state arrives, so a later close gets its own retry.
+  bool _restartedAfterClose = false;
+
   /// Whether TDLib is holding a QR code open.
   ///
   /// It is the one authorization state with no way out: `requestQrCode` and
@@ -223,11 +227,32 @@ class AuthController extends Notifier<AuthState> {
     // page" bug lived.
     if (tdState is td.AuthorizationStateReady) {
       _stayAtChooser = false;
+      _restartedAfterClose = false;
       _handleAuthReady();
       return;
     }
+    if (tdState is td.AuthorizationStateWaitPhoneNumber) {
+      _restartedAfterClose = false;
+    }
     if (tdState is td.AuthorizationStateClosed) {
       _stayAtChooser = false;
+
+      // Closing is what TDLib does after a log out, so on the next launch this
+      // is the *expected* state — not a failure to show someone alongside a
+      // button offering to wipe their data. A fresh client on the same
+      // database comes back at "waiting for a phone number", which is the
+      // sign-in screen. One attempt: if it closes again, something is really
+      // wrong and the error is the honest answer.
+      if (!_restartedAfterClose) {
+        _restartedAfterClose = true;
+        state = const AuthState(
+          step: AuthStep.loading,
+          statusMessage: 'Reconnecting to Telegram...',
+        );
+        _tdlib.restartClient();
+        return;
+      }
+
       state = const AuthState(
         step: AuthStep.error,
         errorMessage: 'Telegram session closed.',
