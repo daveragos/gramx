@@ -71,6 +71,33 @@ void main() {
       expect(find.text(AppStrings.postShowMore), findsNothing);
     });
 
+    // A SelectableText with a line limit keeps the rest of the post in its own
+    // scroll view, so a collapsed post could be read by scrolling it and the
+    // toggle meant nothing.
+    testWidgets('a collapsed post cannot be scrolled instead of expanded',
+        (tester) async {
+      final long = List.generate(30, (i) => 'line $i').join('\n');
+      await tester.pumpWidget(wrap(
+        ExpandableText(
+          text: long,
+          entities: const [],
+          style: const TextStyle(fontSize: 14),
+        ),
+      ));
+
+      expect(find.byType(SelectableText), findsNothing);
+      expect(
+        tester.widget<Text>(find.byType(Text).first).overflow,
+        TextOverflow.ellipsis,
+      );
+
+      await tester.tap(find.text(AppStrings.postShowMore));
+      await tester.pump();
+
+      // Expanded, the whole post is there and selectable again.
+      expect(find.byType(SelectableText), findsOneWidget);
+    });
+
     testWidgets('a long post clamps, and the toggle opens it', (tester) async {
       final long = List.generate(30, (i) => 'line $i').join('\n');
       await tester.pumpWidget(wrap(

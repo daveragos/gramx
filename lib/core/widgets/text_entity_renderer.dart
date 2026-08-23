@@ -40,11 +40,15 @@ class TextEntityRenderer extends StatelessWidget {
     final defaultStyle = style ?? AppTypography.body(color: theme.colorScheme.onSurface);
 
     if (entities.isEmpty) {
-      return SelectableText(
-        text,
-        style: defaultStyle,
-        maxLines: maxLines,
-      );
+      if (maxLines != null) {
+        return Text(
+          text,
+          style: defaultStyle,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+        );
+      }
+      return SelectableText(text, style: defaultStyle);
     }
 
     // Sort entities by offset ascending.
@@ -86,10 +90,19 @@ class TextEntityRenderer extends StatelessWidget {
       ));
     }
 
-    return SelectableText.rich(
-      TextSpan(children: spans),
-      maxLines: maxLines,
-    );
+    // Clamped text is drawn with Text, not SelectableText. A selectable field
+    // with a line limit keeps the rest of the post inside its own scroll view,
+    // so a collapsed post could be scrolled through without ever expanding it —
+    // and it clips rather than ellipsizing. Text does neither.
+    if (maxLines != null) {
+      return Text.rich(
+        TextSpan(children: spans),
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return SelectableText.rich(TextSpan(children: spans));
   }
 
   InlineSpan _buildEntitySpan(
