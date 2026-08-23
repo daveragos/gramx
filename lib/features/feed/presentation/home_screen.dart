@@ -27,8 +27,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// its top so the header can slide away without reflowing the list.
   static const double _tabBarHeight = 46;
 
-  int _currentTabIndex = 0;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -107,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         return DefaultTabController(
           length: tabItems.length,
-          child: _FolderTabRequestHandler(
+          child: _FolderTabSync(
             folderIds: tabItems.map((t) => t.id).toList(),
             child: ChromeScaffold(
               // The feed owns four scrollables, one per tab, so each reports
@@ -148,16 +146,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               headerBottom: _FolderTabBar(
                 titles: tabItems.map((t) => t.title).toList(),
                 onTabTap: (index) {
-                  ref
-                      .read(activeFolderProvider.notifier)
-                      .set(tabItems[index].id);
-                  if (index == _currentTabIndex) {
-                    // Re-tap on the active tab returns to the top.
+                  final folderId = tabItems[index].id;
+                  // Compared against the folder actually on screen, not a
+                  // remembered tap: swiping to a tab and then tapping it is a
+                  // re-tap, and used to be treated as a switch.
+                  final isRetap = ref.read(activeFolderProvider) == folderId;
+                  ref.read(activeFolderProvider.notifier).set(folderId);
+                  if (isRetap) {
                     ref
                         .read(feedScrollToTopProvider.notifier)
-                        .request(tabItems[index].id);
+                        .request(folderId);
                   }
-                  setState(() => _currentTabIndex = index);
                 },
               ),
               body: (context, topPadding, bottomPadding) => TabBarView(
@@ -180,24 +179,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// Selects the folder tab another screen asked for.
+/// Keeps the folder tabs and the rest of the app in step.
 ///
-/// Lives under [DefaultTabController] so it can reach the controller, and
-/// consumes the request so it fires once rather than on every rebuild.
-class _FolderTabRequestHandler extends ConsumerWidget {
+/// Three jobs, all of which need the `TabController` that lives above the feed:
+///
+/// * selects the tab another screen asked for, consuming the request so it
+///   fires once rather than on every rebuild;
+/// * records which folder is on screen — a *swiped* tab never went through the
+///   tab bar's onTap, so re-tapping Home scrolled whichever folder was last
+///   tapped back to the top, not the one being read;
+/// * brings the header back the moment a tab starts moving. Each tab reserves
+///   the header's height at the top of its list, so arriving on one with the
+///   header retired showed a band of empty space where it should have been —
+///   and it only reappeared, unanimated, once the outgoing tab was disposed.
+class _FolderTabSync extends ConsumerStatefulWidget {
   final List<String> folderIds;
   final Widget child;
 
-  const _FolderTabRequestHandler({
-    required this.folderIds,
-    required this.child,
-  });
+  const _FolderTabSync({required this.folderIds, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FolderTabSync> createState() => _FolderTabSyncState();
+}
+
+class _FolderTabSyncState extends ConsumerState<_FolderTabSync> {
+  TabController? _controller;
+  int? _lastIndex;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = DefaultTabController.of(context);
+    if (identical(controller, _controller)) return;
+
+    _controller?.removeListener(_onTabChanged);
+    _controller = controller..addListener(_onTabChanged);
+    _lastIndex = controller.index;
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    final controller = _controller;
+    if (controller == null) return;
+
+    // The listener fires continuously through a drag, so this catches the
+    // start of a swipe rather than waiting for it to land.
+    final moving = tabIsMoving(
+      position: controller.animation?.value ?? controller.index.toDouble(),
+      index: controller.index,
+      indexIsChanging: controller.indexIsChanging,
+    );
+    if (moving) ref.read(chromeOffsetProvider.notifier).show();
+
+    if (controller.index == _lastIndex) return;
+    _lastIndex = controller.index;
+    if (controller.index < widget.folderIds.length) {
+      ref
+          .read(activeFolderProvider.notifier)
+          .set(widget.folderIds[controller.index]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.listen<String?>(requestedFolderProvider, (_, next) {
       if (next == null) return;
-      final index = folderIds.indexOf(next);
+      final index = widget.folderIds.indexOf(next);
       if (index < 0) return;
 
       ref.read(requestedFolderProvider.notifier).consume();
@@ -206,7 +258,7 @@ class _FolderTabRequestHandler extends ConsumerWidget {
       DefaultTabController.of(context).animateTo(index);
     });
 
-    return child;
+    return widget.child;
   }
 }
 

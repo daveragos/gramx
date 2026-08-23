@@ -105,6 +105,46 @@ void main() {
     });
   });
 
+  group('tabIsMoving', () {
+    // Each tab reserves the header's height at the top of its list, so landing
+    // on one with the header retired shows a band of empty space. The chrome
+    // has to come back as the swipe starts, not once it lands.
+    test('a drag counts from the first pixel', () {
+      expect(
+        tabIsMoving(position: 0.04, index: 0, indexIsChanging: false),
+        isTrue,
+      );
+    });
+
+    test('an animated switch counts', () {
+      expect(
+        tabIsMoving(position: 1.0, index: 1, indexIsChanging: true),
+        isTrue,
+      );
+    });
+
+    test('a tab at rest does not', () {
+      expect(
+        tabIsMoving(position: 2.0, index: 2, indexIsChanging: false),
+        isFalse,
+      );
+    });
+
+    test('floating-point noise at rest does not', () {
+      expect(
+        tabIsMoving(position: 1.000001, index: 1, indexIsChanging: false),
+        isFalse,
+      );
+    });
+
+    test('a drag backwards counts too', () {
+      expect(
+        tabIsMoving(position: 1.9, index: 2, indexIsChanging: false),
+        isTrue,
+      );
+    });
+  });
+
   group('ChromeOffset', () {
     // The "N new posts" pill and the semantics layer only need a yes/no.
     test('counts as hidden once it is more gone than not', () {

@@ -82,6 +82,20 @@ ChromeOffset settleChrome(ChromeOffset current) {
 /// the feed is off screen just clutters the reading surface.
 double chromeTiedOpacity(double hidden) => (1 - hidden * 2).clamp(0.0, 1.0);
 
+/// Whether a tab strip is between tabs, so the chrome should come back.
+///
+/// [position] is the controller's continuous animation value and [index] the
+/// tab it currently reports. A drag moves the first without the second, which
+/// is what makes this fire at the *start* of a swipe rather than when it
+/// lands: each tab reserves the header's height at the top of its list, so
+/// arriving with the header retired shows a band of empty space.
+bool tabIsMoving({
+  required double position,
+  required int index,
+  required bool indexIsChanging,
+}) =>
+    indexIsChanging || (position - index).abs() > 0.01;
+
 class ChromeOffsetNotifier extends Notifier<ChromeOffset> {
   @override
   ChromeOffset build() => const ChromeOffset();
