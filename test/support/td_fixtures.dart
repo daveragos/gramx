@@ -53,12 +53,16 @@ abstract class TdFixtures {
   };
 
   /// A supergroup chat. [isChannel] false makes it a group instead.
+  ///
+  /// [canSendBasicMessages] is the chat's default member permission, which is
+  /// what decides whether a post can be forwarded into a group.
   static td.Chat chat({
     required int id,
     String title = 'Test Channel',
     bool isChannel = true,
     int mainOrder = 0,
     int unreadCount = 0,
+    bool canSendBasicMessages = false,
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) {
@@ -68,9 +72,17 @@ abstract class TdFixtures {
       isChannel: isChannel,
       mainOrder: mainOrder,
       unreadCount: unreadCount,
+      canSendBasicMessages: canSendBasicMessages,
       lastMessage: lastMessage,
       positions: positions,
     ));
+  }
+
+  /// A one-to-one chat — always a valid forward destination.
+  static td.Chat privateChat({required int id, String title = 'A Person'}) {
+    final json = _chatJson(id: id, title: title, mainOrder: 100);
+    json['type'] = {'@type': 'chatTypePrivate', 'user_id': id.abs()};
+    return td.Chat.fromJson(json);
   }
 
   static Map<String, dynamic> _chatJson({
@@ -79,6 +91,7 @@ abstract class TdFixtures {
     bool isChannel = true,
     int mainOrder = 0,
     int unreadCount = 0,
+    bool canSendBasicMessages = false,
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) =>
@@ -95,7 +108,10 @@ abstract class TdFixtures {
         'background_custom_emoji_id': 0,
         'profile_accent_color_id': 0,
         'profile_background_custom_emoji_id': 0,
-        'permissions': _permissions,
+        'permissions': {
+          ..._permissions,
+          'can_send_basic_messages': canSendBasicMessages,
+        },
         'last_message': lastMessage,
         'positions': positions ??
             (mainOrder == 0
@@ -208,12 +224,15 @@ abstract class TdFixtures {
     return td.Chat.fromJson(json);
   }
 
+  /// [status] is the raw `ChatMemberStatus` JSON — what decides whether the
+  /// account may post into a channel.
   static td.UpdateSupergroup supergroup({
     required int id,
     int memberCount = 0,
     bool isVerified = false,
     bool isChannel = true,
     String? username,
+    Map<String, dynamic>? status,
   }) =>
       td.UpdateSupergroup(
         supergroup: td.Supergroup.fromJson(<String, dynamic>{
@@ -228,7 +247,8 @@ abstract class TdFixtures {
                   'editable_username': username,
                 },
           'date': 0,
-          'status': {'@type': 'chatMemberStatusMember', 'member_until_date': 0},
+          'status': status ??
+              {'@type': 'chatMemberStatusMember', 'member_until_date': 0},
           'member_count': memberCount,
           'boost_level': 0,
           'has_linked_chat': false,
@@ -266,4 +286,36 @@ abstract class TdFixtures {
             ? const []
             : [td.ChatPosition.fromJson(mainListPosition(order: mainOrder))],
       );
+
+  /// An admin status with the given posting right, for forward-target rules.
+  static Map<String, dynamic> adminStatus({bool canPostMessages = true}) => {
+        '@type': 'chatMemberStatusAdministrator',
+        'custom_title': '',
+        'can_be_edited': false,
+        'rights': {
+          '@type': 'chatAdministratorRights',
+          'can_manage_chat': true,
+          'can_change_info': false,
+          'can_post_messages': canPostMessages,
+          'can_edit_messages': false,
+          'can_delete_messages': false,
+          'can_invite_users': false,
+          'can_restrict_members': false,
+          'can_pin_messages': false,
+          'can_manage_topics': false,
+          'can_promote_members': false,
+          'can_manage_video_chats': false,
+          'can_post_stories': false,
+          'can_edit_stories': false,
+          'can_delete_stories': false,
+          'is_anonymous': false,
+        },
+      };
+
+  static Map<String, dynamic> creatorStatus() => {
+        '@type': 'chatMemberStatusCreator',
+        'custom_title': '',
+        'is_anonymous': false,
+        'is_member': true,
+      };
 }

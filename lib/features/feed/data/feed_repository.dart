@@ -503,7 +503,12 @@ class FeedRepository {
   /// Chats a post can be forwarded into, most recently active first.
   ///
   /// Read straight from the cache, so opening the picker costs no requests.
-  List<td.Chat> forwardTargets() => _chatCache.allChats;
+  /// Where a post can be forwarded to.
+  ///
+  /// Only chats this account can actually post into — see
+  /// `ChatCacheState.canPostIn`. Listing every subscribed channel offered
+  /// destinations that would always fail.
+  List<td.Chat> forwardTargets() => _chatCache.forwardTargets;
 
   /// A shareable t.me link for a post.
   ///

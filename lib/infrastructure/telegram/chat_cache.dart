@@ -66,6 +66,58 @@ class ChatCacheState {
     return type is td.ChatTypeSupergroup && type.isChannel;
   }
 
+  /// Chats this account can actually post into.
+  ///
+  /// The forward picker used to list every chat in the cache, which is mostly
+  /// broadcast channels the reader only subscribes to — picking one failed, or
+  /// silently did nothing. The rules mirror Telegram's own:
+  ///
+  /// * private chats and saved messages always work;
+  /// * a group works if members may send messages, or if you run it;
+  /// * a channel only works if you can post to it, which means being its
+  ///   creator or an admin with posting rights.
+  ///
+  /// Chats the user is not in are excluded outright — they are in the cache
+  /// only because something resolved them by id.
+  List<td.Chat> get forwardTargets {
+    final list = chats.values
+        .where((c) => isSubscribed(c) && canPostIn(c, supergroupForChat(c)))
+        .toList();
+    list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
+    return list;
+  }
+
+  /// Whether a message can be sent into [chat]. Pure, so the rules are testable.
+  static bool canPostIn(td.Chat chat, td.Supergroup? supergroup) {
+    final type = chat.type;
+
+    if (type is td.ChatTypePrivate) return true;
+    // Secret chats can't carry a forwarded channel post.
+    if (type is td.ChatTypeSecret) return false;
+
+    // Basic groups: the cache holds no BasicGroup record, so the chat's
+    // default permissions are all there is to go on.
+    if (type is td.ChatTypeBasicGroup) {
+      return chat.permissions.canSendBasicMessages;
+    }
+
+    if (type is td.ChatTypeSupergroup) {
+      final status = supergroup?.status;
+      if (type.isChannel) return _canPostAsAdmin(status);
+      return chat.permissions.canSendBasicMessages || _canPostAsAdmin(status);
+    }
+
+    return false;
+  }
+
+  static bool _canPostAsAdmin(td.ChatMemberStatus? status) {
+    if (status is td.ChatMemberStatusCreator) return true;
+    if (status is td.ChatMemberStatusAdministrator) {
+      return status.rights.canPostMessages;
+    }
+    return false;
+  }
+
   /// Folds one update in. Returns true if anything actually changed.
   bool apply(td.TdObject update) {
     switch (update) {
@@ -218,6 +270,10 @@ class ChatCache {
   /// Every cached chat, most recently active first — including groups and
   /// private chats, which the forward picker offers as destinations.
   List<td.Chat> get allChats => _state.allChats;
+
+  /// Chats this account can forward a post into. See
+  /// [ChatCacheState.forwardTargets].
+  List<td.Chat> get forwardTargets => _state.forwardTargets;
 
   bool get isEmpty => _state.chats.isEmpty;
 
