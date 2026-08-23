@@ -133,34 +133,11 @@ class TdlibMappers {
         linkPreviewTitle = lp.title.isNotEmpty ? lp.title : (lp.displayUrl.isNotEmpty ? lp.displayUrl : null);
         linkPreviewDescription = _parseFormattedText(lp.description);
         
-        final previewType = lp.type;
-        td.Photo? photo;
-        td.Thumbnail? thumbnail;
-
-        if (previewType is td.LinkPreviewTypePhoto) {
-          photo = previewType.photo;
-        } else if (previewType is td.LinkPreviewTypeArticle) {
-          photo = previewType.photo;
-        } else if (previewType is td.LinkPreviewTypeApp) {
-          photo = previewType.photo;
-        } else if (previewType is td.LinkPreviewTypeVideo) {
-          thumbnail = previewType.video.thumbnail;
-        } else if (previewType is td.LinkPreviewTypeAnimation) {
-          thumbnail = previewType.animation.thumbnail;
-        } else if (previewType is td.LinkPreviewTypeDocument) {
-          thumbnail = previewType.document.thumbnail;
-        }
-
-        if (photo != null && photo.sizes.isNotEmpty) {
-          final best = photo.sizes.last;
-          linkPreviewFileId = best.photo.id;
-          if (best.photo.local.path.isNotEmpty) {
-            linkPreviewImageUrl = best.photo.local.path;
-          }
-        } else if (thumbnail != null) {
-          linkPreviewFileId = thumbnail.file.id;
-          if (thumbnail.file.local.path.isNotEmpty) {
-            linkPreviewImageUrl = thumbnail.file.local.path;
+        final preview = linkPreviewImage(lp.type);
+        if (preview != null) {
+          linkPreviewFileId = preview.id;
+          if (preview.local.path.isNotEmpty) {
+            linkPreviewImageUrl = preview.local.path;
           }
         }
       }
@@ -666,6 +643,65 @@ class TdlibMappers {
     }
 
     return result;
+  }
+
+  /// The image to show for a link preview, whatever shape TDLib describes it in.
+  ///
+  /// `LinkPreviewType` is a union of thirty-odd branches and each carries its
+  /// picture somewhere different. Handling only a handful of them is why a
+  /// YouTube link showed a bare card: those arrive as
+  /// `linkPreviewTypeEmbeddedVideoPlayer`, whose thumbnail lives in a `Photo`
+  /// rather than on a `Video` — a branch nothing looked at.
+  ///
+  /// Returns null for links that genuinely have no image (a voice note, a
+  /// boost link), so the card renders without a blank banner.
+  static td.File? linkPreviewImage(td.LinkPreviewType type) {
+    td.File? fromPhoto(td.Photo? photo) {
+      if (photo == null || photo.sizes.isEmpty) return null;
+      // Sizes are ordered smallest first; the last is the best available.
+      return photo.sizes.last.photo;
+    }
+
+    return switch (type) {
+      td.LinkPreviewTypePhoto() => fromPhoto(type.photo),
+      td.LinkPreviewTypeArticle() => fromPhoto(type.photo),
+      td.LinkPreviewTypeApp() => fromPhoto(type.photo),
+      td.LinkPreviewTypeWebApp() => fromPhoto(type.photo),
+      // The embedded players — YouTube, Vimeo, SoundCloud and friends.
+      td.LinkPreviewTypeEmbeddedVideoPlayer() => fromPhoto(type.thumbnail),
+      td.LinkPreviewTypeEmbeddedAnimationPlayer() => fromPhoto(type.thumbnail),
+      td.LinkPreviewTypeEmbeddedAudioPlayer() => fromPhoto(type.thumbnail),
+      td.LinkPreviewTypeVideo() => type.video.thumbnail?.file,
+      td.LinkPreviewTypeAnimation() => type.animation.thumbnail?.file,
+      td.LinkPreviewTypeDocument() => type.document.thumbnail?.file,
+      td.LinkPreviewTypeAudio() => type.audio.albumCoverThumbnail?.file,
+      td.LinkPreviewTypeVideoNote() => type.videoNote.thumbnail?.file,
+      td.LinkPreviewTypeSticker() =>
+        type.sticker.thumbnail?.file ?? type.sticker.sticker,
+      td.LinkPreviewTypeAlbum() => _albumCover(type.media),
+      td.LinkPreviewTypeChat() => _chatPhotoFile(type.photo),
+      td.LinkPreviewTypeUser() => _chatPhotoFile(type.photo),
+      _ => null,
+    };
+  }
+
+  static td.File? _chatPhotoFile(td.ChatPhoto? photo) {
+    if (photo == null || photo.sizes.isEmpty) return null;
+    return photo.sizes.last.photo;
+  }
+
+  /// The first thing in a shared album that has a picture.
+  static td.File? _albumCover(List<td.LinkPreviewAlbumMedia> media) {
+    for (final item in media) {
+      switch (item) {
+        case td.LinkPreviewAlbumMediaPhoto():
+          if (item.photo.sizes.isNotEmpty) return item.photo.sizes.last.photo;
+        case td.LinkPreviewAlbumMediaVideo():
+          final thumbnail = item.video.thumbnail?.file;
+          if (thumbnail != null) return thumbnail;
+      }
+    }
+    return null;
   }
 
   static List<TextEntity>? _parseEntities(List<td.TextEntity>? entities) {
