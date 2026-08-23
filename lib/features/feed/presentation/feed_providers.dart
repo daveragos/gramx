@@ -13,6 +13,7 @@ import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
@@ -125,6 +126,11 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     // retries — which is why the feed sat on its loading state until the app
     // was restarted.
     ref.watch(authControllerProvider.select((auth) => auth.step));
+
+    // And again when the chat cache first learns about a channel. Right after
+    // sign-in this build runs against an empty cache, fetches nothing, and
+    // that nothing would otherwise stand as the feed for the whole session.
+    ref.watch(channelsKnownProvider);
 
     final repo = ref.watch(feedRepositoryProvider);
     final syncService = ref.watch(syncServiceProvider);
@@ -760,6 +766,10 @@ final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
 /// Cached folder channel IDs per folder (fetched once via TDLib and cached in Riverpod)
 final folderChannelIdsProvider =
     FutureProvider.family<Set<String>, int>((ref, folderId) async {
+  // Same reason as the feed: asked before the cache filled, this answers with
+  // an empty set — and an empty folder is a folder whose tab disappears.
+  ref.watch(channelsKnownProvider);
+
   final folderRepo = ref.watch(folderRepositoryProvider);
   final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
   return allowedChannelIds.map((id) => id.toString()).toSet();

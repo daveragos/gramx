@@ -64,7 +64,9 @@ class FeedOnboardingView extends ConsumerWidget {
                     ),
                   ),
                   onPressed: () {
-                    context.push('/auth');
+                    // Replaces the shell rather than stacking on it: there is
+                    // no signed-in screen underneath to come back to.
+                    context.go('/auth');
                   },
                   child: const Text(
                     AppStrings.onboardingLogIn,

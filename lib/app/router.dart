@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/auth_redirect.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
@@ -39,7 +40,15 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   // Listen (NOT watch) to auth state so the GoRouter instance is stable —
   // we only want to trigger refreshListenable, not rebuild the router.
+  //
+  // `hasSignedIn` is remembered here rather than derived: once a session has
+  // existed in this run, a loading state means it is going away, and the
+  // sign-in screen is where that belongs. See authRedirect.
+  var hasSignedIn = ref.read(authControllerProvider).step ==
+      AuthStep.authenticated;
+
   ref.listen<AuthState>(authControllerProvider, (_, next) {
+    if (next.step == AuthStep.authenticated) hasSignedIn = true;
     authNotifier.value = next.step;
   });
 
@@ -49,36 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: ShellTab.home.path,
     refreshListenable: authNotifier,
-    redirect: (context, state) {
-      final authStep = ref.read(authControllerProvider).step;
-      final location = state.matchedLocation;
-      final isOnAuth = location == '/auth';
-
-      // The terms and the privacy policy are readable signed out. The sign-in
-      // screen links to them, and bouncing someone back to the very screen
-      // asking them to agree would be a fine joke and a bad app.
-      if (location.startsWith('/legal/')) return null;
-
-      // While TDLib is still initialising, don't redirect — let the user
-      // see whatever is currently rendered (splash / loading).
-      if (authStep == AuthStep.loading) {
-        return null;
-      }
-
-      final isAuthenticated = authStep == AuthStep.authenticated;
-
-      // Not authenticated → force auth screen.
-      if (!isAuthenticated && !isOnAuth) {
-        return '/auth';
-      }
-
-      // Already authenticated but lingering on /auth → go home.
-      if (isAuthenticated && isOnAuth) {
-        return ShellTab.home.path;
-      }
-
-      return null; // no redirect needed
-    },
+    redirect: (context, state) => authRedirect(
+      step: ref.read(authControllerProvider).step,
+      location: state.matchedLocation,
+      hasSignedIn: hasSignedIn,
+    ),
     routes: [
       // Branches are declared in ShellTab order and take their paths from it;
       // see app/app_shell.dart. Adding a tab means adding a branch here.

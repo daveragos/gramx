@@ -494,25 +494,37 @@ class AuthController extends Notifier<AuthState> {
     await _tdlib.resetSession();
   }
 
+  /// Ends the session, locally first.
+  ///
+  /// The old order made the local state wait on the round trip, and set the
+  /// step back to `authenticated` if it failed — so a `LogOut` that hung (it
+  /// needs a network connection) left the app sitting in `loading` inside the
+  /// shell, showing a signed-out feed with a "log in" button and no way to the
+  /// sign-in screen. Someone who asked to be logged out is logged out here
+  /// whatever the network does; the request is still sent, and its failure is
+  /// reported rather than reversing the decision.
   Future<void> logout() async {
-    state = const AuthState(step: AuthStep.loading, statusMessage: 'Logging out...');
+    state = const AuthState(
+      step: AuthStep.loading,
+      statusMessage: 'Logging out…',
+    );
+
+    final db = ref.read(databaseProvider);
+    await db.delete(db.bookmarkEntries).go();
+    await db.delete(db.accounts).go();
+
+    // Chats are account-scoped — a stale cache would leak the previous
+    // account's channels into the next sign-in's feed.
+    ref.read(chatCacheProvider).clear();
+
+    // The step moves before the request, so the router can act on it even if
+    // the request never comes back.
+    state = const AuthState(step: AuthStep.loginMethodSelection);
+
     try {
       await _tdlib.sendRequest(const td.LogOut());
-      final db = ref.read(databaseProvider);
-
-      await db.delete(db.bookmarkEntries).go();
-      await db.delete(db.accounts).go();
-
-      // Chats are account-scoped — a stale cache would leak the previous
-      // account's channels into the next sign-in's feed.
-      ref.read(chatCacheProvider).clear();
-
-      state = const AuthState(step: AuthStep.loginMethodSelection);
     } catch (e) {
-      state = state.copyWith(
-        step: AuthStep.authenticated,
-        errorMessage: 'Failed to log out: $e',
-      );
+      debugPrint('[AuthCtrl] LogOut failed after local sign-out: $e');
     }
   }
 }

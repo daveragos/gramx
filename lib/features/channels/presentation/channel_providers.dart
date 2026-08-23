@@ -8,12 +8,16 @@ import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 /// Provides the list of all channels (non-hidden).
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   // Same reasoning as FeedNotifier.build: a pre-auth build returns nothing and
   // must not become the permanent answer.
   ref.watch(authControllerProvider.select((auth) => auth.step));
+  // And when the chat cache first has a channel to report: this list is drawn
+  // from that cache, which is empty for a moment after signing in.
+  ref.watch(channelsKnownProvider);
 
   final repo = ref.watch(channelRepositoryProvider);
   return repo.getSubscribedChannels();

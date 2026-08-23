@@ -13,6 +13,7 @@ import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.dart';
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -44,16 +45,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
 
-    // A folder with no channels is a dead end, so it doesn't get a tab. While
-    // a folder's contents are still loading we keep it — dropping a tab that
-    // then reappears is worse than a brief empty one.
     // Hide a folder only when we positively know it holds no channels. While
-    // it is loading, or if the lookup failed, the tab stays — a folder that
-    // vanishes because of a race is much worse than a briefly empty tab.
+    // it is loading, if the lookup failed, or if the chat cache has nothing to
+    // resolve ids against yet, the tab stays — a folder that vanishes because
+    // of a race is much worse than a briefly empty tab, and that race is
+    // exactly what emptied the tab strip for a whole session after signing in.
+    final channelsKnown = ref.watch(channelsKnownProvider);
+
     bool folderHasChannels(int folderId) {
       final ids = ref.watch(folderChannelIdsProvider(folderId));
       final known = ids.value;
       if (known == null) return true;
+      if (known.isEmpty && !channelsKnown) return true;
       return known.isNotEmpty;
     }
 

@@ -411,3 +411,32 @@ final chatCacheProvider = Provider<ChatCache>((ref) {
   ref.onDispose(cache.dispose);
   return cache;
 });
+
+/// Whether the cache knows about any subscribed channel yet.
+///
+/// The answer to "what are this account's channels" is empty for a moment
+/// after signing in, while `LoadChats` is still arriving — and a
+/// `FutureProvider` that asked during that moment cached the emptiness for the
+/// rest of the session. That is why the feed said "no posts" and folder tabs
+/// vanished until the app was restarted.
+///
+/// Anything that would answer "nothing" from an unfilled cache watches this
+/// and is rebuilt once, when the first channel lands. Synchronous on purpose:
+/// a warm start reads `true` immediately and costs no extra rebuild.
+class ChannelsKnownNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final cache = ref.watch(chatCacheProvider);
+
+    final sub = cache.changes.listen((_) {
+      final known = cache.channels.isNotEmpty;
+      if (known != state) state = known;
+    });
+    ref.onDispose(sub.cancel);
+
+    return cache.channels.isNotEmpty;
+  }
+}
+
+final channelsKnownProvider =
+    NotifierProvider<ChannelsKnownNotifier, bool>(ChannelsKnownNotifier.new);
