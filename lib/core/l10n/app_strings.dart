@@ -23,7 +23,7 @@ abstract class AppStrings {
   /// It reaches the drawer, the settings screen, and the name Telegram shows
   /// for this session under Settings → Devices. Keep it in step with
   /// `pubspec.yaml`; a test fails if the two drift.
-  static const appVersion = '0.1.0';
+  static const appVersion = '1.0.0';
 
   // ── Feed ───────────────────────────────────────────────────────────────────
   static const feedSyncingTitle = 'Syncing Telegram Feed';

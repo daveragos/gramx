@@ -38,25 +38,28 @@ class AuthSelectionPage extends StatelessWidget {
             width: 76,
             height: 76,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.accent,
-                  AppColors.accent.withValues(alpha: 0.8),
-                ],
-              ),
               borderRadius: BorderRadius.circular(24),
+              // The mark carries its own dark disc, so it needs an edge to
+              // read against the true-black theme rather than a tinted fill.
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                width: 0.5,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.accent.withValues(alpha: 0.3),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.bolt_rounded,
-              color: Colors.white,
-              size: 44,
+            clipBehavior: Clip.antiAlias,
+            // The launcher icon itself: the app introduces itself with the
+            // mark the reader just tapped, not with a stock lightning bolt.
+            child: Image.asset(
+              'assets/icon/app_icon.png',
+              fit: BoxFit.cover,
+              semanticLabel: AppStrings.appName,
             ),
           ),
           const SizedBox(height: 20),

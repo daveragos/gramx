@@ -85,10 +85,13 @@ class AuthQrPage extends StatelessWidget {
             AuthInlineErrorBanner(message: authState.errorMessage!),
             const SizedBox(height: 16),
           ],
+          // No refresh button: TDLib issues a new link every few seconds on
+          // its own, and asking for one is an error it rejects outright. What
+          // is actually useful here is a way out.
           TextButton.icon(
-            onPressed: () => controller.requestQrLogin(),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh QR Code'),
+            onPressed: () => controller.selectPhoneLogin(),
+            icon: const Icon(Icons.phone_android_rounded, size: 18),
+            label: const Text('Use a phone number instead'),
           ),
           const Spacer(flex: 2),
         ],

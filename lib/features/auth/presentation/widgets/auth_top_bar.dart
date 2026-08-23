@@ -29,7 +29,9 @@ class AuthTopBar extends StatelessWidget {
           if (showBack)
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: () => controller.reset(),
+              // Leaves the attempt standing but stops it driving the screen —
+              // see AuthController.goBackToSelection.
+              onPressed: () => controller.goBackToSelection(),
               tooltip: 'Back',
             )
           else

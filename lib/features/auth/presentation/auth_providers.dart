@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/features/auth/presentation/auth_state_rules.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -134,10 +135,21 @@ class AuthController extends Notifier<AuthState> {
   }
 
   /// Return back to login method selection step
+  /// Leaves a sign-in attempt and returns to the method chooser.
+  ///
+  /// Painting a different page was not enough. TDLib owns the authorization
+  /// state and keeps announcing it — a QR link refreshes every few seconds —
+  /// so the reader was put straight back on the page they had just left. There
+  /// is no TDLib call that cancels a pending attempt: `logOut` destroys the
+  /// local database and needs a network connection, and neither QR nor phone
+  /// may be requested from a QR state at all. So the attempt is left standing
+  /// and simply stops driving the screen.
   void goBackToSelection() {
+    _stayAtChooser = true;
     state = state.copyWith(
       step: AuthStep.loginMethodSelection,
       errorMessage: null,
+      isSubmitting: false,
     );
   }
 
@@ -153,6 +165,29 @@ class AuthController extends Notifier<AuthState> {
       }
     });
   }
+
+  /// The last authorization state TDLib announced.
+  ///
+  /// The controller's own step is what the reader is looking at; this is what
+  /// TDLib will actually accept a request in. The two diverge whenever someone
+  /// backs out of a sign-in method, and every rule below depends on knowing
+  /// which is which.
+  td.AuthorizationState? _lastTdState;
+
+  /// True when the reader deliberately came back to the method chooser.
+  ///
+  /// TDLib re-announces the state it is holding — a QR link is refreshed every
+  /// few seconds — and each announcement used to move the UI back onto the page
+  /// they had just left. Cleared as soon as they pick a method again.
+  bool _stayAtChooser = false;
+
+  /// Whether TDLib is holding a QR code open.
+  ///
+  /// It is the one authorization state with no way out: `requestQrCode` and
+  /// `setAuthenticationPhoneNumber` both refuse to run in it, by TDLib's own
+  /// documentation. Anything that needs to leave has to restart the client.
+  bool get _isShowingQr =>
+      _lastTdState is td.AuthorizationStateWaitOtherDeviceConfirmation;
 
   AuthState? _tdlibStateToStep(td.AuthorizationState tdState) {
     if (tdState is td.AuthorizationStateWaitPhoneNumber) {
@@ -181,27 +216,33 @@ class AuthController extends Notifier<AuthState> {
   void _onTdlibAuthState(td.AuthorizationState tdState) {
     debugPrint('[AuthCtrl] TDLib state received: ${tdState.runtimeType}');
     _timeoutTimer?.cancel();
+    _lastTdState = tdState;
 
-    if (tdState is td.AuthorizationStateWaitPhoneNumber) {
-      state = const AuthState(step: AuthStep.loginMethodSelection);
-    } else if (tdState is td.AuthorizationStateWaitCode) {
-      state = state.copyWith(step: AuthStep.waitCode, isSubmitting: false);
-    } else if (tdState is td.AuthorizationStateWaitPassword) {
-      state = state.copyWith(step: AuthStep.waitPassword, isSubmitting: false);
-    } else if (tdState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
-      state = state.copyWith(
-        step: AuthStep.waitQrCode,
-        qrCodeLink: tdState.link,
-        isSubmitting: false,
-      );
-    } else if (tdState is td.AuthorizationStateReady) {
+    // The two with side effects stay here; the rest is a pure decision — see
+    // resolveAuthState, which is where the "it keeps sending me back to the QR
+    // page" bug lived.
+    if (tdState is td.AuthorizationStateReady) {
+      _stayAtChooser = false;
       _handleAuthReady();
-    } else if (tdState is td.AuthorizationStateClosed) {
+      return;
+    }
+    if (tdState is td.AuthorizationStateClosed) {
+      _stayAtChooser = false;
       state = const AuthState(
         step: AuthStep.error,
         errorMessage: 'Telegram session closed.',
       );
+      return;
     }
+
+    final transition = resolveAuthState(
+      current: state,
+      tdState: tdState,
+      stayAtChooser: _stayAtChooser,
+    );
+    _stayAtChooser = transition.stayAtChooser;
+    final next = transition.state;
+    if (next != null) state = next;
   }
 
   Future<void> _handleAuthReady() async {
@@ -289,11 +330,34 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  void selectPhoneLogin() {
-    state = state.clearError().copyWith(step: AuthStep.waitPhoneNumber);
+  /// Opens the phone-number page, restarting the client first if a QR is in
+  /// the way.
+  ///
+  /// TDLib will not accept `setAuthenticationPhoneNumber` while it is holding
+  /// a QR code open, and offers no way to cancel one — so the only route from
+  /// a QR back to a phone number is a fresh client. That is safe here and only
+  /// here: nobody is signed in yet, so the local data being cleared is an
+  /// empty database.
+  Future<void> selectPhoneLogin() async {
+    _stayAtChooser = false;
+
+    if (!_isShowingQr) {
+      state = state.clearError().copyWith(step: AuthStep.waitPhoneNumber);
+      return;
+    }
+
+    state = const AuthState(
+      step: AuthStep.loading,
+      statusMessage: 'Switching to phone sign-in…',
+    );
+    await resetSession();
+    // The reset lands on WaitPhoneNumber, which puts the chooser back up; go
+    // straight to the page they asked for.
+    state = const AuthState(step: AuthStep.waitPhoneNumber);
   }
 
   Future<void> submitPhoneNumber(String phone) async {
+    _stayAtChooser = false;
     var formattedPhone = phone.trim();
     if (!formattedPhone.startsWith('+')) {
       formattedPhone = '+$formattedPhone';
@@ -329,7 +393,27 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  /// Shows a QR code to scan, asking TDLib for one only if it isn't already
+  /// holding one open.
+  ///
+  /// `requestQrCodeAuthentication` refuses to run while a QR is already
+  /// pending — TDLib answers "Call to requestQrCodeAuthentication unexpected",
+  /// which is what the "Refresh QR code" button produced every time. TDLib
+  /// refreshes the link itself; there is nothing to ask for.
   Future<void> requestQrLogin() async {
+    _stayAtChooser = false;
+
+    if (!shouldRequestQrCode(
+      tdlibIsShowingQr: _isShowingQr,
+      knownLink: state.qrCodeLink,
+    )) {
+      state = state.clearError().copyWith(
+        step: AuthStep.waitQrCode,
+        isSubmitting: false,
+      );
+      return;
+    }
+
     state = state.clearError().copyWith(isSubmitting: true);
     try {
       final res = await _tdlib.sendRequest(
@@ -408,10 +492,6 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthState(step: AuthStep.loading, statusMessage: 'Resetting session...');
     _startConnectionTimeout();
     await _tdlib.resetSession();
-  }
-
-  void reset() {
-    state = const AuthState(step: AuthStep.loginMethodSelection);
   }
 
   Future<void> logout() async {
