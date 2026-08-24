@@ -502,6 +502,7 @@ class TdlibMappers {
         id: videoPath,
         type: MediaType.video,
         hasSpoiler: content.hasSpoiler,
+        supportsStreaming: video.supportsStreaming,
         url: videoPath,
         thumbnailUrl: thumbPath,
         width: video.width,

@@ -488,6 +488,7 @@ class _MediaTile extends ConsumerWidget {
         fileId: item.fileId,
         thumbnailPath: item.thumbnailUrl,
         post: post,
+        supportsStreaming: item.supportsStreaming,
       );
     } else {
       final imageItems = allMedia

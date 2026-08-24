@@ -57,6 +57,15 @@ abstract class MediaItem with _$MediaItem {
     String? fileName,
     String? mimeType,
     String? localPath,
+
+    /// Whether Telegram flagged this video as streamable.
+    ///
+    /// Set only for videos muxed so playback can begin before the file is
+    /// complete (`faststart`: the moov atom at the front). A video without it
+    /// cannot be played from a prefix at all — the player would read the whole
+    /// thing looking for the index — so it must fall back to downloading in
+    /// full. See `TdlibFileServer`.
+    @Default(false) bool supportsStreaming,
     /// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
     String? minithumbnail,
     /// TDLib file ID for the main media file (for reactive download tracking).

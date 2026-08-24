@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_file_server.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/media_viewer_chrome.dart';
@@ -25,6 +26,13 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
   /// Poster frame shown while the video is still arriving.
   final String? thumbnailPath;
 
+  /// Whether Telegram flagged the video as streamable.
+  ///
+  /// Only a `faststart`-muxed video can play from a prefix; anything else has
+  /// its index at the end of the file, so a player given the first megabyte
+  /// finds nothing to play. Those fall back to downloading in full.
+  final bool supportsStreaming;
+
   /// The post this video belongs to, so the viewer can carry its identity and
   /// actions rather than stranding the reader on a bare black screen.
   final Post? post;
@@ -35,6 +43,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
     this.fileId,
     this.thumbnailPath,
     this.post,
+    this.supportsStreaming = false,
   });
 
   static Future<void> show(
@@ -43,6 +52,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
     int? fileId,
     String? thumbnailPath,
     Post? post,
+    bool supportsStreaming = false,
   }) {
     // Root navigator, so the shell's bottom bar isn't painted over the video.
     return Navigator.of(context, rootNavigator: true).push(
@@ -53,6 +63,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
           fileId: fileId,
           thumbnailPath: thumbnailPath,
           post: post,
+          supportsStreaming: supportsStreaming,
         ),
       ),
     );
@@ -81,17 +92,52 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
       return;
     }
 
-    // Not on disk yet. Ask for it at viewer priority — this is the file the
-    // user is actively waiting on, so it outranks background prefetching.
     final fileId = widget.fileId;
     if (fileId == null || fileId == 0) {
       _hasError = true;
       _errorMessage = AppStrings.videoUnavailable;
       return;
     }
+
+    // Not on disk yet. If Telegram says the video can be streamed, play it
+    // through the loopback file server instead of waiting for the download —
+    // that is the difference between "starts now" and "starts in a minute".
+    if (widget.supportsStreaming) {
+      _startStreaming(fileId);
+      return;
+    }
+
+    // Otherwise ask for the whole thing at viewer priority: this is the file
+    // the user is actively waiting on, so it outranks background prefetching.
     ref
         .read(syncServiceProvider)
         .downloadFileWithPriority(fileId, priority: 32);
+  }
+
+  /// Plays from the loopback server, falling back to the download path.
+  ///
+  /// The fallback matters: streaming depends on a local socket, a Range-aware
+  /// player and a prefix arriving in time. If any of that fails the reader
+  /// should get their video a little later, not an error.
+  Future<void> _startStreaming(int fileId) async {
+    if (_isInitialized || _startedPlayback) return;
+    _startedPlayback = true;
+
+    try {
+      final url = await ref.read(tdlibFileServerProvider).urlFor(fileId);
+      _controller = VideoPlayerController.networkUrl(url);
+      await _controller.initialize();
+      _controller.addListener(_onPlayerStateChanged);
+      await _controller.play();
+      if (mounted) setState(() => _isInitialized = true);
+    } catch (e) {
+      debugPrint('[VideoViewer] streaming failed, downloading instead: $e');
+      _startedPlayback = false;
+      if (!mounted) return;
+      ref
+          .read(syncServiceProvider)
+          .downloadFileWithPriority(fileId, priority: 32);
+    }
   }
 
   Future<void> _initializePlayer(String path) async {
