@@ -475,7 +475,10 @@ class _MediaTile extends ConsumerWidget {
         videoPath = videoFileState.value;
       }
       videoPath ??= item.localPath;
-      // Guest video: no file id, so the cached copy of the URL is the file.
+      // A guest video may already be cached; if not, the viewer fetches it
+      // from remoteUrl. Reading the provider here can only ever answer for one
+      // already on disk — it used to be the only chance, so an uncached guest
+      // video opened onto "unavailable" with nothing trying to change that.
       videoPath ??= ref.read(guestMediaPathProvider(item.url ?? '')).value;
 
       // Open regardless of whether the file has landed: the viewer shows the
@@ -487,6 +490,7 @@ class _MediaTile extends ConsumerWidget {
         videoPath: videoPath,
         fileId: item.fileId,
         thumbnailPath: item.thumbnailUrl,
+        remoteUrl: item.url,
         post: post,
         supportsStreaming: item.supportsStreaming,
       );
@@ -497,6 +501,8 @@ class _MediaTile extends ConsumerWidget {
             final downloadedPath = m.fileId != null && m.fileId != 0
                 ? ref.read(fileDownloadProgressProvider(m.fileId!)).value?.localPath
                 : null;
+            // The URL is a fine thing to hand over: the viewer resolves it
+            // through the guest cache and fetches if it has to.
             return downloadedPath ?? m.localPath ?? m.url;
           })
           .where((p) => p != null && p.isNotEmpty)

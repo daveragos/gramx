@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/channels/data/channel_media_repository.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/presentation/channel_tab_providers.dart';
@@ -28,9 +30,44 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
 /// Provides a single channel by its chat ID, username, or identifier.
 final channelDetailProvider =
     FutureProvider.family<Channel?, String>((ref, channelId) async {
+  // Guest channels are not in TDLib, so the repository could only ever answer
+  // null for one — which the profile screen showed as "channel unavailable"
+  // for a channel the reader had added themselves.
+  final guest = await _guestChannel(ref, channelId);
+  if (guest != null) return guest;
+
   final repo = ref.watch(channelRepositoryProvider);
   return repo.getChannelByIdentifier(channelId);
 });
+
+/// The guest row behind a synthetic channel id, mapped to the shared [Channel].
+///
+/// Returns null for anything that is not a guest channel, so the TDLib path
+/// stays exactly as it was for a signed-in reader.
+Future<Channel?> _guestChannel(Ref ref, String channelId) async {
+  final chatId = int.tryParse(channelId);
+  if (chatId == null || !GuestPostMapper.isSynthetic(chatId)) return null;
+
+  final channels = await ref.watch(guestChannelsProvider.future);
+  for (final channel in channels) {
+    if (GuestPostMapper.syntheticChatId(channel.username) != chatId) continue;
+    return Channel(
+      id: channelId,
+      chatId: chatId,
+      title: channel.title,
+      username: channel.username,
+      avatarUrl: channel.avatarUrl,
+      subscriberCount: int.tryParse(
+              (channel.subscribers ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
+          0,
+      isVerified: channel.isVerified,
+      // A guest cannot join anything, and a Join button that opens a sign-in
+      // sheet is honest where a "Joined" badge would not be.
+      isJoined: false,
+    );
+  }
+  return null;
+}
 
 /// Older posts loaded by paging back through a channel, keyed by channel id.
 ///
@@ -116,6 +153,13 @@ final olderChannelPostsProvider =
 /// Fetches initial posts for a specific channel.
 final initialChannelPostsProvider =
     FutureProvider.family<List<Post>, String>((ref, channelId) async {
+  final chatId = int.tryParse(channelId);
+  if (chatId != null && GuestPostMapper.isSynthetic(chatId)) {
+    final guest = await _guestChannel(ref, channelId);
+    if (guest?.username == null) return [];
+    return ref.watch(guestChannelPostsProvider(guest!.username!).future);
+  }
+
   final feedRepo = ref.watch(feedRepositoryProvider);
   final channelRepo = ref.watch(channelRepositoryProvider);
 

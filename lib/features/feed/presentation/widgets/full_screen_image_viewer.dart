@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:gramx/core/widgets/media_path.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -99,17 +101,10 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     );
   }
 
-  /// Media always arrives from TDLib as a local file, never as a URL this app
-  /// would fetch itself — see the note in `link_preview_card.dart`.
-  Widget _buildImage(String pathOrUrl) {
-    final file = File(pathOrUrl);
-    if (file.existsSync()) {
-      return Image.file(file, fit: BoxFit.contain);
-    }
-    return const Center(
-      child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
-    );
-  }
+  /// A signed-in post's media is a local path from TDLib; a guest post's is a
+  /// `t.me` URL. [_ViewerImage] resolves the second through the guest cache,
+  /// which is why this is a widget rather than a function.
+  Widget _buildImage(String pathOrUrl) => _ViewerImage(pathOrUrl: pathOrUrl);
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +159,62 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
           },
         ),
       ),
+    );
+  }
+}
+
+/// One full-screen picture, from either source.
+///
+/// The viewer used to do `Image.file(File(pathOrUrl))` on whatever string it
+/// was handed, with a comment asserting media "always arrives from TDLib as a
+/// local file". Guest mode broke that assumption: its posts carry `t.me` URLs,
+/// so `File('https://…')` never existed and every guest photo opened onto a
+/// broken-image icon — while the thumbnail behind it rendered fine, because the
+/// grid already went through `resolveMediaPath`.
+///
+/// Resolving here rather than at the call site also means the fetch is
+/// on-demand: opening a picture the grid never cached now downloads it, instead
+/// of showing nothing because a `ref.read` came back empty.
+class _ViewerImage extends ConsumerWidget {
+  final String pathOrUrl;
+
+  const _ViewerImage({required this.pathOrUrl});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final resolved = resolveMediaPath(ref, rawPath: pathOrUrl);
+
+    if (resolved == null || resolved.isEmpty) {
+      // A guest URL still being fetched. The grid showed a thumbnail a moment
+      // ago, so "broken" would be a lie — this is a wait, not a failure.
+      final isRemote =
+          pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://');
+      if (isRemote) {
+        return const Center(
+          child: CircularProgressIndicator(color: Colors.white54),
+        );
+      }
+      return const _BrokenImage();
+    }
+
+    final file = File(resolved);
+    if (!file.existsSync()) return const _BrokenImage();
+
+    return Image.file(
+      file,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => const _BrokenImage(),
+    );
+  }
+}
+
+class _BrokenImage extends StatelessWidget {
+  const _BrokenImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Icon(Icons.broken_image_rounded, color: Colors.white54, size: 64),
     );
   }
 }

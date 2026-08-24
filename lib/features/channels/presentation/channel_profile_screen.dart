@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -57,13 +59,28 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   /// short page can't turn into a request loop.
   static const int _maxAutoFills = 3;
   int _autoFills = 0;
+  late final bool _isGuestChannel;
+
+  /// The tabs this channel actually has.
+  ///
+  /// Four of the five are backed by `SearchChatMessages`, which needs a real
+  /// TDLib chat. A guest channel has a synthetic id and its posts come from an
+  /// HTML page with no search behind it, so every one of those tabs could only
+  /// ever fail — and a tab that always errors is worse than a tab that isn't
+  /// there. Read once in initState: it fixes the TabController's length, and a
+  /// guest cannot become signed-in without leaving this screen.
+  late final List<ChannelTab> _tabs;
 
   @override
   void initState() {
     super.initState();
     _feedRepository = ref.read(feedRepositoryProvider);
 
-    _tabController = TabController(length: ChannelTab.values.length, vsync: this)
+    final chatId = int.tryParse(widget.channelId);
+    _isGuestChannel = chatId != null && GuestPostMapper.isSynthetic(chatId);
+    _tabs = _isGuestChannel ? const [ChannelTab.posts] : ChannelTab.values;
+
+    _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(_onTabChanged);
     _scrollController.addListener(_onScroll);
 
@@ -96,10 +113,13 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     super.dispose();
   }
 
-  ChannelTab get _selectedTab => ChannelTab.values[_tabController.index];
+  ChannelTab get _selectedTab => _tabs[_tabController.index];
 
   /// Keeps this screen's open chat in step with the channel it is showing.
   void _syncOpenChat(int? chatId) {
+    // There is no chat to open: the id is one this app invented, and TDLib
+    // would reject it. Nothing a guest does is written to Telegram anyway.
+    if (_isGuestChannel) return;
     if (chatId == null || chatId == _openedChatId) return;
     final previous = _openedChatId;
     if (previous != null) _feedRepository.closeChat(previous);
@@ -318,6 +338,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
           SliverPersistentHeader(
             pinned: true,
             delegate: _TabBarHeader(
+              tabs: _tabs,
               controller: _tabController,
               background: Theme.of(context).scaffoldBackgroundColor,
             ),
@@ -429,7 +450,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
             post: post,
             isHighlighted: isHighlighted,
             onTap: () {
-              ref.read(markPostAsReadProvider(post.id));
+              if (!_isGuestChannel) ref.read(markPostAsReadProvider(post.id));
               context.push('/post/${post.id}');
             },
           );
@@ -461,9 +482,16 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
   final TabController controller;
   final Color background;
 
+  /// Which tabs to draw. A guest channel has only Posts — see `_tabs`.
+  final List<ChannelTab> tabs;
+
   static const double _height = 46;
 
-  _TabBarHeader({required this.controller, required this.background});
+  _TabBarHeader({
+    required this.controller,
+    required this.background,
+    required this.tabs,
+  });
 
   @override
   double get minExtent => _height;
@@ -498,7 +526,7 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
               unselectedLabelStyle: AppTypography.body(),
               dividerColor: Colors.transparent,
               tabs: [
-                for (final tab in ChannelTab.values) Tab(text: _labelFor(tab)),
+                for (final tab in tabs) Tab(text: _labelFor(tab)),
               ],
             ),
           ),
@@ -523,7 +551,8 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_TabBarHeader oldDelegate) =>
       oldDelegate.controller != controller ||
-      oldDelegate.background != background;
+      oldDelegate.background != background ||
+      !listEquals(oldDelegate.tabs, tabs);
 }
 
 class _EmptyTab extends StatelessWidget {

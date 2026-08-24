@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -175,7 +176,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final primaryColor = theme.colorScheme.onSurface;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(markPostAsReadProvider(widget.postId));
+      // A guest has no Telegram account to write read state to, and the
+      // message id is one this app invented — see ReaderCapabilities.
+      if (ref.read(readerCapabilitiesProvider).canMarkRead) {
+        ref.read(markPostAsReadProvider(widget.postId));
+      }
     });
 
     return Scaffold(

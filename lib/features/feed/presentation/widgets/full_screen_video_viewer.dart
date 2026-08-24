@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/features/guest/data/guest_media_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_file_server.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -26,6 +27,12 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
   /// Poster frame shown while the video is still arriving.
   final String? thumbnailPath;
 
+  /// A guest post's video lives at a `t.me` URL rather than behind a TDLib file
+  /// id. Carried so the viewer can fetch it through the guest cache — passing
+  /// only an already-resolved path meant a video the grid had not cached yet
+  /// opened onto "unavailable" and stayed there.
+  final String? remoteUrl;
+
   /// Whether Telegram flagged the video as streamable.
   ///
   /// Only a `faststart`-muxed video can play from a prefix; anything else has
@@ -42,6 +49,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
     this.videoPath,
     this.fileId,
     this.thumbnailPath,
+    this.remoteUrl,
     this.post,
     this.supportsStreaming = false,
   });
@@ -51,6 +59,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
     String? videoPath,
     int? fileId,
     String? thumbnailPath,
+    String? remoteUrl,
     Post? post,
     bool supportsStreaming = false,
   }) {
@@ -62,6 +71,7 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
           videoPath: videoPath,
           fileId: fileId,
           thumbnailPath: thumbnailPath,
+          remoteUrl: remoteUrl,
           post: post,
           supportsStreaming: supportsStreaming,
         ),
@@ -94,6 +104,14 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
 
     final fileId = widget.fileId;
     if (fileId == null || fileId == 0) {
+      // No TDLib file — a guest video. Fetch it through the guest cache and
+      // play the file that lands. There is no streaming path here: t.me serves
+      // the whole file, and gramX has no prefix to play from.
+      final url = widget.remoteUrl;
+      if (url != null && url.isNotEmpty) {
+        _fetchGuestVideo(url);
+        return;
+      }
       _hasError = true;
       _errorMessage = AppStrings.videoUnavailable;
       return;
@@ -112,6 +130,32 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     ref
         .read(syncServiceProvider)
         .downloadFileWithPriority(fileId, priority: 32);
+  }
+
+  /// Downloads a guest video to the media cache, then plays it.
+  Future<void> _fetchGuestVideo(String url) async {
+    if (_startedPlayback) return;
+    _startedPlayback = true;
+
+    try {
+      final path = await ref.read(guestMediaCacheProvider).pathFor(url);
+      if (!mounted) return;
+      if (path == null || path.isEmpty) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = AppStrings.videoUnavailable;
+        });
+        return;
+      }
+      await _initializePlayer(path);
+    } catch (e) {
+      debugPrint('[VideoViewer] guest video failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _hasError = true;
+        _errorMessage = AppStrings.videoUnavailable;
+      });
+    }
   }
 
   /// Plays from the loopback server, falling back to the download path.

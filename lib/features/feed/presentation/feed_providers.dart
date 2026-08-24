@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -506,6 +508,14 @@ final postDetailFetchProvider =
   final chatId = int.tryParse(parts[0]);
   final messageId = int.tryParse(parts[1]);
   if (chatId == null || messageId == null) return null;
+
+  // A guest post has no TDLib message behind it, so asking TDLib for one
+  // answers nothing and the screen said "post not found" for every post the
+  // reader could plainly see. The guest feed already holds it.
+  if (GuestPostMapper.isSynthetic(chatId)) {
+    final posts = await ref.watch(guestFeedProvider.future);
+    return posts.where((p) => p.id == postId).firstOrNull;
+  }
 
   final repo = ref.watch(feedRepositoryProvider);
   return repo.fetchSinglePost(chatId, messageId);
