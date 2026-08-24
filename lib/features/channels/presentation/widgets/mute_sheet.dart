@@ -39,6 +39,12 @@ abstract class MuteSheet {
 
     final choice = await showModalBottomSheet<MuteDuration>(
       context: context,
+      // The shell's bottom tab bar is painted on top of each branch's own
+      // Navigator (see AppShell's Stack), so a sheet attached to that
+      // branch-local Navigator renders underneath it — the last option in a
+      // tall sheet ends up hidden behind the tab bar. The root Navigator's
+      // Overlay sits above the whole shell, tab bar included.
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => const _MuteDurationSheet(),
     );
