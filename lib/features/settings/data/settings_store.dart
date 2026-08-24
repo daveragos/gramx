@@ -83,6 +83,12 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void toggleAutoPlay(bool enabled) => setAutoPlay(
       enabled ? AutoPlayPolicy.always : AutoPlayPolicy.never);
 
+  void setAutoDownloadImages(AutoDownloadPolicy policy) =>
+      _update(state.copyWith(autoDownloadImages: policy));
+
+  void toggleAutoDownloadImages(bool enabled) => setAutoDownloadImages(
+      enabled ? AutoDownloadPolicy.always : AutoDownloadPolicy.never);
+
   /// Enters or leaves browse-without-an-account.
   ///
   /// Persisted, because it decides whether the shell is reachable: a guest who

@@ -76,6 +76,56 @@ void main() {
     });
   });
 
+  group('autoDownloadImages', () {
+    test('reflects the policy', () {
+      expect(
+        const AppSettings(autoDownloadImages: AutoDownloadPolicy.always)
+            .autoDownloadImagesEnabled,
+        isTrue,
+      );
+      expect(
+        const AppSettings(autoDownloadImages: AutoDownloadPolicy.never)
+            .autoDownloadImagesEnabled,
+        isFalse,
+      );
+    });
+
+    // Photos loading is the sane default; a feed of blurred placeholders is
+    // not a feed.
+    test('defaults to on', () {
+      expect(const AppSettings().autoDownloadImagesEnabled, isTrue);
+    });
+
+    // It is a separate question from autoplay: someone on a metered
+    // connection wants photos off and may not care about motion.
+    test('is independent of autoplay', () {
+      const settings = AppSettings(
+        autoPlay: AutoPlayPolicy.always,
+        autoDownloadImages: AutoDownloadPolicy.never,
+      );
+      expect(settings.autoPlayEnabled, isTrue);
+      expect(settings.autoDownloadImagesEnabled, isFalse);
+    });
+
+    // A new setting cannot be added without also being persisted — the whole
+    // reason AppSettings is one value object (docs/ARCHITECTURE.md).
+    test('survives a save and a reload', () {
+      const settings = AppSettings(
+        autoDownloadImages: AutoDownloadPolicy.never,
+      );
+      expect(
+        AppSettings.decode(settings.encode()).autoDownloadImages,
+        AutoDownloadPolicy.never,
+      );
+    });
+
+    test('a settings file from before this option still reads', () {
+      final restored = AppSettings.decode('{"themeMode":"dim"}');
+      expect(restored.themeMode, AppThemeMode.dim);
+      expect(restored.autoDownloadImagesEnabled, isTrue);
+    });
+  });
+
   group('InlinePlayerBudget', () {
     // Every GIF tile used to spin up its own decoder the moment it was built,
     // on screen or not.

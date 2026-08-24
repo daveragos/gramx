@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/database/database.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -100,7 +101,18 @@ class SyncService {
   
   final Completer<void> _authReady = Completer<void>();
 
-  SyncService(this._db, this._tdlib);
+  /// Whether photos may be prefetched as messages arrive.
+  ///
+  /// A getter rather than a value: the reader can flip the setting mid-session
+  /// and this service outlives that — it owns the update subscription, so
+  /// rebuilding it to pick up a preference would drop the stream.
+  final bool Function() _autoDownloadImages;
+
+  SyncService(
+    this._db,
+    this._tdlib, {
+    bool Function()? autoDownloadImages,
+  }) : _autoDownloadImages = autoDownloadImages ?? (() => true);
 
   /// Must be called by the auth controller when authentication is complete.
   void markAuthReady() {
@@ -172,6 +184,10 @@ class SyncService {
   void _downloadMessageMedia(td.Message message) {
     final content = message.content;
     if (content is td.MessagePhoto) {
+      // Off means off at the source: with auto-download disabled, a photo
+      // costs nothing until it is tapped. The minithumbnail travels inside the
+      // message itself, so the card still shows something.
+      if (!_autoDownloadImages()) return;
       for (final size in content.photo.sizes) {
         _downloadFile(size.photo.id);
       }
@@ -302,5 +318,11 @@ class SyncService {
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final tdlib = ref.watch(tdlibServiceProvider);
-  return SyncService(db, tdlib);
+  return SyncService(
+    db,
+    tdlib,
+    // Read, not watched: watching would rebuild the service on every toggle
+    // and take its update subscription with it.
+    autoDownloadImages: () => ref.read(settingsProvider).autoDownloadImagesEnabled,
+  );
 });

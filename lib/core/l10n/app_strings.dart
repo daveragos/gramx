@@ -72,6 +72,14 @@ abstract class AppStrings {
   static const a11yPinnedPost = 'Pinned post';
   static const a11yReactionsReadOnly = 'reactions';
 
+  /// Shown on a photo tile when auto-download is off.
+  static const mediaTapToLoad = 'Tap to load';
+
+  static const settingsAutoDownloadImagesTitle = 'Auto-download photos';
+  static const settingsAutoDownloadImagesBody =
+      'Off: photos show their tiny built-in preview and load the full picture '
+      'when you tap. Videos and files are already tap-to-load.';
+
   // ── Guest mode ─────────────────────────────────────────────────────────────
   static const guestBrowseAction = 'Browse without an account';
   static const guestBrowseSubtitle =

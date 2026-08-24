@@ -13,6 +13,31 @@ enum AutoPlayPolicy {
       .firstWhere((v) => v.name == name, orElse: () => AutoPlayPolicy.always);
 }
 
+/// Whether photos fetch themselves, or wait to be asked.
+///
+/// Separate from [AutoPlayPolicy]: a GIF that plays on its own is a question
+/// about motion, a photo that downloads on its own is a question about data.
+/// Someone on a metered connection wants the second off and may not care about
+/// the first.
+enum AutoDownloadPolicy {
+  /// Photos load when they scroll into view. The default — a feed of blurred
+  /// placeholders is not a feed.
+  always,
+
+  /// Only the tiny embedded preview loads; the full photo waits for a tap.
+  ///
+  /// The preview is the minithumbnail Telegram ships inside the message
+  /// itself, so it costs no request at all. That is what makes "off" show
+  /// something rather than a grey box.
+  never;
+
+  static AutoDownloadPolicy fromName(String? name) =>
+      AutoDownloadPolicy.values.firstWhere(
+        (v) => v.name == name,
+        orElse: () => AutoDownloadPolicy.always,
+      );
+}
+
 enum AppThemeMode {
   light,
   dim,
@@ -30,6 +55,7 @@ enum AppThemeMode {
 class AppSettings {
   final AppThemeMode themeMode;
   final AutoPlayPolicy autoPlay;
+  final AutoDownloadPolicy autoDownloadImages;
 
   /// Whether the reader chose to browse without a Telegram account.
   ///
@@ -42,20 +68,27 @@ class AppSettings {
   const AppSettings({
     this.themeMode = AppThemeMode.dark,
     this.autoPlay = AutoPlayPolicy.always,
+    this.autoDownloadImages = AutoDownloadPolicy.always,
     this.guestMode = false,
   });
 
   /// True when videos and GIFs should start on their own.
   bool get autoPlayEnabled => autoPlay == AutoPlayPolicy.always;
 
+  /// True when a photo should fetch itself as it scrolls into view.
+  bool get autoDownloadImagesEnabled =>
+      autoDownloadImages == AutoDownloadPolicy.always;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     AutoPlayPolicy? autoPlay,
+    AutoDownloadPolicy? autoDownloadImages,
     bool? guestMode,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
       autoPlay: autoPlay ?? this.autoPlay,
+      autoDownloadImages: autoDownloadImages ?? this.autoDownloadImages,
       guestMode: guestMode ?? this.guestMode,
     );
   }
@@ -63,6 +96,7 @@ class AppSettings {
   Map<String, dynamic> toJson() => {
         'themeMode': themeMode.name,
         'autoPlay': autoPlay.name,
+        'autoDownloadImages': autoDownloadImages.name,
         'guestMode': guestMode,
       };
 
@@ -72,6 +106,8 @@ class AppSettings {
     return AppSettings(
       themeMode: AppThemeMode.fromName(json['themeMode'] as String?),
       autoPlay: AutoPlayPolicy.fromName(json['autoPlay'] as String?),
+      autoDownloadImages:
+          AutoDownloadPolicy.fromName(json['autoDownloadImages'] as String?),
       guestMode: json['guestMode'] as bool? ?? false,
     );
   }
@@ -89,12 +125,15 @@ class AppSettings {
       other is AppSettings &&
       other.themeMode == themeMode &&
       other.autoPlay == autoPlay &&
+      other.autoDownloadImages == autoDownloadImages &&
       other.guestMode == guestMode;
 
   @override
-  int get hashCode => Object.hash(themeMode, autoPlay, guestMode);
+  int get hashCode =>
+      Object.hash(themeMode, autoPlay, autoDownloadImages, guestMode);
 
   @override
   String toString() => 'AppSettings(theme: ${themeMode.name}, '
-      'autoPlay: ${autoPlay.name}, guest: $guestMode)';
+      'autoPlay: ${autoPlay.name}, '
+      'autoDownloadImages: ${autoDownloadImages.name}, guest: $guestMode)';
 }

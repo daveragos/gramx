@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/guest/data/guest_media_cache.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -237,9 +239,20 @@ class _MediaTile extends ConsumerWidget {
         ? (item.thumbnailFileId ?? item.fileId)
         : item.fileId;
 
+    // A photo obeys the auto-download preference; a video or GIF thumbnail is
+    // a few kilobytes and is what makes the tile legible at all, so it always
+    // loads. The setting is about photos, not about leaving grey boxes.
+    final autoDownload = item.type != MediaType.photo ||
+        ref.watch(settingsProvider.select((s) => s.autoDownloadImagesEnabled));
+
     FileDownloadProgressState? downloadState;
     if (trackFileId != null && trackFileId != 0) {
-      downloadState = ref.watch(fileDownloadProgressProvider(trackFileId)).value;
+      // The two providers differ in one thing: the first issues a DownloadFile
+      // the moment it is watched, the second only reflects one somebody else
+      // started. That is the whole mechanism behind the preference.
+      downloadState = autoDownload
+          ? ref.watch(fileDownloadProgressProvider(trackFileId)).value
+          : ref.watch(fileDownloadStatusProvider(trackFileId)).value;
     }
 
     // Guest media has no TDLib file id — it is an https URL that
@@ -351,7 +364,11 @@ class _MediaTile extends ConsumerWidget {
                   size: 30,
                 ),
               ),
-            ),
+            )
+          // Auto-download off: say the photo is there and waiting, rather
+          // than leaving a blurred square that reads as a failure.
+          else if (!autoDownload)
+            const Center(child: _TapToLoadBadge()),
         ],
       );
     }
@@ -437,6 +454,20 @@ class _MediaTile extends ConsumerWidget {
   }
 
   void _handleTap(BuildContext context, WidgetRef ref, String? resolvedPath, String heroTag) {
+    // With auto-download off, the first tap is the request for the photo. The
+    // viewer would otherwise open on nothing, which looks like a broken image
+    // rather than a preference the reader set.
+    final needsFetch = item.type == MediaType.photo &&
+        (resolvedPath == null || resolvedPath.isEmpty) &&
+        !ref.read(settingsProvider).autoDownloadImagesEnabled;
+    if (needsFetch) {
+      final fileId = item.fileId;
+      if (fileId != null && fileId != 0) {
+        ref.read(syncServiceProvider).downloadFileWithPriority(fileId);
+      }
+      return;
+    }
+
     if (item.type == MediaType.video || item.type == MediaType.gif) {
       String? videoPath;
       if (item.fileId != null && item.fileId != 0) {
@@ -617,6 +648,36 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
           height: 20,
           child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
         ),
+      ),
+    );
+  }
+}
+
+/// "There is a photo here; tap for it." Shown only when the reader has turned
+/// photo auto-download off, so the tile is a deliberate state rather than a
+/// stalled one.
+class _TapToLoadBadge extends StatelessWidget {
+  const _TapToLoadBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.download_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            AppStrings.mediaTapToLoad,
+            style: AppTypography.actionCount(color: Colors.white)
+                .copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }

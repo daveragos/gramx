@@ -265,6 +265,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onChanged: (val) =>
                 ref.read(settingsProvider.notifier).toggleAutoPlay(val),
           ),
+          SwitchListTile(
+            secondary: Icon(Icons.image_outlined, color: primaryColor),
+            title: Text(AppStrings.settingsAutoDownloadImagesTitle,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(
+              AppStrings.settingsAutoDownloadImagesBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+            activeThumbColor: AppColors.accent,
+            value: settings.autoDownloadImagesEnabled,
+            onChanged: (val) => ref
+                .read(settingsProvider.notifier)
+                .toggleAutoDownloadImages(val),
+          ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 5. DATA AND STORAGE SECTION
