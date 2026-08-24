@@ -3,7 +3,7 @@
 ///
 /// TDLib does not hand out the numbers you see in a t.me URL. Message ids are
 /// shifted, and chat ids carry a type prefix. Anything that leaves the client
-/// has to convert first — see `docs/TDLIB.md` → Quirks worth knowing.
+/// has to convert first.
 abstract class TelegramIds {
   /// TDLib multiplies server message ids by 2^20 so it can address parts of a
   /// message (scheduled copies, album members) in the low bits.

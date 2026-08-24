@@ -126,7 +126,8 @@ class FeedFocusController extends Notifier<String?> {
     ref.read(readReceiptQueueProvider.notifier).setOpenChat(nextChatId);
   }
 
-  /// Post ids are `"<chatId>_<messageId>"`. See docs/ARCHITECTURE.md.
+  /// Post ids are `"<chatId>_<messageId>"` — the format the router, the
+  /// bookmark table and the override map all key on.
   static int? _chatIdOf(String postId) {
     final separator = postId.indexOf('_');
     if (separator <= 0) return null;

@@ -24,7 +24,7 @@ class FeedRepository {
   ///
   /// Telegram caps `GetChatHistory` at roughly 30 requests per 30 seconds
   /// sustained, so this number and [backfillThrottle] are a matched pair. Don't
-  /// raise one without the other — see `docs/TDLIB.md`.
+  /// raise one without the other.
   static const int backfillTopChannels = 30;
 
   /// Gap between backfill requests. Just over one second keeps us under the cap
@@ -43,8 +43,7 @@ class FeedRepository {
   ///
   /// Shares the budget with [backfillTopChannels] and runs after it: one
   /// request at a time at [backfillThrottle], abandoned on the first
-  /// rate-limit. A bounded, throttled sweep — not a fan-out. See
-  /// `docs/TDLIB.md`.
+  /// rate-limit. A bounded, throttled sweep — not a fan-out.
   static const int unreadSweepTopChannels = 30;
 
   /// Unread posts lifted per channel per sweep.
@@ -123,7 +122,7 @@ class FeedRepository {
   ///
   /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
   /// per channel. Doing so over a 200-channel list is an instant account-global
-  /// FLOOD_WAIT — see `docs/TDLIB.md`.
+  /// FLOOD_WAIT.
   Future<List<Post>> fetchFeedPosts() async {
     await _chatCache.ensureLoaded();
     final channelChats = _chatCache.channels;
@@ -520,7 +519,7 @@ class FeedRepository {
     // channel could land on a single post with nothing to scroll to, and
     // therefore nothing to trigger pagination either: a dead end.
     //
-    // Bounded and user-driven, which is the shape `docs/TDLIB.md` allows for
+    // Bounded and user-driven, which is what the request budget allows for
     // opening a specific channel — never a fan-out over the chat list.
     var cursor = collected.isEmpty ? fromMessageId : collected.last.id;
     for (var attempt = 0;

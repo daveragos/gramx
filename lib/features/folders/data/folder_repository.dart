@@ -31,7 +31,7 @@ class FolderRepository {
   ///
   /// Resolves each id through [ChatCache] rather than calling `GetChat` per
   /// chat. That fan-out ran once per folder tab, so a handful of folders
-  /// multiplied straight into the request budget — see `docs/TDLIB.md`.
+  /// multiplied straight into the request budget.
   Future<List<int>> getFolderChannelChatIds(int folderId) async {
     // The cache is what resolves each id below, and it is filled by the update
     // stream — so this has to wait for it. Reading too early returned nothing,

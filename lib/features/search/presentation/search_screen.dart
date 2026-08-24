@@ -35,8 +35,8 @@ final searchQueryProvider =
 ///
 /// Without this, a ten-character query fired `SearchPublicChats` ten times,
 /// each followed by per-result lookups — on the one path in the app the user
-/// drives keystroke by keystroke. See `docs/TDLIB.md` → no per-keystroke
-/// requests.
+/// drives keystroke by keystroke. Nothing driven by a text field may reach
+/// TDLib undebounced.
 const Duration searchDebounce = Duration(milliseconds: 300);
 
 /// The search query with the network debounce applied.

@@ -226,8 +226,6 @@ class ChatCacheState {
 /// volunteers each chat through `UpdateNewChat` — including `lastMessage`, which
 /// is a free first post per channel. The alternative (`GetChat` per chat) is a
 /// per-channel fan-out that earns an account-global FLOOD_WAIT.
-///
-/// See `docs/TDLIB.md` → The request budget.
 class ChatCache {
   final TdlibService _tdlib;
 
