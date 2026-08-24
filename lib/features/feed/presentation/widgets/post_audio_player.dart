@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
@@ -81,7 +82,7 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     FileDownloadProgressState? downloadState;
 
     if (fileId != null && fileId != 0) {
-      downloadState = ref.watch(fileDownloadProgressProvider(fileId)).value;
+      downloadState = ref.watch(fileDownloadStatusProvider(fileId)).value;
     }
     final resolvedPath = downloadState?.localPath ?? widget.item.localPath;
 
@@ -118,7 +119,7 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                     ref.read(syncServiceProvider).downloadFileWithPriority(fileId, priority: 32);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Downloading audio...'),
+                        content: Text(AppStrings.audioDownloading),
                         behavior: SnackBarBehavior.floating,
                         duration: Duration(seconds: 2),
                       ),

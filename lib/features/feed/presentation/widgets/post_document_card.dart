@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
@@ -22,30 +23,19 @@ class PostDocumentCard extends ConsumerWidget {
   }
 
   Future<void> _openFile(BuildContext context, String path) async {
-    try {
-      final uri = Uri.file(path);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('File saved to: $path'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('File location: $path'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    final result = await OpenFilex.open(path);
+    if (result.type == ResultType.done || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.type == ResultType.noAppToOpen
+              ? AppStrings.documentNoAppFound
+              : AppStrings.documentOpenFailed,
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -62,7 +52,7 @@ class PostDocumentCard extends ConsumerWidget {
     FileDownloadProgressState? downloadState;
 
     if (fileId != null && fileId != 0) {
-      downloadState = ref.watch(fileDownloadProgressProvider(fileId)).value;
+      downloadState = ref.watch(fileDownloadStatusProvider(fileId)).value;
     }
     resolvedPath = downloadState?.localPath ?? item.localPath;
 
@@ -80,7 +70,7 @@ class PostDocumentCard extends ConsumerWidget {
           ref.read(syncServiceProvider).downloadFileWithPriority(fileId, priority: 32);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Downloading file...'),
+              content: Text(AppStrings.documentDownloading),
               behavior: SnackBarBehavior.floating,
               duration: Duration(seconds: 2),
             ),

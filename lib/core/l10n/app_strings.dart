@@ -358,4 +358,10 @@ abstract class AppStrings {
 
   static String mediaPosition(String kind, int index, int total) =>
       '$kind $index of $total';
+
+  // ── Document & audio downloads ──────────────────────────────────────────
+  static const documentDownloading = 'Downloading file…';
+  static const documentOpenFailed = "Couldn't open this file";
+  static const documentNoAppFound = 'No app found to open this file';
+  static const audioDownloading = 'Downloading audio…';
 }
