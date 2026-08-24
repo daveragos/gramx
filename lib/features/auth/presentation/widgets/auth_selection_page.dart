@@ -1,4 +1,6 @@
 import 'package:flutter/gestures.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -136,6 +138,11 @@ class AuthSelectionPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.xl),
+                    // The third way in. Below the two real sign-ins and styled
+                    // plainly, because it is the lesser thing: a guest reads
+                    // public channels and nothing else.
+                    const _BrowseAsGuestButton(),
                   ],
                 ),
               ),
@@ -148,6 +155,43 @@ class AuthSelectionPage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Enters guest mode and lets the router take the reader into the shell.
+///
+/// A `ConsumerWidget` of its own so [AuthSelectionPage] can stay a plain
+/// `StatelessWidget` — it takes its controller as a parameter and has no `ref`.
+class _BrowseAsGuestButton extends ConsumerWidget {
+  const _BrowseAsGuestButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Column(
+      children: [
+        TextButton(
+          onPressed: () {
+            ref.read(settingsProvider.notifier).setGuestMode(true);
+            // The router's redirect reopens the shell on the guest flag; no
+            // push here, or the shell would sit on top of the sign-in screen.
+          },
+          child: Text(
+            AppStrings.guestBrowseAction,
+            style: AppTypography.button(color: AppColors.accent),
+          ),
+        ),
+        Text(
+          AppStrings.guestBrowseSubtitle,
+          style: AppTypography.actionCount(color: secondary),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

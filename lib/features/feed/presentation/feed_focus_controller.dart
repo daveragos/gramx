@@ -4,6 +4,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_tracker.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
@@ -95,6 +96,11 @@ class FeedFocusController extends Notifier<String?> {
   }
 
   void _markRead(String postId) {
+    // A guest has no Telegram account to write a read cursor to, and the posts
+    // came off a public preview page rather than out of a chat. There is
+    // nothing to acknowledge and nowhere to send it.
+    if (!ref.read(readerCapabilitiesProvider).canMarkRead) return;
+
     final chatId = _chatIdOf(postId);
     if (chatId == null) return;
 
@@ -119,6 +125,10 @@ class FeedFocusController extends Notifier<String?> {
 
   /// Keeps at most one chat open, as TDLib expects.
   void _swapOpenChat(String? postId) {
+    // Guest posts carry a synthetic chat id that TDLib has never heard of, and
+    // there is no client to open it on anyway.
+    if (!ref.read(readerCapabilitiesProvider).canMarkRead) return;
+
     final nextChatId = postId == null ? null : _chatIdOf(postId);
     if (nextChatId == _openChatId) return;
 

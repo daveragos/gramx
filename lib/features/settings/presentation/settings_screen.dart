@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/config/app_links.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
@@ -346,13 +347,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // Logging out lives on the profile, beside the account it ends.
+          // The way out of guest mode. Logging out lives on the profile beside
+          // the account it ends; a guest has no account and no profile, so
+          // their equivalent belongs here.
+          if (ref.watch(isGuestModeProvider)) ...[
+            ListTile(
+              leading: const Icon(Icons.login_rounded, color: AppColors.accent),
+              title: Text(AppStrings.guestLeaveConfirm,
+                  style: AppTypography.body(color: AppColors.accent)),
+              subtitle: Text(AppStrings.guestBannerBody,
+                  style: AppTypography.actionCount(color: secondaryColor)),
+              onTap: () => _leaveGuestMode(context, ref),
+            ),
+            Divider(height: 1, thickness: 0.5, color: borderColor),
+          ],
+
           const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
   }
 
+  /// Leaves guest mode, after saying what that deletes.
+  ///
+  /// Destructive and irreversible — the channel list and the cached pictures
+  /// both go — so it asks first, the way logging out and leaving a channel do.
+  Future<void> _leaveGuestMode(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.guestLeaveTitle),
+        content: const Text(AppStrings.guestLeaveBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.guestSignInSheetDismiss),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.guestLeaveConfirm),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await ref.read(guestChannelsProvider.notifier).clear();
+    ref.read(settingsProvider.notifier).setGuestMode(false);
+    // No push: clearing the flag makes the shell unreachable, and the router's
+    // redirect takes them to sign-in on its own.
+  }
 }
 
 class _SectionHeader extends StatelessWidget {

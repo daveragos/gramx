@@ -70,6 +70,43 @@ abstract class AppStrings {
   static const a11yChannelPhotoTile = 'Photo — open the post it came from';
   static const a11yChannelVideoTile = 'Video — open the post it came from';
   static const a11yPinnedPost = 'Pinned post';
+  static const a11yReactionsReadOnly = 'reactions';
+
+  // ── Guest mode ─────────────────────────────────────────────────────────────
+  static const guestBrowseAction = 'Browse without an account';
+  static const guestBrowseSubtitle =
+      'Read public channels straight from Telegram. No sign-in, and nothing '
+      'is sent on your behalf.';
+  static const guestBannerTitle = 'You are browsing as a guest';
+  static const guestBannerBody =
+      'Sign in to react, comment, bookmark and sync what you have read.';
+  static const guestBannerAction = 'Sign in';
+  static const guestSignInSheetTitle = 'Sign in to do that';
+  static const guestSignInSheetBody =
+      'Reacting, commenting and bookmarking all happen on a Telegram account. '
+      'Guest mode only reads what a channel has made public.';
+  static const guestSignInSheetDismiss = 'Keep browsing';
+
+  static const guestChannelsTitle = 'Channels you follow here';
+  static const guestEmptyTitle = 'Add a public channel';
+  static const guestEmptyBody =
+      'Enter a public channel username and gramX will read its posts straight '
+      'from Telegram. Private channels need an account.';
+  static const guestAddHint = 'durov';
+  static const guestAddLabel = 'Public channel username';
+  static const guestAddAction = 'Add channel';
+  static const guestRemoveAction = 'Remove this channel';
+  static const guestFeedEmptyTitle = 'Nothing here yet';
+  static const guestFeedEmptyBody =
+      'Add a public channel and its posts will appear here.';
+  static const guestLeaveTitle = 'Leave guest mode?';
+  static const guestLeaveBody =
+      'Your channel list and the pictures cached for it will be deleted from '
+      'this device. Signing in does not need them.';
+  static const guestLeaveConfirm = 'Leave and sign in';
+
+  static String guestRemoved(String username) => 'Removed @$username.';
+  static String guestAdded(String title) => 'Added $title.';
   static const a11yOpenMenu = 'Open navigation menu';
   static const a11yScrollToTop = 'Scroll to top';
   static const a11ySearch = 'Search';

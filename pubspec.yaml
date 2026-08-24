@@ -49,6 +49,12 @@ dependencies:
   lottie: ^3.5.1
   open_filex: ^4.7.0
 
+  # Guest mode only: fetching and parsing t.me/s/<channel> preview pages.
+  # Nothing else in the app makes an HTTP request of its own — signed-in
+  # traffic all goes through TDLib.
+  http: ^1.2.2
+  html: ^0.15.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

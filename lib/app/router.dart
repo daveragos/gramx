@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/features/guest/presentation/guest_channels_screen.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/auth_redirect.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
@@ -52,16 +54,27 @@ final routerProvider = Provider<GoRouter>((ref) {
     authNotifier.value = next.step;
   });
 
-  ref.onDispose(() => authNotifier.dispose());
+  // Entering or leaving guest mode changes which routes are reachable, so the
+  // redirect has to be re-evaluated when it flips — otherwise the reader sits
+  // on the screen they just left. Merged with the auth notifier rather than
+  // folded into it: they are two independent reasons to re-decide.
+  final guestNotifier = ValueNotifier<bool>(ref.read(isGuestModeProvider));
+  ref.listen<bool>(isGuestModeProvider, (_, next) => guestNotifier.value = next);
+
+  ref.onDispose(() {
+    authNotifier.dispose();
+    guestNotifier.dispose();
+  });
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: ShellTab.home.path,
-    refreshListenable: authNotifier,
+    refreshListenable: Listenable.merge([authNotifier, guestNotifier]),
     redirect: (context, state) => authRedirect(
       step: ref.read(authControllerProvider).step,
       location: state.matchedLocation,
       hasSignedIn: hasSignedIn,
+      isGuest: ref.read(isGuestModeProvider),
     ),
     routes: [
       // Branches are declared in ShellTab order and take their paths from it;
@@ -139,6 +152,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             highlightMessageId: highlightMessageId,
           );
         },
+      ),
+      // Guest mode's own screen. Outside the shell, like /folders: it is a
+      // place you go to and come back from, not a tab you live in.
+      GoRoute(
+        path: '/guest/channels',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GuestChannelsScreen(),
       ),
       GoRoute(
         path: '/auth',

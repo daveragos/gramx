@@ -49,14 +49,33 @@ abstract class LegalTexts {
     title: 'Privacy Policy',
     lastUpdated: lastUpdated,
     summary:
-        'gramX has no servers of its own. It talks to Telegram and to nobody '
-        'else, and everything it keeps stays on your phone.',
+        'gramX has no servers of its own. Signed in or browsing as a guest, it '
+        'talks to Telegram and to nobody else, and everything it keeps stays '
+        'on your phone.',
     sections: [
       LegalSection('Who this is', [
         'gramX is an independent reader for Telegram channels, made by one '
             'person. It is not made by, affiliated with, or endorsed by '
             'Telegram.',
         'Questions about this policy: $contactEmail.',
+      ]),
+      LegalSection('Guest mode', [
+        'You can read public channels without signing in. In that mode there '
+            'is no Telegram account involved at all, and the app talks to '
+            'Telegram over the ordinary web instead of through TDLib: for '
+            'each channel you add, it fetches the public preview page at '
+            'https://t.me/s/<channel> — the same page anyone can open in a '
+            'browser — and reads the posts out of it.',
+        'Those requests carry what a browser request carries: your IP address, '
+            'a browser user-agent string, and your device\'s language setting. '
+            'They go to Telegram and to nobody else. The pictures on those '
+            'posts are downloaded from Telegram\'s own servers and cached on '
+            'your phone.',
+        'Guest mode is read-only. Nothing is sent on your behalf: no '
+            'reactions, no comments, no read state, no subscriptions. There is '
+            'no account for any of that to happen to.',
+        'What is stored is the list of channels you added, and the pictures '
+            'cached for them. Leaving guest mode deletes both.',
       ]),
       LegalSection('There is no gramX server', [
         'This app has no backend. When you sign in, the app connects straight '
@@ -90,6 +109,8 @@ abstract class LegalTexts {
             'protect.',
       ]),
       LegalSection('What the app does to your Telegram account', [
+        'This applies when you are signed in. In guest mode there is no '
+            'account, so none of it happens.',
         'This is a real Telegram client, so reading here changes things there. '
             'Specifically, gramX will: mark posts as read once they have been '
             'on your screen long enough, and that read state syncs to every '

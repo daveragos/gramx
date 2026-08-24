@@ -15,16 +15,26 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 /// — which draws its own connecting state — is where that belongs.
 ///
 /// Returns null to stay put.
+///
+/// [isGuest] is the reader who chose to browse without an account. They have
+/// no session and never will, so the signed-out rules below would bounce them
+/// to sign-in forever — the shell has to be reachable on its own footing. They
+/// keep their way *to* the sign-in screen: guest mode is a way in, not a
+/// one-way door.
 String? authRedirect({
   required AuthStep step,
   required String location,
   required bool hasSignedIn,
+  bool isGuest = false,
 }) {
   // Readable signed out: the sign-in screen links to them.
   if (location.startsWith('/legal/')) return null;
 
   final isOnAuth = location == '/auth';
   if (step == AuthStep.authenticated) return isOnAuth ? '/home' : null;
+
+  // A guest goes wherever they asked, including to /auth to stop being one.
+  if (isGuest) return null;
 
   if (step == AuthStep.loading && !hasSignedIn) return null;
 

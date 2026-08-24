@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -132,12 +133,12 @@ class LinkPreviewCard extends ConsumerWidget {
   }
 
   Widget _buildPreviewImage(WidgetRef ref, bool isDark) {
-    final path = imageUrl;
-
-    // Previews always arrive as files TDLib has fetched, so there is no branch
-    // here that reaches out to a third-party host. That is deliberate: it is
-    // what lets the privacy policy say this app talks to Telegram and to
-    // nobody else.
+    // Signed in, this is a file TDLib has already fetched. In guest mode it is
+    // an https URL from a preview page, which the guest media cache fetches to
+    // disk — and only from Telegram's own hosts, so the privacy policy's
+    // "Telegram and nobody else" still holds either way. Nothing here reaches
+    // a third-party host.
+    final path = resolveMediaPath(ref, rawPath: imageUrl);
 
     // 1. Local file path image
     if (path != null && path.isNotEmpty) {

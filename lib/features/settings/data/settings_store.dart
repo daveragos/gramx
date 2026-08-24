@@ -82,6 +82,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void toggleAutoPlay(bool enabled) => setAutoPlay(
       enabled ? AutoPlayPolicy.always : AutoPlayPolicy.never);
+
+  /// Enters or leaves browse-without-an-account.
+  ///
+  /// Persisted, because it decides whether the shell is reachable: a guest who
+  /// closes the app must reopen into their feed rather than onto the sign-in
+  /// screen they walked past.
+  void setGuestMode(bool enabled) =>
+      _update(state.copyWith(guestMode: enabled));
 }
 
 final settingsProvider =

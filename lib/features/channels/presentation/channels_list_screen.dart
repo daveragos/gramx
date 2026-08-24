@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
+import 'package:gramx/features/guest/presentation/guest_channels_screen.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -56,6 +58,10 @@ class ChannelsListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // A guest's channels are the public ones they typed in, not a subscription
+    // list Telegram keeps for them. Different source, different screen.
+    if (ref.watch(isGuestModeProvider)) return const GuestChannelsScreen();
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;

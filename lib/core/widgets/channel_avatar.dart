@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
@@ -28,13 +29,10 @@ class ChannelAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     Widget avatar;
 
-    String? resolvedPath;
-    if (avatarFileId != null && avatarFileId != 0) {
-      final fileState = ref.watch(fileDownloadProvider(avatarFileId!));
-      resolvedPath = fileState.value;
-    } else if (avatarPath != null && avatarPath!.isNotEmpty) {
-      resolvedPath = avatarPath;
-    }
+    // Resolves a TDLib file id or a guest-mode https URL to the same thing:
+    // a path on disk. See resolveMediaPath.
+    final resolvedPath =
+        resolveMediaPath(ref, fileId: avatarFileId, rawPath: avatarPath);
 
     if (resolvedPath != null && resolvedPath.isNotEmpty) {
       // Use async file existence check instead of blocking existsSync()
@@ -44,7 +42,7 @@ class ChannelAvatar extends ConsumerWidget {
           if (exists) {
             return CircleAvatar(
               radius: radius,
-              backgroundImage: FileImage(File(resolvedPath!)),
+              backgroundImage: FileImage(File(resolvedPath)),
             );
           }
           return _buildFallbackAvatar();

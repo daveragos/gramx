@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/data/guest_media_cache.dart';
+import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
@@ -240,7 +242,13 @@ class _MediaTile extends ConsumerWidget {
       downloadState = ref.watch(fileDownloadProgressProvider(trackFileId)).value;
     }
 
-    final String? resolvedPath = downloadState?.localPath ?? _tryResolvePath(item);
+    // Guest media has no TDLib file id — it is an https URL that
+    // resolveMediaPath caches to disk, so the tile below still loads a file.
+    final String? resolvedPath = downloadState?.localPath ??
+        _tryResolvePath(item) ??
+        (trackFileId == null || trackFileId == 0
+            ? resolveMediaPath(ref, rawPath: item.thumbnailUrl ?? item.url)
+            : null);
     final isDownloaded = resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync();
 
     Widget contentWidget;
@@ -436,6 +444,8 @@ class _MediaTile extends ConsumerWidget {
         videoPath = videoFileState.value;
       }
       videoPath ??= item.localPath;
+      // Guest video: no file id, so the cached copy of the URL is the file.
+      videoPath ??= ref.read(guestMediaPathProvider(item.url ?? '')).value;
 
       // Open regardless of whether the file has landed: the viewer shows the
       // poster frame and its own progress, and starts playback when ready.

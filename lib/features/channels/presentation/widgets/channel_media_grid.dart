@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
@@ -77,13 +78,11 @@ class _MediaTile extends ConsumerWidget {
     // Thumbnail first: a grid of full-resolution photos is a lot of decoding
     // for tiles this size, and the minithumbnail covers the gap before the
     // file lands.
-    final fileId = item.thumbnailFileId ?? item.fileId;
-    String? path;
-    if (fileId != null && fileId != 0) {
-      path = ref.watch(fileDownloadProvider(fileId)).value;
-    } else if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty) {
-      path = item.thumbnailUrl;
-    }
+    final path = resolveMediaPath(
+      ref,
+      fileId: item.thumbnailFileId ?? item.fileId,
+      rawPath: item.thumbnailUrl,
+    );
 
     final exists = path != null && path.isNotEmpty
         ? ref.watch(fileExistsProvider(path)).value ?? false

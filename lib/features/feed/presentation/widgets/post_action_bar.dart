@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -42,37 +43,67 @@ class PostActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // A guest has no Telegram account, so reacting, bookmarking, forwarding
+    // and commenting have nothing to act on. Rather than render controls that
+    // do nothing — the exact bug the "every control does something" rule
+    // exists for — the counts stay and the actions become a prompt to sign in.
+    final can = ref.watch(readerCapabilitiesProvider);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Reply Button
-        PostActionButton(
-          icon: Icons.chat_bubble_outline,
-          count: post.replyCount,
-          color: secondaryColor,
-          activeColor: AppColors.reply,
-          semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
-          onTap: onReplyTap,
-        ),
+        // Reply Button. The preview page carries no comments at all, so for a
+        // guest this is a count of a thread they cannot open.
+        can.canComment
+            ? PostActionButton(
+                icon: Icons.chat_bubble_outline,
+                count: post.replyCount,
+                color: secondaryColor,
+                activeColor: AppColors.reply,
+                semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
+                onTap: onReplyTap,
+              )
+            : PostStat(
+                icon: Icons.chat_bubble_outline,
+                count: post.replyCount,
+                color: secondaryColor,
+                semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
+              ),
 
         // Forward. Now genuinely forwards the message rather than copying a
         // link, which is what the count beside it has always meant.
-        PostActionButton(
-          icon: Icons.repeat,
-          count: post.forwardCount,
-          color: secondaryColor,
-          activeColor: AppColors.repost,
-          semanticLabel: AppStrings.a11yForward,
-          onTap: () => _forward(context),
-        ),
+        can.canForward
+            ? PostActionButton(
+                icon: Icons.repeat,
+                count: post.forwardCount,
+                color: secondaryColor,
+                activeColor: AppColors.repost,
+                semanticLabel: AppStrings.a11yForward,
+                onTap: () => _forward(context),
+              )
+            : PostStat(
+                icon: Icons.repeat,
+                count: post.forwardCount,
+                color: secondaryColor,
+                semanticLabel: AppStrings.a11yForward,
+              ),
 
         // Reaction. Tap toggles your own choice, long press picks a new one
         // — the same control comments use, so the two can't drift apart.
-        ReactionControl(
-          post: post,
-          color: secondaryColor,
-          onSelectReaction: onSelectReaction,
-        ),
+        // Reactions the preview page reported are still worth showing — they
+        // are part of what the post looks like. They just aren't pressable.
+        can.canReact
+            ? ReactionControl(
+                post: post,
+                color: secondaryColor,
+                onSelectReaction: onSelectReaction,
+              )
+            : PostStat(
+                icon: Icons.favorite_border,
+                count: post.reactions.values.fold(0, (a, b) => a + b),
+                color: secondaryColor,
+                semanticLabel: AppStrings.a11yReactionsReadOnly,
+              ),
 
         // View count — also a statistic. It was rendered as a button with no
         // onTap, so it looked pressable and wasn't.
@@ -87,24 +118,26 @@ class PostActionBar extends ConsumerWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Semantics(
-              button: true,
-              label: post.isBookmarked
-                  ? AppStrings.a11yBookmarkRemove
-                  : AppStrings.a11yBookmarkAdd,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onBookmarkTap();
-                },
-                child: Icon(
-                  post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  color: post.isBookmarked ? AppColors.accent : secondaryColor,
-                  size: 18,
+            if (can.canBookmark) ...[
+              Semantics(
+                button: true,
+                label: post.isBookmarked
+                    ? AppStrings.a11yBookmarkRemove
+                    : AppStrings.a11yBookmarkAdd,
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    onBookmarkTap();
+                  },
+                  child: Icon(
+                    post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    color: post.isBookmarked ? AppColors.accent : secondaryColor,
+                    size: 18,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.lg),
+              const SizedBox(width: AppSpacing.lg),
+            ],
             Semantics(
               button: true,
               label: AppStrings.a11yCopyLink,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -172,13 +173,11 @@ class _Banner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fallback = _tintFor(channel.avatarColor, isDark);
 
-    String? path;
-    final fileId = channel.avatarFileId;
-    if (fileId != null && fileId != 0) {
-      path = ref.watch(fileDownloadProvider(fileId)).value;
-    } else if (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty) {
-      path = channel.avatarUrl;
-    }
+    final path = resolveMediaPath(
+      ref,
+      fileId: channel.avatarFileId,
+      rawPath: channel.avatarUrl,
+    );
 
     final exists = path != null && path.isNotEmpty
         ? ref.watch(fileExistsProvider(path)).value ?? false

@@ -91,6 +91,64 @@ void main() {
     });
   });
 
+  // A guest has no session and never will, so the signed-out rules above would
+  // bounce them to sign-in forever. The shell has to stand on its own footing.
+  group('guest mode', () {
+    test('a guest reaches the shell without a session', () {
+      for (final location in ['/home', '/search', '/channels', '/bookmarks']) {
+        expect(
+          authRedirect(
+            step: AuthStep.loginMethodSelection,
+            location: location,
+            hasSignedIn: false,
+            isGuest: true,
+          ),
+          isNull,
+          reason: location,
+        );
+      }
+    });
+
+    // Guest mode is a way in, not a one-way door.
+    test('a guest can still reach the sign-in screen', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/auth',
+          hasSignedIn: false,
+          isGuest: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('signing in still lands on the feed, guest flag or not', () {
+      expect(
+        authRedirect(
+          step: AuthStep.authenticated,
+          location: '/auth',
+          hasSignedIn: true,
+          isGuest: true,
+        ),
+        '/home',
+      );
+    });
+
+    // Leaving guest mode has to strand nobody in the shell — the same fault
+    // T8-37 fixed for a hung sign-out.
+    test('dropping the flag sends them back to sign-in', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/home',
+          hasSignedIn: false,
+          isGuest: false,
+        ),
+        '/auth',
+      );
+    });
+  });
+
   // Nobody should have to agree to something they cannot read.
   group('the legal documents', () {
     test('are readable signed out', () {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/guest/presentation/guest_feed_screen.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -30,6 +32,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // A guest has no folders, no chat cache and no unread state, so none of
+    // the machinery below applies to them. Their feed is its own screen.
+    if (ref.watch(isGuestModeProvider)) return const GuestFeedScreen();
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryTextColor = theme.colorScheme.onSurface;

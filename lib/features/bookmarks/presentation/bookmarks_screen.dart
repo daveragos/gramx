@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/guest/presentation/widgets/guest_bookmarks_placeholder.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -26,6 +28,12 @@ class BookmarksScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Bookmarks are stored against the signed-in account, so a guest has none
+    // and never will. Saying so beats an empty list that looks broken.
+    if (!ref.watch(readerCapabilitiesProvider).canBookmark) {
+      return const GuestBookmarksPlaceholder();
+    }
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;

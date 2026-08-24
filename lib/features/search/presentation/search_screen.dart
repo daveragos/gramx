@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -114,8 +115,20 @@ List<Post> matchLoadedPosts(List<Post> posts, String query) {
 }
 
 /// Search results: server hits once they land, local matches until then.
+///
+/// A guest gets local matching only. `SearchMessages` is a TDLib request and
+/// needs an account; `t.me/s/` offers no search of its own. So the guest search
+/// filters what has been loaded, which is honest about its scope rather than
+/// silently returning less than the reader expects.
 final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final query = ref.watch(searchQueryProvider).trim();
+
+  if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) {
+    final guestPosts = ref.watch(guestFeedProvider);
+    if (query.isEmpty) return guestPosts;
+    return guestPosts.whenData((posts) => matchLoadedPosts(posts, query));
+  }
+
   final postsAsync = ref.watch(feedPostsProvider);
 
   if (query.isEmpty) return postsAsync;
@@ -154,6 +167,9 @@ final searchCategoryProvider =
 final searchChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return [];
+  // Public-channel discovery is a TDLib request. A guest adds channels by
+  // typing a username on their own screen instead.
+  if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) return [];
 
   final repo = ref.watch(channelRepositoryProvider);
   final localChannels = ref.watch(channelsProvider).value ?? [];

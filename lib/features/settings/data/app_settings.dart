@@ -31,9 +31,18 @@ class AppSettings {
   final AppThemeMode themeMode;
   final AutoPlayPolicy autoPlay;
 
+  /// Whether the reader chose to browse without a Telegram account.
+  ///
+  /// Persisted here rather than held in memory because it decides whether the
+  /// app shell is reachable at all: a guest who closes the app and reopens it
+  /// must land back in their feed, not on the sign-in screen they deliberately
+  /// walked past.
+  final bool guestMode;
+
   const AppSettings({
     this.themeMode = AppThemeMode.dark,
     this.autoPlay = AutoPlayPolicy.always,
+    this.guestMode = false,
   });
 
   /// True when videos and GIFs should start on their own.
@@ -42,16 +51,19 @@ class AppSettings {
   AppSettings copyWith({
     AppThemeMode? themeMode,
     AutoPlayPolicy? autoPlay,
+    bool? guestMode,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
       autoPlay: autoPlay ?? this.autoPlay,
+      guestMode: guestMode ?? this.guestMode,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'themeMode': themeMode.name,
         'autoPlay': autoPlay.name,
+        'guestMode': guestMode,
       };
 
   /// Tolerant by design: a settings file written by an older or newer build
@@ -60,6 +72,7 @@ class AppSettings {
     return AppSettings(
       themeMode: AppThemeMode.fromName(json['themeMode'] as String?),
       autoPlay: AutoPlayPolicy.fromName(json['autoPlay'] as String?),
+      guestMode: json['guestMode'] as bool? ?? false,
     );
   }
 
@@ -75,12 +88,13 @@ class AppSettings {
   bool operator ==(Object other) =>
       other is AppSettings &&
       other.themeMode == themeMode &&
-      other.autoPlay == autoPlay;
+      other.autoPlay == autoPlay &&
+      other.guestMode == guestMode;
 
   @override
-  int get hashCode => Object.hash(themeMode, autoPlay);
+  int get hashCode => Object.hash(themeMode, autoPlay, guestMode);
 
   @override
   String toString() => 'AppSettings(theme: ${themeMode.name}, '
-      'autoPlay: ${autoPlay.name})';
+      'autoPlay: ${autoPlay.name}, guest: $guestMode)';
 }
