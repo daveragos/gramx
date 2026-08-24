@@ -364,29 +364,47 @@ class ChromeHeaderRow extends StatelessWidget {
   /// Drawn before the title — the feed's account avatar.
   final Widget? leading;
 
+  /// regardless of the leading avatar's width. Page titles (Bookmarks,
+  /// Channels, …) stay left-aligned, so this defaults to false.
+  final bool centerTitle;
+
   const ChromeHeaderRow({
     super.key,
     required this.title,
     this.actions = const [],
     this.leading,
+    this.centerTitle = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.onSurface;
+    final titleText = Text(
+      title,
+      style: AppTypography.heading(color: primary),
+      overflow: TextOverflow.ellipsis,
+    );
 
-    return Row(
+    final row = Row(
       children: [
         if (leading != null) leading! else const SizedBox(width: AppSpacing.lg),
         Expanded(
-          child: Text(
-            title,
-            style: AppTypography.heading(color: primary),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: centerTitle ? const SizedBox.shrink() : titleText,
         ),
         ...actions,
         const SizedBox(width: AppSpacing.xs),
+      ],
+    );
+
+    if (!centerTitle) return row;
+
+    // Centered independently of the row so the leading avatar's width
+    // doesn't push the wordmark off-center the way Expanded alignment would.
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        row,
+        IgnorePointer(child: titleText),
       ],
     );
   }

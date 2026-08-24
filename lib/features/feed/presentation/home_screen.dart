@@ -118,6 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               headerBottomHeight: _tabBarHeight,
               header: ChromeHeaderRow(
                 title: AppStrings.appName,
+                centerTitle: true,
                 leading: Padding(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   child: Semantics(
