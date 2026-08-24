@@ -194,13 +194,25 @@ class TdlibFileServer {
     final now = await _getFile(fileId);
     if (now != null && _availableAt(now, offset) > 0) return now;
 
-    final deadline = DateTime.now().add(stallTimeout);
-    await for (final update in _tdlib.fileUpdates) {
-      if (update.file.id != fileId) continue;
-      if (_availableAt(update.file, offset) > 0) return update.file;
-      if (DateTime.now().isAfter(deadline)) return null;
+    // The timeout has to be on the stream, not checked inside the loop: the
+    // loop body only runs when an update arrives, so a connection that goes
+    // away entirely would leave this awaiting a stream that has gone quiet —
+    // and the response never closes, which the player shows as a frozen frame
+    // rather than a stall it could retry.
+    try {
+      return await _tdlib.fileUpdates
+          .where((u) => u.file.id == fileId)
+          .map((u) => u.file)
+          .where((f) => _availableAt(f, offset) > 0)
+          .timeout(stallTimeout)
+          .first;
+    } on TimeoutException {
+      debugPrint('[FileServer] file $fileId stalled at $offset');
+      return null;
+    } catch (e) {
+      debugPrint('[FileServer] file $fileId wait failed: $e');
+      return null;
     }
-    return null;
   }
 
   /// Bytes readable from [offset], given what TDLib says it holds.
