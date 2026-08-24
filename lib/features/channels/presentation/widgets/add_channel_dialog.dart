@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -81,7 +82,7 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Enter a public Telegram channel username (e.g. durov).',
+            AppStrings.channelsAddBody,
             style: AppTypography.body(color: secondaryColor),
           ),
           const SizedBox(height: 16),
@@ -89,7 +90,7 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
             controller: _controller,
             decoration: InputDecoration(
               labelText: 'Channel Username',
-              hintText: 'durov',
+              hintText: AppStrings.channelsAddFieldHint,
               prefixText: '@',
               errorText: _errorMsg,
               border: const OutlineInputBorder(),

@@ -100,7 +100,7 @@ abstract class AppStrings {
   static const guestEmptyBody =
       'Enter a public channel username and gramX will read its posts straight '
       'from Telegram. Private channels need an account.';
-  static const guestAddHint = 'durov';
+  static const guestAddHint = 'ragoose_dumps';
   static const guestAddLabel = 'Public channel username';
   static const guestAddAction = 'Add channel';
   static const guestRemoveAction = 'Remove this channel';
@@ -243,10 +243,10 @@ abstract class AppStrings {
       'Muted channels stay in this list so you can bring them back. Mute one '
       'from here or from its profile.';
   static const channelsAddBody =
-      'Enter a public Telegram channel username (for example, durov). You will '
+      'Enter a public Telegram channel username (for example, ragoose_dumps). You will '
       'be subscribed to it.';
   static const channelsAddFieldLabel = 'Channel username';
-  static const channelsAddFieldHint = 'durov';
+  static const channelsAddFieldHint = 'ragoose_dumps';
   static const channelsAddConfirm = 'Add';
   static const channelsAddNotFound = "Couldn't find that channel.";
   static const channelsAddJoinFailed = "Couldn't subscribe to that channel.";

@@ -53,6 +53,29 @@ class GuestChannel {
     );
   }
 
+  /// Value equality, because "did this row actually change?" is a question the
+  /// feed asks after every fetch.
+  ///
+  /// Without it, recording an unchanged ETag counted as a change, published new
+  /// state, and restarted the fetch that produced it — a loop aimed at
+  /// Telegram. See `GuestChannelsNotifier.noteFetched`.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GuestChannel &&
+          other.username == username &&
+          other.title == title &&
+          other.avatarUrl == avatarUrl &&
+          other.subscribers == subscribers &&
+          other.isVerified == isVerified &&
+          other.addedAt == addedAt &&
+          other.etag == etag &&
+          other.lastModified == lastModified;
+
+  @override
+  int get hashCode => Object.hash(username, title, avatarUrl, subscribers,
+      isVerified, addedAt, etag, lastModified);
+
   Map<String, dynamic> toJson() => {
         'username': username,
         'title': title,

@@ -34,6 +34,12 @@ String? authRedirect({
   if (step == AuthStep.authenticated) return isOnAuth ? '/home' : null;
 
   // A guest goes wherever they asked, including to /auth to stop being one.
+  //
+  // Note this is deliberately "stay put" and not "go to /home": a guest
+  // standing on the sign-in screen is a guest in the middle of upgrading, and
+  // bouncing them off it would make that impossible. Entering guest mode
+  // therefore has to navigate for itself — see the browse button in
+  // auth_selection_page.dart.
   if (isGuest) return null;
 
   if (step == AuthStep.loading && !hasSignedIn) return null;

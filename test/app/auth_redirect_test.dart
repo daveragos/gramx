@@ -169,4 +169,59 @@ void main() {
       }
     });
   });
+
+  group('guest routing', () {
+    // The bug: entering guest mode set the flag and trusted the redirect to
+    // move the reader. It cannot — a guest is deliberately allowed to stand on
+    // the sign-in screen so they can stop being one, so the honest answer here
+    // is "stay put" and the browse button has to navigate for itself.
+    test('a guest on the sign-in screen is left there', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/auth',
+          hasSignedIn: false,
+          isGuest: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('a guest reaches the shell instead of being bounced to sign-in', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/home',
+          hasSignedIn: false,
+          isGuest: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('without the guest flag the shell still bounces to sign-in', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/home',
+          hasSignedIn: false,
+        ),
+        '/auth',
+      );
+    });
+
+    // Signing in wins over a leftover flag: isGuestModeProvider clears it, and
+    // an authenticated reader sitting on /auth belongs in the shell.
+    test('signing in from guest mode lands in the shell', () {
+      expect(
+        authRedirect(
+          step: AuthStep.authenticated,
+          location: '/auth',
+          hasSignedIn: true,
+          isGuest: false,
+        ),
+        '/home',
+      );
+    });
+  });
 }

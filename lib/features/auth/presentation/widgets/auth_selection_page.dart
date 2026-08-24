@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -178,8 +179,18 @@ class _BrowseAsGuestButton extends ConsumerWidget {
         TextButton(
           onPressed: () {
             ref.read(settingsProvider.notifier).setGuestMode(true);
-            // The router's redirect reopens the shell on the guest flag; no
-            // push here, or the shell would sit on top of the sign-in screen.
+            // Navigate explicitly. Leaving this to the redirect did not work
+            // and could not have: `authRedirect` returns null for a guest —
+            // "stay put" — because a guest has to be *allowed* to sit on the
+            // sign-in screen to stop being one. So the flag alone moved nobody.
+            //
+            // It also broke the second time round in a way the first hid: a
+            // guest who came back here from the banner already has the flag
+            // set, so `setGuestMode(true)` changed nothing, the notifier never
+            // fired, and the redirect was never even re-evaluated. `go` rather
+            // than `push`, so the shell replaces the sign-in screen instead of
+            // burying it underneath.
+            context.go(ShellTab.home.path);
           },
           child: Text(
             AppStrings.guestBrowseAction,
