@@ -177,6 +177,10 @@ class SyncService {
       }
     } else if (content is td.MessageVideo && content.video.thumbnail != null) {
       _downloadFile(content.video.thumbnail!.file.id);
+    } else if (content is td.MessageVideoNote && content.videoNote.thumbnail != null) {
+      // Queued now that round video messages are drawn rather than labelled;
+      // without this the tile has nothing to show until it is tapped.
+      _downloadFile(content.videoNote.thumbnail!.file.id);
     } else if (content is td.MessageAnimation && content.animation.thumbnail != null) {
       _downloadFile(content.animation.thumbnail!.file.id);
     } else if (content is td.MessageSticker) {

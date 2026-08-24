@@ -125,6 +125,11 @@ class TdlibMappers {
       text = _parseFormattedText(content.caption) ?? '🖼 Photo';
     } else if (content is td.MessageVideo) {
       text = _parseFormattedText(content.caption) ?? '🎬 Video';
+    } else if (content is td.MessageVideoNote) {
+      // It has no caption to fall back to, and describe() no longer names it
+      // now that the feed draws it — but a reply preview is still a line of
+      // text and needs one.
+      text = '🎥 Video message';
     } else if (content is td.MessageAnimation) {
       text = _parseFormattedText(content.caption) ?? 'GIF';
     } else if (content is td.MessageDocument) {
@@ -509,6 +514,36 @@ class TdlibMappers {
         fileId: videoFile.id,
         thumbnailFileId: thumbFile?.id,
         localPath: videoFile.local.isDownloadingCompleted ? videoFile.local.path : null,
+      ));
+    } else if (content is td.MessageVideoNote) {
+      // A round video message. It is a video, and it used to be labelled
+      // instead of drawn — so a channel that posts them showed a line of text
+      // where the video was. Square by construction: `length` is both sides.
+      final note = content.videoNote;
+      final noteFile = note.video;
+      final notePath = noteFile.local.isDownloadingCompleted && noteFile.local.path.isNotEmpty
+          ? noteFile.local.path
+          : (noteFile.remote.id.isNotEmpty ? noteFile.remote.id : noteFile.id.toString());
+      final thumbFile = note.thumbnail?.file;
+      final thumbPath = thumbFile != null
+          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+              ? thumbFile.local.path
+              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          : null;
+
+      list.add(MediaItem(
+        id: notePath,
+        type: MediaType.video,
+        url: notePath,
+        thumbnailUrl: thumbPath,
+        width: note.length,
+        height: note.length,
+        duration: note.duration,
+        fileSize: noteFile.expectedSize,
+        minithumbnail: note.minithumbnail?.data,
+        fileId: noteFile.id,
+        thumbnailFileId: thumbFile?.id,
+        localPath: noteFile.local.isDownloadingCompleted ? noteFile.local.path : null,
       ));
     } else if (content is td.MessageAnimation) {
       final anim = content.animation;
