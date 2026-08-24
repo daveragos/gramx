@@ -6,16 +6,29 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
-import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
+import 'package:gramx/features/channels/domain/channel_tab.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/channels/presentation/channel_tab_providers.dart';
+import 'package:gramx/features/channels/presentation/widgets/channel_file_list.dart';
+import 'package:gramx/features/channels/presentation/widgets/channel_header.dart';
+import 'package:gramx/features/channels/presentation/widgets/channel_media_grid.dart';
 import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
+import 'package:gramx/features/channels/presentation/widgets/pinned_post_card.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
+/// the pinned post, then tabs over the channel's own content.
+///
+/// **The request rule this screen exists under.** Four of the five tabs are
+/// backed by `SearchChatMessages`, which is networked. Opening a channel must
+/// not spend four requests on content nobody asked to see, so a tab fetches
+/// only when it is first selected — `ChannelTabNotifier.ensureLoaded`, driven
+/// from the tab controller rather than from `build`. See docs/TDLIB.md.
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
   final int? highlightMessageId;
@@ -31,9 +44,12 @@ class ChannelProfileScreen extends ConsumerStatefulWidget {
       _ChannelProfileScreenState();
 }
 
-class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
+class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   final ScrollController _scrollController = ScrollController();
   late final FeedRepository _feedRepository;
+
   bool _isActionLoading = false;
   int? _openedChatId;
 
@@ -45,31 +61,42 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
     _feedRepository = ref.read(feedRepositoryProvider);
+
+    _tabController = TabController(length: ChannelTab.values.length, vsync: this)
+      ..addListener(_onTabChanged);
+    _scrollController.addListener(_onScroll);
 
     // Opening a chat is a TDLib request, so it must not happen as a side effect
     // of rendering. listenManual belongs in initState and fireImmediately
     // covers the case where the channel is already cached.
     ref.listenManual<AsyncValue<Channel?>>(
       channelDetailProvider(widget.channelId),
-      (_, next) => _syncOpenChat(next.value?.chatId),
+      (_, next) {
+        _syncOpenChat(next.value?.chatId);
+        // A tab selected before the channel resolved has no chat id to fetch
+        // with; this is the retry, and it is a no-op once loaded.
+        _loadSelectedTab();
+      },
       fireImmediately: true,
     );
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
 
-    // Notify TDLib that the user closed this chat
     if (_openedChatId != null) {
       _feedRepository.closeChat(_openedChatId!);
     }
 
     super.dispose();
   }
+
+  ChannelTab get _selectedTab => ChannelTab.values[_tabController.index];
 
   /// Keeps this screen's open chat in step with the channel it is showing.
   void _syncOpenChat(int? chatId) {
@@ -80,12 +107,43 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     _feedRepository.openChat(chatId);
   }
 
+  void _onTabChanged() {
+    // Fires twice per swipe — once when the animation starts and once when the
+    // index settles. Only the settled one should spend a request.
+    if (_tabController.indexIsChanging) return;
+    setState(() {});
+    _loadSelectedTab();
+  }
+
+  /// The only place a tab's first page is asked for.
+  void _loadSelectedTab() {
+    final tab = _selectedTab;
+    if (tab.isHistory) return;
+
+    final chatId = ref.read(channelDetailProvider(widget.channelId)).value?.chatId;
+    if (chatId == null) return;
+
+    ref
+        .read(channelTabNotifierProvider.notifier)
+        .ensureLoaded(ChannelTabKey(widget.channelId, tab), chatId);
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
-    if (position.pixels >= position.maxScrollExtent * 0.85) {
+    if (position.pixels < position.maxScrollExtent * 0.85) return;
+
+    final tab = _selectedTab;
+    if (tab.isHistory) {
       ref.read(olderChannelPostsProvider.notifier).loadMore(widget.channelId);
+      return;
     }
+
+    final chatId = ref.read(channelDetailProvider(widget.channelId)).value?.chatId;
+    if (chatId == null) return;
+    ref
+        .read(channelTabNotifierProvider.notifier)
+        .loadMore(ChannelTabKey(widget.channelId, tab), chatId);
   }
 
   /// Loads another page when the first one doesn't fill the screen.
@@ -93,8 +151,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
   /// Pagination hangs off the scroll listener, and a list too short to scroll
   /// never fires it — so a channel that opened with two posts had no way to
   /// show a third. Bounded, and it stops as soon as the channel says it has
-  /// nothing older.
+  /// nothing older. History tab only: a media grid that doesn't fill the
+  /// viewport has genuinely run out.
   void _fillViewport() {
+    if (!_selectedTab.isHistory) return;
     if (_autoFills >= _maxAutoFills) return;
     if (!_scrollController.hasClients) return;
     if (_scrollController.position.maxScrollExtent > 0) return;
@@ -113,20 +173,46 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     });
   }
 
-  Future<void> _refresh() => refreshChannel(ref, widget.channelId);
+  Future<void> _refresh() async {
+    _autoFills = 0;
+    await refreshChannel(ref, widget.channelId);
+    if (mounted) _loadSelectedTab();
+  }
+
+  Future<void> _toggleMembership(Channel channel) async {
+    setState(() => _isActionLoading = true);
+    final channelRepo = ref.read(channelRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final success = channel.isJoined
+        ? await channelRepo.leaveChannel(channel.chatId)
+        : await channelRepo.joinChannel(channel.chatId);
+
+    if (success && mounted) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(channel.isJoined
+            ? AppStrings.channelLeft(channel.title)
+            : AppStrings.channelJoined(channel.title)),
+        duration: const Duration(seconds: 2),
+      ));
+    }
+
+    ref.invalidate(channelDetailProvider(widget.channelId));
+    ref.invalidate(channelsProvider);
+    ref.invalidate(feedPostsProvider);
+    if (mounted) setState(() => _isActionLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
-    final channelPostsAsync = ref.watch(channelPostsProvider(widget.channelId));
+    final channel = channelAsync.value;
 
     // After the frame, never during it: this can spend a TDLib request.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _fillViewport();
     });
-    final channel = channelAsync.value;
 
-    // Watch the provider state to rebuild on changes
     // Keeps the focus controller alive while this screen is open; it owns the
     // dwell timers behind read tracking.
     ref.listen(feedFocusControllerProvider, (_, _) {});
@@ -145,16 +231,12 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
     );
 
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          channel?.title ?? 'Channel',
+          channel?.title ?? AppStrings.channelFallbackTitle,
           style: AppTypography.heading(color: primaryColor),
         ),
         actions: [
@@ -187,262 +269,306 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
-        error: (err, _) => _Retry(
+        error: (err, _) => ChannelRetry(
           message: AppStrings.channelLoadFailed,
           detail: err.toString(),
           onRetry: _refresh,
         ),
         data: (channel) {
           if (channel == null) {
-            return _Retry(
+            return ChannelRetry(
               message: AppStrings.channelUnavailable,
               onRetry: _refresh,
             );
           }
+          return _buildBody(channel);
+        },
+      ),
+    );
+  }
 
-          return RefreshIndicator(
-            color: AppColors.accent,
-            // channelPostsProvider is derived; invalidating it recomputed the
-            // same cached fetch and the pull did nothing at all. The refresh
-            // has to reach the future that does the work.
-            onRefresh: _refresh,
-            child: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                // Profile Details Section
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.postPadding),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            ChannelAvatar(
-                              title: channel.title,
-                              avatarPath: channel.avatarUrl,
-                              avatarFileId: channel.avatarFileId,
-                              avatarColorHex: channel.avatarColor,
-                              radius: 36,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          channel.title,
-                                          style: AppTypography.heading(
-                                            color: primaryColor,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (channel.isVerified) ...[
-                                        const SizedBox(width: 4),
-                                        const Icon(
-                                          Icons.verified,
-                                          color: AppColors.verified,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  if (channel.username != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '@${channel.username}',
-                                      style: AppTypography.username(
-                                        color: secondaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.people_outline,
-                                        size: 14,
-                                        color: secondaryColor,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${TimeUtils.formatCount(channel.subscriberCount)} subscribers',
-                                        style: AppTypography.body(
-                                          color: secondaryColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: channel.isJoined
-                                    ? Colors.transparent
-                                    : AppColors.accent,
-                                foregroundColor: channel.isJoined
-                                    ? primaryColor
-                                    : Colors.white,
-                                elevation: channel.isJoined ? 0 : 2,
-                                side: channel.isJoined
-                                    ? BorderSide(
-                                        color: secondaryColor.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                      )
-                                    : null,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                              ),
-                              onPressed: _isActionLoading
-                                  ? null
-                                  : () async {
-                                      setState(() => _isActionLoading = true);
-                                      final channelRepo = ref.read(
-                                        channelRepositoryProvider,
-                                      );
-                                      if (channel.isJoined) {
-                                        final success = await channelRepo
-                                            .leaveChannel(channel.chatId);
-                                        if (context.mounted && success) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Left ${channel.title}',
-                                              ),
-                                              duration: const Duration(
-                                                seconds: 2,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      } else {
-                                        final success = await channelRepo
-                                            .joinChannel(channel.chatId);
-                                        if (context.mounted && success) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Joined ${channel.title}',
-                                              ),
-                                              duration: const Duration(
-                                                seconds: 2,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                      ref.invalidate(
-                                        channelDetailProvider(widget.channelId),
-                                      );
-                                      ref.invalidate(channelsProvider);
-                                      ref.invalidate(feedPostsProvider);
-                                      if (mounted) {
-                                        setState(
-                                          () => _isActionLoading = false,
-                                        );
-                                      }
-                                    },
-                              child: _isActionLoading
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(
-                                      channel.isJoined ? 'Joined' : 'Join',
-                                      style: AppTypography.button(),
-                                    ),
-                            ),
-                          ],
-                        ),
+  Widget _buildBody(Channel channel) {
+    final pinnedAsync = ref.watch(channelPinnedPostProvider(widget.channelId));
 
-                        // Description
-                        if (channel.description != null &&
-                            channel.description!.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          Text(
-                            channel.description!,
-                            style: AppTypography.body(color: primaryColor),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+    return RefreshIndicator(
+      color: AppColors.accent,
+      // channelPostsProvider is derived; invalidating it recomputed the same
+      // cached fetch and the pull did nothing at all. The refresh has to reach
+      // the future that does the work.
+      onRefresh: _refresh,
+      // One scroll view, not a NestedScrollView: the tab bodies are slivers in
+      // the same list, so the header scrolls away naturally and there is a
+      // single scroll position for the pagination listener to read. A nested
+      // view would give each tab its own controller and its own idea of how
+      // far down the reader is.
+      child: CustomScrollView(
+        controller: _scrollController,
+        slivers: [
+          SliverToBoxAdapter(
+            child: ChannelHeader(
+              channel: channel,
+              isActionBusy: _isActionLoading,
+              onJoinPressed: () => _toggleMembership(channel),
+            ),
+          ),
+          if (pinnedAsync.value != null)
+            SliverToBoxAdapter(
+              child: PinnedPostCard(post: pinnedAsync.value!),
+            ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _TabBarHeader(
+              controller: _tabController,
+              background: Theme.of(context).scaffoldBackgroundColor,
+            ),
+          ),
+          ..._tabSlivers(channel),
+        ],
+      ),
+    );
+  }
 
-                const SliverToBoxAdapter(child: Divider(height: 1)),
+  List<Widget> _tabSlivers(Channel channel) {
+    final tab = _selectedTab;
+    if (tab.isHistory) return _historySlivers();
 
-                // Channel Posts List
-                channelPostsAsync.when(
-                  loading: () => const SliverFillRemaining(
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppColors.accent),
-                    ),
-                  ),
-                  error: (err, _) => SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _Retry(
-                      message: AppStrings.channelPostsFailed,
-                      detail: err.toString(),
-                      onRetry: _refresh,
-                    ),
-                  ),
-                  data: (posts) {
-                    if (posts.isEmpty) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _Retry(
-                          message: AppStrings.channelNoPosts,
-                          onRetry: _refresh,
-                        ),
-                      );
-                    }
+    final state =
+        ref.watch(channelTabPostsProvider(ChannelTabKey(widget.channelId, tab)));
 
-                    return SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final post = posts[index];
-                        final isHighlighted =
-                            widget.highlightMessageId != null &&
-                            post.messageId == widget.highlightMessageId;
-                        // Same dwell-based read tracking as the main feed —
-                        // reading a post here counts just as much.
-                        return PostVisibilityReporter(
-                          postId: post.id,
-                          child: PostCard(
-                            post: post,
-                            isHighlighted: isHighlighted,
-                            onTap: () {
-                              ref.read(markPostAsReadProvider(post.id));
-                              context.push('/post/${post.id}');
-                            },
-                          ),
-                        );
-                      }, childCount: posts.length),
-                    );
-                  },
-                ),
+    if (state.error != null) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: ChannelRetry(
+            message: AppStrings.channelTabFailed,
+            detail: state.error.toString(),
+            onRetry: _refresh,
+          ),
+        ),
+      ];
+    }
+
+    if (!state.hasFetched || (state.isLoading && state.posts.isEmpty)) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.xxxl),
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (state.posts.isEmpty) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _EmptyTab(message: _emptyMessageFor(tab)),
+        ),
+      ];
+    }
+
+    return [
+      switch (tab.layout) {
+        ChannelTabLayout.grid => ChannelMediaGrid(posts: state.posts),
+        ChannelTabLayout.fileRows => ChannelFileList(posts: state.posts),
+        ChannelTabLayout.cards => _postCardSliver(state.posts),
+      },
+      if (state.isLoading) const _LoadingFooter(),
+    ];
+  }
+
+  List<Widget> _historySlivers() {
+    final postsAsync = ref.watch(channelPostsProvider(widget.channelId));
+
+    return postsAsync.when(
+      loading: () => const [
+        SliverFillRemaining(
+          child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        ),
+      ],
+      error: (err, _) => [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: ChannelRetry(
+            message: AppStrings.channelPostsFailed,
+            detail: err.toString(),
+            onRetry: _refresh,
+          ),
+        ),
+      ],
+      data: (posts) {
+        if (posts.isEmpty) {
+          return [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ChannelRetry(
+                message: AppStrings.channelNoPosts,
+                onRetry: _refresh,
+              ),
+            ),
+          ];
+        }
+        return [_postCardSliver(posts, trackReads: true)];
+      },
+    );
+  }
+
+  Widget _postCardSliver(List<Post> posts, {bool trackReads = false}) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final post = posts[index];
+          final isHighlighted = widget.highlightMessageId != null &&
+              post.messageId == widget.highlightMessageId;
+
+          final card = PostCard(
+            post: post,
+            isHighlighted: isHighlighted,
+            onTap: () {
+              ref.read(markPostAsReadProvider(post.id));
+              context.push('/post/${post.id}');
+            },
+          );
+
+          // Read tracking on the history tab only. The Links and Voice tabs are
+          // a search result rather than a reading position, and acknowledging a
+          // post because it scrolled past in a filtered list would write that
+          // to every Telegram client the reader owns.
+          return trackReads
+              ? PostVisibilityReporter(postId: post.id, child: card)
+              : card;
+        },
+        childCount: posts.length,
+      ),
+    );
+  }
+
+  static String _emptyMessageFor(ChannelTab tab) => switch (tab) {
+        ChannelTab.posts => AppStrings.channelNoPosts,
+        ChannelTab.media => AppStrings.channelTabNoMedia,
+        ChannelTab.files => AppStrings.channelTabNoFiles,
+        ChannelTab.links => AppStrings.channelTabNoLinks,
+        ChannelTab.voice => AppStrings.channelTabNoVoice,
+      };
+}
+
+/// The tab strip, pinned under the app bar while the profile scrolls away.
+class _TabBarHeader extends SliverPersistentHeaderDelegate {
+  final TabController controller;
+  final Color background;
+
+  static const double _height = 46;
+
+  _TabBarHeader({required this.controller, required this.background});
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Container(
+      height: _height,
+      color: background,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(
+            child: TabBar(
+              controller: controller,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: AppColors.accent,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.label,
+              labelColor: theme.colorScheme.onSurface,
+              unselectedLabelColor: secondary,
+              labelStyle: AppTypography.button().copyWith(fontSize: 15),
+              unselectedLabelStyle: AppTypography.body(),
+              dividerColor: Colors.transparent,
+              tabs: [
+                for (final tab in ChannelTab.values) Tab(text: _labelFor(tab)),
               ],
             ),
-          );
-        },
+          ),
+          Divider(
+            height: 0.5,
+            thickness: 0.5,
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _labelFor(ChannelTab tab) => switch (tab) {
+        ChannelTab.posts => AppStrings.channelTabPosts,
+        ChannelTab.media => AppStrings.channelTabMedia,
+        ChannelTab.files => AppStrings.channelTabFiles,
+        ChannelTab.links => AppStrings.channelTabLinks,
+        ChannelTab.voice => AppStrings.channelTabVoice,
+      };
+
+  @override
+  bool shouldRebuild(_TabBarHeader oldDelegate) =>
+      oldDelegate.controller != controller ||
+      oldDelegate.background != background;
+}
+
+class _EmptyTab extends StatelessWidget {
+  final String message;
+
+  const _EmptyTab({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxxl),
+        child: Text(
+          message,
+          style: AppTypography.body(color: secondary),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingFooter extends StatelessWidget {
+  const _LoadingFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.accent,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -453,12 +579,17 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen> {
 /// Every failure on this screen used to end in a line of text: no retry, and
 /// no scrollable to pull down on either, so a channel that failed to load was
 /// simply stuck until the reader backed out.
-class _Retry extends StatelessWidget {
+class ChannelRetry extends StatelessWidget {
   final String message;
   final String? detail;
   final Future<void> Function() onRetry;
 
-  const _Retry({required this.message, this.detail, required this.onRetry});
+  const ChannelRetry({
+    super.key,
+    required this.message,
+    this.detail,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {

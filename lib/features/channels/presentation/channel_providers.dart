@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/features/channels/data/channel_media_repository.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
+import 'package:gramx/features/channels/presentation/channel_tab_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
@@ -147,10 +149,27 @@ final channelPostsProvider =
   });
 });
 
-/// Reloads a channel from scratch — its details and its history.
+/// The channel's newest pinned post, or null if it has none.
+///
+/// One `GetChatPinnedMessage` per channel opened. Auto-disposed like every
+/// other family member here, so backing out and returning re-asks — which is
+/// correct: a pin can change, and one request on a deliberate navigation is
+/// well inside the budget.
+final channelPinnedPostProvider =
+    FutureProvider.family<Post?, String>((ref, channelId) async {
+  final channel = await ref.watch(channelDetailProvider(channelId).future);
+  if (channel == null) return null;
+  return ref.watch(channelMediaRepositoryProvider).fetchPinnedPost(channel.chatId);
+});
+
+/// Reloads a channel from scratch — its details, its history and every tab.
 Future<void> refreshChannel(WidgetRef ref, String channelId) async {
   ref.read(olderChannelPostsProvider.notifier).reset(channelId);
+  // Tabs are cached per (channel, tab) and would otherwise stack a second copy
+  // of each one under the first.
+  ref.read(channelTabNotifierProvider.notifier).reset(channelId);
   ref.invalidate(channelDetailProvider(channelId));
+  ref.invalidate(channelPinnedPostProvider(channelId));
   ref.invalidate(initialChannelPostsProvider(channelId));
   await ref.read(initialChannelPostsProvider(channelId).future);
 }

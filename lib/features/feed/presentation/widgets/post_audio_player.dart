@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -62,13 +63,6 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     }
   }
 
-  String _formatDuration(int seconds) {
-    if (seconds <= 0) return '0:00';
-    final mins = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$mins:${secs.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -92,8 +86,8 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     final isVoice = widget.item.type == MediaType.voice;
     final title = isVoice ? 'Voice message' : (widget.item.fileName ?? 'Audio track');
     final durationSecs = widget.item.duration;
-    final totalDurationText = _formatDuration(durationSecs);
-    final currentPosText = _formatDuration(_position.inSeconds);
+    final totalDurationText = TimeUtils.formatDuration(durationSecs);
+    final currentPosText = TimeUtils.formatDuration(_position.inSeconds);
 
     final progressRatio = (_controller != null && _controller!.value.duration.inMilliseconds > 0)
         ? (_position.inMilliseconds / _controller!.value.duration.inMilliseconds).clamp(0.0, 1.0)

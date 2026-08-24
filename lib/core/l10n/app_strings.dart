@@ -66,6 +66,10 @@ abstract class AppStrings {
   static const a11yCopyLink = 'Copy link to post';
   static const a11yReact = 'React to this post';
   static const a11yUnread = 'Unread';
+  static const a11yVerified = 'Verified channel';
+  static const a11yChannelPhotoTile = 'Photo — open the post it came from';
+  static const a11yChannelVideoTile = 'Video — open the post it came from';
+  static const a11yPinnedPost = 'Pinned post';
   static const a11yOpenMenu = 'Open navigation menu';
   static const a11yScrollToTop = 'Scroll to top';
   static const a11ySearch = 'Search';
@@ -146,6 +150,29 @@ abstract class AppStrings {
       '$formattedCount subscribers';
 
   static const channelsFilterAll = 'All';
+
+  // ── Channel profile tabs ───────────────────────────────────────────────────
+  static const channelTabPosts = 'Posts';
+  static const channelTabMedia = 'Media';
+  static const channelTabFiles = 'Files';
+  static const channelTabLinks = 'Links';
+  static const channelTabVoice = 'Voice';
+
+  static const channelTabNoMedia = 'No photos or videos yet.';
+  static const channelTabNoFiles = 'No files yet.';
+  static const channelTabNoLinks = 'No links yet.';
+  static const channelTabNoVoice = 'No voice or video messages yet.';
+  static const channelTabFailed = "Couldn't load this tab.";
+
+  static const channelFallbackTitle = 'Channel';
+  static const channelPinnedLabel = 'Pinned';
+  static const channelOpenPost = 'Open post';
+  static const channelBannerLabel = 'Channel cover image';
+  static const channelJoinAction = 'Join';
+  static const channelJoinedAction = 'Joined';
+
+  static String channelJoined(String title) => 'Joined $title';
+  static String channelLeft(String title) => 'Left $title';
 
   // ── Muting ─────────────────────────────────────────────────────────────────
   static const muteSheetTitle = 'Mute this channel';

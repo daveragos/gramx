@@ -23,6 +23,20 @@ abstract class TimeUtils {
     return DateFormat('h:mm a · MMM d, yyyy').format(dateTime);
   }
 
+  /// A media length as `m:ss`, or `h:mm:ss` once it passes an hour.
+  ///
+  /// Lived privately in the audio player until the channel media grid needed
+  /// the same thing on its video tiles.
+  static String formatDuration(int seconds) {
+    if (seconds <= 0) return '0:00';
+    final hours = seconds ~/ 3600;
+    final mins = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    final paddedSecs = secs.toString().padLeft(2, '0');
+    if (hours == 0) return '$mins:$paddedSecs';
+    return '$hours:${mins.toString().padLeft(2, '0')}:$paddedSecs';
+  }
+
   /// A deadline, said the way a person would: a time today, a weekday this
   /// week, a date beyond that. Used for "muted until …".
   static String untilWhen(DateTime deadline, {DateTime? now}) {

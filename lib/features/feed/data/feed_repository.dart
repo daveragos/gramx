@@ -469,6 +469,29 @@ class FeedRepository {
     return posts;
   }
 
+  /// Maps messages already in hand into posts for one known chat.
+  ///
+  /// Unlike [mapIncomingMessages] this does **not** filter by subscription:
+  /// the caller has a specific chat open and asked for these messages, so a
+  /// channel the reader is browsing without having joined still renders. Costs
+  /// nothing beyond the bookmark lookup and whatever forwarded-origin names
+  /// are not already cached.
+  Future<List<Post>> mapChannelMessages(
+    int chatId,
+    List<td.Message> messages,
+  ) async {
+    if (messages.isEmpty) return [];
+
+    var chat = _chatCache.chat(chatId);
+    if (chat == null) {
+      final res = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      if (res is! td.Chat) return [];
+      chat = res;
+    }
+
+    return _buildPosts({chatId: _dedupeMessages(messages)}, [chat]);
+  }
+
   /// Fetch posts for a single channel (local-first fallback).
   Future<List<Post>> fetchChannelPosts(int chatId,
       {int fromMessageId = 0, int limit = 50}) async {
