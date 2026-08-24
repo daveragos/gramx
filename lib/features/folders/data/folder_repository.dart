@@ -70,6 +70,23 @@ class FolderRepository {
       return const [];
     }
   }
+
+  /// Whether folder [folderId] filters to unread chats rather than holding a
+  /// fixed list of them.
+  ///
+  /// Such a folder's resolved chat list legitimately goes to zero the moment
+  /// everything in it has been read — that is the filter working, not an
+  /// empty folder, and its tab must not disappear along with it.
+  Future<bool> folderExcludesRead(int folderId) async {
+    try {
+      final res =
+          await _tdlib.sendRequest(td.GetChatFolder(chatFolderId: folderId));
+      return res is td.ChatFolder && res.excludeRead;
+    } catch (e) {
+      debugPrint('[Folders] Could not read folder filter $folderId: $e');
+      return false;
+    }
+  }
 }
 
 final folderRepositoryProvider = Provider<FolderRepository>((ref) {

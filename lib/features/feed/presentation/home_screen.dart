@@ -53,6 +53,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final channelsKnown = ref.watch(channelsKnownProvider);
 
     bool folderHasChannels(int folderId) {
+      // An "unread" style folder resolves to whichever chats currently have
+      // something unread, so it empties out the moment the reader catches
+      // up. That is the filter working as intended, not an empty folder —
+      // hiding its tab along with it would make the tab strip reshuffle
+      // itself every time something gets read, which is the inconsistency
+      // this guards against.
+      if (ref.watch(folderExcludesReadProvider(folderId)).value == true) {
+        return true;
+      }
+
       final ids = ref.watch(folderChannelIdsProvider(folderId));
       final known = ids.value;
       if (known == null) return true;

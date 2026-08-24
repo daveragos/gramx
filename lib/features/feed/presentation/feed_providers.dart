@@ -814,6 +814,15 @@ final folderChannelIdsProvider =
   return allowedChannelIds.map((id) => id.toString()).toSet();
 });
 
+/// Whether folder [folderId] is an "unread" style filter rather than a fixed
+/// list of chats — see `folderHasChannels` in `home_screen.dart`, which keeps
+/// such a folder's tab visible even when its resolved chat list is empty.
+final folderExcludesReadProvider =
+    FutureProvider.family<bool, int>((ref, folderId) async {
+  final folderRepo = ref.watch(folderRepositoryProvider);
+  return folderRepo.folderExcludesRead(folderId);
+});
+
 bool _isPostMuted(Post post, Set<String> mutedIds) {
   if (mutedIds.isEmpty) return false;
   // One place decides what a channel is called; see MuteRegistry.aliasesOf.
