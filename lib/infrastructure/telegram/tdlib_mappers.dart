@@ -9,7 +9,62 @@ import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 
+/// A message's reactions, flattened into the two collections `Post` carries.
+///
+/// A record rather than a `Post` fragment because the live update path needs
+/// the same pair without building a post around it.
+typedef MappedReactions = ({Map<String, int> counts, Set<String> chosen});
+
 class TdlibMappers {
+  /// The chip a paid (Telegram Stars) reaction is drawn as.
+  ///
+  /// `ReactionTypePaid` carries no emoji of its own — Telegram renders it as a
+  /// star icon — so the map needs a key, and the key is what the card shows.
+  static const String paidReactionEmoji = '⭐';
+
+  /// Fallback glyph for a custom emoji reaction.
+  ///
+  /// Resolving the real artwork means `GetCustomEmojiStickers`, a networked
+  /// request per distinct emoji and squarely against the budget in
+  /// docs/TDLIB.md. A count under a placeholder is the honest version of "one
+  /// more person reacted", and it beats dropping the reaction entirely — which
+  /// is what used to happen.
+  static const String customReactionEmoji = '🩶';
+
+  /// Flattens TDLib's reaction list into counts and the reader's own choices.
+  ///
+  /// One function rather than a loop at each call site: the history mapper and
+  /// the live update path both need this, they had a copy each, and the copies
+  /// agreed only by accident — both kept nothing but [td.ReactionTypeEmoji], so
+  /// paid and custom-emoji reactions vanished from posts that visibly had them
+  /// in Telegram.
+  static MappedReactions mapReactions(td.MessageReactions? reactions) =>
+      mapReactionList(reactions?.reactions);
+
+  /// The list form, for `updateMessageReactions` which carries no wrapper.
+  static MappedReactions mapReactionList(List<td.MessageReaction>? reactions) {
+    final counts = <String, int>{};
+    final chosen = <String>{};
+    if (reactions == null) return (counts: counts, chosen: chosen);
+
+    for (final reaction in reactions) {
+      final key = switch (reaction.type) {
+        td.ReactionTypeEmoji(:final emoji) => emoji.isNotEmpty ? emoji : null,
+        td.ReactionTypePaid() => paidReactionEmoji,
+        td.ReactionTypeCustomEmoji() => customReactionEmoji,
+      };
+      if (key == null) continue;
+
+      // Custom emoji all collapse onto one placeholder key, so counts add
+      // rather than overwrite — two different custom reactions on one post are
+      // two reactions, not the second one's count.
+      counts[key] = (counts[key] ?? 0) + reaction.totalCount;
+      if (reaction.isChosen) chosen.add(key);
+    }
+
+    return (counts: counts, chosen: chosen);
+  }
+
   static String? _parseFormattedText(dynamic raw) {
     if (raw == null) return null;
     if (raw is String) return raw.isNotEmpty ? raw : null;
@@ -182,17 +237,7 @@ class TdlibMappers {
       }
     }
 
-    final Map<String, int> reactionsMap = {};
-    final Set<String> chosenReactionsSet = {};
-    for (final reaction in message.interactionInfo?.reactions?.reactions ?? <td.MessageReaction>[]) {
-      final type = reaction.type;
-      if (type is td.ReactionTypeEmoji) {
-        reactionsMap[type.emoji] = reaction.totalCount;
-        if (reaction.isChosen) {
-          chosenReactionsSet.add(type.emoji);
-        }
-      }
-    }
+    final mappedReactions = mapReactions(message.interactionInfo?.reactions);
 
     String? forwardedFromTitle;
     String? forwardedFromUsername;
@@ -373,8 +418,8 @@ class TdlibMappers {
       viewCount: message.interactionInfo?.viewCount ?? 0,
       replyCount: message.interactionInfo?.replyInfo?.replyCount ?? 0,
       forwardCount: message.interactionInfo?.forwardCount ?? 0,
-      reactions: reactionsMap,
-      chosenReactions: chosenReactionsSet,
+      reactions: mappedReactions.counts,
+      chosenReactions: mappedReactions.chosen,
       isBookmarked: isBookmarked,
       isRead: message.isOutgoing || message.id <= chat.lastReadInboxMessageId,
       linkPreviewUrl: linkPreviewUrl,

@@ -217,6 +217,90 @@ abstract class TdFixtures {
         textMessageJson(id: id, chatId: chatId, text: text, date: date),
       );
 
+  /// One entry in a message's reaction list.
+  ///
+  /// [type] is the raw `ReactionType` JSON, so a test can build the emoji, paid
+  /// and custom-emoji forms — all three appear on real channel posts and only
+  /// the first used to survive the mapper.
+  static Map<String, dynamic> reactionJson({
+    required Map<String, dynamic> type,
+    required int totalCount,
+    bool isChosen = false,
+  }) =>
+      {
+        '@type': 'messageReaction',
+        'type': type,
+        'total_count': totalCount,
+        'is_chosen': isChosen,
+        'used_sender_id': null,
+        'recent_sender_ids': <dynamic>[],
+      };
+
+  static Map<String, dynamic> emojiReactionType(String emoji) =>
+      {'@type': 'reactionTypeEmoji', 'emoji': emoji};
+
+  static Map<String, dynamic> paidReactionType() =>
+      {'@type': 'reactionTypePaid'};
+
+  static Map<String, dynamic> customEmojiReactionType(String customEmojiId) =>
+      {'@type': 'reactionTypeCustomEmoji', 'custom_emoji_id': customEmojiId};
+
+  static Map<String, dynamic> messageReactionsJson(
+    List<Map<String, dynamic>> reactions,
+  ) =>
+      {
+        '@type': 'messageReactions',
+        'reactions': reactions,
+        'are_tags': false,
+        'paid_reactors': <dynamic>[],
+        'can_get_added_reactions': false,
+      };
+
+  static td.MessageReactions messageReactions(
+    List<Map<String, dynamic>> reactions,
+  ) =>
+      td.MessageReactions.fromJson(messageReactionsJson(reactions));
+
+  /// The update that actually carries reactions to a user client.
+  ///
+  /// `updateMessageReactions` is bots-only, so this is the only one that fires
+  /// for a reader — see docs/TDLIB.md.
+  static td.UpdateMessageInteractionInfo interactionInfo({
+    required int chatId,
+    required int messageId,
+    int viewCount = 0,
+    int forwardCount = 0,
+    List<Map<String, dynamic>>? reactions,
+  }) =>
+      td.UpdateMessageInteractionInfo(
+        chatId: chatId,
+        messageId: messageId,
+        interactionInfo: td.MessageInteractionInfo(
+          viewCount: viewCount,
+          forwardCount: forwardCount,
+          reactions: reactions == null ? null : messageReactions(reactions),
+        ),
+      );
+
+  /// A text message carrying interaction info, as history returns it.
+  static td.Message messageWithReactions({
+    required int id,
+    required int chatId,
+    required List<Map<String, dynamic>> reactions,
+    int viewCount = 0,
+    String text = 'hello',
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId, text: text);
+    json['interaction_info'] = {
+      '@type': 'messageInteractionInfo',
+      'view_count': viewCount,
+      'forward_count': 0,
+      'reply_info': null,
+      'reactions': messageReactionsJson(reactions),
+    };
+    return td.Message.fromJson(json);
+  }
+
   /// A basic-group chat — used to check supergroup lookups degrade safely.
   static td.Chat basicGroupChat({required int id, String title = 'Group'}) {
     final json = _chatJson(id: id, title: title);

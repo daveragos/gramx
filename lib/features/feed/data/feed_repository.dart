@@ -933,12 +933,21 @@ class FeedRepository {
   }
 
   /// Notify TDLib that the user has opened a chat.
-  /// Required for proper unread count tracking across clients.
-  Future<void> openChat(int chatId) async {
+  ///
+  /// Required for unread tracking across clients, and for interaction info —
+  /// views and reactions only stream for open chats (docs/TDLIB.md).
+  ///
+  /// Returns whether TDLib actually acknowledged it. The caller needs that: a
+  /// read acknowledgement sent with `forceRead: false` against a chat TDLib
+  /// does not yet consider open is quietly declined, and `ViewMessages` still
+  /// answers `Ok`, so nothing retries it. See [ReadReceiptQueue].
+  Future<bool> openChat(int chatId) async {
     try {
-      await _tdlib.sendRequest(td.OpenChat(chatId: chatId));
+      final result = await _tdlib.sendRequest(td.OpenChat(chatId: chatId));
+      return result is td.Ok;
     } catch (e) {
       debugPrint('[FeedRepo] openChat error: $e');
+      return false;
     }
   }
 

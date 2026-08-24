@@ -57,8 +57,15 @@ class ReadReceiptQueue extends Notifier<void> {
 
   final Set<String> _pending = {};
 
-  /// Chats whose acknowledgement is currently open, so [forceRead] can be
-  /// false — TDLib treats an ack for an open chat as genuine reading.
+  /// Chats TDLib has **confirmed** are open, so the ack can be sent with
+  /// `forceRead: false` — for an open chat it is the honest signal rather than
+  /// an assertion.
+  ///
+  /// Confirmed, not merely requested. `OpenChat` used to be fire-and-forget and
+  /// this set was filled the moment it was dispatched, so a receipt flushed in
+  /// the gap went out against a chat TDLib did not yet consider open. TDLib
+  /// declines to write that through but still answers `Ok`, so the retry never
+  /// fired and the read was lost in silence.
   final Set<int> _openChats = {};
 
   Timer? _flushTimer;
@@ -71,7 +78,11 @@ class ReadReceiptQueue extends Notifier<void> {
     });
   }
 
-  /// Tells the queue which chat the reader is actually looking at.
+  /// Tells the queue which chat TDLib has confirmed open.
+  ///
+  /// Pass null while a swap is in flight: an unconfirmed chat falls back to
+  /// `forceRead: true`, which is the honest reading of what happened — the
+  /// reader did read the post, whatever TDLib currently thinks is open.
   void setOpenChat(int? chatId) {
     _openChats.clear();
     if (chatId != null) _openChats.add(chatId);

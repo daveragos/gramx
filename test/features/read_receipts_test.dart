@@ -99,6 +99,31 @@ void main() {
       expect(other.forceRead, isTrue);
     });
 
+    // The race that lost reads: OpenChat used to be fire-and-forget and this
+    // set was filled the moment it was dispatched. A receipt flushed before
+    // TDLib acknowledged went out with forceRead: false against a chat TDLib
+    // did not consider open — declined, but still answered Ok, so nothing
+    // retried it. Unconfirmed now means force.
+    test('an unconfirmed open chat still forces the read', () async {
+      final queue = container.read(readReceiptQueueProvider.notifier);
+      // What FeedFocusController does the instant focus moves: nothing is
+      // confirmed open until OpenChat comes back.
+      queue.setOpenChat(null);
+      queue.add('-100111_10');
+      await queue.flush();
+
+      expect(repo.calls.single.forceRead, isTrue);
+    });
+
+    test('confirming a different chat does not soften the ack', () async {
+      final queue = container.read(readReceiptQueueProvider.notifier);
+      queue.setOpenChat(-100222);
+      queue.add('-100111_10');
+      await queue.flush();
+
+      expect(repo.calls.single.forceRead, isTrue);
+    });
+
     test('a flush with nothing held spends no requests', () async {
       await container.read(readReceiptQueueProvider.notifier).flush();
       expect(repo.calls, isEmpty);

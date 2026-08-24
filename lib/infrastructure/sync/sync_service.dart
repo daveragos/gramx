@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 
@@ -30,7 +31,63 @@ class LiveInteractionUpdate extends LivePostUpdate {
   final String postId;
   final int? viewCount;
   final int? forwardCount;
-  LiveInteractionUpdate(this.postId, {this.viewCount, this.forwardCount});
+
+  /// Reaction counts as TDLib now sees them, or null if the update carried no
+  /// interaction info to speak for them.
+  ///
+  /// An *empty* map is meaningful and different from null: it says the post has
+  /// no reactions, which is how the last one being taken back arrives.
+  final Map<String, int>? reactions;
+  final Set<String>? chosenReactions;
+
+  LiveInteractionUpdate(
+    this.postId, {
+    this.viewCount,
+    this.forwardCount,
+    this.reactions,
+    this.chosenReactions,
+  });
+}
+
+/// Turns a counter-bearing TDLib update into the event the feed folds in.
+///
+/// Pure and top-level so it can be tested without standing up a client, a
+/// database and a subscription — the seam the testing rules in docs/CONVENTIONS.md ask
+/// for. Returns null for updates that carry no counters.
+///
+/// The reaction path is the whole reason this exists. `updateMessageReactions`
+/// is documented **"for bots only"**, so on a user client it never fires — the
+/// only place a reader is ever told about a reaction is
+/// `updateMessageInteractionInfo.interactionInfo.reactions`, and that field
+/// used to be read past and dropped. Everything downstream was already wired up
+/// and waiting for it. See docs/TDLIB.md.
+LivePostUpdate? mapCounterUpdate(td.TdObject update) {
+  if (update is td.UpdateMessageInteractionInfo) {
+    final info = update.interactionInfo;
+    if (info == null) return null;
+
+    final mapped = TdlibMappers.mapReactions(info.reactions);
+    return LiveInteractionUpdate(
+      '${update.chatId}_${update.messageId}',
+      viewCount: info.viewCount,
+      forwardCount: info.forwardCount,
+      reactions: mapped.counts,
+      chosenReactions: mapped.chosen,
+    );
+  }
+
+  if (update is td.UpdateMessageReactions) {
+    // Bots-only, so unreachable for this app. Kept because handling it costs
+    // nothing and a future TDLib could widen it.
+    final mapped = TdlibMappers.mapReactionList(update.reactions);
+    return LiveReactionsUpdate(
+      '${update.chatId}_${update.messageId}',
+      mapped.counts,
+      mapped.chosen,
+    );
+  }
+
+  return null;
 }
 
 class SyncService {
@@ -162,38 +219,9 @@ class SyncService {
               ..where((a) => a.avatarPath.equals(fileIdStr) | a.avatarPath.equals(remoteId)))
             .write(AccountsCompanion(avatarPath: Value(localPath)));
       }
-    } else if (update is td.UpdateMessageReactions) {
-      final chatId = update.chatId;
-      final messageId = update.messageId;
-      final compositeId = '${chatId}_$messageId';
-
-      final reactionsMap = <String, int>{};
-      final chosenSet = <String>{};
-
-      for (final r in update.reactions) {
-        final emoji = r.type is td.ReactionTypeEmoji ? (r.type as td.ReactionTypeEmoji).emoji : '';
-        if (emoji.isNotEmpty) {
-          reactionsMap[emoji] = r.totalCount;
-          if (r.isChosen) {
-            chosenSet.add(emoji);
-          }
-        }
-      }
-
-      _liveUpdateController.add(LiveReactionsUpdate(compositeId, reactionsMap, chosenSet));
-    } else if (update is td.UpdateMessageInteractionInfo) {
-      final chatId = update.chatId;
-      final messageId = update.messageId;
-      final compositeId = '${chatId}_$messageId';
-      final info = update.interactionInfo;
-
-      if (info != null) {
-        _liveUpdateController.add(LiveInteractionUpdate(
-          compositeId,
-          viewCount: info.viewCount,
-          forwardCount: info.forwardCount,
-        ));
-      }
+    } else {
+      final counterUpdate = mapCounterUpdate(update);
+      if (counterUpdate != null) _liveUpdateController.add(counterUpdate);
     }
   }
 

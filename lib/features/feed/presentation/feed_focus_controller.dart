@@ -31,9 +31,15 @@ class FeedFocusController extends Notifier<String?> {
   Timer? _ticker;
   int? _openChatId;
 
+  /// Guards the late `OpenChat` confirmation: reading a provider after the
+  /// container is gone throws, and the reader leaving the feed while a request
+  /// is in flight is ordinary, not exceptional.
+  bool _disposed = false;
+
   @override
   String? build() {
     ref.onDispose(() {
+      _disposed = true;
       _ticker?.cancel();
       _ticker = null;
       // Anything held back must go out now: the reader has left the feed, and
@@ -121,9 +127,21 @@ class FeedFocusController extends Notifier<String?> {
     if (previous != null) repo.closeChat(previous);
 
     _openChatId = nextChatId;
-    if (nextChatId != null) repo.openChat(nextChatId);
-    // The queue needs this to know whether an ack has to force the read.
-    ref.read(readReceiptQueueProvider.notifier).setOpenChat(nextChatId);
+
+    // Nothing counts as open until TDLib says so, and until then a read ack has
+    // to force the write-through. Clearing first is the whole point: the queue
+    // used to be told the new chat was open the instant `OpenChat` was
+    // dispatched, and receipts flushed inside that window were dropped by TDLib
+    // without an error to retry on.
+    ref.read(readReceiptQueueProvider.notifier).setOpenChat(null);
+    if (nextChatId == null) return;
+
+    repo.openChat(nextChatId).then((opened) {
+      // The reader may have scrolled on while the request was in flight; a late
+      // confirmation must not claim a chat that is no longer focused.
+      if (_disposed || !opened || _openChatId != nextChatId) return;
+      ref.read(readReceiptQueueProvider.notifier).setOpenChat(nextChatId);
+    });
   }
 
   /// Post ids are `"<chatId>_<messageId>"` — the format the router, the

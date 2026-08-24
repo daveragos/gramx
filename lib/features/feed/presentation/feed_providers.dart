@@ -140,6 +140,14 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
         updateReactionsLive(update.postId, update.reactions, update.chosenReactions);
       } else if (update is LiveInteractionUpdate) {
         updateMetadataLive(update.postId, viewCount: update.viewCount, forwardCount: update.forwardCount);
+        // Interaction info is the only place a user client hears about
+        // reactions — updateMessageReactions is bots-only. Applied separately
+        // so a view-count-only update never touches the reaction row.
+        final reactions = update.reactions;
+        final chosen = update.chosenReactions;
+        if (reactions != null && chosen != null) {
+          updateReactionsLive(update.postId, reactions, chosen);
+        }
       }
     });
     ref.onDispose(() {
@@ -376,7 +384,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(updated);
   }
 
-  /// Live update reactions from TDLib UpdateMessageReactions stream
+  /// Live update reactions from TDLib's interaction-info stream.
   void updateReactionsLive(String postId, Map<String, int> reactions, Set<String> chosenReactions) {
     // The server has spoken, so the optimistic guess must step aside or it
     // keeps overriding every future update for this post.
