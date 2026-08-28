@@ -289,6 +289,12 @@ class ChromeScaffold extends StatelessWidget {
   /// body owns several scrollables and reports for itself — the feed's tabs.
   final bool observeScroll;
 
+  /// A floating action button, which belongs to the chrome and leaves with it.
+  ///
+  /// Handed to the `Scaffold` only while the chrome is on screen: swapping it
+  /// for null is what makes `Scaffold` play the FAB's own scale-out, and it is
+  /// the reason nothing here has to know how far the button would have to
+  /// travel to clear the screen edge.
   final Widget? floatingActionButton;
 
   const ChromeScaffold({
@@ -315,42 +321,56 @@ class ChromeScaffold extends StatelessWidget {
       content = ChromeScrollObserver(extent: totalHeight, child: content);
     }
 
-    return Scaffold(
-      floatingActionButton: floatingActionButton,
-      body: Stack(
-        children: [
-          Positioned.fill(child: content),
-          const Positioned(top: 0, left: 0, right: 0, child: StatusBarScrim()),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ChromeSlide(
-              fromTop: true,
-              child: BlurredChrome(
-                border: Border(
-                  bottom: BorderSide(color: borderColor, width: 0.5),
-                ),
-                child: SizedBox(
-                  height: totalHeight,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Column(
-                      children: [
-                        SizedBox(height: headerHeight, child: header),
-                        if (headerBottom != null)
-                          SizedBox(
-                            height: headerBottomHeight,
-                            child: headerBottom,
-                          ),
-                      ],
-                    ),
+    // Built here rather than inside the Consumer below, and that placement is
+    // the point. The FAB has to appear and disappear, which means the widget
+    // that decides it rebuilds — and the feed's body is four scrollables. Held
+    // as a local, the same instance goes into every rebuild, so Flutter's
+    // element diffing skips the subtree entirely and only the Scaffold node is
+    // rebuilt.
+    final stack = Stack(
+      children: [
+        Positioned.fill(child: content),
+        const Positioned(top: 0, left: 0, right: 0, child: StatusBarScrim()),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: ChromeSlide(
+            fromTop: true,
+            child: BlurredChrome(
+              border: Border(
+                bottom: BorderSide(color: borderColor, width: 0.5),
+              ),
+              child: SizedBox(
+                height: totalHeight,
+                child: SafeArea(
+                  bottom: false,
+                  child: Column(
+                    children: [
+                      SizedBox(height: headerHeight, child: header),
+                      if (headerBottom != null)
+                        SizedBox(
+                          height: headerBottomHeight,
+                          child: headerBottom,
+                        ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
+      ],
+    );
+
+    // A screen with no button never watches, so it never rebuilds for one.
+    if (floatingActionButton == null) return Scaffold(body: stack);
+
+    return Consumer(
+      builder: (context, ref, _) => Scaffold(
+        floatingActionButton:
+            ref.watch(chromeVisibleProvider) ? floatingActionButton : null,
+        body: stack,
       ),
     );
   }

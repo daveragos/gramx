@@ -197,4 +197,91 @@ void main() {
       expect(seen, posts.map((p) => p.id).toSet());
     });
   });
+
+  // The reported fault: a channel that fires off three or four unrelated posts
+  // within a minute takes over the top of the feed. They do not reply to each
+  // other, so groupIntoThreads has nothing to collapse — they are simply
+  // different posts that happened to land together.
+  group('scatterChannelBursts', () {
+    List<String> idsOf(List<FeedThread> threads) =>
+        [for (final t in threads) t.root.id];
+
+    List<FeedThread> threadsOf(List<Post> posts) =>
+        [for (final p in posts) FeedThread(root: p)];
+
+    test('a burst is broken up by whatever else is in the feed', () {
+      final scattered = scatterChannelBursts(
+        threadsOf([
+          post(chatId: -1, messageId: 1, minutesAgo: 1),
+          post(chatId: -1, messageId: 2, minutesAgo: 2),
+          post(chatId: -1, messageId: 3, minutesAgo: 3),
+          post(chatId: -2, messageId: 1, minutesAgo: 20),
+          post(chatId: -3, messageId: 1, minutesAgo: 30),
+          post(chatId: -4, messageId: 1, minutesAgo: 40),
+        ]),
+      );
+
+      // No two neighbours from the same channel.
+      for (var i = 0; i < scattered.length - 1; i++) {
+        expect(
+          scattered[i].root.chatId == scattered[i + 1].root.chatId,
+          isFalse,
+          reason: 'row $i and ${i + 1} are both from one channel',
+        );
+      }
+      expect(scattered, hasLength(6));
+    });
+
+    // The narrow half of the rule. Spreading out a channel that simply posts a
+    // lot would stop the feed being chronological, which is the whole product.
+    test('a channel posting steadily is left exactly as it was', () {
+      final posts = threadsOf([
+        post(chatId: -1, messageId: 3, minutesAgo: 60),
+        post(chatId: -1, messageId: 2, minutesAgo: 120),
+        post(chatId: -1, messageId: 1, minutesAgo: 180),
+      ]);
+
+      expect(idsOf(scatterChannelBursts(posts)), idsOf(posts));
+    });
+
+    // A burst read out of sequence is a worse bug than a burst: the third post
+    // must never overtake the second while the second is still held back.
+    test('a channel\'s own posts keep their order', () {
+      final scattered = scatterChannelBursts(
+        threadsOf([
+          post(chatId: -1, messageId: 3, minutesAgo: 1),
+          post(chatId: -1, messageId: 2, minutesAgo: 2),
+          post(chatId: -1, messageId: 1, minutesAgo: 3),
+          post(chatId: -2, messageId: 1, minutesAgo: 10),
+          post(chatId: -2, messageId: 2, minutesAgo: 11),
+        ]),
+      );
+
+      final ownOrder = [
+        for (final t in scattered)
+          if (t.root.chatId == -1) t.root.messageId,
+      ];
+      expect(ownOrder, [3, 2, 1]);
+    });
+
+    // Spacing is a preference; losing a post to keep it would not be.
+    test('nothing is dropped when there is nothing to interleave with', () {
+      final posts = threadsOf([
+        post(chatId: -1, messageId: 3, minutesAgo: 1),
+        post(chatId: -1, messageId: 2, minutesAgo: 2),
+        post(chatId: -1, messageId: 1, minutesAgo: 3),
+      ]);
+
+      expect(idsOf(scatterChannelBursts(posts)), idsOf(posts));
+    });
+
+    test('a feed too short to have a run is left alone', () {
+      final posts = threadsOf([
+        post(chatId: -1, messageId: 2, minutesAgo: 1),
+        post(chatId: -1, messageId: 1, minutesAgo: 2),
+      ]);
+
+      expect(identical(scatterChannelBursts(posts), posts), isTrue);
+    });
+  });
 }

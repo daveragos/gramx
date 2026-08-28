@@ -1,5 +1,7 @@
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/l10n/app_strings.dart';
+
 /// What the feed does with a message, by its content type.
 enum ContentHandling {
   /// The post mapper draws it in full.
@@ -33,9 +35,14 @@ typedef ContentSupport = ({ContentHandling handling, String? label});
 /// named fourteen of TDLib's seventy-three content types and swept the rest
 /// into `_ => unsupportedLabel`, so twenty perfectly real things — a channel
 /// boost, a giveaway announcement, a gifted subscription, an expired photo —
-/// arrived in the feed reading "Unsupported message — open in Telegram to
-/// view". Without a `default`, the next TDLib upgrade that adds a content type
-/// fails `flutter analyze` instead of quietly reaching a reader.
+/// arrived in the feed reading that gramX could not show them. Without a
+/// `default`, the next TDLib upgrade that adds a content type fails
+/// `flutter analyze` instead of quietly reaching a reader.
+///
+/// What is left in [ContentHandling.unrepresentable] is genuinely out of
+/// reach: `messageUnsupported` is TDLib saying the message is from a newer
+/// layer than the TDLib this build links against, so there is no content to
+/// draw at any price short of upgrading `handy_tdlib`.
 abstract class MessageContentSupport {
   static const ContentSupport _rendered =
       (handling: ContentHandling.rendered, label: null);
@@ -176,8 +183,7 @@ abstract class MessageContentSupport {
       supportFor(content).handling == ContentHandling.unrepresentable;
 
   /// The label for content this build cannot represent.
-  static const String unsupportedLabel =
-      'Unsupported message — open in Telegram to view';
+  static const String unsupportedLabel = AppStrings.postUnsupported;
 
   /// Whether this message should appear in the feed at all.
   static bool belongsInFeed(td.MessageContent content) =>

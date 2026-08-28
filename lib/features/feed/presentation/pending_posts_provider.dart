@@ -94,6 +94,27 @@ class PendingPostsNotifier extends Notifier<List<Post>> {
   }
 }
 
+/// The channels to show as faces on the "N new posts" pill, newest first.
+///
+/// into information: "12 new posts" says how much, three faces say from whom,
+/// which is what decides whether it is worth tapping now or later.
+///
+/// One face per channel — a channel that just posted six times is one source,
+/// not six — and at most [max] of them, because past three or four the row
+/// stops being readable and starts being a texture.
+List<Post> pillAvatarPosts(List<Post> pending, {int max = 3}) {
+  if (pending.isEmpty || max <= 0) return const [];
+
+  final seen = <int>{};
+  final faces = <Post>[];
+  for (final post in pending) {
+    if (!seen.add(post.chatId)) continue;
+    faces.add(post);
+    if (faces.length == max) break;
+  }
+  return faces;
+}
+
 final pendingPostsProvider =
     NotifierProvider<PendingPostsNotifier, List<Post>>(
         PendingPostsNotifier.new);

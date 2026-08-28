@@ -177,4 +177,62 @@ void main() {
       expect(merged.map((p) => p.id), ['-2_2', '-1_10', '-2_1', '-1_9']);
     });
   });
+
+  // The reported fault: a pull dropped the read posts, and a moment later the
+  // whole old feed was back. Nothing put them back deliberately — the backfill
+  // and the unread sweep simply restart behind a refresh and re-deliver
+  // history, with no idea one had just happened.
+  group('retiredPostIds', () {
+    test('names the posts a refresh finished with', () {
+      final retired = retiredPostIds([
+        post('-100_1', minutesAgo: 30, isRead: true),
+        post('-100_2', minutesAgo: 20),
+        post('-100_3', minutesAgo: 10, isRead: true),
+      ]);
+
+      expect(retired, {'-100_1', '-100_3'});
+    });
+
+    // The acknowledgement is still queued when the pull happens, so Telegram's
+    // own cursor has not caught up yet. This app's record is what knows.
+    test('counts a post read here but not yet acknowledged', () {
+      final retired = retiredPostIds(
+        [post('-100_1', minutesAgo: 30)],
+        readHere: {'-100_1'},
+      );
+
+      expect(retired, {'-100_1'});
+    });
+
+    test('an unread post is never retired', () {
+      expect(retiredPostIds([post('-100_1', minutesAgo: 5)]), isEmpty);
+    });
+  });
+
+  group('withoutRetired', () {
+    test('drops exactly what the refresh retired', () {
+      final kept = withoutRetired(
+        [
+          post('-100_1', minutesAgo: 30),
+          post('-100_2', minutesAgo: 20),
+        ],
+        {'-100_1'},
+      );
+
+      expect(kept.map((p) => p.id), ['-100_2']);
+    });
+
+    // A post the reader has never seen is ordinary history, whether or not
+    // Telegram counts it as read. Filtering on "read" at merge time instead of
+    // on the remembered ids would have hidden all of it.
+    test('leaves everything else alone, read or not', () {
+      final posts = [
+        post('-100_1', minutesAgo: 30, isRead: true),
+        post('-100_2', minutesAgo: 20),
+      ];
+
+      expect(identical(withoutRetired(posts, const {}), posts), isTrue);
+      expect(withoutRetired(posts, {'-100_9'}), hasLength(2));
+    });
+  });
 }

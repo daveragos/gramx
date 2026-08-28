@@ -132,6 +132,133 @@ List<FeedThread> groupIntoThreads(List<Post> posts) {
   return threads;
 }
 
+/// How close together two posts have to be before they read as one burst.
+///
+/// A channel posting every hour is an active channel; a channel posting four
+/// times inside ten minutes is one thought that arrived in pieces. Only the
+/// second is noise, and only the second gets spread out.
+const Duration kBurstWindow = Duration(minutes: 10);
+
+/// Rows that must sit between two posts from the same channel before the
+/// second one is allowed back in.
+///
+/// Two is the smallest number that breaks a run: at one, a burst still reads
+/// as alternating stripes of the same channel.
+const int kBurstSpacing = 2;
+
+/// Spreads a channel's simultaneous posts out across the feed.
+///
+/// [groupIntoThreads] collapses follow-ups that *reply* to each other, which is
+/// the tidy case. The untidy one is a channel that fires off three or four
+/// unrelated posts within a minute — no replies, nothing to collapse, and no
+/// reason for the reader to see them as a group. Chronologically they land as
+/// a solid block, and one channel takes over the top of the feed.
+///
+/// The rule is deliberately narrow, because the alternative — ranking the feed
+/// — would stop it being chronological at all. A thread is held back only when
+/// **both** are true: the same channel appeared within the last [spacing] rows,
+/// *and* this post was written within [window] of that one. A channel that
+/// posts steadily through the day is never touched; a burst is broken up and
+/// its members re-enter one at a time, as soon as there is something else
+/// between them.
+///
+/// Order within a channel is never changed — a burst's second post still comes
+/// before its third. Nothing is dropped: whatever is still held at the end is
+/// appended, so the list that comes out has exactly the threads that went in.
+///
+/// The cost, which is real: where a held post lands depends on what is below
+/// it, so paging in older posts gives a burst something new to be spread
+/// between and can move it down a row or two. That is the one thing the blend
+/// deliberately avoids, and it is accepted here because the alternative is the
+/// burst standing as a block at the top of the feed, which is what this is
+/// for. It only ever moves *down* and only within a burst, so nothing the
+/// reader has already read changes place.
+List<FeedThread> scatterChannelBursts(
+  List<FeedThread> threads, {
+  Duration window = kBurstWindow,
+  int spacing = kBurstSpacing,
+}) {
+  if (threads.length < 3 || spacing < 1) return threads;
+
+  final out = <FeedThread>[];
+  final held = <FeedThread>[];
+  final lastRow = <int, int>{};
+  final lastAt = <int, DateTime>{};
+
+  /// Whether an earlier-queued thread from the same channel is still waiting.
+  ///
+  /// This is what keeps a channel's own posts in order. Without it the third
+  /// post of a burst could satisfy the time rule against the *first* — which
+  /// is by then the last one emitted — and overtake the second, which was
+  /// still held. A burst read out of sequence is a worse bug than a burst.
+  ///
+  /// [heldIndex] is where the thread itself sits in the queue, so it only
+  /// looks at what is genuinely ahead of it; -1 for one arriving fresh.
+  bool queued(FeedThread thread, int heldIndex) {
+    final limit = heldIndex < 0 ? held.length : heldIndex;
+    for (var i = 0; i < limit; i++) {
+      if (held[i].root.chatId == thread.root.chatId) return true;
+    }
+    return false;
+  }
+
+  bool eligible(FeedThread thread, int heldIndex) {
+    if (queued(thread, heldIndex)) return false;
+
+    final chatId = thread.root.chatId;
+    final row = lastRow[chatId];
+    if (row == null) return true;
+    // Far enough down the feed that the run is already broken.
+    if (out.length - row > spacing) return true;
+    // Same channel, close by — but written far enough apart to be its own
+    // post rather than part of a burst.
+    return lastAt[chatId]!.difference(thread.lastActivity).abs() > window;
+  }
+
+  void emit(FeedThread thread) {
+    out.add(thread);
+    lastRow[thread.root.chatId] = out.length - 1;
+    lastAt[thread.root.chatId] = thread.lastActivity;
+  }
+
+  /// The first held thread that may go back in, or -1.
+  int nextAdmissible() {
+    for (var i = 0; i < held.length; i++) {
+      if (eligible(held[i], i)) return i;
+    }
+    return -1;
+  }
+
+  /// Lets held threads back in the moment the gap in front of them is wide
+  /// enough. Self-limiting: emitting one moves that channel's marker to the
+  /// row just written, so its next one is held again.
+  void drain() {
+    while (true) {
+      final index = nextAdmissible();
+      if (index < 0) return;
+      emit(held.removeAt(index));
+    }
+  }
+
+  for (final thread in threads) {
+    if (eligible(thread, -1)) {
+      emit(thread);
+      drain();
+    } else {
+      held.add(thread);
+    }
+  }
+
+  // Nothing left to interleave with. Spacing is a preference, not a promise:
+  // losing a post to keep it would be much worse.
+  while (held.isNotEmpty) {
+    final index = nextAdmissible();
+    emit(held.removeAt(index < 0 ? 0 : index));
+  }
+
+  return out;
+}
+
 /// One row of the feed: a thread, and whether it came out of the backlog.
 ///
 /// The flag is not drawn — an unread post is an unread post, and labelling
@@ -235,7 +362,7 @@ List<FeedEntry> buildFeedEntries(
 }) {
   if (posts.isEmpty) return const [];
 
-  final chronological = groupIntoThreads(posts);
+  final chronological = scatterChannelBursts(groupIntoThreads(posts));
   if (backlogOrder.isEmpty || blendEvery < 2) {
     return [for (final thread in chronological) FeedEntry(thread: thread)];
   }
@@ -272,7 +399,7 @@ List<FeedEntry> buildFeedEntries(
 
   // Threaded within each pool, never across: a channel's backlog post and its
   // post from an hour ago are two different reading moments.
-  final fresh = groupIntoThreads(freshPosts);
+  final fresh = scatterChannelBursts(groupIntoThreads(freshPosts));
   final position = {
     for (var i = 0; i < backlogOrder.length; i++) backlogOrder[i]: i,
   };

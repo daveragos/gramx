@@ -14,6 +14,7 @@ import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
@@ -598,12 +599,18 @@ class _OpenInTelegramButton extends ConsumerWidget {
         label: const Text(AppStrings.postOpenInTelegram),
         onPressed: () async {
           final messenger = ScaffoldMessenger.of(context);
-          final link = await ref.read(feedRepositoryProvider).postLink(post) ??
-              TelegramIds.postLink(
-                chatId: post.chatId,
-                messageId: post.messageId,
-                username: post.channelUsername,
-              );
+          // A guest post has no TDLib message behind it to ask for a link, and
+          // TelegramIds cannot build one either — it un-shifts a TDLib message
+          // id, and a guest id is unshifted already, so it came back null and
+          // the button did nothing at all.
+          final link = GuestPostMapper.isSynthetic(post.chatId)
+              ? GuestPostMapper.postLink(post)
+              : await ref.read(feedRepositoryProvider).postLink(post) ??
+                  TelegramIds.postLink(
+                    chatId: post.chatId,
+                    messageId: post.messageId,
+                    username: post.channelUsername,
+                  );
           final opened =
               link != null && await openExternalUrl(normalizeUrl(link));
           if (!opened) {

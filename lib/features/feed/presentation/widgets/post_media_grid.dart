@@ -495,27 +495,32 @@ class _MediaTile extends ConsumerWidget {
         supportsStreaming: item.supportsStreaming,
       );
     } else {
-      final imageItems = allMedia
-          .where((m) => m.type == MediaType.photo)
-          .map((m) {
-            final downloadedPath = m.fileId != null && m.fileId != 0
-                ? ref.read(fileDownloadProgressProvider(m.fileId!)).value?.localPath
-                : null;
-            // The URL is a fine thing to hand over: the viewer resolves it
-            // through the guest cache and fetches if it has to.
-            return downloadedPath ?? m.localPath ?? m.url;
-          })
-          .where((p) => p != null && p.isNotEmpty)
-          .cast<String>()
-          .toList();
+      final imageItems = <ViewerImage>[];
+      // Tracked while building rather than looked up afterwards: the list is
+      // filtered, so a position in `allMedia` is not a position in it. A post
+      // whose video came first opened on the wrong picture.
+      var initialIndex = 0;
 
-      final initialIndex = allMedia.indexOf(item);
+      for (final m in allMedia) {
+        if (m.type != MediaType.photo) continue;
+        final downloadedPath = m.fileId != null && m.fileId != 0
+            ? ref.read(fileDownloadProgressProvider(m.fileId!)).value?.localPath
+            : null;
+        // The file id goes over with it. Handing across a path alone meant a
+        // photo still downloading arrived as TDLib's remote id, which is not a
+        // file — and the viewer drew a broken image over a picture that was
+        // seconds away.
+        final image = ViewerImage.of(m, downloadedPath: downloadedPath);
+        if (!image.hasSource) continue;
+        if (identical(m, item)) initialIndex = imageItems.length;
+        imageItems.add(image);
+      }
 
       if (imageItems.isNotEmpty) {
         FullScreenImageViewer.show(
           context,
           items: imageItems,
-          initialIndex: initialIndex >= 0 && initialIndex < imageItems.length ? initialIndex : 0,
+          initialIndex: initialIndex,
           tag: heroTag,
           post: post,
         );

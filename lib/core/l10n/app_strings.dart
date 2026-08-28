@@ -57,6 +57,17 @@ abstract class AppStrings {
       "This post is in a channel you're not in, or it has been deleted. "
       'It may still open in Telegram.';
   static const postOpenInTelegram = 'Open in Telegram';
+
+  /// Content nothing here can draw, whichever way the reader got to it.
+  ///
+  /// Signed in, TDLib itself says it cannot represent the message — a message
+  /// type newer than the TDLib this build links against. As a guest, the
+  /// `t.me` preview page says the same thing about itself. Either way Telegram
+  /// can still show it, which is what the button under this offers; the
+  /// sentence says what happened, not what to do, because the button already
+  /// says that.
+  static const postUnsupported =
+      "gramX can't show this post — Telegram itself still can.";
   static const postCannotOpenTelegram = "Couldn't open Telegram.";
   static const postTitle = 'Post';
 
@@ -77,8 +88,7 @@ abstract class AppStrings {
 
   static const settingsAutoDownloadImagesTitle = 'Auto-download photos';
   static const settingsAutoDownloadImagesBody =
-      'Off: photos show their tiny built-in preview and load the full picture '
-      'when you tap. Videos and files are already tap-to-load.';
+      'Off: photos load only when you tap them.';
 
   // ── Guest mode ─────────────────────────────────────────────────────────────
   static const guestBrowseAction = 'Browse without an account';
@@ -115,6 +125,28 @@ abstract class AppStrings {
 
   static String guestRemoved(String username) => 'Removed @$username.';
   static String guestAdded(String title) => 'Added $title.';
+  static const guestUndo = 'Undo';
+
+  static const guestAddTooltip = 'Add a public channel';
+  static const guestPasteTooltip = 'Paste a link or username';
+  static const guestOpenChannel = 'Open this channel';
+  static const guestNotAUsername = 'That is not a Telegram channel username.';
+  static String guestAlreadyAdded(String username) =>
+      'You have already added @$username.';
+  static String guestChannelNotPublic(String username) =>
+      '@$username is private, or does not exist. Guest mode can only read '
+      'public channels.';
+  static String guestChannelUnreadable(String username) =>
+      'Could not read @$username.';
+
+  static const guestRetryAction = 'Retry';
+  static String guestChannelsFailed(int count) => count == 1
+      ? 'One channel could not be read.'
+      : '$count channels could not be read.';
+  static const guestFeedFailedTitle = 'Could not reach Telegram';
+  static String guestFeedLoading(int done, int total) =>
+      'Reading channel $done of $total…';
+  static const guestFeedEnd = 'You have reached the end of these channels.';
   static const a11yOpenMenu = 'Open navigation menu';
   static const a11yScrollToTop = 'Scroll to top';
   static const a11ySearch = 'Search';
@@ -147,7 +179,8 @@ abstract class AppStrings {
   static const commentsLoginPrompt = 'Log in to Telegram to post comments.';
   static const commentReplyingTo = 'Replying to ';
 
-  static String commentReplyingToAuthor(String author) => 'Replying to @$author';
+  static String commentReplyingToAuthor(String author) =>
+      'Replying to @$author';
 
   // ── Post statistics ────────────────────────────────────────────────────────
   static const statReposts = 'Reposts';
@@ -276,7 +309,8 @@ abstract class AppStrings {
       "Don't let the good ones fly away! Bookmark posts to easily find them "
       'again in the future.';
 
-  static String bookmarksError(Object error) => 'Error loading bookmarks: $error';
+  static String bookmarksError(Object error) =>
+      'Error loading bookmarks: $error';
 
   // ── Settings ───────────────────────────────────────────────────────────────
   static const settingsTitle = 'Settings and privacy';
@@ -311,7 +345,8 @@ abstract class AppStrings {
   static const settingsLinkFailed = "Couldn't open that link.";
 
   static const settingsPrivacy = 'Privacy Policy';
-  static const settingsPrivacyBody = 'What is stored, and what leaves your phone';
+  static const settingsPrivacyBody =
+      'What is stored, and what leaves your phone';
   static const settingsTerms = 'Terms of Service';
   static const settingsTermsBody = 'What this app is, and what it is not';
   static const settingsVersion = 'Version';
@@ -331,7 +366,8 @@ abstract class AppStrings {
       'channels.';
   static const settingsCancel = 'Cancel';
 
-  static String settingsStorageUsage(String size) => '$size of downloaded media';
+  static String settingsStorageUsage(String size) =>
+      '$size of downloaded media';
 
   static String settingsStorageFreed(String size) =>
       'Freed $size of cached media.';
@@ -436,4 +472,88 @@ abstract class AppStrings {
   static const documentOpenFailed = "Couldn't open this file";
   static const documentNoAppFound = 'No app found to open this file';
   static const audioDownloading = 'Downloading audio…';
+
+  // ── Composing ──────────────────────────────────────────────────────────────
+  static const composeHint = "What's happening?";
+  static const composePost = 'Post';
+  static const composeClose = 'Close';
+
+  static const composeTargetTitle = 'Post to';
+  static const composeTargetSearchHint = 'Search destinations';
+  static const composeTargetsEmpty = 'Nowhere to post';
+  static const composeTargetsEmptyBody =
+      "You can post to channels you run, groups you can write in, and your own "
+      'Saved Messages. None of those are available on this account yet.';
+  static const composeTargetNoMatch = 'No destination matches that';
+  static const composeSavedMessages = 'Saved Messages';
+
+  static const composeGroupChannels = 'Channels';
+  static const composeGroupGroups = 'Groups';
+  static const composeGroupSaved = 'Yourself';
+  static const composeGroupDirect = 'Direct messages';
+
+  static const composeAddPhoto = 'Add photo';
+  static const composeAddVideo = 'Add video';
+  static const composeAddSticker = 'Add sticker';
+  static const composeAddGif = 'Add GIF';
+
+  static const composeStickersTab = 'Stickers';
+  static const composeGifsTab = 'GIFs';
+  static const composeStickersFavourites = 'Favourites';
+  static const composeStickersRecent = 'Recently used';
+  static const composeNoStickers = 'No stickers here yet';
+  static const composeNoGifs =
+      'No saved GIFs. Save one in Telegram and it will show up here.';
+
+  /// A sticker has no words of its own; the emoji it stands for is the only
+  /// name Telegram gives it.
+  static String a11ySticker(String emoji) =>
+      emoji.isEmpty ? 'Sticker' : 'Sticker $emoji';
+
+  /// Why a sticker and written text cannot go out together.
+  static const composeStickerTakesNoCaption =
+      'Telegram sends a sticker on its own — it cannot carry a caption. Remove '
+      'the sticker or clear the text.';
+
+  static const composeRemoveSticker = 'Remove sticker';
+  static const composeRemoveGif = 'Remove GIF';
+  static const composeRemoveAttachment = 'Remove attachment';
+  static const composePickFailed = "Couldn't open the gallery.";
+
+  static const composeDiscardTitle = 'Discard post?';
+  static const composeDiscardBody = "This draft won't be saved.";
+  static const composeDiscardConfirm = 'Discard';
+  static const composeDiscardCancel = 'Keep writing';
+
+  static const a11yCompose = 'Write a post';
+  static const a11yComposeCharacters = 'Characters remaining';
+  static const a11yComposeChangeTarget = 'Change where this posts';
+
+  static String composePostingTo(String title) => 'Posting to $title';
+
+  static String composeSent(String title) => 'Posted to $title.';
+
+  static String composeFailed(String title) => "Couldn't post to $title.";
+
+  /// Shown when the writer tries to attach an eleventh file. Telegram's own
+  /// album limit, not this app's.
+  static String composeAttachmentLimit(int max) =>
+      max == 1 ? 'Only one file can be attached.' : 'Up to $max files per post.';
+
+  // Three ways Telegram refuses a photo. It answers all three with the same
+  // unhelpful error, so each is named here instead.
+  static String composePhotoTooLarge(int maxMegabytes) =>
+      'Telegram only takes photos up to $maxMegabytes MB.';
+
+  static String composePhotoTooManyPixels(int maxTotal) =>
+      "That photo is too big for Telegram — its width and height can't add up "
+      'to more than $maxTotal pixels.';
+
+  static String composePhotoTooWide(int maxRatio) =>
+      'That photo is too long and thin for Telegram — one side can be at most '
+      '$maxRatio times the other.';
+
+  /// Why the character allowance shrank the moment a photo was attached.
+  static String composeCaptionLimit(int limit) =>
+      'A post with media is captioned, so it is capped at $limit characters.';
 }

@@ -134,11 +134,16 @@ class PostDocumentCard extends ConsumerWidget {
                 ],
               ),
             ),
-            Icon(
-              isDownloaded ? Icons.open_in_new_rounded : Icons.arrow_downward_rounded,
-              color: secondaryColor,
-              size: 20,
-            ),
+            // Only a *second* action gets a second icon. The leading circle
+            // already says "download" (and turns into the progress ring), so a
+            // trailing arrow beside it was the same word twice; "open" is a
+            // different verb and keeps its own.
+            if (isDownloaded)
+              Icon(
+                Icons.open_in_new_rounded,
+                color: secondaryColor,
+                size: 20,
+              ),
           ],
         ),
       ),

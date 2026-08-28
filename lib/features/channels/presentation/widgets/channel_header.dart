@@ -9,9 +9,12 @@ import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/text/plain_text_links.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
+import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
+import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 /// name, handle, subscriber count, description, and the join control.
@@ -136,9 +139,16 @@ class ChannelHeader extends ConsumerWidget {
               if (channel.description != null &&
                   channel.description!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
-                Text(
-                  channel.description!,
+                // A bio is where a channel puts its site, its discussion group
+                // and its owner, and TDLib hands it over as a bare string with
+                // no entities — so all of that rendered as grey prose. The
+                // links are re-derived rather than left flat; see
+                // linkifyPlainText for what is and is not matched.
+                TextEntityRenderer(
+                  text: channel.description!,
+                  entities: linkifyPlainText(channel.description!),
                   style: AppTypography.body(color: primary),
+                  onHashtagTap: (tag) => openHashtagSearch(context, ref, tag),
                 ),
               ],
               const SizedBox(height: AppSpacing.md),

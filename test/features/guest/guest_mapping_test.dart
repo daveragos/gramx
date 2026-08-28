@@ -1,20 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/guest/data/guest_media_cache.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/data/tme_preview_client.dart';
 import 'package:gramx/features/guest/domain/guest_page.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 
-GuestChannelInfo _channel({String username = 'ashangulit'}) =>
-    GuestChannelInfo(
-      username: username,
-      title: 'Ashangulit',
-      avatarUrl: 'https://cdn.telegram.org/avatar.jpg',
-      subscribers: '104',
-      isVerified: true,
-    );
+GuestChannelInfo _channel({String username = 'ashangulit'}) => GuestChannelInfo(
+  username: username,
+  title: 'Ashangulit',
+  avatarUrl: 'https://cdn.telegram.org/avatar.jpg',
+  subscribers: '104',
+  isVerified: true,
+);
 
 GuestPost _post({
   int seq = 42,
@@ -22,16 +23,15 @@ GuestPost _post({
   List<GuestMedia> media = const [],
   List<GuestReaction> reactions = const [],
   String? views,
-}) =>
-    GuestPost(
-      id: 'ashangulit/$seq',
-      seq: seq,
-      publishedAt: DateTime.utc(2026, 8, 24, 7, 32),
-      text: text,
-      media: media,
-      reactions: reactions,
-      views: views,
-    );
+}) => GuestPost(
+  id: 'ashangulit/$seq',
+  seq: seq,
+  publishedAt: DateTime.utc(2026, 8, 24, 7, 32),
+  text: text,
+  media: media,
+  reactions: reactions,
+  views: views,
+);
 
 void main() {
   group('GuestPostMapper', () {
@@ -97,10 +97,12 @@ void main() {
 
     test('reactions carry through as counts the card can draw', () {
       final post = GuestPostMapper.mapPost(
-        _post(reactions: const [
-          GuestReaction(emoji: '⭐', count: 1, isPaid: true),
-          GuestReaction(emoji: '❤️', count: 5),
-        ]),
+        _post(
+          reactions: const [
+            GuestReaction(emoji: '⭐', count: 1, isPaid: true),
+            GuestReaction(emoji: '❤️', count: 5),
+          ],
+        ),
         _channel(),
       );
 
@@ -117,12 +119,14 @@ void main() {
 
     test('media keeps its https URL for the cache to resolve', () {
       final post = GuestPostMapper.mapPost(
-        _post(media: const [
-          GuestMedia(
-            kind: GuestMediaKind.photo,
-            url: 'https://cdn.telegram.org/pic.jpg',
-          ),
-        ]),
+        _post(
+          media: const [
+            GuestMedia(
+              kind: GuestMediaKind.photo,
+              url: 'https://cdn.telegram.org/pic.jpg',
+            ),
+          ],
+        ),
         _channel(),
       );
 
@@ -132,13 +136,15 @@ void main() {
 
     test('a round video maps to a video', () {
       final post = GuestPostMapper.mapPost(
-        _post(media: const [
-          GuestMedia(
-            kind: GuestMediaKind.roundVideo,
-            url: 'https://cdn.telegram.org/round.mp4',
-            durationSec: 12,
-          ),
-        ]),
+        _post(
+          media: const [
+            GuestMedia(
+              kind: GuestMediaKind.roundVideo,
+              url: 'https://cdn.telegram.org/round.mp4',
+              durationSec: 12,
+            ),
+          ],
+        ),
         _channel(),
       );
 
@@ -157,10 +163,12 @@ void main() {
     });
 
     test('mapping a page gives every post the same chat id', () {
-      final posts = GuestPostMapper.mapPage(GuestChannelPage(
-        channel: _channel(),
-        posts: [_post(seq: 1), _post(seq: 2)],
-      ));
+      final posts = GuestPostMapper.mapPage(
+        GuestChannelPage(
+          channel: _channel(),
+          posts: [_post(seq: 1), _post(seq: 2)],
+        ),
+      );
 
       expect(posts.map((p) => p.chatId).toSet(), hasLength(1));
       expect(posts.map((p) => p.messageId), [1, 2]);
@@ -178,8 +186,11 @@ void main() {
         'https://t.me/s/durov',
         'https://t.me/durov/1234',
       ]) {
-        expect(TmePreviewClient.parseUsername(input), 'durov',
-            reason: 'input: $input');
+        expect(
+          TmePreviewClient.parseUsername(input),
+          'durov',
+          reason: 'input: $input',
+        );
       }
     });
 
@@ -195,8 +206,11 @@ void main() {
         'has-a-hyphen',
         'way_too_long_${'x' * 40}',
       ]) {
-        expect(TmePreviewClient.parseUsername(input), isNull,
-            reason: 'input: $input');
+        expect(
+          TmePreviewClient.parseUsername(input),
+          isNull,
+          reason: 'input: $input',
+        );
       }
     });
   });
@@ -206,13 +220,20 @@ void main() {
     // pointed at an arbitrary host by remote input is exactly the leak T8-29
     // closed by removing cached_network_image.
     test('only Telegram\'s own hosts are fetched', () {
-      expect(GuestMediaCache.isAllowed('https://cdn4.telegram-cdn.org/f.jpg'),
-          isTrue);
+      expect(
+        GuestMediaCache.isAllowed('https://cdn4.telegram-cdn.org/f.jpg'),
+        isTrue,
+      );
       expect(GuestMediaCache.isAllowed('https://t.me/i/pic.jpg'), isTrue);
-      expect(GuestMediaCache.isAllowed('https://telesco.pe/file/x.jpg'), isTrue);
+      expect(
+        GuestMediaCache.isAllowed('https://telesco.pe/file/x.jpg'),
+        isTrue,
+      );
 
-      expect(GuestMediaCache.isAllowed('https://evil.example.com/x.jpg'),
-          isFalse);
+      expect(
+        GuestMediaCache.isAllowed('https://evil.example.com/x.jpg'),
+        isFalse,
+      );
       // A suffix match must not be fooled by a lookalike domain.
       expect(GuestMediaCache.isAllowed('https://nott.me/x.jpg'), isFalse);
       expect(GuestMediaCache.isAllowed('https://t.me.evil.com/x.jpg'), isFalse);
@@ -223,19 +244,29 @@ void main() {
 
     test('a URL always names the same file', () {
       const url = 'https://cdn4.telegram-cdn.org/file/abc?size=large';
-      expect(GuestMediaCache.fileNameFor(url),
-          GuestMediaCache.fileNameFor(url));
-      expect(GuestMediaCache.fileNameFor(url),
-          isNot(GuestMediaCache.fileNameFor('${url}2')));
+      expect(
+        GuestMediaCache.fileNameFor(url),
+        GuestMediaCache.fileNameFor(url),
+      );
+      expect(
+        GuestMediaCache.fileNameFor(url),
+        isNot(GuestMediaCache.fileNameFor('${url}2')),
+      );
     });
 
     test('the filename keeps a plain extension and rejects anything else', () {
-      expect(GuestMediaCache.fileNameFor('https://t.me/a/b.JPG'),
-          endsWith('.jpg'));
-      expect(GuestMediaCache.fileNameFor('https://t.me/a/b'),
-          isNot(contains('.')));
-      expect(GuestMediaCache.fileNameFor('https://t.me/a/b.verylongsuffix'),
-          isNot(contains('.')));
+      expect(
+        GuestMediaCache.fileNameFor('https://t.me/a/b.JPG'),
+        endsWith('.jpg'),
+      );
+      expect(
+        GuestMediaCache.fileNameFor('https://t.me/a/b'),
+        isNot(contains('.')),
+      );
+      expect(
+        GuestMediaCache.fileNameFor('https://t.me/a/b.verylongsuffix'),
+        isNot(contains('.')),
+      );
     });
   });
 
@@ -265,6 +296,54 @@ void main() {
       expect(signedIn.canForward, isTrue);
       expect(signedIn.canSearchServerSide, isTrue);
       expect(signedIn.isGuest, isFalse);
+    });
+  });
+
+  // Reported against https://t.me/github/11123, which the preview page will not
+  // draw. The card has to say so and offer the one thing that still works.
+  group('a post the preview page would not draw', () {
+    Post mapped() => GuestPostMapper.mapPost(
+      GuestPost(
+        id: 'github/11123',
+        seq: 11123,
+        publishedAt: DateTime.utc(2026, 8, 27, 13, 32),
+        isUnsupported: true,
+      ),
+      _channel(username: 'github'),
+    );
+
+    test('carries the same marker the TDLib mapper sets', () {
+      expect(mapped().unsupportedKind, isNotNull);
+    });
+
+    test('says what happened instead of arriving blank', () {
+      expect(mapped().text, AppStrings.postUnsupported);
+    });
+
+    test('an ordinary guest post carries no marker', () {
+      final post = GuestPostMapper.mapPost(_post(), _channel());
+      expect(post.unsupportedKind, isNull);
+    });
+  });
+
+  // The button under that label was dead for guests. TelegramIds.postLink
+  // shifts a TDLib message id right by 20 to recover the server id, and a guest
+  // id is the server id already — so 11123 shifted is 0, and the link was null.
+  group('GuestPostMapper.postLink', () {
+    test('builds the public t.me link without shifting the id', () {
+      final post = GuestPostMapper.mapPost(
+        _post(seq: 11123),
+        _channel(username: 'github'),
+      );
+
+      expect(GuestPostMapper.postLink(post), 'https://t.me/github/11123');
+    });
+
+    test('is null when there is no handle to build it from', () {
+      final post = GuestPostMapper.mapPost(_post(), _channel())
+          .copyWith(channelUsername: null);
+
+      expect(GuestPostMapper.postLink(post), isNull);
     });
   });
 }

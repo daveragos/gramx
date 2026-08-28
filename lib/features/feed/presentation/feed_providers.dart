@@ -60,6 +60,38 @@ List<Post> dropAlreadyRead(
       .toList();
 }
 
+/// The ids a refresh retires: everything the reader had already finished with.
+///
+/// [dropAlreadyRead] takes them out of the freshly fetched page, but that page
+/// is not the only thing that fills the feed — the backfill, the unread sweep
+/// and pagination all merge into it a moment later, and they answer from
+/// TDLib's history with no idea a refresh just happened. So a pull emptied the
+/// read posts out and then watched them file straight back in, which is the
+/// old feed "coming back on".
+///
+/// Remembering *which* ids went, rather than re-deriving "read" at each merge,
+/// is what keeps that fix from also hiding the read posts a reader has never
+/// seen: those are ordinary history and belong in the feed.
+Set<String> retiredPostIds(
+  List<Post> previous, {
+  Set<String> readHere = const {},
+}) {
+  return {
+    for (final post in previous)
+      if (post.isRead || readHere.contains(post.id)) post.id,
+  };
+}
+
+/// Drops anything a refresh retired. See [retiredPostIds].
+List<Post> withoutRetired(List<Post> posts, Set<String> retired) {
+  if (retired.isEmpty || posts.isEmpty) return posts;
+  final kept = [
+    for (final post in posts)
+      if (!retired.contains(post.id)) post,
+  ];
+  return kept.length == posts.length ? posts : kept;
+}
+
 /// Merges [incoming] posts into [current], newest first.
 ///
 /// Posts already present win: their entry is kept untouched so optimistic
@@ -116,6 +148,14 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   final Map<int, int> _oldestMessageIds = {};
   bool _isLoadingMore = false;
   StreamSubscription<List<Post>>? _backfillSub;
+
+  /// Posts the last refresh took out of the feed, so nothing puts them back.
+  ///
+  /// Everything that merges into the feed goes through [_admit], which is the
+  /// only reason a refresh sticks: the backfill and the unread sweep restart
+  /// right behind it and would otherwise re-deliver exactly what was dropped.
+  /// Cleared on the next refresh, and only then.
+  Set<String> _retired = const {};
 
   /// Set on dispose. The background passes below outlive a rebuild, and
   /// writing state after that throws.
@@ -183,7 +223,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// the feed.
   Future<void> _primeBacklogFromCache(FeedRepository repo) async {
     try {
-      final cached = await repo.fetchCachedUnreadBacklog();
+      final cached = _admit(await repo.fetchCachedUnreadBacklog());
       if (cached.isEmpty || _disposed) return;
 
       ref.read(backlogIdsProvider.notifier).add(orderBacklogIds(cached));
@@ -205,7 +245,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// a backlog that doesn't arrive costs a blend, not the feed.
   Future<void> _sweepUnread(FeedRepository repo) async {
     try {
-      final backlog = await repo.fetchUnreadBacklog();
+      final backlog = _admit(await repo.fetchUnreadBacklog());
       if (backlog.isEmpty || _disposed) return;
 
       // Round-robin across channels, so a channel sitting on a week of unread
@@ -250,8 +290,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   void _mergeBackfilled(List<Post> incoming) {
     final current = state.value ?? [];
     final existingIds = current.map((p) => p.id).toSet();
-    final additions =
-        incoming.where((p) => !existingIds.contains(p.id)).toList();
+    final additions = _admit(incoming)
+        .where((p) => !existingIds.contains(p.id))
+        .toList();
     if (additions.isEmpty) return;
 
     _updateOldestIds(additions);
@@ -286,6 +327,12 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(merged);
   }
 
+  /// Everything that arrives after a refresh passes through here.
+  ///
+  /// One gate rather than a check at each of the five call sites: the whole
+  /// bug was that one of them did not have it.
+  List<Post> _admit(List<Post> posts) => withoutRetired(posts, _retired);
+
   /// Track the oldest messageId per channel for cursor-based pagination.
   void _updateOldestIds(List<Post> posts) {
     for (final post in posts) {
@@ -311,7 +358,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _isLoadingMore = true;
     try {
       final repo = ref.read(feedRepositoryProvider);
-      final olderPosts = await repo.fetchOlderPosts(cursors);
+      final olderPosts = _admit(await repo.fetchOlderPosts(cursors));
       if (olderPosts.isNotEmpty) {
         _updateOldestIds(olderPosts);
         final current = state.value ?? [];
@@ -334,18 +381,28 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     // The blend is fixed between refreshes; this is the moment it is allowed
     // to change, which is what "stays until you refresh" means.
     ref.read(backlogIdsProvider.notifier).clear();
-    final seenBefore = (state.value ?? const <Post>[]).map((p) => p.id).toSet();
+    final previous = state.value ?? const <Post>[];
+    final seenBefore = previous.map((p) => p.id).toSet();
 
     _oldestMessageIds.clear();
     state = const AsyncLoading();
     final repo = ref.read(feedRepositoryProvider);
     final readHere = ref.read(optimisticPostUpdatesProvider.notifier).readPostIds;
+    // Named before the fetch so a failed refresh cannot leave half a rule in
+    // place: either the whole pull happened or none of it did.
+    final retiring = retiredPostIds(previous, readHere: readHere);
     state = await AsyncValue.guard(() async {
-      final posts = dropAlreadyRead(
-        await repo.fetchFeedPosts(),
-        seenBefore,
-        readHere: readHere,
-      );
+      final fetched = await repo.fetchFeedPosts();
+      final posts = dropAlreadyRead(fetched, seenBefore, readHere: readHere);
+      // Whatever the fetch itself dropped joins the list: the server can know
+      // a post was read on another device when this session still had it
+      // marked unread.
+      final kept = posts.map((p) => p.id).toSet();
+      _retired = {
+        ...retiring,
+        for (final post in fetched)
+          if (!kept.contains(post.id)) post.id,
+      };
       _updateOldestIds(posts);
       return posts;
     });
@@ -513,8 +570,8 @@ final postDetailFetchProvider =
   // answers nothing and the screen said "post not found" for every post the
   // reader could plainly see. The guest feed already holds it.
   if (GuestPostMapper.isSynthetic(chatId)) {
-    final posts = await ref.watch(guestFeedProvider.future);
-    return posts.where((p) => p.id == postId).firstOrNull;
+    final feed = await ref.watch(guestFeedProvider.future);
+    return feed.posts.where((p) => p.id == postId).firstOrNull;
   }
 
   final repo = ref.watch(feedRepositoryProvider);

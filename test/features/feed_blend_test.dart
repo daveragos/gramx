@@ -228,8 +228,13 @@ void main() {
 
     // The reason the backlog set is fixed rather than recomputed: pagination
     // must not reshuffle what the reader is looking at.
+    //
+    // Posts are spaced an hour apart on purpose. Anything closer together than
+    // [kBurstWindow] is a burst, and scatterChannelBursts is *allowed* to move
+    // those as more of the feed loads — that is the trade it makes. This test
+    // is about the backlog pool, so it stays out of that case deliberately.
     test('loading older posts does not move the rows already on screen', () {
-      final firstPage = [for (var i = 1; i <= 8; i++) post('-100_$i', i)];
+      final firstPage = [for (var i = 1; i <= 8; i++) post('-100_$i', i * 60)];
       const backlog = ['-200_1'];
       final before = buildFeedEntries(
         [...firstPage, post('-200_1', 5000, chatId: -200)],
@@ -241,7 +246,8 @@ void main() {
           ...firstPage,
           post('-200_1', 5000, chatId: -200),
           // A page of older posts arrives, unread ones among them.
-          for (var i = 20; i <= 30; i++) post('-300_$i', 1000 + i, chatId: -300),
+          for (var i = 20; i <= 30; i++)
+            post('-300_$i', 1000 + i * 60, chatId: -300),
         ],
         backlogOrder: backlog,
       );

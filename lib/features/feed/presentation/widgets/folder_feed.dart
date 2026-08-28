@@ -7,8 +7,10 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 import 'package:gramx/features/feed/domain/feed_thread.dart';
+import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
@@ -123,8 +125,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     });
 
     final feedAsync = ref.watch(filteredFeedPostsProvider(widget.folderId));
-    final pendingCount =
-        ref.watch(pendingPostsForFolderProvider(widget.folderId)).length;
+    final pending = ref.watch(pendingPostsForFolderProvider(widget.folderId));
+    final pendingCount = pending.length;
     final backlogIds = ref.watch(backlogIdsProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
     // "Nothing here" and "nothing yet" look identical and mean opposite
@@ -293,6 +295,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                 child: Center(
                   child: _NewPostsPill(
                     count: pendingCount,
+                    faces: pillAvatarPosts(pending),
                     onTap: _showNewPosts,
                   ),
                 ),
@@ -306,11 +309,24 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
 
 /// The "N new posts" affordance. Tapping it is the only way arrivals enter the
 /// feed — see [PendingPostsNotifier].
+///
+/// The faces are the point of the redesign: a count says how much has piled
+/// up, the avatars say who it is from, and that is the half of the question
+/// that decides whether to tap now or keep reading.
 class _NewPostsPill extends StatelessWidget {
   final int count;
+
+  /// One post per channel that contributed, newest first — see
+  /// [pillAvatarPosts]. Empty draws the old arrow instead.
+  final List<Post> faces;
+
   final VoidCallback onTap;
 
-  const _NewPostsPill({required this.count, required this.onTap});
+  const _NewPostsPill({
+    required this.count,
+    required this.faces,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +341,7 @@ class _NewPostsPill extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.fromLTRB(faces.isEmpty ? 16 : 5, 5, 16, 5),
             decoration: BoxDecoration(
               color: AppColors.accent,
               borderRadius: BorderRadius.circular(20),
@@ -340,9 +356,15 @@ class _NewPostsPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.arrow_upward_rounded,
-                    color: Colors.white, size: 16),
-                const SizedBox(width: 6),
+                if (faces.isEmpty)
+                  const Icon(Icons.arrow_upward_rounded,
+                      color: Colors.white, size: 16)
+                else
+                  // The pill already carries the whole sentence as its
+                  // semantic label; the faces would otherwise be read out
+                  // again, one channel name at a time.
+                  ExcludeSemantics(child: _AvatarStack(posts: faces)),
+                const SizedBox(width: 7),
                 Text(
                   label,
                   style: const TextStyle(
@@ -355,6 +377,57 @@ class _NewPostsPill extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Overlapping channel avatars, first one on top.
+///
+/// Each wears a ring in the pill's own colour, which is what separates two
+/// dark avatars that overlap — without it the stack reads as one smudge.
+class _AvatarStack extends StatelessWidget {
+  static const double _diameter = 24;
+
+  /// How much of each avatar the next one covers.
+  static const double _step = 16;
+
+  static const double _ring = 1.5;
+
+  final List<Post> posts;
+
+  const _AvatarStack({required this.posts});
+
+  @override
+  Widget build(BuildContext context) {
+    final outer = _diameter + _ring * 2;
+
+    return SizedBox(
+      height: outer,
+      width: outer + _step * (posts.length - 1),
+      child: Stack(
+        children: [
+          // Painted back to front so the newest channel sits on top, which is
+          // the one the count is mostly about.
+          for (var i = posts.length - 1; i >= 0; i--)
+            Positioned(
+              left: i * _step,
+              child: Container(
+                padding: const EdgeInsets.all(_ring),
+                decoration: const BoxDecoration(
+                  color: AppColors.accent,
+                  shape: BoxShape.circle,
+                ),
+                child: ChannelAvatar(
+                  title: posts[i].channelTitle,
+                  avatarPath: posts[i].channelAvatarUrl,
+                  avatarFileId: posts[i].channelAvatarFileId,
+                  avatarColorHex: posts[i].channelAvatarColor,
+                  radius: _diameter / 2,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

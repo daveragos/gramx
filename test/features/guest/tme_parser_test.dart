@@ -231,6 +231,74 @@ void main() {
       expect(page.posts, isEmpty);
     });
   });
+
+  // Reported against https://t.me/github/11123. The preview page draws its own
+  // "Please open Telegram to view this post" placeholder for content its web
+  // widget cannot render, and the post then carries no text and no media — so
+  // it parsed as an empty post and reached the feed as a card with a header, a
+  // timestamp and nothing between them.
+  group('a post the preview page will not draw', () {
+    test('is flagged rather than parsed as an empty post', () {
+      final page = _pageWith('''
+        <div class="tgme_widget_message text_not_supported_wrap js-widget_message"
+             data-post="github/11123">
+          <div class="message_media_not_supported_wrap">
+            <div class="message_media_not_supported">
+              <div class="message_media_not_supported_label">
+                Please open Telegram to view this post
+              </div>
+            </div>
+          </div>
+          <div class="tgme_widget_message_date">
+            <time datetime="2026-08-27T13:32:00+00:00"></time>
+          </div>
+        </div>
+      ''');
+
+      expect(page.posts, hasLength(1));
+      expect(page.posts.single.seq, 11123);
+      expect(page.posts.single.isUnsupported, isTrue);
+      expect(page.posts.single.text, isEmpty);
+      expect(page.posts.single.media, isEmpty);
+    });
+
+    // The trap. Telegram puts the same markup inside every video wrap as a
+    // browser fallback, so matching on the class alone flags every post on the
+    // saved capture — all twenty of them.
+    test('a video\'s own browser fallback is not the placeholder', () {
+      final page = _pageWith('''
+        <div class="tgme_widget_message text_not_supported_wrap js-widget_message"
+             data-post="c/7">
+          <div class="tgme_widget_message_video_wrap">
+            <video src="https://cdn4.telesco.pe/file/clip.mp4"></video>
+          </div>
+          <div class="message_media_not_supported_wrap">
+            <div class="message_media_not_supported">
+              <div class="message_media_not_supported_label">
+                This media is not supported in your browser
+              </div>
+            </div>
+          </div>
+          <div class="tgme_widget_message_date">
+            <time datetime="2026-08-27T13:32:00+00:00"></time>
+          </div>
+        </div>
+      ''');
+
+      expect(page.posts.single.media, hasLength(1));
+      expect(page.posts.single.isUnsupported, isFalse);
+    });
+
+    test('an ordinary post is not flagged', () {
+      final parsed = TmePageParser.parse(durovHtml, 'durov');
+
+      expect(
+        parsed!.posts.where((p) => p.isUnsupported),
+        isEmpty,
+        reason: 'the capture holds no placeholder posts',
+      );
+    });
+  });
 }
 
 /// A minimal but valid preview page around [messageHtml].
