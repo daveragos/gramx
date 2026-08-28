@@ -23,8 +23,10 @@ void main() {
   group('GuestChannel equality', () {
     test('two rows with the same contents are equal', () {
       expect(channel(etag: 'W/"abc"'), channel(etag: 'W/"abc"'));
-      expect(channel(etag: 'W/"abc"').hashCode,
-          channel(etag: 'W/"abc"').hashCode);
+      expect(
+        channel(etag: 'W/"abc"').hashCode,
+        channel(etag: 'W/"abc"').hashCode,
+      );
     });
 
     // Without this the "did anything change?" guard is an identity check, which

@@ -29,8 +29,9 @@ class SearchNotifier extends Notifier<String> {
   void clear() => state = '';
 }
 
-final searchQueryProvider =
-    NotifierProvider<SearchNotifier, String>(SearchNotifier.new);
+final searchQueryProvider = NotifierProvider<SearchNotifier, String>(
+  SearchNotifier.new,
+);
 
 /// How long typing must pause before a query is allowed to reach Telegram.
 ///
@@ -74,7 +75,8 @@ class DebouncedSearchQueryNotifier extends Notifier<String> {
 
 final debouncedSearchQueryProvider =
     NotifierProvider<DebouncedSearchQueryNotifier, String>(
-        DebouncedSearchQueryNotifier.new);
+      DebouncedSearchQueryNotifier.new,
+    );
 
 class SearchFocusNotifier extends Notifier<int> {
   @override
@@ -83,14 +85,14 @@ class SearchFocusNotifier extends Notifier<int> {
   void trigger() => state++;
 }
 
-final searchFocusTriggerProvider =
-    NotifierProvider<SearchFocusNotifier, int>(SearchFocusNotifier.new);
+final searchFocusTriggerProvider = NotifierProvider<SearchFocusNotifier, int>(
+  SearchFocusNotifier.new,
+);
 
 /// Posts matching the query, searched on Telegram's servers.
 ///
 /// Runs off the debounced query, since each search is a request.
-final searchedPostsProvider =
-    FutureProvider<List<Post>>((ref) async {
+final searchedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return const [];
   return ref.watch(feedRepositoryProvider).searchPosts(query);
@@ -124,9 +126,9 @@ final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final query = ref.watch(searchQueryProvider).trim();
 
   if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) {
-    final guestPosts = ref.watch(guestFeedProvider);
-    if (query.isEmpty) return guestPosts;
-    return guestPosts.whenData((posts) => matchLoadedPosts(posts, query));
+    final guestFeed = ref.watch(guestFeedProvider);
+    if (query.isEmpty) return guestFeed.whenData((feed) => feed.posts);
+    return guestFeed.whenData((feed) => matchLoadedPosts(feed.posts, query));
   }
 
   final postsAsync = ref.watch(feedPostsProvider);
@@ -159,7 +161,8 @@ class SearchCategoryNotifier extends Notifier<SearchCategory> {
 
 final searchCategoryProvider =
     NotifierProvider<SearchCategoryNotifier, SearchCategory>(
-        SearchCategoryNotifier.new);
+      SearchCategoryNotifier.new,
+    );
 
 /// Local and global public channels matching the search query.
 ///
@@ -167,9 +170,20 @@ final searchCategoryProvider =
 final searchChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return [];
-  // Public-channel discovery is a TDLib request. A guest adds channels by
-  // typing a username on their own screen instead.
-  if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) return [];
+  // Public-channel discovery is a TDLib request, so a guest cannot have it.
+  // What they can have is their own list: matching it here is why the Channels
+  // tab of search now answers for them at all, instead of being a category
+  // that was permanently, silently empty.
+  if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) {
+    final needle = query.toLowerCase();
+    final guestChannels = await ref.watch(guestChannelsProvider.future);
+    return [
+      for (final channel in guestChannels)
+        if (channel.title.toLowerCase().contains(needle) ||
+            channel.username.toLowerCase().contains(needle))
+          guestChannelToChannel(channel),
+    ];
+  }
 
   final repo = ref.watch(channelRepositoryProvider);
   final localChannels = ref.watch(channelsProvider).value ?? [];
@@ -182,8 +196,9 @@ final searchChannelsProvider = FutureProvider<List<Channel>>((ref) async {
 
   final publicChannels = await repo.searchPublicChannels(query);
   final existingIds = matchedLocal.map((c) => c.id).toSet();
-  final newPublic =
-      publicChannels.where((c) => !existingIds.contains(c.id)).toList();
+  final newPublic = publicChannels
+      .where((c) => !existingIds.contains(c.id))
+      .toList();
 
   return [...matchedLocal, ...newPublic];
 });
@@ -241,10 +256,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final surfaceColor =
-        isDark ? AppColors.darkSurfaceVariant : AppColors.lightSurfaceVariant;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final surfaceColor = isDark
+        ? AppColors.darkSurfaceVariant
+        : AppColors.lightSurfaceVariant;
     final primaryColor = theme.colorScheme.onSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -293,9 +310,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     onTap: _clearSearch,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm),
-                      child:
-                          Icon(Icons.close, color: secondaryColor, size: 18),
+                        horizontal: AppSpacing.sm,
+                      ),
+                      child: Icon(Icons.close, color: secondaryColor, size: 18),
                     ),
                   ),
                 ),
@@ -340,8 +357,8 @@ class _SearchResults extends ConsumerWidget {
     final channelsAsync = ref.watch(searchChannelsProvider);
     final postsAsync = ref.watch(searchResultsProvider);
 
-    final showChannels = category == SearchCategory.all ||
-        category == SearchCategory.channels;
+    final showChannels =
+        category == SearchCategory.all || category == SearchCategory.channels;
     final showPosts =
         category == SearchCategory.all || category == SearchCategory.posts;
 
@@ -361,13 +378,25 @@ class _SearchResults extends ConsumerWidget {
             child: Row(
               children: [
                 _buildCategoryChip(
-                    ref, AppStrings.searchFilterAll, SearchCategory.all, category),
+                  ref,
+                  AppStrings.searchFilterAll,
+                  SearchCategory.all,
+                  category,
+                ),
                 const SizedBox(width: 8),
-                _buildCategoryChip(ref, AppStrings.searchFilterChannels,
-                    SearchCategory.channels, category),
+                _buildCategoryChip(
+                  ref,
+                  AppStrings.searchFilterChannels,
+                  SearchCategory.channels,
+                  category,
+                ),
                 const SizedBox(width: 8),
-                _buildCategoryChip(ref, AppStrings.searchFilterPosts,
-                    SearchCategory.posts, category),
+                _buildCategoryChip(
+                  ref,
+                  AppStrings.searchFilterPosts,
+                  SearchCategory.posts,
+                  category,
+                ),
               ],
             ),
           ),
@@ -404,15 +433,16 @@ class _SearchResults extends ConsumerWidget {
                       ),
                       child: Text(
                         AppStrings.searchChannelsHeading(channels.length),
-                        style:
-                            AppTypography.subheading(color: secondaryColor),
+                        style: AppTypography.subheading(color: secondaryColor),
                       ),
                     ),
-                    ...channels.map((channel) => _ChannelResultTile(
-                          channel: channel,
-                          primaryColor: primaryColor,
-                          secondaryColor: secondaryColor,
-                        )),
+                    ...channels.map(
+                      (channel) => _ChannelResultTile(
+                        channel: channel,
+                        primaryColor: primaryColor,
+                        secondaryColor: secondaryColor,
+                      ),
+                    ),
                     const Divider(),
                   ],
                 ),
@@ -437,13 +467,13 @@ class _SearchResults extends ConsumerWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.search_off,
-                            size: 48, color: secondaryColor),
+                        Icon(Icons.search_off, size: 48, color: secondaryColor),
                         const SizedBox(height: AppSpacing.md),
                         Text(
                           AppStrings.searchNoResults,
                           style: AppTypography.subheading(
-                              color: secondaryColor),
+                            color: secondaryColor,
+                          ),
                         ),
                       ],
                     ),
@@ -465,7 +495,11 @@ class _SearchResults extends ConsumerWidget {
   }
 
   Widget _buildCategoryChip(
-      WidgetRef ref, String label, SearchCategory cat, SearchCategory current) {
+    WidgetRef ref,
+    String label,
+    SearchCategory cat,
+    SearchCategory current,
+  ) {
     final isSelected = cat == current;
     return ChoiceChip(
       label: Text(label),
@@ -544,15 +578,17 @@ class _ChannelResultTile extends StatelessWidget {
                       Flexible(
                         child: Text(
                           channel.title,
-                          style:
-                              AppTypography.displayName(color: primaryColor),
+                          style: AppTypography.displayName(color: primaryColor),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (channel.isVerified) ...[
                         const SizedBox(width: 4),
-                        const Icon(Icons.verified,
-                            color: AppColors.verified, size: 18),
+                        const Icon(
+                          Icons.verified,
+                          color: AppColors.verified,
+                          size: 18,
+                        ),
                       ],
                     ],
                   ),
@@ -641,24 +677,21 @@ class _ExploreView extends ConsumerWidget {
               ),
             ),
             SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final post = posts[index];
-                  return PostCard(
-                    post: post,
-                    onTap: () {
-                      ref.read(markPostAsReadProvider(post.id));
-                      context.push('/post/${post.id}');
-                    },
-                    onChannelTap: () =>
-                        NavigationUtils.openChannel(context, post.channelId),
-                    onBookmarkTap: () {
-                      ref.read(bookmarkToggleProvider(post.id));
-                    },
-                  );
-                },
-                childCount: posts.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final post = posts[index];
+                return PostCard(
+                  post: post,
+                  onTap: () {
+                    ref.read(markPostAsReadProvider(post.id));
+                    context.push('/post/${post.id}');
+                  },
+                  onChannelTap: () =>
+                      NavigationUtils.openChannel(context, post.channelId),
+                  onBookmarkTap: () {
+                    ref.read(bookmarkToggleProvider(post.id));
+                  },
+                );
+              }, childCount: posts.length),
             ),
             SliverToBoxAdapter(child: SizedBox(height: bottomPadding)),
           ],

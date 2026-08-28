@@ -22,8 +22,9 @@ class GuestBanner extends ConsumerWidget {
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Container(
@@ -45,8 +46,9 @@ class GuestBanner extends ConsumerWidget {
               children: [
                 Text(
                   AppStrings.guestBannerTitle,
-                  style: AppTypography.body(color: theme.colorScheme.onSurface)
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppTypography.body(
+                    color: theme.colorScheme.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
                   AppStrings.guestBannerBody,

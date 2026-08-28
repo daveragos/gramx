@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/guest/data/guest_channel_store.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/channels/data/channel_media_repository.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
@@ -28,8 +29,10 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
 });
 
 /// Provides a single channel by its chat ID, username, or identifier.
-final channelDetailProvider =
-    FutureProvider.family<Channel?, String>((ref, channelId) async {
+final channelDetailProvider = FutureProvider.family<Channel?, String>((
+  ref,
+  channelId,
+) async {
   // Guest channels are not in TDLib, so the repository could only ever answer
   // null for one — which the profile screen showed as "channel unavailable"
   // for a channel the reader had added themselves.
@@ -51,22 +54,33 @@ Future<Channel?> _guestChannel(Ref ref, String channelId) async {
   final channels = await ref.watch(guestChannelsProvider.future);
   for (final channel in channels) {
     if (GuestPostMapper.syntheticChatId(channel.username) != chatId) continue;
-    return Channel(
-      id: channelId,
-      chatId: chatId,
-      title: channel.title,
-      username: channel.username,
-      avatarUrl: channel.avatarUrl,
-      subscriberCount: int.tryParse(
-              (channel.subscribers ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ??
-          0,
-      isVerified: channel.isVerified,
-      // A guest cannot join anything, and a Join button that opens a sign-in
-      // sheet is honest where a "Joined" badge would not be.
-      isJoined: false,
-    );
+    return guestChannelToChannel(channel);
   }
   return null;
+}
+
+/// A stored guest row as the app's own [Channel].
+///
+/// Shared by the detail lookup and by search, so a guest channel presents
+/// itself the same way wherever it is shown.
+Channel guestChannelToChannel(GuestChannel channel) {
+  final chatId = GuestPostMapper.syntheticChatId(channel.username);
+  return Channel(
+    id: chatId.toString(),
+    chatId: chatId,
+    title: channel.title,
+    username: channel.username,
+    avatarUrl: channel.avatarUrl,
+    subscriberCount:
+        int.tryParse(
+          (channel.subscribers ?? '').replaceAll(RegExp(r'[^0-9]'), ''),
+        ) ??
+        0,
+    isVerified: channel.isVerified,
+    // A guest cannot join anything, and a Join button that opens a sign-in
+    // sheet is honest where a "Joined" badge would not be.
+    isJoined: false,
+  );
 }
 
 /// Older posts loaded by paging back through a channel, keyed by channel id.
@@ -105,14 +119,18 @@ class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
 
     // The oldest post, not the last one in the list: the list is merged from
     // two sources and de-duplicated, so its order is not a promise.
-    final oldest = current.reduce(
-        (a, b) => a.messageId <= b.messageId ? a : b);
+    final oldest = current.reduce((a, b) => a.messageId <= b.messageId ? a : b);
 
     _loading.add(channelId);
     try {
-      final older = await ref
-          .read(feedRepositoryProvider)
-          .fetchChannelPosts(oldest.chatId, fromMessageId: oldest.messageId);
+      final older = _isGuestChannel(oldest)
+          ? await _guestOlderPosts(ref, oldest)
+          : await ref
+                .read(feedRepositoryProvider)
+                .fetchChannelPosts(
+                  oldest.chatId,
+                  fromMessageId: oldest.messageId,
+                );
 
       final known = current.map((p) => p.id).toSet();
       final additions = older.where((p) => !known.contains(p.id)).toList();
@@ -147,12 +165,37 @@ class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
 
 final olderChannelPostsProvider =
     NotifierProvider<OlderChannelPostsNotifier, Map<String, List<Post>>>(
-  OlderChannelPostsNotifier.new,
-);
+      OlderChannelPostsNotifier.new,
+    );
+
+/// Whether paging this post's channel means asking `t.me/s/` rather than TDLib.
+///
+/// Both halves are required, not just the synthetic id: `isSynthetic` is a
+/// range test, and the username is what the request is actually made of. A post
+/// with no username cannot be paged from the web preview at all, so it belongs
+/// on the TDLib path whatever its id looks like.
+bool _isGuestChannel(Post post) =>
+    post.channelUsername != null && GuestPostMapper.isSynthetic(post.chatId);
+
+/// Older posts for a guest channel, paged through `t.me/s/<name>?before=`.
+///
+/// A guest channel has no TDLib chat behind it, so the repository call this
+/// stands in for could only ever answer nothing — scrolling to the bottom of a
+/// guest channel just stopped, with the rest of its history one request away.
+Future<List<Post>> _guestOlderPosts(Ref ref, Post oldest) async {
+  final page = await fetchGuestOlderPage(
+    ref,
+    oldest.channelUsername!,
+    before: oldest.messageId,
+  );
+  return page.posts;
+}
 
 /// Fetches initial posts for a specific channel.
-final initialChannelPostsProvider =
-    FutureProvider.family<List<Post>, String>((ref, channelId) async {
+final initialChannelPostsProvider = FutureProvider.family<List<Post>, String>((
+  ref,
+  channelId,
+) async {
   final chatId = int.tryParse(channelId);
   if (chatId != null && GuestPostMapper.isSynthetic(chatId)) {
     final guest = await _guestChannel(ref, channelId);
@@ -170,8 +213,10 @@ final initialChannelPostsProvider =
 });
 
 /// Provides posts for a specific channel (with pagination and optimistic update support).
-final channelPostsProvider =
-    Provider.family<AsyncValue<List<Post>>, String>((ref, channelId) {
+final channelPostsProvider = Provider.family<AsyncValue<List<Post>>, String>((
+  ref,
+  channelId,
+) {
   final initialAsync = ref.watch(initialChannelPostsProvider(channelId));
   final olderPostsMap = ref.watch(olderChannelPostsProvider);
   final feedPosts = ref.watch(feedPostsProvider).value ?? [];
@@ -199,11 +244,15 @@ final channelPostsProvider =
 /// other family member here, so backing out and returning re-asks — which is
 /// correct: a pin can change, and one request on a deliberate navigation is
 /// well inside the budget.
-final channelPinnedPostProvider =
-    FutureProvider.family<Post?, String>((ref, channelId) async {
+final channelPinnedPostProvider = FutureProvider.family<Post?, String>((
+  ref,
+  channelId,
+) async {
   final channel = await ref.watch(channelDetailProvider(channelId).future);
   if (channel == null) return null;
-  return ref.watch(channelMediaRepositoryProvider).fetchPinnedPost(channel.chatId);
+  return ref
+      .watch(channelMediaRepositoryProvider)
+      .fetchPinnedPost(channel.chatId);
 });
 
 /// Reloads a channel from scratch — its details, its history and every tab.
@@ -221,6 +270,7 @@ Future<void> refreshChannel(WidgetRef ref, String channelId) async {
 /// Provides the active authenticated account database record.
 final activeAccountProvider = StreamProvider<Account?>((ref) {
   final db = ref.watch(databaseProvider);
-  return (db.select(db.accounts)..where((a) => a.isActive.equals(true)))
-      .watchSingleOrNull();
+  return (db.select(
+    db.accounts,
+  )..where((a) => a.isActive.equals(true))).watchSingleOrNull();
 });

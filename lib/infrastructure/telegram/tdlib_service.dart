@@ -142,6 +142,10 @@ class TdlibService {
   /// the cached feed instead of just pausing new fetches.
   static bool _isLocalOnlyRequest(td.TdFunction function) {
     if (function is td.GetChatHistory) return function.onlyLocal;
+    // Options live in TDLib's own store, pushed there by `updateOption` — a
+    // read never leaves the device. TDLib documents `getOption` as callable
+    // before authorization, which is only possible because it is local.
+    if (function is td.GetOption) return true;
     return function is td.GetMessageLocally;
   }
 

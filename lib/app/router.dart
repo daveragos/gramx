@@ -10,6 +10,8 @@ import 'package:gramx/features/auth/presentation/auth_screen.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/channels/presentation/channel_profile_screen.dart';
 import 'package:gramx/features/channels/presentation/channels_list_screen.dart';
+import 'package:gramx/features/compose/presentation/compose_screen.dart';
+import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
 import 'package:gramx/features/feed/presentation/home_screen.dart';
 import 'package:gramx/features/folders/presentation/folders_screen.dart';
 import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart';
@@ -159,6 +161,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/guest/channels',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const GuestChannelsScreen(),
+      ),
+      // Writing a post. Root-level and full screen, like the media viewers:
+      // it covers the shell rather than living inside a tab.
+      GoRoute(
+        path: ComposeFab.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ComposeScreen(),
       ),
       GoRoute(
         path: '/auth',

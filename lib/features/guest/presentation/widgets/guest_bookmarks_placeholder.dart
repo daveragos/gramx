@@ -22,8 +22,9 @@ class GuestBookmarksPlaceholder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return ChromeScaffold(
       header: const ChromeHeaderRow(title: AppStrings.bookmarksTitle),

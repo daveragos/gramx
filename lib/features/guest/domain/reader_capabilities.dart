@@ -37,6 +37,10 @@ class ReaderCapabilities {
   /// Can search Telegram's servers, as opposed to filtering what is loaded.
   final bool canSearchServerSide;
 
+  /// Can write a post into a channel, group or chat. Off for a guest: there is
+  /// no account to post as, and `t.me/s/` is a read-only page.
+  final bool canPost;
+
   const ReaderCapabilities({
     required this.canReact,
     required this.canMarkRead,
@@ -45,6 +49,7 @@ class ReaderCapabilities {
     required this.canJoin,
     required this.canForward,
     required this.canSearchServerSide,
+    required this.canPost,
   });
 
   /// Signed in: everything.
@@ -56,6 +61,7 @@ class ReaderCapabilities {
     canJoin: true,
     canForward: true,
     canSearchServerSide: true,
+    canPost: true,
   );
 
   /// Guest: reading, and nothing that touches an account.
@@ -67,6 +73,7 @@ class ReaderCapabilities {
     canJoin: false,
     canForward: false,
     canSearchServerSide: false,
+    canPost: false,
   );
 
   /// True when the reader has no account behind them at all.

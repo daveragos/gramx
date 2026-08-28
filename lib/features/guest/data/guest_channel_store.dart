@@ -73,19 +73,27 @@ class GuestChannel {
           other.lastModified == lastModified;
 
   @override
-  int get hashCode => Object.hash(username, title, avatarUrl, subscribers,
-      isVerified, addedAt, etag, lastModified);
+  int get hashCode => Object.hash(
+    username,
+    title,
+    avatarUrl,
+    subscribers,
+    isVerified,
+    addedAt,
+    etag,
+    lastModified,
+  );
 
   Map<String, dynamic> toJson() => {
-        'username': username,
-        'title': title,
-        'avatarUrl': avatarUrl,
-        'subscribers': subscribers,
-        'isVerified': isVerified,
-        'addedAt': addedAt.toIso8601String(),
-        'etag': etag,
-        'lastModified': lastModified,
-      };
+    'username': username,
+    'title': title,
+    'avatarUrl': avatarUrl,
+    'subscribers': subscribers,
+    'isVerified': isVerified,
+    'addedAt': addedAt.toIso8601String(),
+    'etag': etag,
+    'lastModified': lastModified,
+  };
 
   /// Tolerant, like `AppSettings.decode`: a field this version does not
   /// recognise, or one that has gone missing, costs that field rather than the
@@ -101,7 +109,8 @@ class GuestChannel {
       avatarUrl: json['avatarUrl'] as String?,
       subscribers: json['subscribers'] as String?,
       isVerified: json['isVerified'] as bool? ?? false,
-      addedAt: DateTime.tryParse(json['addedAt'] as String? ?? '') ??
+      addedAt:
+          DateTime.tryParse(json['addedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       etag: json['etag'] as String?,
       lastModified: json['lastModified'] as String?,
@@ -163,5 +172,6 @@ class GuestChannelStore {
   }
 }
 
-final guestChannelStoreProvider =
-    Provider<GuestChannelStore>((ref) => GuestChannelStore());
+final guestChannelStoreProvider = Provider<GuestChannelStore>(
+  (ref) => GuestChannelStore(),
+);

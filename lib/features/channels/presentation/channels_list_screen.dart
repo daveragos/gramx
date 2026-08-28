@@ -60,7 +60,9 @@ class ChannelsListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // A guest's channels are the public ones they typed in, not a subscription
     // list Telegram keeps for them. Different source, different screen.
-    if (ref.watch(isGuestModeProvider)) return const GuestChannelsScreen();
+    if (ref.watch(isGuestModeProvider)) {
+      return const GuestChannelsScreen(embedded: true);
+    }
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;

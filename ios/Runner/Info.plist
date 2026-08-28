@@ -49,6 +49,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Composing a post with a photo or video attached. Gallery only: the
+	     app never opens the camera, so no NSCameraUsageDescription. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>gramX needs access to your photos so you can attach one to a post.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

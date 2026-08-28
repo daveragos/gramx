@@ -49,6 +49,11 @@ dependencies:
   lottie: ^3.5.1
   open_filex: ^4.7.0
 
+  # Composing: picking a photo or video off the device to attach to a post.
+  # Gallery only — nothing here opens the camera, so the app asks for no
+  # camera permission.
+  image_picker: ^1.1.2
+
   # Guest mode only: fetching and parsing t.me/s/<channel> preview pages.
   # Nothing else in the app makes an HTTP request of its own — signed-in
   # traffic all goes through TDLib.

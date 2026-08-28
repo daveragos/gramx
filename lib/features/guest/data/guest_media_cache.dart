@@ -103,7 +103,8 @@ class GuestMediaCache {
     final bytes = utf8.encode(url);
     final low = _fnv1a(bytes, 0x811c9dc5);
     final high = _fnv1a(bytes.reversed.toList(), 0x01000193);
-    final name = low.toRadixString(16).padLeft(8, '0') +
+    final name =
+        low.toRadixString(16).padLeft(8, '0') +
         high.toRadixString(16).padLeft(8, '0');
     return '$name${_extensionOf(url)}';
   }
@@ -155,7 +156,9 @@ final guestMediaCacheProvider = Provider<GuestMediaCache>((ref) {
 ///
 /// Mirrors `fileDownloadProvider`'s shape so the widgets can treat a guest URL
 /// and a TDLib file id the same way — see `resolveMediaPath`.
-final guestMediaPathProvider =
-    FutureProvider.family<String?, String>((ref, url) async {
+final guestMediaPathProvider = FutureProvider.family<String?, String>((
+  ref,
+  url,
+) async {
   return ref.watch(guestMediaCacheProvider).pathFor(url);
 });

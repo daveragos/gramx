@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/guest/data/guest_channel_store.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
 /// Where a guest builds their reading list.
@@ -14,8 +18,17 @@ import 'package:gramx/features/guest/presentation/guest_providers.dart';
 /// Adding resolves the channel before it is stored, so a typo or a private
 /// channel fails here with a reason rather than becoming a permanently empty
 /// row in the feed.
+///
+/// This is both the Channels tab and a pushed route, which is why [embedded]
+/// exists: as a tab it has to wear the app's own sliding chrome and leave room
+/// for the bottom bar — it used to draw a plain `AppBar` in the tab position,
+/// which looked like a different app and hid the last row of the list behind
+/// the navigation bar.
 class GuestChannelsScreen extends ConsumerStatefulWidget {
-  const GuestChannelsScreen({super.key});
+  /// True when this is the Channels tab rather than a route pushed on top.
+  final bool embedded;
+
+  const GuestChannelsScreen({super.key, this.embedded = false});
 
   @override
   ConsumerState<GuestChannelsScreen> createState() =>
@@ -42,7 +55,8 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
       _error = null;
     });
 
-    final failure = await ref.read(guestChannelsProvider.notifier).add(input);
+    final notifier = ref.read(guestChannelsProvider.notifier);
+    final failure = await notifier.add(input);
 
     if (!mounted) return;
     setState(() {
@@ -50,28 +64,75 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
       _error = failure;
     });
 
-    if (failure == null) {
-      _controller.clear();
-      FocusScope.of(context).unfocus();
-    }
+    if (failure != null) return;
+
+    _controller.clear();
+    FocusScope.of(context).unfocus();
+
+    // Say what was added, by its real title rather than the handle that was
+    // typed: resolving the channel is the only way to learn its name, and
+    // showing it back is the confirmation that the resolve worked.
+    final added = ref.read(guestChannelsProvider).value?.firstOrNull;
+    if (added == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(AppStrings.guestAdded(added.title))));
   }
 
-  Future<void> _remove(GuestChannel channel) async {
+  /// Pulls a link or handle out of the clipboard.
+  ///
+  /// People arrive at a channel by copying a `t.me/…` link, and typing it back
+  /// out by hand is the step this removes. Parsing is left to `add`, which
+  /// already understands every shape the link comes in.
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text == null || text.isEmpty || !mounted) return;
+
+    _controller.text = text;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    setState(() => _error = null);
+  }
+
+  void _open(GuestChannel channel) {
+    context.push(
+      '/channel/${GuestPostMapper.syntheticChatId(channel.username)}',
+    );
+  }
+
+  Future<void> _remove(GuestChannel channel, int index) async {
     final messenger = ScaffoldMessenger.of(context);
-    await ref.read(guestChannelsProvider.notifier).remove(channel.username);
+    final notifier = ref.read(guestChannelsProvider.notifier);
+    await notifier.remove(channel.username);
     if (!mounted) return;
+
     messenger.showSnackBar(
-      SnackBar(content: Text(AppStrings.guestRemoved(channel.username))),
+      SnackBar(
+        content: Text(AppStrings.guestRemoved(channel.username)),
+        // Removing is one tap on a small icon, and re-adding costs a request
+        // that can fail on its own. Undo puts the stored row back exactly as
+        // it was, in the place it came from.
+        action: SnackBarAction(
+          label: AppStrings.guestUndo,
+          onPressed: () => notifier.restore(channel, index),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final channelsAsync = ref.watch(guestChannelsProvider);
+
+    if (widget.embedded) {
+      return ChromeScaffold(
+        header: const ChromeHeaderRow(title: AppStrings.guestChannelsTitle),
+        body: (context, topPadding, bottomPadding) =>
+            _body(topPadding: topPadding, bottomPadding: bottomPadding),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -80,137 +141,158 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
           style: AppTypography.heading(color: theme.colorScheme.onSurface),
         ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.guestEmptyBody,
-                  style: AppTypography.body(color: secondary),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TextField(
-                  controller: _controller,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _add(),
-                  decoration: InputDecoration(
-                    labelText: AppStrings.guestAddLabel,
-                    hintText: AppStrings.guestAddHint,
-                    prefixText: '@',
-                    errorText: _error,
-                    border: const OutlineInputBorder(),
+      body: _body(topPadding: 0, bottomPadding: 0),
+    );
+  }
+
+  Widget _body({required double topPadding, required double bottomPadding}) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final channelsAsync = ref.watch(guestChannelsProvider);
+
+    return Column(
+      children: [
+        SizedBox(height: topPadding),
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.guestEmptyBody,
+                style: AppTypography.body(color: secondary),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              TextField(
+                controller: _controller,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _add(),
+                decoration: InputDecoration(
+                  labelText: AppStrings.guestAddLabel,
+                  hintText: AppStrings.guestAddHint,
+                  errorText: _error,
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: AppStrings.guestPasteTooltip,
+                    icon: Icon(Icons.content_paste_rounded, color: secondary),
+                    onPressed: _paste,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(23),
-                      ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(23),
                     ),
-                    onPressed: _isAdding ? null : _add,
-                    child: _isAdding
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            AppStrings.guestAddAction,
-                            style: AppTypography.button(),
-                          ),
                   ),
+                  onPressed: _isAdding ? null : _add,
+                  child: _isAdding
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          AppStrings.guestAddAction,
+                          style: AppTypography.button(),
+                        ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: channelsAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.accent),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: channelsAsync.when(
+            loading: () => const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+            error: (err, _) => Center(
+              child: Text(
+                err.toString(),
+                style: AppTypography.body(color: secondary),
               ),
-              error: (err, _) => Center(
-                child: Text(
-                  err.toString(),
-                  style: AppTypography.body(color: secondary),
-                ),
-              ),
-              data: (channels) {
-                if (channels.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.xxxl),
-                      child: Text(
-                        AppStrings.guestEmptyTitle,
-                        style: AppTypography.body(color: secondary),
-                        textAlign: TextAlign.center,
-                      ),
+            ),
+            data: (channels) {
+              if (channels.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xxxl),
+                    child: Text(
+                      AppStrings.guestEmptyTitle,
+                      style: AppTypography.body(color: secondary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: EdgeInsets.only(bottom: bottomPadding),
+                itemCount: channels.length,
+                itemBuilder: (context, index) {
+                  final channel = channels[index];
+                  return ListTile(
+                    // A row that named a channel and did nothing when tapped
+                    // was the one place in guest mode where the channel the
+                    // reader had just added could not be opened.
+                    onTap: () => _open(channel),
+                    leading: ChannelAvatar(
+                      title: channel.title,
+                      avatarPath: channel.avatarUrl,
+                      radius: AppSpacing.avatarSize / 2,
+                    ),
+                    title: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            channel.title,
+                            style: AppTypography.displayName(
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (channel.isVerified) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            size: 15,
+                            color: AppColors.verified,
+                            semanticLabel: AppStrings.a11yVerified,
+                          ),
+                        ],
+                      ],
+                    ),
+                    subtitle: Text(
+                      channel.subscribers == null
+                          ? '@${channel.username}'
+                          : '@${channel.username} · ${channel.subscribers}',
+                      style: AppTypography.username(color: secondary),
+                    ),
+                    trailing: IconButton(
+                      tooltip: AppStrings.guestRemoveAction,
+                      icon: Icon(Icons.close_rounded, color: secondary),
+                      onPressed: () => _remove(channel, index),
                     ),
                   );
-                }
-
-                return ListView.builder(
-                  itemCount: channels.length,
-                  itemBuilder: (context, index) {
-                    final channel = channels[index];
-                    return ListTile(
-                      leading: ChannelAvatar(
-                        title: channel.title,
-                        avatarPath: channel.avatarUrl,
-                        radius: AppSpacing.avatarSize / 2,
-                      ),
-                      title: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              channel.title,
-                              style: AppTypography.displayName(
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (channel.isVerified) ...[
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.verified,
-                              size: 15,
-                              color: AppColors.verified,
-                              semanticLabel: AppStrings.a11yVerified,
-                            ),
-                          ],
-                        ],
-                      ),
-                      subtitle: Text(
-                        channel.subscribers == null
-                            ? '@${channel.username}'
-                            : '@${channel.username} · ${channel.subscribers}',
-                        style: AppTypography.username(color: secondary),
-                      ),
-                      trailing: IconButton(
-                        tooltip: AppStrings.guestRemoveAction,
-                        icon: Icon(Icons.close_rounded, color: secondary),
-                        onPressed: () => _remove(channel),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                },
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
