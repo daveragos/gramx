@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/open_with.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/expandable_text.dart';
@@ -36,6 +38,19 @@ class MediaViewerChrome extends ConsumerWidget {
   /// the picture can be looked at without furniture over it.
   final bool showChrome;
 
+  /// The downloaded file behind what is on screen, when there is one.
+  ///
+  /// Drives the "open with" control, which is absent rather than disabled while
+  /// the file is still arriving — a share icon that says "not yet" is furniture.
+  ///
+  /// It sits in the action bar at the bottom, at the same weight as bookmark
+  /// and share, rather than as a filled chip over the top-right corner of the
+  /// picture. Handing a photo to another app is a thing you *can* do with it,
+  /// not the thing you came here for, and a button that size on top of every
+  /// image said otherwise. The only place it still rides in the top bar is a
+  /// viewer opened without a post, which has no bottom bar to put it in.
+  final String? localPath;
+
   const MediaViewerChrome({
     super.key,
     required this.child,
@@ -43,6 +58,7 @@ class MediaViewerChrome extends ConsumerWidget {
     this.controls,
     this.pageIndicator,
     this.showChrome = true,
+    this.localPath,
   });
 
   @override
@@ -71,10 +87,20 @@ class MediaViewerChrome extends ConsumerWidget {
                     children: [
                       _CircleButton(
                         icon: Icons.arrow_back,
-                        tooltip: MaterialLocalizations.of(context)
-                            .backButtonTooltip,
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).backButtonTooltip,
                         onTap: () => Navigator.of(context).pop(),
                       ),
+                      const Spacer(),
+                      // Only when there is no post, and therefore no action bar
+                      // below to carry it. With a post it lives down there
+                      // instead — see [localPath].
+                      if (localPath != null && currentPost == null)
+                        _OpenWithButton(
+                          path: localPath!,
+                          color: Colors.white70,
+                        ),
                     ],
                   ),
                 ),
@@ -93,6 +119,7 @@ class MediaViewerChrome extends ConsumerWidget {
                   post: currentPost,
                   controls: controls,
                   pageIndicator: pageIndicator,
+                  localPath: localPath,
                 ),
               ),
             )
@@ -107,10 +134,7 @@ class MediaViewerChrome extends ConsumerWidget {
                   top: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ?pageIndicator,
-                      ?controls,
-                    ],
+                    children: [?pageIndicator, ?controls],
                   ),
                 ),
               ),
@@ -133,10 +157,15 @@ class _BottomSheetChrome extends ConsumerWidget {
   final Widget? controls;
   final Widget? pageIndicator;
 
+  /// The file on screen, when it has finished arriving. See
+  /// [MediaViewerChrome.localPath].
+  final String? localPath;
+
   const _BottomSheetChrome({
     required this.post,
     this.controls,
     this.pageIndicator,
+    this.localPath,
   });
 
   @override
@@ -187,21 +216,27 @@ class _BottomSheetChrome extends ConsumerWidget {
                               child: Text(
                                 post.channelTitle,
                                 style: AppTypography.displayName(
-                                    color: Colors.white),
+                                  color: Colors.white,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             if (post.isChannelVerified) ...[
                               const SizedBox(width: 4),
-                              const Icon(Icons.verified,
-                                  color: AppColors.verified, size: 14),
+                              const Icon(
+                                Icons.verified,
+                                color: AppColors.verified,
+                                size: 14,
+                              ),
                             ],
                           ],
                         ),
                         if (post.channelUsername != null)
                           Text(
                             '@${post.channelUsername}',
-                            style: AppTypography.username(color: Colors.white70),
+                            style: AppTypography.username(
+                              color: Colors.white70,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                       ],
@@ -237,8 +272,10 @@ class _BottomSheetChrome extends ConsumerWidget {
               PostActionBar(
                 post: post,
                 secondaryColor: Colors.white70,
-                onBookmarkTap: () =>
-                    ref.read(bookmarkToggleProvider(post.id)),
+                trailing: localPath == null
+                    ? null
+                    : _OpenWithButton(path: localPath!, color: Colors.white70),
+                onBookmarkTap: () => ref.read(bookmarkToggleProvider(post.id)),
                 onSelectReaction: (emoji) {
                   ref
                       .read(optimisticPostUpdatesProvider.notifier)
@@ -246,7 +283,9 @@ class _BottomSheetChrome extends ConsumerWidget {
                   ref
                       .read(feedPostsProvider.notifier)
                       .toggleReactionOptimistic(post.id, emoji);
-                  ref.read(syncServiceProvider).togglePostReaction(
+                  ref
+                      .read(syncServiceProvider)
+                      .togglePostReaction(
                         chatId: post.chatId,
                         messageId: post.messageId,
                         reactionEmoji: emoji,
@@ -258,8 +297,7 @@ class _BottomSheetChrome extends ConsumerWidget {
                 // with nothing to show for the tap.
                 onReplyTap: () {
                   final router = GoRouter.of(context);
-                  final atPost =
-                      router.state.uri.path == '/post/${post.id}';
+                  final atPost = router.state.uri.path == '/post/${post.id}';
                   Navigator.of(context).pop();
                   if (!atPost) router.push('/post/${post.id}?focusReply=true');
                 },
@@ -343,6 +381,33 @@ class _Fade extends StatelessWidget {
       opacity: visible ? 1 : 0,
       duration: const Duration(milliseconds: 180),
       child: IgnorePointer(ignoring: !visible, child: child),
+    );
+  }
+}
+
+/// Hands the file on screen to whatever app owns it.
+///
+/// A bare icon at the action bar's own weight — 18pt, the secondary colour, no
+/// chip behind it — so it reads as one more thing in the row rather than as a
+/// control pinned over the picture.
+class _OpenWithButton extends StatelessWidget {
+  final String path;
+  final Color color;
+
+  const _OpenWithButton({required this.path, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: AppStrings.openWith,
+      child: Tooltip(
+        message: AppStrings.openWith,
+        child: GestureDetector(
+          onTap: () => openWithSystemApp(context, path),
+          child: Icon(Icons.open_in_new_rounded, color: color, size: 18),
+        ),
+      ),
     );
   }
 }

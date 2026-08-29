@@ -78,5 +78,17 @@
             <action android:name="android.intent.action.DIAL"/>
             <data android:scheme="tel"/>
         </intent>
+        <!-- Handing a downloaded file to whatever app owns it. Without this the
+             package-visibility filtering added in Android 11 hides every
+             viewer from us, `resolveActivity` answers null, and open_filex
+             reports "no app found" for a PDF on a device with three PDF
+             readers installed. The mime type is broad because the file can be
+             anything Telegram carries; this is a <queries> declaration, not
+             the QUERY_ALL_PACKAGES permission, so it grants visibility for
+             this intent shape only. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="*/*"/>
+        </intent>
     </queries>
 </manifest>

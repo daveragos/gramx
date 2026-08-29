@@ -19,6 +19,12 @@ class PostActionBar extends ConsumerWidget {
   final VoidCallback onReplyTap;
   final VoidCallback onShareTap;
 
+  /// One extra control at the end of the row, for a surface that has an action
+  /// the feed card does not — the media viewer's "open with". It rides in the
+  /// bar rather than floating over the picture, which is the difference
+  /// between a control that is available and one that is in the way.
+  final Widget? trailing;
+
   const PostActionBar({
     super.key,
     required this.post,
@@ -27,6 +33,7 @@ class PostActionBar extends ConsumerWidget {
     required this.onSelectReaction,
     required this.onReplyTap,
     required this.onShareTap,
+    this.trailing,
   });
 
   Future<void> _forward(BuildContext context) async {
@@ -131,7 +138,9 @@ class PostActionBar extends ConsumerWidget {
                   },
                   child: Icon(
                     post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                    color: post.isBookmarked ? AppColors.accent : secondaryColor,
+                    color: post.isBookmarked
+                        ? AppColors.accent
+                        : secondaryColor,
                     size: 18,
                   ),
                 ),
@@ -146,13 +155,13 @@ class PostActionBar extends ConsumerWidget {
                   HapticFeedback.lightImpact();
                   onShareTap();
                 },
-                child: Icon(
-                  Icons.ios_share,
-                  color: secondaryColor,
-                  size: 18,
-                ),
+                child: Icon(Icons.ios_share, color: secondaryColor, size: 18),
               ),
             ),
+            if (trailing != null) ...[
+              const SizedBox(width: AppSpacing.lg),
+              trailing!,
+            ],
           ],
         ),
       ],

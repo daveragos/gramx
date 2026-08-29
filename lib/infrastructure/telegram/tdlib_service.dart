@@ -9,6 +9,7 @@ import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:gramx/core/config/app_config.dart';
 import 'package:gramx/infrastructure/telegram/database_key_store.dart';
+import 'package:gramx/infrastructure/telegram/file_update_throttle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_receiver.dart';
 
 /// A failed TDLib request, carrying the numeric error code.
@@ -30,7 +31,8 @@ class TdlibRequestException implements Exception {
 
   /// True when Telegram is rate-limiting the account.
   bool get isFloodWait =>
-      code == TdlibService.floodWaitCode || code == TdlibService.tooManyRequestsCode;
+      code == TdlibService.floodWaitCode ||
+      code == TdlibService.tooManyRequestsCode;
 
   /// Seconds Telegram asked us to wait, or null if the message didn't say.
   int? get retryAfterSeconds => TdlibService.parseRetryAfter(message);
@@ -54,8 +56,10 @@ class TdlibService {
   /// Used when Telegram reports a flood wait without a parseable duration.
   static const Duration _defaultFloodWait = Duration(seconds: 5);
 
-  static final RegExp _retryAfterPattern =
-      RegExp(r'(?:FLOOD_WAIT_|retry after\s*)(\d+)', caseSensitive: false);
+  static final RegExp _retryAfterPattern = RegExp(
+    r'(?:FLOOD_WAIT_|retry after\s*)(\d+)',
+    caseSensitive: false,
+  );
 
   /// Extracts the retry delay from a TDLib error message.
   ///
@@ -113,7 +117,9 @@ class TdlibService {
     if (code != floodWaitCode && code != tooManyRequestsCode) return;
 
     final seconds = parseRetryAfter(message);
-    final wait = seconds != null ? Duration(seconds: seconds) : _defaultFloodWait;
+    final wait = seconds != null
+        ? Duration(seconds: seconds)
+        : _defaultFloodWait;
     final until = DateTime.now().add(wait);
 
     // Only ever extend the deadline, never shorten it.
@@ -146,6 +152,16 @@ class TdlibService {
     // read never leaves the device. TDLib documents `getOption` as callable
     // before authorization, which is only possible because it is local.
     if (function is td.GetOption) return true;
+    // TDLib documents `searchChats` as an offline method: it searches the
+    // titles and usernames of chats it has *already* loaded and never asks the
+    // server. That is what makes the new-message picker free to type in — see
+    // the per-keystroke rule in docs/TDLIB.md.
+    if (function is td.SearchChats) return true;
+    // TDLib's own documentation on `getMessageProperties`: "this is an offline
+    // request". It is what the message long-press menu asks before deciding
+    // which actions to offer, so it must not be gated behind a flood wait the
+    // reader would experience as a menu that never opens.
+    if (function is td.GetMessageProperties) return true;
     return function is td.GetMessageLocally;
   }
 
@@ -191,7 +207,7 @@ class TdlibService {
   final DatabaseKeyStore _keyStore;
 
   TdlibService(Ref ref, {DatabaseKeyStore? keyStore})
-      : _keyStore = keyStore ?? DatabaseKeyStore();
+    : _keyStore = keyStore ?? DatabaseKeyStore();
 
   /// Stream of all incoming TDLib updates (excluding invoke results).
   Stream<td.TdObject> get updatesStream {
@@ -277,7 +293,9 @@ class TdlibService {
         _updateStatus('Connecting to Telegram network...');
         final stateRes = await sendRequest(const td.GetAuthorizationState());
         if (stateRes is td.AuthorizationState) {
-          _handleIncomingUpdate(td.UpdateAuthorizationState(authorizationState: stateRes));
+          _handleIncomingUpdate(
+            td.UpdateAuthorizationState(authorizationState: stateRes),
+          );
         }
       } catch (e) {
         debugPrint('[TDLib] Initial GetAuthorizationState query note: $e');
@@ -440,7 +458,8 @@ class TdlibService {
     // Gate non-init requests until TDLib parameters are configured, then behind
     // the flood-wait deadline. Bootstrap calls bypass both — without them the
     // client can never recover from a rate limit.
-    if (function is! td.SetTdlibParameters && function is! td.GetAuthorizationState) {
+    if (function is! td.SetTdlibParameters &&
+        function is! td.GetAuthorizationState) {
       try {
         await _tdlibReadyCompleter.future.timeout(const Duration(seconds: 10));
       } catch (e) {
@@ -465,7 +484,9 @@ class TdlibService {
       timeout,
       onTimeout: () {
         _pendingRequests.remove(extra);
-        throw TimeoutException('TDLib request ${function.runtimeType} timed out.');
+        throw TimeoutException(
+          'TDLib request ${function.runtimeType} timed out.',
+        );
       },
     );
   }
@@ -476,7 +497,9 @@ class TdlibService {
   void _handleIncomingUpdate(td.TdObject object) {
     if (object is td.UpdateAuthorizationState) {
       _currentAuthState = object.authorizationState;
-      debugPrint('[TDLib Update] UpdateAuthorizationState -> ${object.authorizationState.runtimeType}');
+      debugPrint(
+        '[TDLib Update] UpdateAuthorizationState -> ${object.authorizationState.runtimeType}',
+      );
       _authEventController.add(object.authorizationState);
       _handleAuthorizationState(object.authorizationState);
     } else if (object is td.UpdateChatFolders) {
@@ -487,11 +510,22 @@ class TdlibService {
       _noteError(object.code, object.message);
       debugPrint('[TDLib Global Error] ${object.code}: ${object.message}');
     }
-    // Only broadcast completed file updates to UI stream listeners
-    if (object is td.UpdateFile && object.file.local.isDownloadingCompleted) {
-      _fileUpdateController.add(object);
-    }
+    if (object is td.UpdateFile) _emitFileUpdate(object);
     _updatesController.add(object);
+  }
+
+  /// Keeps download progress affordable to draw. See [FileUpdateThrottle] —
+  /// the rule lives there so it can be tested without a client.
+  final FileUpdateThrottle _fileThrottle = FileUpdateThrottle();
+
+  /// Forwards a file update to the UI stream, rate-limited per file.
+  void _emitFileUpdate(td.UpdateFile update) {
+    final allowed = _fileThrottle.allow(
+      fileId: update.file.id,
+      isCompleted: update.file.local.isDownloadingCompleted,
+      now: DateTime.now(),
+    );
+    if (allowed) _fileUpdateController.add(update);
   }
 
   /// Handles TDLib parameter requests and automated auth transitions.
@@ -541,7 +575,9 @@ class TdlibService {
           _markTdlibReady();
           if (storedKey == null) await _encryptDatabase();
           try {
-            await sendRequest(const td.SetLogVerbosityLevel(newVerbosityLevel: 1));
+            await sendRequest(
+              const td.SetLogVerbosityLevel(newVerbosityLevel: 1),
+            );
           } catch (_) {}
         }
       } catch (e) {
@@ -560,7 +596,9 @@ class TdlibService {
       } else if (state is td.AuthorizationStateReady) {
         _updateStatus('Authenticated with Telegram!');
         try {
-          sendRequest(const td.LoadChats(chatList: td.ChatListMain(), limit: 100));
+          sendRequest(
+            const td.LoadChats(chatList: td.ChatListMain(), limit: 100),
+          );
         } catch (_) {}
       }
     }

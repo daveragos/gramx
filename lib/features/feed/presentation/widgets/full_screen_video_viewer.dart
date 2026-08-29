@@ -257,19 +257,26 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     // Start playback the moment the download lands, without the user tapping
     // again — they already asked for this video once.
     final fileId = widget.fileId;
-    if (fileId != null && fileId != 0 && !_isInitialized && !_hasError) {
+    // The file on disk, once there is one. Also what the "open with" button
+    // hands out, which is why it is read even when playback is already going.
+    String? downloadedPath = widget.videoPath;
+    if (fileId != null && fileId != 0) {
       final download = ref.watch(fileDownloadProgressProvider(fileId)).value;
       final ready = download?.localPath;
       if (download != null && download.isCompleted && ready != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _initializePlayer(ready);
-        });
+        downloadedPath = ready;
+        if (!_isInitialized && !_hasError) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _initializePlayer(ready);
+          });
+        }
       }
     }
 
     return MediaViewerChrome(
       post: widget.post,
       showChrome: _showControls,
+      localPath: downloadedPath,
       controls: _isInitialized ? _buildScrubber() : null,
       child: DragToDismiss(
         child: GestureDetector(

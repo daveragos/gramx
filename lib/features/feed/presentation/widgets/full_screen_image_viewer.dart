@@ -168,8 +168,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     );
   }
 
-  double _scaleOf(int index) =>
-      _getController(index).value.getMaxScaleOnAxis();
+  double _scaleOf(int index) => _getController(index).value.getMaxScaleOnAxis();
 
   void _syncZoomState(int index) {
     final zoomed = _scaleOf(index) > 1.01;
@@ -205,15 +204,18 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
       final at = _doubleTapAt ?? Offset.zero;
       const scale = _doubleTapScale;
       controller.value = Matrix4.identity()
-        ..translateByDouble(
-          at.dx * (1 - scale),
-          at.dy * (1 - scale),
-          0,
-          1,
-        )
+        ..translateByDouble(at.dx * (1 - scale), at.dy * (1 - scale), 0, 1)
         ..scaleByDouble(scale, scale, 1, 1);
     }
     _syncZoomState(index);
+  }
+
+  /// The downloaded file for the page on screen, or null while it is arriving.
+  String? _localPathForCurrentPage;
+
+  void _onCurrentPageResolved(String? path) {
+    if (!mounted || path == _localPathForCurrentPage) return;
+    setState(() => _localPathForCurrentPage = path);
   }
 
   @override
@@ -225,6 +227,11 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     return MediaViewerChrome(
       post: widget.post,
       showChrome: _showChrome,
+      // The picture being *looked at*, not the one the viewer opened on — the
+      // button has to follow the page. Resolved through a Consumer because
+      // this State has no `ref` of its own, and only the current page's file
+      // is watched, so swiping does not subscribe to the whole album.
+      localPath: _localPathForCurrentPage,
       pageIndicator: MediaPageDots(
         count: widget.items.length,
         index: _currentIndex,
@@ -246,6 +253,9 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             onPageChanged: (index) => setState(() {
               _currentIndex = index;
               _isZoomed = _scaleOf(index) > 1.01;
+              // Dropped until the new page reports its own, so the button can
+              // never hand out the picture the reader just swiped away from.
+              _localPathForCurrentPage = null;
             }),
             itemBuilder: (context, index) {
               final item = widget.items[index];
@@ -280,7 +290,15 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                       tag: index == widget.initialIndex
                           ? widget.tag
                           : '${widget.tag}_$index',
-                      child: _ViewerImage(item: item),
+                      child: _ViewerImage(
+                        item: item,
+                        // Only the page actually on screen reports, so
+                        // swiping does not have every page in the album
+                        // racing to set the button's target.
+                        onResolved: index == _currentIndex
+                            ? _onCurrentPageResolved
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -309,7 +327,12 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
 class _ViewerImage extends ConsumerWidget {
   final ViewerImage item;
 
-  const _ViewerImage({required this.item});
+  /// Reports the file this page resolved, so the chrome's "open with" can hand
+  /// out the exact one on screen. A callback rather than a second resolution
+  /// up top: the page already knows, and two answers can disagree.
+  final ValueChanged<String?>? onResolved;
+
+  const _ViewerImage({required this.item, this.onResolved});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -321,8 +344,14 @@ class _ViewerImage extends ConsumerWidget {
       download = ref.watch(fileDownloadProgressProvider(fileId)).value;
     }
 
-    final resolved = download?.localPath ??
-        resolveMediaPath(ref, rawPath: item.path);
+    final resolved =
+        download?.localPath ?? resolveMediaPath(ref, rawPath: item.path);
+
+    // Reported after the frame, never during it: `build` must not write state.
+    final report = onResolved;
+    if (report != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => report(resolved));
+    }
 
     if (resolved != null && resolved.isNotEmpty) {
       final file = File(resolved);
@@ -337,7 +366,8 @@ class _ViewerImage extends ConsumerWidget {
 
     // Still coming. The grid showed something a moment ago, so "broken" would
     // be a lie — this is a wait, not a failure.
-    final isRemote = item.path != null &&
+    final isRemote =
+        item.path != null &&
         (item.path!.startsWith('http://') || item.path!.startsWith('https://'));
     if (download != null || isRemote) {
       return _LoadingImage(
