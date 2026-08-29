@@ -13,6 +13,13 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
+import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/compose_remote_media.dart';
+import 'package:gramx/features/compose/presentation/compose_providers.dart';
+import 'package:gramx/features/compose/presentation/widgets/compose_attachment_strip.dart';
+import 'package:gramx/features/compose/presentation/widgets/compose_media_kind_sheet.dart';
+import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -45,6 +52,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final FocusNode _commentFocusNode = FocusNode();
   Post? _replyTargetPost;
   final Set<String> _expandedCommentIds = {};
+
+  /// Pictures and videos picked but not yet posted. A comment can carry the
+  /// same things a post can now, and these ride along with the words the way
+  /// they do everywhere else in the app.
+  final List<ComposeAttachment> _attachments = [];
+
+  bool _isSending = false;
 
   StreamSubscription<LivePostUpdate>? _liveSub;
   Timer? _refreshDebounce;
@@ -119,32 +133,96 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   void _toggleReaction(Post post, String emoji) {
-    ref.read(optimisticPostUpdatesProvider.notifier).toggleReaction(post.id, emoji, post);
-    ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
-    ref.read(syncServiceProvider).togglePostReaction(
-      chatId: post.chatId,
-      messageId: post.messageId,
-      reactionEmoji: emoji,
-      isCurrentlyLiked: post.chosenReactions.contains(emoji),
-    );
+    ref
+        .read(optimisticPostUpdatesProvider.notifier)
+        .toggleReaction(post.id, emoji, post);
+    ref
+        .read(feedPostsProvider.notifier)
+        .toggleReactionOptimistic(post.id, emoji);
+    ref
+        .read(syncServiceProvider)
+        .togglePostReaction(
+          chatId: post.chatId,
+          messageId: post.messageId,
+          reactionEmoji: emoji,
+          isCurrentlyLiked: post.chosenReactions.contains(emoji),
+        );
     // No invalidate: the optimistic override is applied synchronously and the
     // live update stream reconciles it. Refetching here dropped the screen —
     // post, thread and scroll position — back to a spinner on every tap.
   }
 
-  void _sendComment(int chatId, int messageId) async {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
-    _commentController.clear();
+  /// Whether there is anything to post: words, or something attached.
+  bool get _canSendComment =>
+      !_isSending &&
+      (_commentController.text.trim().isNotEmpty || _attachments.isNotEmpty);
+
+  /// Attaches a picture or a video, through the same picker the post composer
+  /// and the message composer use.
+  Future<void> _attachToComment() async {
+    final choice = await ComposeMediaKindSheet.show(context);
+    if (choice == null || !mounted) return;
+
+    final picker = ref.read(composeMediaPickerProvider);
+    final attachment = choice == ComposeMediaKind.photo
+        ? await picker.pickPhoto()
+        : await picker.pickVideo();
+    if (attachment == null || !mounted) return;
+    setState(() => _attachments.add(attachment));
+  }
+
+  /// Picks a sticker or a GIF and posts it on its own.
+  ///
+  /// Sent immediately rather than staged beside the text, because
+  /// `inputMessageSticker` has no caption field at all — anything typed would
+  /// be silently dropped. Telegram sends on tap here too, so the gesture reads
+  /// the same way it does everywhere else.
+  Future<void> _sendStickerComment(int chatId, int messageId) async {
+    final media = await ComposeStickerSheet.show(
+      context,
+      initialKind: ComposeRemoteKind.sticker,
+    );
+    if (media == null || !mounted) return;
+    await _postComment(chatId, messageId, remote: media);
+  }
+
+  void _sendComment(int chatId, int messageId) {
+    if (!_canSendComment) return;
+    _postComment(chatId, messageId);
+  }
+
+  Future<void> _postComment(
+    int chatId,
+    int messageId, {
+    ComposeRemoteMedia? remote,
+  }) async {
+    final text = remote != null ? '' : _commentController.text.trim();
+    final attachments = remote != null
+        ? const <ComposeAttachment>[]
+        : List<ComposeAttachment>.from(_attachments);
+    if (remote == null && text.isEmpty && attachments.isEmpty) return;
+
     final targetReply = _replyTargetPost;
-    setState(() => _replyTargetPost = null);
+    setState(() {
+      _isSending = true;
+      if (remote == null) {
+        _commentController.clear();
+        _attachments.clear();
+      }
+      _replyTargetPost = null;
+    });
+
     try {
-      await ref.read(feedRepositoryProvider).sendComment(
-        chatId,
-        messageId,
-        text,
-        replyToMessageId: targetReply?.messageId,
-      );
+      await ref
+          .read(feedRepositoryProvider)
+          .sendComment(
+            chatId,
+            messageId,
+            text,
+            replyToMessageId: targetReply?.messageId,
+            attachments: attachments,
+            remote: remote,
+          );
       ref.invalidate(postCommentsFetchProvider(widget.postId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -156,10 +234,22 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.commentFailed(e))),
-        );
+        // Put back what was typed. Losing a comment to a failed send is the
+        // worst outcome here, and the text is the only part that cannot be
+        // picked again.
+        setState(() {
+          if (remote == null) {
+            _commentController.text = text;
+            _attachments.addAll(attachments);
+          }
+          _replyTargetPost = targetReply;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(AppStrings.commentFailed(e))));
       }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -171,8 +261,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final isLoggedIn = accountAsync.value != null;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -185,7 +276,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(AppStrings.postTitle, style: AppTypography.heading(color: primaryColor)),
+        title: Text(
+          AppStrings.postTitle,
+          style: AppTypography.heading(color: primaryColor),
+        ),
       ),
       body: postAsync.when(
         loading: () => const Center(
@@ -200,8 +294,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             return _UnreachablePost(postId: widget.postId);
           }
 
-          final totalReactions =
-              post.reactions.values.fold<int>(0, (a, b) => a + b);
+          final totalReactions = post.reactions.values.fold<int>(
+            0,
+            (a, b) => a + b,
+          );
 
           return Column(
             children: [
@@ -224,7 +320,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                             children: [
                               // Channel header
                               GestureDetector(
-                                onTap: () => context.push('/channel/${post.channelId}'),
+                                onTap: () =>
+                                    context.push('/channel/${post.channelId}'),
                                 child: Row(
                                   children: [
                                     ChannelAvatar(
@@ -237,14 +334,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     const SizedBox(width: AppSpacing.avatarGap),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
                                               Text(
                                                 post.channelTitle,
-                                                style: AppTypography.displayName(
-                                                    color: primaryColor),
+                                                style:
+                                                    AppTypography.displayName(
+                                                      color: primaryColor,
+                                                    ),
                                               ),
                                               if (post.isChannelVerified) ...[
                                                 const SizedBox(width: 4),
@@ -260,7 +360,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                             Text(
                                               '@${post.channelUsername}',
                                               style: AppTypography.username(
-                                                  color: secondaryColor),
+                                                color: secondaryColor,
+                                              ),
                                             ),
                                         ],
                                       ),
@@ -270,21 +371,31 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               ),
                               const SizedBox(height: AppSpacing.lg),
                               // Quoted Reply Preview Card
-                              if (post.replyToText != null || post.replyToAuthorTitle != null || post.replyToMessageId != null) ...[
-                                _buildQuotedReplyCard(context, post, isDark, secondaryColor),
+                              if (post.replyToText != null ||
+                                  post.replyToAuthorTitle != null ||
+                                  post.replyToMessageId != null) ...[
+                                _buildQuotedReplyCard(
+                                  context,
+                                  post,
+                                  secondaryColor,
+                                ),
                               ],
                               // Post text
-                              if (post.text != null && post.text!.isNotEmpty) ...[
+                              if (post.text != null &&
+                                  post.text!.isNotEmpty) ...[
                                 TextEntityRenderer(
                                   onHashtagTap: (tag) =>
                                       openHashtagSearch(context, ref, tag),
                                   text: post.text!,
                                   entities: post.entities,
-                                  style: AppTypography.bodyLarge(color: primaryColor),
+                                  style: AppTypography.bodyLarge(
+                                    color: primaryColor,
+                                  ),
                                 ),
                               ],
                               // Link preview
-                              if (post.linkPreviewUrl != null && post.linkPreviewUrl!.isNotEmpty) ...[
+                              if (post.linkPreviewUrl != null &&
+                                  post.linkPreviewUrl!.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.md),
                                 LinkPreviewCard(
                                   url: post.linkPreviewUrl!,
@@ -315,52 +426,74 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   scrollDirection: Axis.horizontal,
                                   physics: const BouncingScrollPhysics(),
                                   child: Row(
-                                    children: post.reactions.entries.map((entry) {
+                                    children: post.reactions.entries.map((
+                                      entry,
+                                    ) {
                                       final emoji = entry.key;
                                       final count = entry.value;
-                                      final isChosen = post.chosenReactions.contains(emoji);
+                                      final isChosen = post.chosenReactions
+                                          .contains(emoji);
                                       return Padding(
-                                        padding: const EdgeInsets.only(right: 6),
+                                        padding: const EdgeInsets.only(
+                                          right: 6,
+                                        ),
                                         child: InkWell(
-                                          onTap: () => _toggleReaction(post, emoji),
-                                          borderRadius: BorderRadius.circular(16),
+                                          onTap: () =>
+                                              _toggleReaction(post, emoji),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                           child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 150),
+                                            duration: const Duration(
+                                              milliseconds: 150,
+                                            ),
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: isChosen
-                                                  ? AppColors.accent.withValues(alpha: 0.18)
+                                                  ? AppColors.accent.withValues(
+                                                      alpha: 0.18,
+                                                    )
                                                   : (isDark
-                                                      ? AppColors.darkSurfaceVariant
-                                                      : Colors.grey.shade100),
-                                              borderRadius: BorderRadius.circular(16),
+                                                        ? AppColors
+                                                              .darkSurfaceVariant
+                                                        : Colors.grey.shade100),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
                                               border: Border.all(
                                                 color: isChosen
                                                     ? AppColors.accent
                                                     : (isDark
-                                                        ? AppColors.darkBorder
-                                                        : AppColors.lightBorder),
+                                                          ? AppColors.darkBorder
+                                                          : AppColors
+                                                                .lightBorder),
                                                 width: isChosen ? 1.2 : 0.5,
                                               ),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Text(emoji,
-                                                    style: const TextStyle(fontSize: 14)),
+                                                Text(
+                                                  emoji,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
                                                 const SizedBox(width: 4),
                                                 Text(
                                                   TimeUtils.formatCount(count),
-                                                  style: AppTypography.actionCount(
-                                                          color: isChosen
-                                                              ? AppColors.accent
-                                                              : secondaryColor)
-                                                      .copyWith(
-                                                    fontWeight: isChosen
-                                                        ? FontWeight.bold
-                                                        : FontWeight.normal,
-                                                  ),
+                                                  style:
+                                                      AppTypography.actionCount(
+                                                        color: isChosen
+                                                            ? AppColors.accent
+                                                            : secondaryColor,
+                                                      ).copyWith(
+                                                        fontWeight: isChosen
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                      ),
                                                 ),
                                               ],
                                             ),
@@ -375,7 +508,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               // Full timestamp
                               Text(
                                 TimeUtils.fullDateTime(post.publishedAt),
-                                style: AppTypography.timestamp(color: secondaryColor),
+                                style: AppTypography.timestamp(
+                                  color: secondaryColor,
+                                ),
                               ),
                             ],
                           ),
@@ -384,44 +519,57 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         // Stats row
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.postPadding,
-                              vertical: AppSpacing.sm),
+                            horizontal: AppSpacing.postPadding,
+                            vertical: AppSpacing.sm,
+                          ),
                           child: Row(
                             children: [
                               if (post.forwardCount > 0) ...[
                                 Text(
                                   TimeUtils.formatCount(post.forwardCount),
                                   style: AppTypography.displayName(
-                                      color: primaryColor),
+                                    color: primaryColor,
+                                  ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(AppStrings.statReposts,
-                                    style: AppTypography.body(
-                                        color: secondaryColor)),
+                                Text(
+                                  AppStrings.statReposts,
+                                  style: AppTypography.body(
+                                    color: secondaryColor,
+                                  ),
+                                ),
                                 const SizedBox(width: AppSpacing.lg),
                               ],
                               if (totalReactions > 0) ...[
                                 Text(
                                   TimeUtils.formatCount(totalReactions),
                                   style: AppTypography.displayName(
-                                      color: primaryColor),
+                                    color: primaryColor,
+                                  ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(AppStrings.statLikes,
-                                    style: AppTypography.body(
-                                        color: secondaryColor)),
+                                Text(
+                                  AppStrings.statLikes,
+                                  style: AppTypography.body(
+                                    color: secondaryColor,
+                                  ),
+                                ),
                                 const SizedBox(width: AppSpacing.lg),
                               ],
                               if (post.viewCount > 0) ...[
                                 Text(
                                   TimeUtils.formatCount(post.viewCount),
                                   style: AppTypography.displayName(
-                                      color: primaryColor),
+                                    color: primaryColor,
+                                  ),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(AppStrings.statViews,
-                                    style: AppTypography.body(
-                                        color: secondaryColor)),
+                                Text(
+                                  AppStrings.statViews,
+                                  style: AppTypography.body(
+                                    color: secondaryColor,
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -459,8 +607,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               } else if (!post.hasDiscussionGroup) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text(AppStrings.feedCommentsDisabled),
+                                    content: Text(
+                                      AppStrings.feedCommentsDisabled,
+                                    ),
                                     behavior: SnackBarBehavior.floating,
                                     duration: Duration(seconds: 2),
                                   ),
@@ -477,15 +626,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(AppStrings.commentsHeading,
-                                  style: AppTypography.subheading(
-                                      color: primaryColor)),
+                              Text(
+                                AppStrings.commentsHeading,
+                                style: AppTypography.subheading(
+                                  color: primaryColor,
+                                ),
+                              ),
                               const SizedBox(height: AppSpacing.lg),
                               if (!post.hasDiscussionGroup)
                                 Center(
                                   child: Text(
                                     AppStrings.feedCommentsDisabled,
-                                    style: AppTypography.body(color: secondaryColor),
+                                    style: AppTypography.body(
+                                      color: secondaryColor,
+                                    ),
                                     textAlign: TextAlign.center,
                                   ),
                                 )
@@ -493,7 +647,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 Center(
                                   child: Text(
                                     AppStrings.commentsLoginPrompt,
-                                    style: AppTypography.body(color: secondaryColor),
+                                    style: AppTypography.body(
+                                      color: secondaryColor,
+                                    ),
                                     textAlign: TextAlign.center,
                                   ),
                                 )
@@ -510,179 +666,261 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   ),
                                   error: (err, _) => Text(
                                     'Error loading comments: $err',
-                                    style: AppTypography.body(color: secondaryColor),
+                                    style: AppTypography.body(
+                                      color: secondaryColor,
+                                    ),
                                   ),
                                   data: (comments) {
-                                     if (comments.isEmpty) {
-                                       return Center(
-                                         child: Text(
-                                           'No comments on this post yet. Be the first to comment!',
-                                           style: AppTypography.body(color: secondaryColor),
-                                           textAlign: TextAlign.center,
-                                         ),
-                                       );
-                                     }
+                                    if (comments.isEmpty) {
+                                      return Center(
+                                        child: Text(
+                                          'No comments on this post yet. Be the first to comment!',
+                                          style: AppTypography.body(
+                                            color: secondaryColor,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      );
+                                    }
 
-                                     final commentMap = {for (var c in comments) c.messageId: c};
-                                     final Map<int, List<Post>> subMap = {};
+                                    final commentMap = {
+                                      for (var c in comments) c.messageId: c,
+                                    };
+                                    final Map<int, List<Post>> subMap = {};
 
-                                     for (final comment in comments) {
-                                       final replyId = comment.replyToMessageId;
-                                       if (replyId != null && replyId != post.messageId && commentMap.containsKey(replyId)) {
-                                         int rootId = replyId;
-                                         int depth = 0;
-                                         while (commentMap.containsKey(rootId) && depth < 10) {
-                                           final parent = commentMap[rootId]!;
-                                           if (parent.replyToMessageId == null ||
-                                               parent.replyToMessageId == post.messageId ||
-                                               !commentMap.containsKey(parent.replyToMessageId)) {
-                                             break;
-                                           }
-                                           rootId = parent.replyToMessageId!;
-                                           depth++;
-                                         }
-                                         subMap.putIfAbsent(rootId, () => []).add(comment);
-                                       }
-                                     }
+                                    for (final comment in comments) {
+                                      final replyId = comment.replyToMessageId;
+                                      if (replyId != null &&
+                                          replyId != post.messageId &&
+                                          commentMap.containsKey(replyId)) {
+                                        int rootId = replyId;
+                                        int depth = 0;
+                                        while (commentMap.containsKey(rootId) &&
+                                            depth < 10) {
+                                          final parent = commentMap[rootId]!;
+                                          if (parent.replyToMessageId == null ||
+                                              parent.replyToMessageId ==
+                                                  post.messageId ||
+                                              !commentMap.containsKey(
+                                                parent.replyToMessageId,
+                                              )) {
+                                            break;
+                                          }
+                                          rootId = parent.replyToMessageId!;
+                                          depth++;
+                                        }
+                                        subMap
+                                            .putIfAbsent(rootId, () => [])
+                                            .add(comment);
+                                      }
+                                    }
 
-                                     final childIds = subMap.values.expand((list) => list.map((c) => c.messageId)).toSet();
-                                     final topLevelComments = comments.where((c) => !childIds.contains(c.messageId)).toList();
+                                    final childIds = subMap.values
+                                        .expand(
+                                          (list) =>
+                                              list.map((c) => c.messageId),
+                                        )
+                                        .toSet();
+                                    final topLevelComments = comments
+                                        .where(
+                                          (c) =>
+                                              !childIds.contains(c.messageId),
+                                        )
+                                        .toList();
 
-                                     final List<Widget> commentWidgets = [];
+                                    final List<Widget> commentWidgets = [];
 
-                                     for (int i = 0; i < topLevelComments.length; i++) {
-                                       final topComment = topLevelComments[i];
-                                       final subReplies = subMap[topComment.messageId] ?? [];
-                                       final isExpanded = _expandedCommentIds.contains(topComment.id);
-                                       final isLastTopComment = i == topLevelComments.length - 1;
+                                    for (
+                                      int i = 0;
+                                      i < topLevelComments.length;
+                                      i++
+                                    ) {
+                                      final topComment = topLevelComments[i];
+                                      final subReplies =
+                                          subMap[topComment.messageId] ?? [];
+                                      final isExpanded = _expandedCommentIds
+                                          .contains(topComment.id);
+                                      final isLastTopComment =
+                                          i == topLevelComments.length - 1;
 
-                                       commentWidgets.add(
-                                         _buildXCommentItem(
-                                           context: context,
-                                           comment: topComment,
-                                           isLast: isLastTopComment && subReplies.isEmpty,
-                                           isDark: isDark,
-                                           primaryColor: primaryColor,
-                                           secondaryColor: secondaryColor,
-                                         ),
-                                       );
+                                      commentWidgets.add(
+                                        _buildXCommentItem(
+                                          context: context,
+                                          comment: topComment,
+                                          isLast:
+                                              isLastTopComment &&
+                                              subReplies.isEmpty,
+                                          isDark: isDark,
+                                          primaryColor: primaryColor,
+                                          secondaryColor: secondaryColor,
+                                        ),
+                                      );
 
-                                       if (subReplies.isNotEmpty) {
-                                         if (!isExpanded) {
-                                           commentWidgets.add(
-                                             Padding(
-                                               padding: const EdgeInsets.only(left: 46, top: 0, bottom: 16),
-                                               child: InkWell(
-                                                 onTap: () {
-                                                   HapticFeedback.lightImpact();
-                                                   setState(() => _expandedCommentIds.add(topComment.id));
-                                                 },
-                                                 borderRadius: BorderRadius.circular(16),
-                                                 child: Padding(
-                                                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                                                   child: Row(
-                                                     mainAxisSize: MainAxisSize.min,
-                                                     children: [
-                                                       Container(
-                                                         width: 20,
-                                                         height: 1.5,
-                                                         color: AppColors.accent.withValues(alpha: 0.6),
-                                                       ),
-                                                       const SizedBox(width: 8),
-                                                       Text(
-                                                         subReplies.length == 1
-                                                             ? 'Show 1 reply'
-                                                             : 'Show ${subReplies.length} replies',
-                                                         style: const TextStyle(
-                                                           color: AppColors.accent,
-                                                           fontSize: 13,
-                                                           fontWeight: FontWeight.w600,
-                                                         ),
-                                                       ),
-                                                       const Icon(
-                                                         Icons.keyboard_arrow_down_rounded,
-                                                         size: 18,
-                                                         color: AppColors.accent,
-                                                       ),
-                                                     ],
-                                                   ),
-                                                 ),
-                                               ),
-                                             ),
-                                           );
-                                         } else {
-                                           for (int j = 0; j < subReplies.length; j++) {
-                                             final sub = subReplies[j];
-                                             final isLastSub = j == subReplies.length - 1;
-                                             commentWidgets.add(
-                                               Padding(
-                                                 padding: const EdgeInsets.only(left: 32),
-                                                 child: _buildXCommentItem(
-                                                   context: context,
-                                                   comment: sub,
-                                                   isLast: isLastSub && isLastTopComment,
-                                                   isDark: isDark,
-                                                   primaryColor: primaryColor,
-                                                   secondaryColor: secondaryColor,
-                                                 ),
-                                               ),
-                                             );
-                                           }
+                                      if (subReplies.isNotEmpty) {
+                                        if (!isExpanded) {
+                                          commentWidgets.add(
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 46,
+                                                top: 0,
+                                                bottom: 16,
+                                              ),
+                                              child: InkWell(
+                                                onTap: () {
+                                                  HapticFeedback.lightImpact();
+                                                  setState(
+                                                    () => _expandedCommentIds
+                                                        .add(topComment.id),
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 4,
+                                                        horizontal: 6,
+                                                      ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        width: 20,
+                                                        height: 1.5,
+                                                        color: AppColors.accent
+                                                            .withValues(
+                                                              alpha: 0.6,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        subReplies.length == 1
+                                                            ? 'Show 1 reply'
+                                                            : 'Show ${subReplies.length} replies',
+                                                        style: const TextStyle(
+                                                          color:
+                                                              AppColors.accent,
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                      const Icon(
+                                                        Icons
+                                                            .keyboard_arrow_down_rounded,
+                                                        size: 18,
+                                                        color: AppColors.accent,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        } else {
+                                          for (
+                                            int j = 0;
+                                            j < subReplies.length;
+                                            j++
+                                          ) {
+                                            final sub = subReplies[j];
+                                            final isLastSub =
+                                                j == subReplies.length - 1;
+                                            commentWidgets.add(
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  left: 32,
+                                                ),
+                                                child: _buildXCommentItem(
+                                                  context: context,
+                                                  comment: sub,
+                                                  isLast:
+                                                      isLastSub &&
+                                                      isLastTopComment,
+                                                  isDark: isDark,
+                                                  primaryColor: primaryColor,
+                                                  secondaryColor:
+                                                      secondaryColor,
+                                                ),
+                                              ),
+                                            );
+                                          }
 
-                                           commentWidgets.add(
-                                             Padding(
-                                               padding: const EdgeInsets.only(left: 46, top: 0, bottom: 16),
-                                               child: InkWell(
-                                                 onTap: () {
-                                                   HapticFeedback.lightImpact();
-                                                   setState(() => _expandedCommentIds.remove(topComment.id));
-                                                 },
-                                                 borderRadius: BorderRadius.circular(16),
-                                                 child: Padding(
-                                                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                                                   child: Row(
-                                                     mainAxisSize: MainAxisSize.min,
-                                                     children: [
-                                                       Container(
-                                                         width: 20,
-                                                         height: 1.5,
-                                                         color: secondaryColor.withValues(alpha: 0.4),
-                                                       ),
-                                                       const SizedBox(width: 8),
-                                                       Text(
-                                                         subReplies.length == 1 ? 'Hide reply' : 'Hide replies',
-                                                         style: TextStyle(
-                                                           color: secondaryColor,
-                                                           fontSize: 12.5,
-                                                           fontWeight: FontWeight.w500,
-                                                         ),
-                                                       ),
-                                                       Icon(
-                                                         Icons.keyboard_arrow_up_rounded,
-                                                         size: 18,
-                                                         color: secondaryColor,
-                                                       ),
-                                                     ],
-                                                   ),
-                                                 ),
-                                               ),
-                                             ),
-                                           );
-                                         }
-                                       }
-                                     }
+                                          commentWidgets.add(
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 46,
+                                                top: 0,
+                                                bottom: 16,
+                                              ),
+                                              child: InkWell(
+                                                onTap: () {
+                                                  HapticFeedback.lightImpact();
+                                                  setState(
+                                                    () => _expandedCommentIds
+                                                        .remove(topComment.id),
+                                                  );
+                                                },
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 4,
+                                                        horizontal: 6,
+                                                      ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        width: 20,
+                                                        height: 1.5,
+                                                        color: secondaryColor
+                                                            .withValues(
+                                                              alpha: 0.4,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Text(
+                                                        subReplies.length == 1
+                                                            ? 'Hide reply'
+                                                            : 'Hide replies',
+                                                        style: TextStyle(
+                                                          color: secondaryColor,
+                                                          fontSize: 12.5,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Icon(
+                                                        Icons
+                                                            .keyboard_arrow_up_rounded,
+                                                        size: 18,
+                                                        color: secondaryColor,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    }
 
-                                     return Column(children: commentWidgets);
-                                    },
-                                  ),
-                              ],
-                            ),
+                                    return Column(children: commentWidgets);
+                                  },
+                                ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
               // Comment Input Bar for Logged-In Users on discussion enabled posts
               if (isLoggedIn && post.hasDiscussionGroup)
                 _buildCommentInputBar(
@@ -707,10 +945,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     required Color primaryColor,
     required Color secondaryColor,
   }) {
-    final isReply = comment.replyToMessageId != null ||
+    final isReply =
+        comment.replyToMessageId != null ||
         comment.replyToText != null ||
         comment.replyToAuthorTitle != null;
     final replyAuthor = comment.replyToAuthorTitle ?? 'post';
+
+    // A commenter is a person, and gramX has somewhere to put one now. The
+    // channel screen is still where a comment posted *by a channel* leads,
+    // which is what the null case is.
+    final senderUserId = comment.senderUserId;
+    void openAuthor() {
+      if (senderUserId != null) {
+        context.push(UserProfileScreen.routeFor(senderUserId));
+      } else {
+        context.push('/channel/${comment.channelId}');
+      }
+    }
 
     return IntrinsicHeight(
       child: Row(
@@ -725,13 +976,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 avatarFileId: comment.channelAvatarFileId,
                 avatarColorHex: comment.channelAvatarColor,
                 radius: 18,
+                onTap: openAuthor,
               ),
               if (!isLast)
                 Expanded(
                   child: Container(
                     width: 2,
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder,
                   ),
                 ),
             ],
@@ -749,31 +1003,45 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          comment.channelTitle,
-                          style: AppTypography.displayName(color: primaryColor).copyWith(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                        child: GestureDetector(
+                          onTap: openAuthor,
+                          child: Text(
+                            comment.channelTitle,
+                            style:
+                                AppTypography.displayName(
+                                  color: primaryColor,
+                                ).copyWith(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (comment.channelUsername != null && comment.channelUsername!.isNotEmpty) ...[
+                      if (comment.channelUsername != null &&
+                          comment.channelUsername!.isNotEmpty) ...[
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             '@${comment.channelUsername}',
-                            style: AppTypography.username(color: secondaryColor).copyWith(fontSize: 13),
+                            style: AppTypography.username(
+                              color: secondaryColor,
+                            ).copyWith(fontSize: 13),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                       const SizedBox(width: 4),
-                      Text('·', style: AppTypography.username(color: secondaryColor)),
+                      Text(
+                        '·',
+                        style: AppTypography.username(color: secondaryColor),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         TimeUtils.relativeTime(comment.publishedAt),
-                        style: AppTypography.timestamp(color: secondaryColor).copyWith(fontSize: 12),
+                        style: AppTypography.timestamp(
+                          color: secondaryColor,
+                        ).copyWith(fontSize: 12),
                       ),
                     ],
                   ),
@@ -785,7 +1053,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       children: [
                         Text(
                           AppStrings.commentReplyingTo,
-                          style: AppTypography.body(color: secondaryColor).copyWith(fontSize: 12.5),
+                          style: AppTypography.body(
+                            color: secondaryColor,
+                          ).copyWith(fontSize: 12.5),
                         ),
                         Text(
                           '@$replyAuthor',
@@ -800,12 +1070,18 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   ],
 
                   // Quoted reply card snippet (if present)
-                  if (comment.replyToText != null && comment.replyToText!.isNotEmpty) ...[
+                  if (comment.replyToText != null &&
+                      comment.replyToText!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
+                        color: isDark
+                            ? const Color(0xFF1E2836)
+                            : const Color(0xFFEAF2FB),
                         borderRadius: BorderRadius.circular(6),
                         border: const Border(
                           left: BorderSide(color: AppColors.accent, width: 2.5),
@@ -815,7 +1091,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         comment.replyToText!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.body(color: secondaryColor).copyWith(fontSize: 12),
+                        style: AppTypography.body(
+                          color: secondaryColor,
+                        ).copyWith(fontSize: 12),
                       ),
                     ),
                   ],
@@ -826,7 +1104,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     TextEntityRenderer(
                       text: comment.text!,
                       entities: comment.entities,
-                      style: AppTypography.body(color: primaryColor).copyWith(fontSize: 14, height: 1.3),
+                      style: AppTypography.body(
+                        color: primaryColor,
+                      ).copyWith(fontSize: 14, height: 1.3),
                     ),
                   ],
 
@@ -853,7 +1133,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
                           child: Row(
                             children: [
                               Icon(
@@ -865,7 +1148,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 const SizedBox(width: 4),
                                 Text(
                                   TimeUtils.formatCount(comment.replyCount),
-                                  style: AppTypography.actionCount(color: secondaryColor).copyWith(fontSize: 12),
+                                  style: AppTypography.actionCount(
+                                    color: secondaryColor,
+                                  ).copyWith(fontSize: 12),
                                 ),
                               ],
                             ],
@@ -877,7 +1162,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       // the chat allows, not a hard-coded heart.
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 2),
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
                         child: ReactionControl(
                           post: comment,
                           color: secondaryColor,
@@ -944,46 +1231,79 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // answered, with no tinted band behind it. The bubble in a
+            // conversation and the composer in one both say it this way now,
+            // so the three places a reply is named all look like each other.
             if (_replyTargetPost != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                color: isDark ? const Color(0xFF1E2836) : const Color(0xFFEAF2FB),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 0),
                 child: Row(
                   children: [
-                    const Icon(Icons.reply_rounded, size: 16, color: AppColors.accent),
-                    const SizedBox(width: 8),
+                    Icon(Icons.reply_rounded, size: 14, color: secondaryColor),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        AppStrings.commentReplyingToAuthor(
-                            _replyTargetPost!.channelTitle),
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.accent,
+                        AppStrings.chatReplyingToName(
+                          _replyTargetPost!.channelTitle,
                         ),
+                        style: AppTypography.timestamp(
+                          color: AppColors.accent,
+                        ).copyWith(fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    InkWell(
-                      onTap: () => setState(() => _replyTargetPost = null),
-                      child: const Padding(
-                        padding: EdgeInsets.all(2),
-                        child: Icon(Icons.close, size: 16, color: AppColors.accent),
-                      ),
+                    IconButton(
+                      tooltip: AppStrings.chatCancelReply,
+                      onPressed: () => setState(() => _replyTargetPost = null),
+                      icon: Icon(Icons.close, size: 16, color: secondaryColor),
                     ),
                   ],
+                ),
+              ),
+            if (_attachments.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ComposeAttachmentStrip(
+                  attachments: _attachments,
+                  onRemove: (index) =>
+                      setState(() => _attachments.removeAt(index)),
                 ),
               ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  ChannelAvatar(
-                    title: post.channelTitle,
-                    radius: 16,
+                  // The reader's own face, not the channel's. This is where
+                  // *you* are about to say something, and the channel's
+                  // initial sitting there made every comment box look like the
+                  // channel was about to answer itself.
+                  _CommenterAvatar(),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: AppStrings.chatAttach,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _isSending ? null : _attachToComment,
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
                   ),
-                  const SizedBox(width: 10),
+                  IconButton(
+                    tooltip: AppStrings.composeStickersTab,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _isSending
+                        ? null
+                        : () =>
+                              _sendStickerComment(post.chatId, post.messageId),
+                    icon: const Icon(
+                      Icons.emoji_emotions_outlined,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _commentController,
@@ -992,10 +1312,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       minLines: 1,
                       textCapitalization: TextCapitalization.sentences,
                       style: AppTypography.body(color: primaryColor),
+                      // Rebuilds the send button's enabled state; the field
+                      // itself stays uncontrolled, so this costs one setState
+                      // per keystroke and no request at all.
+                      onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: _replyTargetPost != null
-                            ? 'Post your reply...'
-                            : 'Add a comment...',
+                            ? AppStrings.commentReplyHint
+                            : AppStrings.commentHint,
                         hintStyle: AppTypography.body(color: secondaryColor),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -1014,19 +1338,35 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: () => _sendComment(post.chatId, post.messageId),
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppColors.accent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_upward_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
+                    tooltip: AppStrings.chatSend,
+                    // Disabled rather than hidden, so the button does not move
+                    // out from under a thumb that is already on it.
+                    onPressed: _canSendComment
+                        ? () => _sendComment(post.chatId, post.messageId)
+                        : null,
+                    icon: _isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accent,
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _canSendComment
+                                  ? AppColors.accent
+                                  : secondaryColor.withValues(alpha: 0.4),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -1037,10 +1377,22 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
+  /// Who a comment is answering, above the answer.
+  ///
+  /// accent bar down its left edge, sitting inside a comment that is itself
+  /// one grey line and lets the reply be the thing you read; the quoted words
+  /// follow underneath in the same muted weight, with nothing drawn around
+  /// either of them.
+  ///
+  /// Both targets stay live: the line goes to the message being answered, the
+  /// name to whoever wrote it.
   Widget _buildQuotedReplyCard(
-      BuildContext context, Post post, bool isDark, Color secondaryColor) {
+    BuildContext context,
+    Post post,
+    Color secondaryColor,
+  ) {
     final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
-    final replyText = post.replyToText ?? 'Original post';
+    final replyText = post.replyToText;
 
     void goToOriginalPost() {
       if (post.replyToMessageId != null) {
@@ -1053,76 +1405,65 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       }
     }
 
-    void goToOriginalChannel() {
-      context.push('/channel/${post.channelId}');
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 4, bottom: 10),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: goToOriginalPost,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1C2733) : const Color(0xFFEFF5FC),
-            borderRadius: BorderRadius.circular(10),
-            border: const Border(
-              left: BorderSide(color: AppColors.accent, width: 3.5),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 8),
+      child: Semantics(
+        button: true,
+        label: AppStrings.chatReplyingToName(replyTitle),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: goToOriginalPost,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: goToOriginalChannel,
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.campaign_rounded,
-                            size: 14,
-                            color: AppColors.accent,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              replyTitle,
-                              style: const TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.1,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      replyText,
-                      maxLines: 2,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.reply_rounded, size: 13, color: secondaryColor),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      AppStrings.chatReplyingToName(replyTitle),
+                      style: AppTypography.timestamp(
+                        color: AppColors.accent,
+                      ).copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.body(color: secondaryColor).copyWith(
-                        fontSize: 12.5,
-                        height: 1.25,
-                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              // Absent rather than invented. TDLib leaves this empty for a
+              // reply within the same chat, and "Original post" in its place
+              // was a sentence nobody wrote.
+              if (replyText != null && replyText.isNotEmpty)
+                Text(
+                  replyText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.timestamp(color: secondaryColor),
+                ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The reader's own face, beside the comment field.
+///
+/// Its own `ConsumerWidget` so the account lookup rebuilds this alone rather
+/// than the whole input bar on every frame of the stream behind it.
+class _CommenterAvatar extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(activeAccountProvider).value;
+    return ChannelAvatar(
+      title: account?.displayName ?? AppStrings.drawerAccountFallback,
+      avatarPath: account?.avatarPath,
+      radius: 16,
     );
   }
 }
@@ -1144,8 +1485,11 @@ class _UnreachablePost extends StatelessWidget {
         ? null
         : TelegramIds.postLink(chatId: chatId, messageId: messageId);
 
-    if (link == null || !await launchUrl(Uri.parse(link),
-        mode: LaunchMode.externalApplication)) {
+    if (link == null ||
+        !await launchUrl(
+          Uri.parse(link),
+          mode: LaunchMode.externalApplication,
+        )) {
       messenger.showSnackBar(
         const SnackBar(content: Text(AppStrings.postCannotOpenTelegram)),
       );
@@ -1156,8 +1500,9 @@ class _UnreachablePost extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Center(
       child: Padding(
@@ -1169,7 +1514,9 @@ class _UnreachablePost extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             Text(
               AppStrings.postNotFound,
-              style: AppTypography.subheading(color: theme.colorScheme.onSurface),
+              style: AppTypography.subheading(
+                color: theme.colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(

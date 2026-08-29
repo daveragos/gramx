@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/domain/post_sender.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/domain/poll.dart';
@@ -65,6 +66,17 @@ class TdlibMappers {
     return (counts: counts, chosen: chosen);
   }
 
+  /// The plain text of a TDLib `FormattedText`, or null when it is empty.
+  ///
+  /// Public because the chat mapper needs exactly the same reading of a
+  /// caption that the post mapper does. Two copies of this had already
+  /// disagreed once about what an empty caption is.
+  static String? plainTextOf(dynamic raw) => _parseFormattedText(raw);
+
+  /// This app's entity models for a TDLib entity list. See [plainTextOf].
+  static List<TextEntity>? entitiesOf(List<td.TextEntity>? entities) =>
+      _parseEntities(entities);
+
   static String? _parseFormattedText(dynamic raw) {
     if (raw == null) return null;
     if (raw is String) return raw.isNotEmpty ? raw : null;
@@ -81,24 +93,31 @@ class TdlibMappers {
     return str.isNotEmpty ? str : null;
   }
 
-  static Channel mapChatToChannel(td.Chat chat, {td.Supergroup? supergroup, td.SupergroupFullInfo? fullInfo}) {
+  static Channel mapChatToChannel(
+    td.Chat chat, {
+    td.Supergroup? supergroup,
+    td.SupergroupFullInfo? fullInfo,
+  }) {
     final status = supergroup?.status;
     final isJoined = status != null
-        ? (status is! td.ChatMemberStatusLeft && status is! td.ChatMemberStatusBanned)
+        ? (status is! td.ChatMemberStatusLeft &&
+              status is! td.ChatMemberStatusBanned)
         : chat.positions.isNotEmpty;
 
     return Channel(
       id: chat.id.toString(),
       chatId: chat.id,
       title: chat.title,
-      username: supergroup?.usernames?.activeUsernames.isNotEmpty == true ? supergroup!.usernames!.activeUsernames.first : null,
+      username: supergroup?.usernames?.activeUsernames.isNotEmpty == true
+          ? supergroup!.usernames!.activeUsernames.first
+          : null,
       description: _parseFormattedText(fullInfo?.description),
       avatarUrl: chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true
-              ? chat.photo!.small.local.path
-              : (chat.photo!.small.remote.id.isNotEmpty
-                  ? chat.photo!.small.remote.id
-                  : chat.photo!.small.id.toString()))
+                ? chat.photo!.small.local.path
+                : (chat.photo!.small.remote.id.isNotEmpty
+                      ? chat.photo!.small.remote.id
+                      : chat.photo!.small.id.toString()))
           : null,
       avatarFileId: chat.photo?.small.id,
       avatarColor: _generateRandomHexColor(chat.id),
@@ -133,7 +152,8 @@ class TdlibMappers {
     } else if (content is td.MessageAnimation) {
       text = _parseFormattedText(content.caption) ?? 'GIF';
     } else if (content is td.MessageDocument) {
-      text = _parseFormattedText(content.caption) ??
+      text =
+          _parseFormattedText(content.caption) ??
           (content.document.fileName.isNotEmpty
               ? content.document.fileName
               : '📄 Document');
@@ -161,15 +181,18 @@ class TdlibMappers {
     td.Chat chat, {
     bool isBookmarked = false,
     Map<int, String>? knownChatTitles,
+
     /// Excerpts for replied-to messages, keyed `chatId_messageId`.
     ///
     /// TDLib only fills `replyTo.content` for cross-chat replies and quotes, so
     /// a reply within the same channel arrives with no preview text at all. The
     /// repository resolves those and passes them in here.
     Map<String, String>? knownReplyExcerpts,
-    String? overrideSenderTitle,
-    String? overrideSenderAvatarUrl,
-    int? overrideSenderAvatarFileId,
+
+    /// Who wrote this, when that is not the chat itself — a commenter in a
+    /// discussion group. Supplied, it is the **whole** answer for the byline
+    /// and the avatar; see [PostSender] for why that matters.
+    PostSender? sender,
   }) {
     String? bodyText;
     String? linkPreviewUrl;
@@ -190,9 +213,11 @@ class TdlibMappers {
       if (content.linkPreview != null) {
         final lp = content.linkPreview!;
         linkPreviewUrl = lp.url.isNotEmpty ? lp.url : null;
-        linkPreviewTitle = lp.title.isNotEmpty ? lp.title : (lp.displayUrl.isNotEmpty ? lp.displayUrl : null);
+        linkPreviewTitle = lp.title.isNotEmpty
+            ? lp.title
+            : (lp.displayUrl.isNotEmpty ? lp.displayUrl : null);
         linkPreviewDescription = _parseFormattedText(lp.description);
-        
+
         final preview = linkPreviewImage(lp.type);
         if (preview != null) {
           linkPreviewFileId = preview.id;
@@ -253,7 +278,11 @@ class TdlibMappers {
       forwardedFromChatId = fwdOrigin.chatId.toString();
       forwardedFromMessageId = fwdOrigin.messageId;
       final resolvedTitle = knownChatTitles?[fwdOrigin.chatId];
-      forwardedFromTitle = resolvedTitle ?? (fwdOrigin.authorSignature.isNotEmpty ? fwdOrigin.authorSignature : null);
+      forwardedFromTitle =
+          resolvedTitle ??
+          (fwdOrigin.authorSignature.isNotEmpty
+              ? fwdOrigin.authorSignature
+              : null);
     } else if (fwdOrigin is td.MessageOriginChat) {
       forwardedFromChatId = fwdOrigin.senderChatId.toString();
       final resolvedTitle = knownChatTitles?[fwdOrigin.senderChatId];
@@ -282,10 +311,14 @@ class TdlibMappers {
       // Author title resolution
       final origin = replyTo.origin;
       if (origin is td.MessageOriginChannel) {
-        replyToAuthorTitle = knownChatTitles?[origin.chatId] ??
-            (origin.authorSignature.isNotEmpty ? origin.authorSignature : chat.title);
+        replyToAuthorTitle =
+            knownChatTitles?[origin.chatId] ??
+            (origin.authorSignature.isNotEmpty
+                ? origin.authorSignature
+                : chat.title);
       } else if (origin is td.MessageOriginChat) {
-        replyToAuthorTitle = knownChatTitles?[origin.senderChatId] ?? chat.title;
+        replyToAuthorTitle =
+            knownChatTitles?[origin.senderChatId] ?? chat.title;
       } else if (origin is td.MessageOriginUser) {
         replyToAuthorTitle = 'User';
       } else if (origin is td.MessageOriginHiddenUser) {
@@ -300,8 +333,8 @@ class TdlibMappers {
       }
 
       // Resolved separately when TDLib didn't inline the content.
-      replyToText ??= knownReplyExcerpts?[
-          '${replyToChatId ?? chat.id}_${replyTo.messageId}'];
+      replyToText ??=
+          knownReplyExcerpts?['${replyToChatId ?? chat.id}_${replyTo.messageId}'];
 
       // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
@@ -331,53 +364,73 @@ class TdlibMappers {
           if (photo != null && photo.sizes.isNotEmpty) {
             final f = photo.sizes.first.photo;
             replyToThumbnailFileId = f.id;
-            replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+            replyToThumbnailUrl =
+                f.local.isDownloadingCompleted && f.local.path.isNotEmpty
                 ? f.local.path
                 : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
           } else if (thumbnail != null) {
             final f = thumbnail.file;
             replyToThumbnailFileId = f.id;
-            replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+            replyToThumbnailUrl =
+                f.local.isDownloadingCompleted && f.local.path.isNotEmpty
                 ? f.local.path
                 : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
           }
         }
       } else if (content is td.MessagePhoto) {
         final captionText = _parseFormattedText(content.caption);
-        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '📷 Photo';
+        replyToText = captionText != null && captionText.isNotEmpty
+            ? captionText
+            : '📷 Photo';
         if (content.photo.sizes.isNotEmpty) {
           final f = content.photo.sizes.first.photo;
           replyToThumbnailFileId = f.id;
-          replyToThumbnailUrl = f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+          replyToThumbnailUrl =
+              f.local.isDownloadingCompleted && f.local.path.isNotEmpty
               ? f.local.path
               : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
         }
       } else if (content is td.MessageVideo) {
         final captionText = _parseFormattedText(content.caption);
-        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '📹 Video';
+        replyToText = captionText != null && captionText.isNotEmpty
+            ? captionText
+            : '📹 Video';
         final thumbFile = content.video.thumbnail?.file;
         if (thumbFile != null) {
           replyToThumbnailFileId = thumbFile.id;
-          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+          replyToThumbnailUrl =
+              thumbFile.local.isDownloadingCompleted &&
+                  thumbFile.local.path.isNotEmpty
               ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+              : (thumbFile.remote.id.isNotEmpty
+                    ? thumbFile.remote.id
+                    : thumbFile.id.toString());
         }
       } else if (content is td.MessageAnimation) {
         replyToText = 'GIF';
         final thumbFile = content.animation.thumbnail?.file;
         if (thumbFile != null) {
           replyToThumbnailFileId = thumbFile.id;
-          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+          replyToThumbnailUrl =
+              thumbFile.local.isDownloadingCompleted &&
+                  thumbFile.local.path.isNotEmpty
               ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+              : (thumbFile.remote.id.isNotEmpty
+                    ? thumbFile.remote.id
+                    : thumbFile.id.toString());
         }
       } else if (content is td.MessageSticker) {
         replyToText = '${content.sticker.emoji} Sticker';
-        final thumbFile = content.sticker.thumbnail?.file ?? content.sticker.sticker;
+        final thumbFile =
+            content.sticker.thumbnail?.file ?? content.sticker.sticker;
         replyToThumbnailFileId = thumbFile.id;
-        replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+        replyToThumbnailUrl =
+            thumbFile.local.isDownloadingCompleted &&
+                thumbFile.local.path.isNotEmpty
             ? thumbFile.local.path
-            : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+            : (thumbFile.remote.id.isNotEmpty
+                  ? thumbFile.remote.id
+                  : thumbFile.id.toString());
       } else if (content is td.MessagePoll) {
         final qText = _parseFormattedText(content.poll.question);
         replyToText = '📊 ${qText ?? ''}';
@@ -386,16 +439,24 @@ class TdlibMappers {
         final thumbFile = content.document.thumbnail?.file;
         if (thumbFile != null) {
           replyToThumbnailFileId = thumbFile.id;
-          replyToThumbnailUrl = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+          replyToThumbnailUrl =
+              thumbFile.local.isDownloadingCompleted &&
+                  thumbFile.local.path.isNotEmpty
               ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+              : (thumbFile.remote.id.isNotEmpty
+                    ? thumbFile.remote.id
+                    : thumbFile.id.toString());
         }
       } else if (content is td.MessageVoiceNote) {
         final captionText = _parseFormattedText(content.caption);
-        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '🎤 Voice message';
+        replyToText = captionText != null && captionText.isNotEmpty
+            ? captionText
+            : '🎤 Voice message';
       } else if (content is td.MessageAudio) {
         final captionText = _parseFormattedText(content.caption);
-        replyToText = captionText != null && captionText.isNotEmpty ? captionText : '🎵 ${content.audio.fileName}';
+        replyToText = captionText != null && captionText.isNotEmpty
+            ? captionText
+            : '🎵 ${content.audio.fileName}';
       }
     }
 
@@ -407,16 +468,18 @@ class TdlibMappers {
       channelId: chat.id.toString(),
       messageId: message.id,
       mediaAlbumId: message.mediaAlbumId.toInt(),
-      channelTitle: overrideSenderTitle ?? chat.title,
-      channelAvatarUrl: overrideSenderAvatarUrl ?? (chat.photo != null
-          ? (chat.photo!.small.local.path.isNotEmpty == true
-              ? chat.photo!.small.local.path
-              : (chat.photo!.small.remote.id.isNotEmpty
-                  ? chat.photo!.small.remote.id
-                  : chat.photo!.small.id.toString()))
-          : null),
-      channelAvatarFileId: overrideSenderAvatarFileId ?? chat.photo?.small.id,
-      channelAvatarColor: _generateRandomHexColor(chat.id),
+      channelTitle: sender?.title ?? chat.title,
+      channelUsername: sender?.username,
+      senderUserId: sender?.userId,
+      // All-or-nothing, deliberately. Falling back field by field is how a
+      // commenter with no profile photo ended up wearing the channel's.
+      channelAvatarUrl: sender != null
+          ? sender.avatarPath
+          : _chatAvatarPath(chat),
+      channelAvatarFileId: sender != null
+          ? sender.avatarFileId
+          : chat.photo?.small.id,
+      channelAvatarColor: _generateRandomHexColor(sender?.colorSeed ?? chat.id),
       text: bodyText,
       media: extractMediaItems(message),
       publishedAt: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
@@ -443,243 +506,373 @@ class TdlibMappers {
       replyToThumbnailUrl: replyToThumbnailUrl,
       replyToThumbnailFileId: replyToThumbnailFileId,
       hasDiscussionGroup: hasDiscussionGroup,
-      authorSignature: message.authorSignature.isNotEmpty ? message.authorSignature : null,
+      authorSignature: message.authorSignature.isNotEmpty
+          ? message.authorSignature
+          : null,
       entities: textEntities,
       poll: pollObj,
       unsupportedKind: unsupportedKind,
     );
   }
 
-  static List<MediaItem> extractMediaItems(td.Message message) {
+  /// A person's name as Telegram gives it: two fields, either of which can be
+  /// empty.
+  ///
+  /// Lives here rather than in a feature because two features need it — the
+  /// chat list and the comment thread — and a feature may not import another
+  /// feature's data layer. A deleted account has both names empty, which is
+  /// why the fallbacks exist.
+  static String userDisplayName(td.User user) {
+    final name = '${user.firstName} ${user.lastName}'.trim();
+    if (name.isNotEmpty) return name;
+    if (user.type is td.UserTypeDeleted) return 'Deleted account';
+    final username = user.usernames?.activeUsernames;
+    if (username != null && username.isNotEmpty) return '@${username.first}';
+    return 'Unknown';
+  }
+
+  /// A chat's own avatar: the downloaded file if there is one, else something
+  /// the loader can resolve later.
+  static String? _chatAvatarPath(td.Chat chat) {
+    final photo = chat.photo;
+    if (photo == null) return null;
+    if (photo.small.local.path.isNotEmpty) return photo.small.local.path;
+    if (photo.small.remote.id.isNotEmpty) return photo.small.remote.id;
+    return photo.small.id.toString();
+  }
+
+  static List<MediaItem> extractMediaItems(td.Message message) =>
+      extractMediaFromContent(message.content);
+
+  /// The media in a message content, without needing the message around it.
+  ///
+  /// Split out because `updateMessageContent` hands over a bare content — an
+  /// edited message arrives with no `Message` to read it from — and rebuilding
+  /// a synthetic one just to reach this code would be a lie with dozens of
+  /// invented fields in it.
+  static List<MediaItem> extractMediaFromContent(td.MessageContent content) {
     final list = <MediaItem>[];
-    final content = message.content;
 
     if (content is td.MessagePhoto) {
       final photo = content.photo;
       final bestSize = photo.sizes.last;
       final bestPhotoFile = bestSize.photo;
-      final bestPhotoPath = bestPhotoFile.local.isDownloadingCompleted && bestPhotoFile.local.path.isNotEmpty
+      final bestPhotoPath =
+          bestPhotoFile.local.isDownloadingCompleted &&
+              bestPhotoFile.local.path.isNotEmpty
           ? bestPhotoFile.local.path
-          : (bestPhotoFile.remote.id.isNotEmpty ? bestPhotoFile.remote.id : bestPhotoFile.id.toString());
+          : (bestPhotoFile.remote.id.isNotEmpty
+                ? bestPhotoFile.remote.id
+                : bestPhotoFile.id.toString());
       final thumbFile = photo.sizes.first.photo;
-      final thumbPath = thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
+      final thumbPath =
+          thumbFile.local.isDownloadingCompleted &&
+              thumbFile.local.path.isNotEmpty
           ? thumbFile.local.path
-          : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString());
+          : (thumbFile.remote.id.isNotEmpty
+                ? thumbFile.remote.id
+                : thumbFile.id.toString());
 
       // Extract minithumbnail if available
       final minithumbnailBase64 = photo.minithumbnail?.data;
 
-      list.add(MediaItem(
-        id: bestPhotoPath,
-        type: MediaType.photo,
-        hasSpoiler: content.hasSpoiler,
-        url: bestPhotoPath,
-        thumbnailUrl: thumbPath,
-        width: bestSize.width,
-        height: bestSize.height,
-        minithumbnail: minithumbnailBase64,
-        fileId: bestPhotoFile.id,
-        thumbnailFileId: thumbFile.id,
-        localPath: bestPhotoFile.local.isDownloadingCompleted ? bestPhotoFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: bestPhotoPath,
+          type: MediaType.photo,
+          hasSpoiler: content.hasSpoiler,
+          url: bestPhotoPath,
+          thumbnailUrl: thumbPath,
+          width: bestSize.width,
+          height: bestSize.height,
+          minithumbnail: minithumbnailBase64,
+          fileId: bestPhotoFile.id,
+          thumbnailFileId: thumbFile.id,
+          localPath: bestPhotoFile.local.isDownloadingCompleted
+              ? bestPhotoFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageVideo) {
       final video = content.video;
       final videoFile = video.video;
-      final videoPath = videoFile.local.isDownloadingCompleted && videoFile.local.path.isNotEmpty
+      final videoPath =
+          videoFile.local.isDownloadingCompleted &&
+              videoFile.local.path.isNotEmpty
           ? videoFile.local.path
-          : (videoFile.remote.id.isNotEmpty ? videoFile.remote.id : videoFile.id.toString());
+          : (videoFile.remote.id.isNotEmpty
+                ? videoFile.remote.id
+                : videoFile.id.toString());
       final thumbFile = video.thumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
       // Extract minithumbnail
       final minithumbnailBase64 = video.minithumbnail?.data;
 
-      list.add(MediaItem(
-        id: videoPath,
-        type: MediaType.video,
-        hasSpoiler: content.hasSpoiler,
-        supportsStreaming: video.supportsStreaming,
-        url: videoPath,
-        thumbnailUrl: thumbPath,
-        width: video.width,
-        height: video.height,
-        duration: video.duration,
-        fileSize: videoFile.expectedSize,
-        fileName: video.fileName,
-        mimeType: video.mimeType,
-        minithumbnail: minithumbnailBase64,
-        fileId: videoFile.id,
-        thumbnailFileId: thumbFile?.id,
-        localPath: videoFile.local.isDownloadingCompleted ? videoFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: videoPath,
+          type: MediaType.video,
+          hasSpoiler: content.hasSpoiler,
+          supportsStreaming: video.supportsStreaming,
+          url: videoPath,
+          thumbnailUrl: thumbPath,
+          width: video.width,
+          height: video.height,
+          duration: video.duration,
+          fileSize: videoFile.expectedSize,
+          fileName: video.fileName,
+          mimeType: video.mimeType,
+          minithumbnail: minithumbnailBase64,
+          fileId: videoFile.id,
+          thumbnailFileId: thumbFile?.id,
+          localPath: videoFile.local.isDownloadingCompleted
+              ? videoFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageVideoNote) {
       // A round video message. It is a video, and it used to be labelled
       // instead of drawn — so a channel that posts them showed a line of text
       // where the video was. Square by construction: `length` is both sides.
       final note = content.videoNote;
       final noteFile = note.video;
-      final notePath = noteFile.local.isDownloadingCompleted && noteFile.local.path.isNotEmpty
+      final notePath =
+          noteFile.local.isDownloadingCompleted &&
+              noteFile.local.path.isNotEmpty
           ? noteFile.local.path
-          : (noteFile.remote.id.isNotEmpty ? noteFile.remote.id : noteFile.id.toString());
+          : (noteFile.remote.id.isNotEmpty
+                ? noteFile.remote.id
+                : noteFile.id.toString());
       final thumbFile = note.thumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
-      list.add(MediaItem(
-        id: notePath,
-        type: MediaType.video,
-        url: notePath,
-        thumbnailUrl: thumbPath,
-        width: note.length,
-        height: note.length,
-        duration: note.duration,
-        fileSize: noteFile.expectedSize,
-        minithumbnail: note.minithumbnail?.data,
-        fileId: noteFile.id,
-        thumbnailFileId: thumbFile?.id,
-        localPath: noteFile.local.isDownloadingCompleted ? noteFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: notePath,
+          type: MediaType.video,
+          url: notePath,
+          thumbnailUrl: thumbPath,
+          width: note.length,
+          height: note.length,
+          duration: note.duration,
+          fileSize: noteFile.expectedSize,
+          minithumbnail: note.minithumbnail?.data,
+          fileId: noteFile.id,
+          thumbnailFileId: thumbFile?.id,
+          localPath: noteFile.local.isDownloadingCompleted
+              ? noteFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageAnimation) {
       final anim = content.animation;
       final animFile = anim.animation;
-      final animPath = animFile.local.isDownloadingCompleted && animFile.local.path.isNotEmpty
+      final animPath =
+          animFile.local.isDownloadingCompleted &&
+              animFile.local.path.isNotEmpty
           ? animFile.local.path
-          : (animFile.remote.id.isNotEmpty ? animFile.remote.id : animFile.id.toString());
+          : (animFile.remote.id.isNotEmpty
+                ? animFile.remote.id
+                : animFile.id.toString());
       final thumbFile = anim.thumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
       // Extract minithumbnail
       final minithumbnailBase64 = anim.minithumbnail?.data;
 
-      list.add(MediaItem(
-        id: animPath,
-        type: MediaType.gif,
-        hasSpoiler: content.hasSpoiler,
-        url: animPath,
-        thumbnailUrl: thumbPath,
-        width: anim.width,
-        height: anim.height,
-        duration: anim.duration,
-        minithumbnail: minithumbnailBase64,
-        fileId: animFile.id,
-        thumbnailFileId: thumbFile?.id,
-        localPath: animFile.local.isDownloadingCompleted ? animFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: animPath,
+          type: MediaType.gif,
+          hasSpoiler: content.hasSpoiler,
+          url: animPath,
+          thumbnailUrl: thumbPath,
+          width: anim.width,
+          height: anim.height,
+          duration: anim.duration,
+          minithumbnail: minithumbnailBase64,
+          fileId: animFile.id,
+          thumbnailFileId: thumbFile?.id,
+          localPath: animFile.local.isDownloadingCompleted
+              ? animFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageDocument) {
       final doc = content.document;
       final docFile = doc.document;
-      final docPath = docFile.local.isDownloadingCompleted && docFile.local.path.isNotEmpty
+      final docPath =
+          docFile.local.isDownloadingCompleted && docFile.local.path.isNotEmpty
           ? docFile.local.path
-          : (docFile.remote.id.isNotEmpty ? docFile.remote.id : docFile.id.toString());
+          : (docFile.remote.id.isNotEmpty
+                ? docFile.remote.id
+                : docFile.id.toString());
       final thumbFile = doc.thumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
-      list.add(MediaItem(
-        id: docPath,
-        type: MediaType.document,
-        url: docPath,
-        thumbnailUrl: thumbPath,
-        fileSize: docFile.expectedSize,
-        fileName: doc.fileName,
-        mimeType: doc.mimeType,
-        fileId: docFile.id,
-        thumbnailFileId: thumbFile?.id,
-        localPath: docFile.local.isDownloadingCompleted ? docFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: docPath,
+          type: MediaType.document,
+          url: docPath,
+          thumbnailUrl: thumbPath,
+          fileSize: docFile.expectedSize,
+          fileName: doc.fileName,
+          mimeType: doc.mimeType,
+          fileId: docFile.id,
+          thumbnailFileId: thumbFile?.id,
+          localPath: docFile.local.isDownloadingCompleted
+              ? docFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageSticker) {
       final sticker = content.sticker;
       final stickerFile = sticker.sticker;
-      final stickerPath = stickerFile.local.isDownloadingCompleted && stickerFile.local.path.isNotEmpty
+      final stickerPath =
+          stickerFile.local.isDownloadingCompleted &&
+              stickerFile.local.path.isNotEmpty
           ? stickerFile.local.path
-          : (stickerFile.remote.id.isNotEmpty ? stickerFile.remote.id : stickerFile.id.toString());
+          : (stickerFile.remote.id.isNotEmpty
+                ? stickerFile.remote.id
+                : stickerFile.id.toString());
       final thumbFile = sticker.thumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
-      list.add(MediaItem(
-        id: stickerPath,
-        // Not MediaType.photo: a TGS sticker is gzipped Lottie JSON and a WebM
-        // sticker is video, so handing either to an image widget renders
-        // nothing. The tile picks a renderer from stickerFormat.
-        type: MediaType.sticker,
-        url: stickerPath,
-        thumbnailUrl: thumbPath,
-        width: sticker.width,
-        height: sticker.height,
-        fileId: stickerFile.id,
-        thumbnailFileId: thumbFile?.id,
-        stickerFormat:
-            StickerFormat.fromTdName(sticker.format.currentObjectId),
-        localPath: stickerFile.local.isDownloadingCompleted ? stickerFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: stickerPath,
+          // Not MediaType.photo: a TGS sticker is gzipped Lottie JSON and a WebM
+          // sticker is video, so handing either to an image widget renders
+          // nothing. The tile picks a renderer from stickerFormat.
+          type: MediaType.sticker,
+          url: stickerPath,
+          thumbnailUrl: thumbPath,
+          width: sticker.width,
+          height: sticker.height,
+          fileId: stickerFile.id,
+          thumbnailFileId: thumbFile?.id,
+          stickerFormat: StickerFormat.fromTdName(
+            sticker.format.currentObjectId,
+          ),
+          localPath: stickerFile.local.isDownloadingCompleted
+              ? stickerFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageVoiceNote) {
       final voice = content.voiceNote;
       final voiceFile = voice.voice;
-      final voicePath = voiceFile.local.isDownloadingCompleted && voiceFile.local.path.isNotEmpty
+      final voicePath =
+          voiceFile.local.isDownloadingCompleted &&
+              voiceFile.local.path.isNotEmpty
           ? voiceFile.local.path
-          : (voiceFile.remote.id.isNotEmpty ? voiceFile.remote.id : voiceFile.id.toString());
+          : (voiceFile.remote.id.isNotEmpty
+                ? voiceFile.remote.id
+                : voiceFile.id.toString());
 
-      list.add(MediaItem(
-        id: voicePath,
-        type: MediaType.voice,
-        url: voicePath,
-        duration: voice.duration,
-        fileSize: voiceFile.expectedSize,
-        fileName: 'Voice message',
-        mimeType: voice.mimeType,
-        fileId: voiceFile.id,
-        localPath: voiceFile.local.isDownloadingCompleted ? voiceFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: voicePath,
+          type: MediaType.voice,
+          url: voicePath,
+          duration: voice.duration,
+          fileSize: voiceFile.expectedSize,
+          fileName: 'Voice message',
+          mimeType: voice.mimeType,
+          fileId: voiceFile.id,
+          localPath: voiceFile.local.isDownloadingCompleted
+              ? voiceFile.local.path
+              : null,
+        ),
+      );
     } else if (content is td.MessageAudio) {
       final audio = content.audio;
       final audioFile = audio.audio;
-      final audioPath = audioFile.local.isDownloadingCompleted && audioFile.local.path.isNotEmpty
+      final audioPath =
+          audioFile.local.isDownloadingCompleted &&
+              audioFile.local.path.isNotEmpty
           ? audioFile.local.path
-          : (audioFile.remote.id.isNotEmpty ? audioFile.remote.id : audioFile.id.toString());
+          : (audioFile.remote.id.isNotEmpty
+                ? audioFile.remote.id
+                : audioFile.id.toString());
       final thumbFile = audio.albumCoverThumbnail?.file;
       final thumbPath = thumbFile != null
-          ? (thumbFile.local.isDownloadingCompleted && thumbFile.local.path.isNotEmpty
-              ? thumbFile.local.path
-              : (thumbFile.remote.id.isNotEmpty ? thumbFile.remote.id : thumbFile.id.toString()))
+          ? (thumbFile.local.isDownloadingCompleted &&
+                    thumbFile.local.path.isNotEmpty
+                ? thumbFile.local.path
+                : (thumbFile.remote.id.isNotEmpty
+                      ? thumbFile.remote.id
+                      : thumbFile.id.toString()))
           : null;
 
-      list.add(MediaItem(
-        id: audioPath,
-        type: MediaType.audio,
-        url: audioPath,
-        thumbnailUrl: thumbPath,
-        duration: audio.duration,
-        fileSize: audioFile.expectedSize,
-        fileName: audio.fileName.isNotEmpty ? audio.fileName : (audio.title.isNotEmpty ? audio.title : 'Audio track'),
-        mimeType: audio.mimeType,
-        fileId: audioFile.id,
-        thumbnailFileId: thumbFile?.id,
-        localPath: audioFile.local.isDownloadingCompleted ? audioFile.local.path : null,
-      ));
+      list.add(
+        MediaItem(
+          id: audioPath,
+          type: MediaType.audio,
+          url: audioPath,
+          thumbnailUrl: thumbPath,
+          duration: audio.duration,
+          fileSize: audioFile.expectedSize,
+          fileName: audio.fileName.isNotEmpty
+              ? audio.fileName
+              : (audio.title.isNotEmpty ? audio.title : 'Audio track'),
+          mimeType: audio.mimeType,
+          fileId: audioFile.id,
+          thumbnailFileId: thumbFile?.id,
+          localPath: audioFile.local.isDownloadingCompleted
+              ? audioFile.local.path
+              : null,
+        ),
+      );
     }
 
     return list;
   }
 
-  static List<Post> mergeAlbumMessages(List<td.Message> messages, td.Chat chat, {Set<String> bookmarkedKeys = const {}, Map<int, String>? knownChatTitles, Map<String, String>? knownReplyExcerpts}) {
+  static List<Post> mergeAlbumMessages(
+    List<td.Message> messages,
+    td.Chat chat, {
+    Set<String> bookmarkedKeys = const {},
+    Map<int, String>? knownChatTitles,
+    Map<String, String>? knownReplyExcerpts,
+  }) {
     final grouped = <int, List<td.Message>>{};
     final result = <Post>[];
 
@@ -690,7 +883,15 @@ class TdlibMappers {
 
       final albumId = m.mediaAlbumId.toInt();
       if (albumId == 0) {
-        result.add(mapMessageToPost(m, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'), knownChatTitles: knownChatTitles, knownReplyExcerpts: knownReplyExcerpts));
+        result.add(
+          mapMessageToPost(
+            m,
+            chat,
+            isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'),
+            knownChatTitles: knownChatTitles,
+            knownReplyExcerpts: knownReplyExcerpts,
+          ),
+        );
       } else {
         grouped.putIfAbsent(albumId, () => []).add(m);
       }
@@ -699,36 +900,56 @@ class TdlibMappers {
     for (final group in grouped.values) {
       group.sort((a, b) => a.id.compareTo(b.id));
       final anchor = group.first;
-      
-      final post = mapMessageToPost(anchor, chat, isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'), knownChatTitles: knownChatTitles, knownReplyExcerpts: knownReplyExcerpts);
-      
+
+      final post = mapMessageToPost(
+        anchor,
+        chat,
+        isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'),
+        knownChatTitles: knownChatTitles,
+        knownReplyExcerpts: knownReplyExcerpts,
+      );
+
       final allMedia = <MediaItem>[];
       int maxViews = 0;
       String? caption;
       List<TextEntity> captionEntities = [];
-      
+
       for (final m in group) {
         allMedia.addAll(extractMediaItems(m));
         if (m.interactionInfo?.viewCount != null) {
           maxViews = math.max(maxViews, m.interactionInfo!.viewCount);
         }
         if (caption == null) {
-          if (m.content is td.MessagePhoto && (m.content as td.MessagePhoto).caption.text.isNotEmpty) {
+          if (m.content is td.MessagePhoto &&
+              (m.content as td.MessagePhoto).caption.text.isNotEmpty) {
             caption = (m.content as td.MessagePhoto).caption.text;
-            captionEntities = _parseEntities((m.content as td.MessagePhoto).caption.entities) ?? [];
-          } else if (m.content is td.MessageVideo && (m.content as td.MessageVideo).caption.text.isNotEmpty) {
+            captionEntities =
+                _parseEntities(
+                  (m.content as td.MessagePhoto).caption.entities,
+                ) ??
+                [];
+          } else if (m.content is td.MessageVideo &&
+              (m.content as td.MessageVideo).caption.text.isNotEmpty) {
             caption = (m.content as td.MessageVideo).caption.text;
-            captionEntities = _parseEntities((m.content as td.MessageVideo).caption.entities) ?? [];
+            captionEntities =
+                _parseEntities(
+                  (m.content as td.MessageVideo).caption.entities,
+                ) ??
+                [];
           }
         }
       }
 
-      result.add(post.copyWith(
-        media: allMedia,
-        viewCount: maxViews > 0 ? maxViews : post.viewCount,
-        text: caption ?? post.text,
-        entities: captionEntities.isNotEmpty ? captionEntities : post.entities,
-      ));
+      result.add(
+        post.copyWith(
+          media: allMedia,
+          viewCount: maxViews > 0 ? maxViews : post.viewCount,
+          text: caption ?? post.text,
+          entities: captionEntities.isNotEmpty
+              ? captionEntities
+              : post.entities,
+        ),
+      );
     }
 
     return result;
@@ -797,7 +1018,9 @@ class TdlibMappers {
     final serialized = serializeEntities(entities);
     if (serialized == null) return null;
     final List<dynamic> list = jsonDecode(serialized);
-    return list.map((e) => TextEntity.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => TextEntity.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   static Poll? _parsePoll(td.Poll? poll) {
@@ -890,7 +1113,9 @@ class TdlibMappers {
     if (poll == null) return null;
     try {
       final isQuiz = poll.type is td.PollTypeQuiz;
-      final int? correctOptionId = isQuiz ? (poll.type as td.PollTypeQuiz).correctOptionId : null;
+      final int? correctOptionId = isQuiz
+          ? (poll.type as td.PollTypeQuiz).correctOptionId
+          : null;
 
       final options = poll.options.asMap().entries.map((entry) {
         final idx = entry.key;
@@ -926,6 +1151,13 @@ class TdlibMappers {
       return null;
     }
   }
+
+  /// The fallback avatar colour for an id, when there is no photo to draw.
+  ///
+  /// Public because the chat list needs the same colour for the same person
+  /// that the feed and the forward picker already give them — a second copy of
+  /// this table is a contact whose initials change colour between screens.
+  static String avatarColorFor(int seedId) => _generateRandomHexColor(seedId);
 
   static String _generateRandomHexColor(int seedId) {
     final colors = [

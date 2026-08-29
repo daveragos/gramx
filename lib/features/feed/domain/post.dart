@@ -16,6 +16,15 @@ abstract class Post with _$Post {
     @Default(0) int mediaAlbumId,
     required String channelTitle,
     String? channelUsername,
+
+    /// The person who wrote this, when it was a person rather than a channel.
+    ///
+    /// Set for comments, which are messages in a channel's discussion group by
+    /// whoever left them. Null for a channel's own posts, where the channel is
+    /// the author and [channelId] already says who that is. It is what lets a
+    /// comment's avatar open a profile instead of the channel the thread
+    /// hangs off — see `PostSender`.
+    int? senderUserId,
     String? channelAvatarUrl,
     int? channelAvatarFileId,
     String? channelAvatarColor,
@@ -38,6 +47,7 @@ abstract class Post with _$Post {
     String? forwardedFromTitle,
     String? forwardedFromUsername,
     String? forwardedFromChatId,
+
     /// The original post's id in its own channel, when Telegram tells us.
     /// Lets a forward link to the post itself rather than just the channel.
     int? forwardedFromMessageId,
