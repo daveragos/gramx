@@ -11,6 +11,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
@@ -259,11 +260,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final secondaryColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final surfaceColor = isDark
-        ? AppColors.darkSurfaceVariant
-        : AppColors.lightSurfaceVariant;
     final primaryColor = theme.colorScheme.onSurface;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    final account = ref.watch(activeAccountProvider).value;
 
     return ChromeScaffold(
       header: Padding(
@@ -271,53 +270,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xs,
         ),
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: _focusNode.hasFocus ? AppColors.accent : borderColor,
-              width: _focusNode.hasFocus ? 1.0 : 0.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              const SizedBox(width: AppSpacing.md),
-              Icon(Icons.search, color: secondaryColor, size: 20),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  onChanged: _onQueryChanged,
-                  style: AppTypography.body(color: primaryColor),
-                  decoration: InputDecoration(
-                    hintText: AppStrings.searchHint,
-                    hintStyle: AppTypography.body(color: secondaryColor),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
+        // The account avatar moved here from the feed's header, and the search
+        // icon moved out of it: this *is* the search screen, so an icon that
+        // opens it was pointing at the page it was on, and the drawer had no
+        // search page for exactly this reason.
+        child: Row(
+          children: [
+            Semantics(
+              button: true,
+              label: AppStrings.a11yOpenMenu,
+              child: ChannelAvatar(
+                title: account?.displayName ?? AppStrings.drawerAccountFallback,
+                avatarPath: account?.avatarPath,
+                radius: AppSpacing.avatarSizeSmall / 2,
+                onTap: openAppDrawer,
               ),
-              if (_isSearching)
-                Semantics(
-                  button: true,
-                  label: AppStrings.searchClear,
-                  child: GestureDetector(
-                    onTap: _clearSearch,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                      ),
-                      child: Icon(Icons.close, color: secondaryColor, size: 18),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: _searchField(context)),
+          ],
         ),
       ),
       body: (context, topPadding, bottomPadding) => _isSearching
@@ -333,6 +304,70 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               topPadding: topPadding,
               bottomPadding: bottomPadding,
             ),
+    );
+  }
+
+  /// The rounded field itself. Split out so the header row above stays
+  /// readable now that it carries two things rather than one.
+  Widget _searchField(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final surfaceColor = isDark
+        ? AppColors.darkSurfaceVariant
+        : AppColors.lightSurfaceVariant;
+    final primaryColor = theme.colorScheme.onSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _focusNode.hasFocus ? AppColors.accent : borderColor,
+          width: _focusNode.hasFocus ? 1.0 : 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: AppSpacing.md),
+          Icon(Icons.search, color: secondaryColor, size: 20),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              autofocus: true,
+              onChanged: _onQueryChanged,
+              style: AppTypography.body(color: primaryColor),
+              decoration: InputDecoration(
+                hintText: AppStrings.searchHint,
+                hintStyle: AppTypography.body(color: secondaryColor),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          if (_isSearching)
+            Semantics(
+              button: true,
+              label: AppStrings.searchClear,
+              child: GestureDetector(
+                onTap: _clearSearch,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  child: Icon(Icons.close, color: secondaryColor, size: 18),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
+import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// The tabs in the bottom bar, in order.
@@ -19,8 +20,12 @@ enum ShellTab {
   home(Icons.home_outlined, Icons.home, 'Home', '/home'),
   search(Icons.search_outlined, Icons.search, 'Search', '/search'),
   channels(Icons.list_alt_outlined, Icons.list_alt, 'Channels', '/channels'),
-  bookmarks(Icons.bookmark_border_rounded, Icons.bookmark_rounded, 'Bookmarks',
-      '/bookmarks');
+  messages(
+    Icons.mail_outline_rounded,
+    Icons.mail_rounded,
+    'Messages',
+    '/messages',
+  );
 
   const ShellTab(this.icon, this.activeIcon, this.label, this.path);
 
@@ -66,10 +71,7 @@ void openAppDrawer() => shellScaffoldKey.currentState?.openDrawer();
 class AppShell extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
 
-  const AppShell({
-    super.key,
-    required this.navigationShell,
-  });
+  const AppShell({super.key, required this.navigationShell});
 
   @override
   ConsumerState<AppShell> createState() => _AppShellState();
@@ -129,6 +131,10 @@ class _AppShellState extends ConsumerState<AppShell> {
           .read(feedScrollToTopProvider.notifier)
           .request(ref.read(activeFolderProvider));
     }
+    // Same gesture, same meaning, on the other list you can get lost in.
+    if (isRetap && index == ShellTab.messages.index) {
+      ref.read(chatsScrollToTopProvider.notifier).request();
+    }
 
     navigationShell.goBranch(index, initialLocation: isRetap);
   }
@@ -146,6 +152,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       },
       child: Scaffold(
         key: shellScaffoldKey,
+        // The bar is pinned to the bottom of this Scaffold's body, so letting
+        // the Scaffold shrink for the keyboard carried the bar up on top of
+        // it — a tab strip riding the top edge of the keyboard on every screen
+        // with a text field in it. The bar stays where it belongs and the
+        // keyboard covers it, which is what every other app does. Each branch
+        // keeps its own Scaffold and still resizes its own content, so nothing
+        // being typed into is hidden by this.
+        resizeToAvoidBottomInset: false,
         // The drawer cannot reach the navigation shell by itself — it is a
         // sibling of it in the tree — so switching tabs is handed to it.
         drawer: AppDrawer(onSelectTab: (tab) => _onTap(tab.index)),
@@ -169,7 +183,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                     top: BorderSide(color: borderColor, width: 0.5),
                   ),
                   child: SizedBox(
-                    height: ShellChrome.bottomBarHeight +
+                    height:
+                        ShellChrome.bottomBarHeight +
                         MediaQuery.of(context).padding.bottom,
                     child: BottomNavigationBar(
                       backgroundColor: Colors.transparent,
@@ -179,8 +194,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                       items: [
                         for (final tab in ShellTab.values)
                           BottomNavigationBarItem(
-                            icon: Icon(tab.icon),
-                            activeIcon: Icon(tab.activeIcon),
+                            icon: _TabIcon(tab: tab, icon: tab.icon),
+                            activeIcon: _TabIcon(
+                              tab: tab,
+                              icon: tab.activeIcon,
+                            ),
                             label: tab.label,
                             tooltip: tab.label,
                           ),
@@ -193,6 +211,42 @@ class _AppShellState extends ConsumerState<AppShell> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A tab's icon, with the unread badge on the one tab that has a count.
+///
+/// A `Consumer` around the icon rather than around the bar: the count changes
+/// whenever a message arrives, and rebuilding the whole bottom bar for it would
+/// rebuild three icons that cannot have changed.
+class _TabIcon extends StatelessWidget {
+  final ShellTab tab;
+  final IconData icon;
+
+  const _TabIcon({required this.tab, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tab != ShellTab.messages) return Icon(icon);
+
+    return Consumer(
+      builder: (context, ref, child) {
+        final count = ref.watch(unreadChatCountProvider);
+        if (count == 0) return child!;
+
+        return Semantics(
+          label: AppStrings.messagesUnreadSemantics(count),
+          // The badge is a colour and a number over the icon, so the count is
+          // said out loud rather than left to the red dot.
+          child: Badge(
+            label: Text(AppStrings.messagesUnreadBadge(count)),
+            backgroundColor: AppColors.accent,
+            child: child,
+          ),
+        );
+      },
+      child: Icon(icon),
     );
   }
 }
@@ -219,8 +273,9 @@ class BlurredChrome extends StatelessWidget {
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor
-                .withValues(alpha: ShellChrome.tintOpacity),
+            color: theme.scaffoldBackgroundColor.withValues(
+              alpha: ShellChrome.tintOpacity,
+            ),
             border: border,
           ),
           child: child,

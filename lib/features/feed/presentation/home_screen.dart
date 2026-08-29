@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_feed_screen.dart';
@@ -18,7 +17,6 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.dart';
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
-
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -80,13 +78,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final tabItems = [
       (title: 'All', id: 'All'),
-      ...dynamicFolders.where((f) => folderHasChannels(f.id)).map(
-            (f) => (title: parseFolderTitle(f.title), id: f.id.toString()),
-          ),
+      ...dynamicFolders
+          .where((f) => folderHasChannels(f.id))
+          .map((f) => (title: parseFolderTitle(f.title), id: f.id.toString())),
     ];
 
+    // Built once and used by both the loading branch and the loaded one, so
+    // the header does not appear, disappear and reappear across the first
+    // frames of a cold start.
+    final header = ChromeHeaderRow(
+      title: AppStrings.appName,
+      centerTitle: true,
+      leading: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Semantics(
+          button: true,
+          label: AppStrings.a11yOpenMenu,
+          child: ChannelAvatar(
+            title: displayName,
+            avatarPath: accountAsync.value?.avatarPath,
+            radius: AppSpacing.avatarSizeSmall / 2,
+            // The drawer belongs to the shell's scaffold, not to this
+            // screen's — `Scaffold.of` here finds the wrong one and the tap
+            // does nothing.
+            onTap: openAppDrawer,
+          ),
+        ),
+      ),
+    );
+
     return channelsAsync.when(
-      loading: () => const Scaffold(body: FeedSkeleton()),
+      // The bottom bar is drawn by the shell from the first frame, so a body
+      // with no header at all left the app looking half-built. What is
+      // genuinely unknown at this point is which folders exist and what is in
+      // them — so those are the parts that shimmer, and the header is simply
+      // there.
+      loading: () => ChromeScaffold(
+        observeScroll: false,
+        headerBottomHeight: _tabBarHeight,
+        header: header,
+        headerBottom: const FolderTabsSkeleton(),
+        body: (context, topPadding, bottomPadding) => FeedSkeleton(
+          padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+        ),
+      ),
       error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
       data: (channels) {
         final isEmpty = channels.isEmpty;
@@ -119,9 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             );
           }
-          return const Scaffold(
-            body: FeedOnboardingView(),
-          );
+          return const Scaffold(body: FeedOnboardingView());
         }
 
         return DefaultTabController(
@@ -137,40 +170,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // channel and shares no group — means no button at all, rather
               // than one that opens a screen saying no. Decided here because
               // the scaffold needs a null to leave the slot empty.
-              floatingActionButton:
-                  ref.watch(canComposeProvider) ? const ComposeFab() : null,
+              floatingActionButton: ref.watch(canComposeProvider)
+                  ? const ComposeFab()
+                  : null,
               headerBottomHeight: _tabBarHeight,
-              header: ChromeHeaderRow(
-                title: AppStrings.appName,
-                centerTitle: true,
-                leading: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Semantics(
-                    button: true,
-                    label: AppStrings.a11yOpenMenu,
-                    child: ChannelAvatar(
-                      title: displayName,
-                      avatarPath: accountAsync.value?.avatarPath,
-                      radius: AppSpacing.avatarSizeSmall / 2,
-                      // The drawer belongs to the shell's scaffold, not to this
-                      // screen's — `Scaffold.of` here finds the wrong one and
-                      // the tap does nothing.
-                      onTap: openAppDrawer,
-                    ),
-                  ),
-                ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.search_rounded),
-                    tooltip: AppStrings.a11ySearch,
-                    color: primaryTextColor,
-                    // Switch tab rather than push: /search is a shell branch,
-                    // and pushing it would stack a second copy above the bar.
-                    onPressed: () => StatefulNavigationShell.of(context)
-                        .goBranch(ShellTab.search.index),
-                  ),
-                ],
-              ),
+              header: header,
               headerBottom: _FolderTabBar(
                 titles: tabItems.map((t) => t.title).toList(),
                 onTabTap: (index) {
@@ -305,8 +309,9 @@ class _FolderTabBar extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return TabBar(
       isScrollable: true,
