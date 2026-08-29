@@ -29,6 +29,118 @@ void main() {
     });
   });
 
+  // The flash: TDLib announces several authorization states while it starts,
+  // and one of them can be a sign-in step it supersedes a moment later with
+  // Ready. Acting on it painted the sign-in screen for a frame or two on the
+  // way to a signed-in reader's own feed. `hasSignedIn` could not catch this —
+  // no session has existed yet in the run — so the settle window does.
+  group('while the session state is still settling', () {
+    test('a sign-in step does not move anybody off the splash', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: splashLocation,
+          hasSignedIn: false,
+          isSettled: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('nor off wherever else they were', () {
+      expect(
+        authRedirect(
+          step: AuthStep.waitQrCode,
+          location: '/post/7_1',
+          hasSignedIn: false,
+          isSettled: false,
+        ),
+        isNull,
+      );
+    });
+
+    // The answer that ends the wait early, so a signed-in reader never spends
+    // the window at all.
+    test('but being signed in leaves immediately', () {
+      expect(
+        authRedirect(
+          step: AuthStep.authenticated,
+          location: splashLocation,
+          hasSignedIn: false,
+          isSettled: false,
+        ),
+        '/home',
+      );
+    });
+
+    test('and once it settles a signed-out reader goes to sign-in', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: splashLocation,
+          hasSignedIn: false,
+          isSettled: true,
+        ),
+        '/auth',
+      );
+    });
+
+    // Only startup is protected. A sign-out is a settled answer whatever the
+    // window says, and leaving somebody inside a shell they are signed out of
+    // is the bug the `hasSignedIn` rule exists for.
+    test('a sign-out is never held back by it', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loading,
+          location: '/home',
+          hasSignedIn: true,
+          isSettled: false,
+        ),
+        '/auth',
+      );
+    });
+  });
+
+  group('the splash is a waiting room, not a destination', () {
+    test('a guest is sent into the shell', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: splashLocation,
+          hasSignedIn: false,
+          isGuest: true,
+        ),
+        '/home',
+      );
+    });
+
+    // Unchanged: a guest standing anywhere they chose stays there, including
+    // on the sign-in screen they went to in order to stop being one.
+    test('and stays put anywhere they actually chose', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/auth',
+          hasSignedIn: false,
+          isGuest: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('legal pages are readable from it, signed out', () {
+      expect(
+        authRedirect(
+          step: AuthStep.loginMethodSelection,
+          location: '/legal/terms',
+          hasSignedIn: false,
+          isSettled: false,
+        ),
+        isNull,
+      );
+    });
+  });
+
   // The reported failure: signing out left the reader inside the shell,
   // looking at a signed-out feed with the bottom bar under it, because the
   // sign-out sat in `loading` and every loading state was left alone.
@@ -95,7 +207,7 @@ void main() {
   // bounce them to sign-in forever. The shell has to stand on its own footing.
   group('guest mode', () {
     test('a guest reaches the shell without a session', () {
-      for (final location in ['/home', '/search', '/channels', '/bookmarks']) {
+      for (final location in ['/home', '/search', '/channels', '/messages']) {
         expect(
           authRedirect(
             step: AuthStep.loginMethodSelection,
