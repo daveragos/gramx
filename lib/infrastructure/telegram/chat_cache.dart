@@ -18,6 +18,25 @@ class ChatCacheState {
   /// mirroring them removes a `GetSupergroup` per channel.
   final Map<int, td.Supergroup> supergroups = {};
 
+  /// User records keyed by user id.
+  ///
+  /// TDLib volunteers these through `UpdateUser` for every user it loads a chat
+  /// for, so a private chat's name, username, verified flag, bot-ness and
+  /// online status are all already here — mirroring them is what lets the chat
+  /// list draw without a `GetUser` per row, which would be the same per-chat
+  /// fan-out `docs/TDLIB.md` forbids.
+  final Map<int, td.User> users = {};
+
+  /// Full user records, keyed by user id.
+  ///
+  /// Strictly what TDLib has volunteered. `UpdateUserFullInfo` arrives for
+  /// users the client has loaded fully — which happens when a profile or a
+  /// conversation is opened — and **nothing here ever asks for one**: a
+  /// `GetUserFullInfo` per row of the chat list is the per-chat fan-out
+  /// `docs/TDLIB.md` exists to forbid. Anything read from this map has to be
+  /// optional in the UI for that reason.
+  final Map<int, td.UserFullInfo> userFullInfos = {};
+
   /// `UpdateChatLastMessage` can arrive before the `UpdateNewChat` that
   /// introduces its chat. Stash those and flush them when the chat lands,
   /// otherwise the newest post of a channel is silently dropped on cold start.
@@ -41,10 +60,44 @@ class ChatCacheState {
   /// into the cache. Without the [isSubscribed] check their posts end up in the
   /// feed, which is how a channel nobody follows starts appearing in it.
   List<td.Chat> get channels {
-    final list =
-        chats.values.where((c) => isChannel(c) && isSubscribed(c)).toList();
+    final list = chats.values
+        .where((c) => isChannel(c) && isSubscribed(c))
+        .toList();
     list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
     return list;
+  }
+
+  /// Everything that is a conversation rather than a broadcast: private chats,
+  /// bot chats, basic groups and non-broadcast supergroups. Most recent first.
+  ///
+  /// Secret chats are excluded. TDLib gives them their own chat type and their
+  /// own end-to-end rules, and half-supporting one is worse than not offering
+  /// it — see `ChatCacheState.canPostIn`, which refuses them for the same
+  /// reason.
+  List<td.Chat> get conversations {
+    final list = chats.values
+        .where((c) => isConversation(c) && isSubscribed(c))
+        .toList();
+    list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
+    return list;
+  }
+
+  /// Whether a chat belongs in the messages list. Pure, so the rule is testable
+  /// without a client.
+  static bool isConversation(td.Chat chat) {
+    final type = chat.type;
+    if (type is td.ChatTypePrivate) return true;
+    if (type is td.ChatTypeBasicGroup) return true;
+    if (type is td.ChatTypeSupergroup) return !type.isChannel;
+    // ChatTypeSecret and anything a future TDLib adds: not ours to draw.
+    return false;
+  }
+
+  /// The user record behind a private chat, if TDLib has volunteered it.
+  td.User? userForChat(td.Chat chat) {
+    final type = chat.type;
+    if (type is! td.ChatTypePrivate) return null;
+    return users[type.userId];
   }
 
   /// Whether the user is a member of this chat.
@@ -175,6 +228,81 @@ class ChatCacheState {
         supergroups[update.supergroup.id] = update.supergroup;
         return true;
 
+      case td.UpdateUser():
+        users[update.user.id] = update.user;
+        return true;
+
+      // Free when it arrives, never requested from here. It carries the
+      // personal chat a user pins to their profile, which is what the chat
+      // list shows beside their name.
+      case td.UpdateUserFullInfo():
+        userFullInfos[update.userId] = update.userFullInfo;
+        return true;
+
+      // Presence changes constantly and for people the reader is not looking
+      // at, so it folds into the existing record rather than replacing it —
+      // an UpdateUserStatus carries the status and nothing else.
+      case td.UpdateUserStatus():
+        final existing = users[update.userId];
+        if (existing == null) return false;
+        users[update.userId] = existing.copyWith(status: update.status);
+        return true;
+
+      // The outbox cursor is what turns a sent tick into a read one. Without
+      // it every message this account sends stays "sent" for the session,
+      // however long ago the other side read it.
+      case td.UpdateChatReadOutbox():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          lastReadOutboxMessageId: update.lastReadOutboxMessageId,
+        );
+        return true;
+
+      case td.UpdateChatNotificationSettings():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          notificationSettings: update.notificationSettings,
+        );
+        return true;
+
+      // A chat marked unread by hand carries no count, so a list reading only
+      // unreadCount draws it as read — which is the opposite of what the
+      // reader asked for when they marked it.
+      case td.UpdateChatIsMarkedAsUnread():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          isMarkedAsUnread: update.isMarkedAsUnread,
+        );
+        return true;
+
+      case td.UpdateChatUnreadMentionCount():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          unreadMentionCount: update.unreadMentionCount,
+        );
+        return true;
+
+      // The action bar is how Telegram says "this is somebody you don't know",
+      // which is what the Requests filter is built on.
+      case td.UpdateChatActionBar():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(actionBar: update.actionBar);
+        return true;
+
+      case td.UpdateChatDraftMessage():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          draftMessage: update.draftMessage,
+          positions: update.positions,
+        );
+        return true;
+
       default:
         return false;
     }
@@ -214,6 +342,8 @@ class ChatCacheState {
   void clear() {
     chats.clear();
     supergroups.clear();
+    users.clear();
+    userFullInfos.clear();
     pendingLastMessages.clear();
   }
 }
@@ -267,7 +397,46 @@ class ChatCache {
   td.Supergroup? supergroupForChat(td.Chat chat) =>
       _state.supergroupForChat(chat);
 
-  td.Supergroup? supergroup(int supergroupId) => _state.supergroups[supergroupId];
+  td.Supergroup? supergroup(int supergroupId) =>
+      _state.supergroups[supergroupId];
+
+  /// The user record behind a private chat, if TDLib has volunteered it.
+  td.User? userForChat(td.Chat chat) => _state.userForChat(chat);
+
+  /// The mirrored user and supergroup records, for the pure builders that map a
+  /// page of chats or messages at once. Handed over whole rather than looked up
+  /// per row, because a lookup per row through this class is the shape that
+  /// turns into a request per row the moment somebody adds a fallback to it.
+  Map<int, td.User> get usersById => _state.users;
+
+  /// Full user records TDLib has volunteered. See [ChatCacheState.userFullInfos]
+  /// — reading this never costs a request, and it is often empty.
+  Map<int, td.UserFullInfo> get userFullInfosById => _state.userFullInfos;
+
+  /// Every cached chat, keyed by id. Handed over whole for the pure builders,
+  /// which resolve one chat's reference to another — a person's channel, say —
+  /// without a lookup, and therefore without a `GetChat`, per row.
+  Map<int, td.Chat> get chatsById => _state.chats;
+
+  Map<int, td.Supergroup> get supergroupsById => _state.supergroups;
+
+  td.User? user(int userId) => _state.users[userId];
+
+  /// Files a full user record fetched elsewhere.
+  ///
+  /// The profile screen pays one `GetUserFullInfo` when somebody opens a
+  /// profile, and TDLib does not always follow that with an
+  /// `UpdateUserFullInfo`. Handing it over here is what lets the chat list show
+  /// that person's channel afterwards without ever asking for one itself —
+  /// see [ChatSummary.affiliatedChannelId].
+  void rememberUserFullInfo(int userId, td.UserFullInfo info) {
+    _state.userFullInfos[userId] = info;
+    _changesController.add(null);
+  }
+
+  /// Private chats, bot chats and groups — everything that is a conversation
+  /// rather than a broadcast. See [ChatCacheState.conversations].
+  List<td.Chat> get conversations => _state.conversations;
 
   /// Every cached chat that is a broadcast channel, most recently active first.
   List<td.Chat> get channels => _state.channels;
@@ -294,15 +463,19 @@ class ChatCache {
     for (var round = 0; round < _maxLoadChatsRounds; round++) {
       final before = _state.chats.length;
       try {
-        await _tdlib.sendRequest(const td.LoadChats(
-          chatList: td.ChatListMain(),
-          limit: _loadChatsPageSize,
-        ));
+        await _tdlib.sendRequest(
+          const td.LoadChats(
+            chatList: td.ChatListMain(),
+            limit: _loadChatsPageSize,
+          ),
+        );
       } on TdlibRequestException catch (e) {
         // 404 means the list is fully loaded — the expected exit, not a failure.
         if (e.code == _chatListExhaustedCode) break;
         if (e.isFloodWait) {
-          debugPrint('[ChatCache] Rate limited during LoadChats — using what we have');
+          debugPrint(
+            '[ChatCache] Rate limited during LoadChats — using what we have',
+          );
           break;
         }
         debugPrint('[ChatCache] LoadChats failed: $e');
@@ -333,10 +506,12 @@ class ChatCache {
       'Falling back to a capped GetChat recovery.',
     );
     try {
-      final res = await _tdlib.sendRequest(const td.GetChats(
-        chatList: td.ChatListMain(),
-        limit: _recoveryChatLimit,
-      ));
+      final res = await _tdlib.sendRequest(
+        const td.GetChats(
+          chatList: td.ChatListMain(),
+          limit: _recoveryChatLimit,
+        ),
+      );
       if (res is! td.Chats) return;
 
       for (final chatId in res.chatIds.take(_recoveryChatLimit)) {
@@ -436,5 +611,6 @@ class ChannelsKnownNotifier extends Notifier<bool> {
   }
 }
 
-final channelsKnownProvider =
-    NotifierProvider<ChannelsKnownNotifier, bool>(ChannelsKnownNotifier.new);
+final channelsKnownProvider = NotifierProvider<ChannelsKnownNotifier, bool>(
+  ChannelsKnownNotifier.new,
+);

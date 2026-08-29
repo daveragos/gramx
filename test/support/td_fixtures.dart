@@ -66,16 +66,18 @@ abstract class TdFixtures {
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) {
-    return td.Chat.fromJson(_chatJson(
-      id: id,
-      title: title,
-      isChannel: isChannel,
-      mainOrder: mainOrder,
-      unreadCount: unreadCount,
-      canSendBasicMessages: canSendBasicMessages,
-      lastMessage: lastMessage,
-      positions: positions,
-    ));
+    return td.Chat.fromJson(
+      _chatJson(
+        id: id,
+        title: title,
+        isChannel: isChannel,
+        mainOrder: mainOrder,
+        unreadCount: unreadCount,
+        canSendBasicMessages: canSendBasicMessages,
+        lastMessage: lastMessage,
+        positions: positions,
+      ),
+    );
   }
 
   /// A one-to-one chat — always a valid forward destination.
@@ -84,6 +86,102 @@ abstract class TdFixtures {
     json['type'] = {'@type': 'chatTypePrivate', 'user_id': id.abs()};
     return td.Chat.fromJson(json);
   }
+
+  /// The same chat, but with a photo on it.
+  ///
+  /// The photo is the interesting half of the comment-avatar rule: a chat that
+  /// *has* one is what a commenter's missing avatar used to fall back to.
+  static td.Chat chatWithPhoto({
+    required int id,
+    required int photoFileId,
+    String title = 'Test Channel',
+    String localPath = '/tmp/channel.jpg',
+  }) {
+    final json = _chatJson(id: id, title: title);
+    json['photo'] = chatPhotoInfoJson(
+      fileId: photoFileId,
+      localPath: localPath,
+    );
+    return td.Chat.fromJson(json);
+  }
+
+  static Map<String, dynamic> chatPhotoInfoJson({
+    required int fileId,
+    String localPath = '/tmp/photo.jpg',
+  }) => {
+    '@type': 'chatPhotoInfo',
+    'small': fileJson(id: fileId, localPath: localPath),
+    'big': fileJson(id: fileId + 1, localPath: localPath),
+    'has_animation': false,
+    'is_personal': false,
+  };
+
+  static Map<String, dynamic> profilePhotoJson({
+    required int fileId,
+    String localPath = '/tmp/avatar.jpg',
+  }) => {
+    '@type': 'profilePhoto',
+    'id': '$fileId',
+    'small': fileJson(id: fileId, localPath: localPath),
+    'big': fileJson(id: fileId + 1, localPath: localPath),
+    'has_animation': false,
+    'is_personal': false,
+  };
+
+  static Map<String, dynamic> fileJson({
+    required int id,
+    String localPath = '',
+    String remoteId = '',
+  }) => {
+    '@type': 'file',
+    'id': id,
+    'size': 1024,
+    'expected_size': 1024,
+    'local': {
+      '@type': 'localFile',
+      'path': localPath,
+      'can_be_downloaded': true,
+      'can_be_deleted': true,
+      'is_downloading_active': false,
+      'is_downloading_completed': localPath.isNotEmpty,
+      'download_offset': 0,
+      'downloaded_prefix_size': localPath.isEmpty ? 0 : 1024,
+      'downloaded_size': localPath.isEmpty ? 0 : 1024,
+    },
+    'remote': {
+      '@type': 'remoteFile',
+      'id': remoteId,
+      'unique_id': remoteId,
+      'is_uploading_active': false,
+      'is_uploading_completed': true,
+      'uploaded_size': 1024,
+    },
+  };
+
+  /// A full user record. Only the fields gramX reads are interesting; the rest
+  /// exist because TDLib's decoder requires them.
+  static td.UserFullInfo userFullInfo({
+    String? bio,
+    int personalChatId = 0,
+    int groupInCommonCount = 0,
+  }) => td.UserFullInfo.fromJson(<String, dynamic>{
+    '@type': 'userFullInfo',
+    'can_be_called': false,
+    'supports_video_calls': false,
+    'has_private_calls': false,
+    'has_private_forwards': false,
+    'has_restricted_voice_and_video_note_messages': false,
+    'has_posted_to_profile_stories': false,
+    'has_sponsored_messages_enabled': false,
+    'need_phone_number_privacy_exception': false,
+    'set_chat_background': false,
+    'bio': bio == null
+        ? null
+        : {'@type': 'formattedText', 'text': bio, 'entities': <dynamic>[]},
+    'personal_chat_id': personalChatId,
+    'premium_gift_options': <dynamic>[],
+    'group_in_common_count': groupInCommonCount,
+  });
 
   static Map<String, dynamic> _chatJson({
     required int id,
@@ -94,76 +192,75 @@ abstract class TdFixtures {
     bool canSendBasicMessages = false,
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
-  }) =>
-      <String, dynamic>{
-        '@type': 'chat',
-        'id': id,
-        'type': {
-          '@type': 'chatTypeSupergroup',
-          'supergroup_id': id.abs() % 1000000,
-          'is_channel': isChannel,
-        },
-        'title': title,
-        'accent_color_id': 0,
-        'background_custom_emoji_id': 0,
-        'profile_accent_color_id': 0,
-        'profile_background_custom_emoji_id': 0,
-        'permissions': {
-          ..._permissions,
-          'can_send_basic_messages': canSendBasicMessages,
-        },
-        'last_message': lastMessage,
-        'positions': positions ??
-            (mainOrder == 0
-                ? <Map<String, dynamic>>[]
-                : [mainListPosition(order: mainOrder)]),
-        'chat_lists': <Map<String, dynamic>>[],
-        'has_protected_content': false,
-        'is_translatable': false,
-        'is_marked_as_unread': false,
-        'view_as_topics': false,
-        'has_scheduled_messages': false,
-        'can_be_deleted_only_for_self': false,
-        'can_be_deleted_for_all_users': false,
-        'can_be_reported': false,
-        'default_disable_notification': false,
-        'unread_count': unreadCount,
-        'last_read_inbox_message_id': 0,
-        'last_read_outbox_message_id': 0,
-        'unread_mention_count': 0,
-        'unread_reaction_count': 0,
-        'notification_settings': _notificationSettings,
-        'available_reactions': {
-          '@type': 'chatAvailableReactionsAll',
-          'max_reaction_count': 11,
-        },
-        'message_auto_delete_time': 0,
-        'theme_name': '',
-        'video_chat': _videoChat,
-        'reply_markup_message_id': 0,
-        'client_data': '',
-      };
+  }) => <String, dynamic>{
+    '@type': 'chat',
+    'id': id,
+    'type': {
+      '@type': 'chatTypeSupergroup',
+      'supergroup_id': id.abs() % 1000000,
+      'is_channel': isChannel,
+    },
+    'title': title,
+    'accent_color_id': 0,
+    'background_custom_emoji_id': 0,
+    'profile_accent_color_id': 0,
+    'profile_background_custom_emoji_id': 0,
+    'permissions': {
+      ..._permissions,
+      'can_send_basic_messages': canSendBasicMessages,
+    },
+    'last_message': lastMessage,
+    'positions':
+        positions ??
+        (mainOrder == 0
+            ? <Map<String, dynamic>>[]
+            : [mainListPosition(order: mainOrder)]),
+    'chat_lists': <Map<String, dynamic>>[],
+    'has_protected_content': false,
+    'is_translatable': false,
+    'is_marked_as_unread': false,
+    'view_as_topics': false,
+    'has_scheduled_messages': false,
+    'can_be_deleted_only_for_self': false,
+    'can_be_deleted_for_all_users': false,
+    'can_be_reported': false,
+    'default_disable_notification': false,
+    'unread_count': unreadCount,
+    'last_read_inbox_message_id': 0,
+    'last_read_outbox_message_id': 0,
+    'unread_mention_count': 0,
+    'unread_reaction_count': 0,
+    'notification_settings': _notificationSettings,
+    'available_reactions': {
+      '@type': 'chatAvailableReactionsAll',
+      'max_reaction_count': 11,
+    },
+    'message_auto_delete_time': 0,
+    'theme_name': '',
+    'video_chat': _videoChat,
+    'reply_markup_message_id': 0,
+    'client_data': '',
+  };
 
   static Map<String, dynamic> mainListPosition({required int order}) => {
-        '@type': 'chatPosition',
-        'list': {'@type': 'chatListMain'},
-        'order': order,
-        'is_pinned': false,
-      };
+    '@type': 'chatPosition',
+    'list': {'@type': 'chatListMain'},
+    'order': order,
+    'is_pinned': false,
+  };
 
   static Map<String, dynamic> archiveListPosition({required int order}) => {
-        '@type': 'chatPosition',
-        'list': {'@type': 'chatListArchive'},
-        'order': order,
-        'is_pinned': false,
-      };
+    '@type': 'chatPosition',
+    'list': {'@type': 'chatListArchive'},
+    'order': order,
+    'is_pinned': false,
+  };
 
-  static td.ChatPosition position({
-    required int order,
-    bool archive = false,
-  }) {
+  static td.ChatPosition position({required int order, bool archive = false}) {
     return td.ChatPosition.fromJson(
-      archive ? archiveListPosition(order: order) : mainListPosition(order: order),
+      archive
+          ? archiveListPosition(order: order)
+          : mainListPosition(order: order),
     );
   }
 
@@ -173,49 +270,47 @@ abstract class TdFixtures {
     required int chatId,
     String text = 'hello',
     int date = 1700000000,
-  }) =>
-      {
-        '@type': 'message',
-        'id': id,
-        'sender_id': {'@type': 'messageSenderChat', 'chat_id': chatId},
-        'chat_id': chatId,
-        'date': date,
-        'is_outgoing': false,
-        'is_from_offline': false,
-        'is_pinned': false,
-        'can_be_saved': true,
-        'has_timestamped_media': false,
-        'is_channel_post': true,
-        'is_topic_message': false,
-        'contains_unread_mention': false,
-        'edit_date': 0,
-        'message_thread_id': 0,
-        'saved_messages_topic_id': 0,
-        'self_destruct_in': 0.0,
-        'auto_delete_in': 0.0,
-        'via_bot_user_id': 0,
-        'sender_business_bot_user_id': 0,
-        'sender_boost_count': 0,
-        'author_signature': '',
-        'media_album_id': '0',
-        'effect_id': '0',
-        'has_sensitive_content': false,
-        'restriction_reason': '',
-        'content': {
-          '@type': 'messageText',
-          'text': {'@type': 'formattedText', 'text': text, 'entities': []},
-        },
-      };
+  }) => {
+    '@type': 'message',
+    'id': id,
+    'sender_id': {'@type': 'messageSenderChat', 'chat_id': chatId},
+    'chat_id': chatId,
+    'date': date,
+    'is_outgoing': false,
+    'is_from_offline': false,
+    'is_pinned': false,
+    'can_be_saved': true,
+    'has_timestamped_media': false,
+    'is_channel_post': true,
+    'is_topic_message': false,
+    'contains_unread_mention': false,
+    'edit_date': 0,
+    'message_thread_id': 0,
+    'saved_messages_topic_id': 0,
+    'self_destruct_in': 0.0,
+    'auto_delete_in': 0.0,
+    'via_bot_user_id': 0,
+    'sender_business_bot_user_id': 0,
+    'sender_boost_count': 0,
+    'author_signature': '',
+    'media_album_id': '0',
+    'effect_id': '0',
+    'has_sensitive_content': false,
+    'restriction_reason': '',
+    'content': {
+      '@type': 'messageText',
+      'text': {'@type': 'formattedText', 'text': text, 'entities': []},
+    },
+  };
 
   static td.Message textMessage({
     required int id,
     required int chatId,
     String text = 'hello',
     int date = 1700000000,
-  }) =>
-      td.Message.fromJson(
-        textMessageJson(id: id, chatId: chatId, text: text, date: date),
-      );
+  }) => td.Message.fromJson(
+    textMessageJson(id: id, chatId: chatId, text: text, date: date),
+  );
 
   /// One entry in a message's reaction list.
   ///
@@ -226,40 +321,42 @@ abstract class TdFixtures {
     required Map<String, dynamic> type,
     required int totalCount,
     bool isChosen = false,
-  }) =>
-      {
-        '@type': 'messageReaction',
-        'type': type,
-        'total_count': totalCount,
-        'is_chosen': isChosen,
-        'used_sender_id': null,
-        'recent_sender_ids': <dynamic>[],
-      };
+  }) => {
+    '@type': 'messageReaction',
+    'type': type,
+    'total_count': totalCount,
+    'is_chosen': isChosen,
+    'used_sender_id': null,
+    'recent_sender_ids': <dynamic>[],
+  };
 
-  static Map<String, dynamic> emojiReactionType(String emoji) =>
-      {'@type': 'reactionTypeEmoji', 'emoji': emoji};
+  static Map<String, dynamic> emojiReactionType(String emoji) => {
+    '@type': 'reactionTypeEmoji',
+    'emoji': emoji,
+  };
 
-  static Map<String, dynamic> paidReactionType() =>
-      {'@type': 'reactionTypePaid'};
+  static Map<String, dynamic> paidReactionType() => {
+    '@type': 'reactionTypePaid',
+  };
 
-  static Map<String, dynamic> customEmojiReactionType(String customEmojiId) =>
-      {'@type': 'reactionTypeCustomEmoji', 'custom_emoji_id': customEmojiId};
+  static Map<String, dynamic> customEmojiReactionType(String customEmojiId) => {
+    '@type': 'reactionTypeCustomEmoji',
+    'custom_emoji_id': customEmojiId,
+  };
 
   static Map<String, dynamic> messageReactionsJson(
     List<Map<String, dynamic>> reactions,
-  ) =>
-      {
-        '@type': 'messageReactions',
-        'reactions': reactions,
-        'are_tags': false,
-        'paid_reactors': <dynamic>[],
-        'can_get_added_reactions': false,
-      };
+  ) => {
+    '@type': 'messageReactions',
+    'reactions': reactions,
+    'are_tags': false,
+    'paid_reactors': <dynamic>[],
+    'can_get_added_reactions': false,
+  };
 
   static td.MessageReactions messageReactions(
     List<Map<String, dynamic>> reactions,
-  ) =>
-      td.MessageReactions.fromJson(messageReactionsJson(reactions));
+  ) => td.MessageReactions.fromJson(messageReactionsJson(reactions));
 
   /// The update that actually carries reactions to a user client.
   ///
@@ -271,16 +368,15 @@ abstract class TdFixtures {
     int viewCount = 0,
     int forwardCount = 0,
     List<Map<String, dynamic>>? reactions,
-  }) =>
-      td.UpdateMessageInteractionInfo(
-        chatId: chatId,
-        messageId: messageId,
-        interactionInfo: td.MessageInteractionInfo(
-          viewCount: viewCount,
-          forwardCount: forwardCount,
-          reactions: reactions == null ? null : messageReactions(reactions),
-        ),
-      );
+  }) => td.UpdateMessageInteractionInfo(
+    chatId: chatId,
+    messageId: messageId,
+    interactionInfo: td.MessageInteractionInfo(
+      viewCount: viewCount,
+      forwardCount: forwardCount,
+      reactions: reactions == null ? null : messageReactions(reactions),
+    ),
+  );
 
   /// A text message carrying interaction info, as history returns it.
   static td.Message messageWithReactions({
@@ -317,89 +413,329 @@ abstract class TdFixtures {
     bool isChannel = true,
     String? username,
     Map<String, dynamic>? status,
-  }) =>
-      td.UpdateSupergroup(
-        supergroup: td.Supergroup.fromJson(<String, dynamic>{
-          '@type': 'supergroup',
-          'id': id,
-          'usernames': username == null
-              ? null
-              : {
-                  '@type': 'usernames',
-                  'active_usernames': [username],
-                  'disabled_usernames': <String>[],
-                  'editable_username': username,
-                },
-          'date': 0,
-          'status': status ??
-              {'@type': 'chatMemberStatusMember', 'member_until_date': 0},
-          'member_count': memberCount,
-          'boost_level': 0,
-          'has_linked_chat': false,
-          'has_location': false,
-          'sign_messages': false,
-          'show_message_sender': false,
-          'join_to_send_messages': false,
-          'join_by_request': false,
-          'is_slow_mode_enabled': false,
-          'is_channel': isChannel,
-          'is_broadcast_group': false,
-          'is_forum': false,
-          'is_verified': isVerified,
-          'has_sensitive_content': false,
-          'restriction_reason': '',
-          'is_scam': false,
-          'is_fake': false,
-          'has_active_stories': false,
-          'has_unread_active_stories': false,
-        }),
-      );
+  }) => td.UpdateSupergroup(
+    supergroup: td.Supergroup.fromJson(<String, dynamic>{
+      '@type': 'supergroup',
+      'id': id,
+      'usernames': username == null
+          ? null
+          : {
+              '@type': 'usernames',
+              'active_usernames': [username],
+              'disabled_usernames': <String>[],
+              'editable_username': username,
+            },
+      'date': 0,
+      'status':
+          status ?? {'@type': 'chatMemberStatusMember', 'member_until_date': 0},
+      'member_count': memberCount,
+      'boost_level': 0,
+      'has_linked_chat': false,
+      'has_location': false,
+      'sign_messages': false,
+      'show_message_sender': false,
+      'join_to_send_messages': false,
+      'join_by_request': false,
+      'is_slow_mode_enabled': false,
+      'is_channel': isChannel,
+      'is_broadcast_group': false,
+      'is_forum': false,
+      'is_verified': isVerified,
+      'has_sensitive_content': false,
+      'restriction_reason': '',
+      'is_scam': false,
+      'is_fake': false,
+      'has_active_stories': false,
+      'has_unread_active_stories': false,
+    }),
+  );
 
-  static td.UpdateNewChat newChat(td.Chat chat) =>
-      td.UpdateNewChat(chat: chat);
+  static td.UpdateNewChat newChat(td.Chat chat) => td.UpdateNewChat(chat: chat);
 
   static td.UpdateChatLastMessage lastMessage({
     required int chatId,
     td.Message? message,
     int mainOrder = 0,
-  }) =>
-      td.UpdateChatLastMessage(
-        chatId: chatId,
-        lastMessage: message,
-        positions: mainOrder == 0
-            ? const []
-            : [td.ChatPosition.fromJson(mainListPosition(order: mainOrder))],
-      );
+  }) => td.UpdateChatLastMessage(
+    chatId: chatId,
+    lastMessage: message,
+    positions: mainOrder == 0
+        ? const []
+        : [td.ChatPosition.fromJson(mainListPosition(order: mainOrder))],
+  );
 
   /// An admin status with the given posting right, for forward-target rules.
   static Map<String, dynamic> adminStatus({bool canPostMessages = true}) => {
-        '@type': 'chatMemberStatusAdministrator',
-        'custom_title': '',
-        'can_be_edited': false,
-        'rights': {
-          '@type': 'chatAdministratorRights',
-          'can_manage_chat': true,
-          'can_change_info': false,
-          'can_post_messages': canPostMessages,
-          'can_edit_messages': false,
-          'can_delete_messages': false,
-          'can_invite_users': false,
-          'can_restrict_members': false,
-          'can_pin_messages': false,
-          'can_manage_topics': false,
-          'can_promote_members': false,
-          'can_manage_video_chats': false,
-          'can_post_stories': false,
-          'can_edit_stories': false,
-          'can_delete_stories': false,
-          'is_anonymous': false,
-        },
-      };
+    '@type': 'chatMemberStatusAdministrator',
+    'custom_title': '',
+    'can_be_edited': false,
+    'rights': {
+      '@type': 'chatAdministratorRights',
+      'can_manage_chat': true,
+      'can_change_info': false,
+      'can_post_messages': canPostMessages,
+      'can_edit_messages': false,
+      'can_delete_messages': false,
+      'can_invite_users': false,
+      'can_restrict_members': false,
+      'can_pin_messages': false,
+      'can_manage_topics': false,
+      'can_promote_members': false,
+      'can_manage_video_chats': false,
+      'can_post_stories': false,
+      'can_edit_stories': false,
+      'can_delete_stories': false,
+      'is_anonymous': false,
+    },
+  };
 
   static Map<String, dynamic> creatorStatus() => {
-        '@type': 'chatMemberStatusCreator',
-        'custom_title': '',
-        'is_anonymous': false,
-        'is_member': true,
+    '@type': 'chatMemberStatusCreator',
+    'custom_title': '',
+    'is_anonymous': false,
+    'is_member': true,
+  };
+
+  // ── Conversations ──────────────────────────────────────────────────────────
+
+  /// A private chat, with everything the messages list reads off one.
+  ///
+  /// The plain [privateChat] above is enough for the forward picker, which only
+  /// asks "can I post here". A chat *row* reads a dozen more fields — unread
+  /// state, mute, draft, the action bar — and every one of them has been the
+  /// difference between a correct row and a wrong one.
+  static td.Chat conversation({
+    required int id,
+    String title = 'A Person',
+    int? userId,
+    int mainOrder = 100,
+    int unreadCount = 0,
+    bool isMarkedAsUnread = false,
+    bool isPinned = false,
+    int unreadMentionCount = 0,
+    int lastReadInboxMessageId = 0,
+    int lastReadOutboxMessageId = 0,
+    bool isMuted = false,
+    String? draftText,
+    Map<String, dynamic>? actionBar,
+    Map<String, dynamic>? lastMessage,
+    Map<String, dynamic>? type,
+  }) {
+    final json = _chatJson(
+      id: id,
+      title: title,
+      mainOrder: mainOrder,
+      unreadCount: unreadCount,
+      lastMessage: lastMessage,
+    );
+    json['type'] =
+        type ?? {'@type': 'chatTypePrivate', 'user_id': userId ?? id.abs()};
+    json['is_marked_as_unread'] = isMarkedAsUnread;
+    if (isPinned) {
+      json['positions'] = [
+        {...mainListPosition(order: mainOrder), 'is_pinned': true},
+      ];
+    }
+    json['unread_mention_count'] = unreadMentionCount;
+    json['last_read_inbox_message_id'] = lastReadInboxMessageId;
+    json['last_read_outbox_message_id'] = lastReadOutboxMessageId;
+    if (isMuted) {
+      json['notification_settings'] = {
+        ..._notificationSettings,
+        'use_default_mute_for': false,
+        'mute_for': 3600,
       };
+    }
+    if (actionBar != null) json['action_bar'] = actionBar;
+    if (draftText != null) {
+      json['draft_message'] = {
+        '@type': 'draftMessage',
+        'date': 1700000000,
+        'effect_id': '0',
+        'input_message_text': {
+          '@type': 'inputMessageText',
+          'text': {
+            '@type': 'formattedText',
+            'text': draftText,
+            'entities': <Map<String, dynamic>>[],
+          },
+          'clear_draft': false,
+        },
+      };
+    }
+    return td.Chat.fromJson(json);
+  }
+
+  /// A group chat that belongs in the messages list: a supergroup that is not
+  /// a broadcast channel.
+  static td.Chat groupChat({
+    required int id,
+    String title = 'The Group',
+    int mainOrder = 100,
+    Map<String, dynamic>? lastMessage,
+  }) => conversation(
+    id: id,
+    title: title,
+    mainOrder: mainOrder,
+    lastMessage: lastMessage,
+    type: {
+      '@type': 'chatTypeSupergroup',
+      'supergroup_id': id.abs() % 1000000,
+      'is_channel': false,
+    },
+  );
+
+  /// Telegram's "you don't know this person" bar — what the Requests filter is
+  /// built on.
+  static Map<String, dynamic> reportAddBlockBar() => {
+    '@type': 'chatActionBarReportAddBlock',
+    'can_unarchive': false,
+    'distance': -1,
+  };
+
+  /// A user record, as `UpdateUser` delivers one.
+  ///
+  /// [status] is the raw `UserStatus` JSON. It decides the presence line, and
+  /// Telegram deliberately blurs it — "last seen recently" is a real answer
+  /// rather than a missing timestamp.
+  static td.User user({
+    required int id,
+    String firstName = 'Ada',
+    String lastName = '',
+    String? username,
+    bool isBot = false,
+    bool isDeleted = false,
+    bool isVerified = false,
+    bool isPremium = false,
+    bool isContact = false,
+    String phoneNumber = '',
+    int? profilePhotoFileId,
+    Map<String, dynamic>? status,
+  }) => td.User.fromJson(<String, dynamic>{
+    '@type': 'user',
+    'id': id,
+    'first_name': firstName,
+    'last_name': lastName,
+    'usernames': username == null
+        ? null
+        : {
+            '@type': 'usernames',
+            'active_usernames': [username],
+            'disabled_usernames': <String>[],
+            'editable_username': username,
+          },
+    'phone_number': phoneNumber,
+    'profile_photo': profilePhotoFileId == null
+        ? null
+        : profilePhotoJson(fileId: profilePhotoFileId),
+    'status': status ?? {'@type': 'userStatusOffline', 'was_online': 0},
+    'accent_color_id': 0,
+    'background_custom_emoji_id': '0',
+    'profile_accent_color_id': -1,
+    'profile_background_custom_emoji_id': '0',
+    'is_contact': isContact,
+    'is_mutual_contact': false,
+    'is_close_friend': false,
+    'is_verified': isVerified,
+    'is_premium': isPremium,
+    'is_support': false,
+    'restriction_reason': '',
+    'is_scam': false,
+    'is_fake': false,
+    'has_active_stories': false,
+    'has_unread_active_stories': false,
+    'restricts_new_chats': false,
+    'have_access': true,
+    'type': isDeleted
+        ? {'@type': 'userTypeDeleted'}
+        : isBot
+        ? {
+            '@type': 'userTypeBot',
+            'can_be_edited': false,
+            'can_join_groups': true,
+            'can_read_all_group_messages': false,
+            'has_main_web_app': false,
+            'is_inline': false,
+            'inline_query_placeholder': '',
+            'need_location': false,
+            'can_connect_to_business': false,
+            'can_be_added_to_attachment_menu': false,
+            'active_user_count': 0,
+          }
+        : {'@type': 'userTypeRegular'},
+    'language_code': '',
+    'added_to_attachment_menu': false,
+  });
+
+  static td.UpdateUser userUpdate(td.User user) => td.UpdateUser(user: user);
+
+  ///
+  /// A message *about* a contact rather than a conversation with one — it is
+  /// the only content a chat that has never been used ever contains, which is
+  /// what makes it safe to filter a whole chat on.
+  static Map<String, dynamic> contactRegisteredMessageJson({
+    required int id,
+    required int chatId,
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {'@type': 'messageContactRegistered'};
+    return json;
+  }
+
+  /// A message in a conversation: sent by a person, on one side or the other.
+  ///
+  /// The channel-post [textMessage] above is sent by a *chat* and is never
+  /// outgoing, which is the wrong shape for every assertion a conversation
+  /// makes.
+  static td.Message chatMessage({
+    required int id,
+    required int chatId,
+    required int senderUserId,
+    String text = 'hello',
+    bool isOutgoing = false,
+    int date = 1700000000,
+    int editDate = 0,
+    int? replyToMessageId,
+    int replyToChatId = 0,
+    String? sendingState,
+  }) {
+    final json = textMessageJson(
+      id: id,
+      chatId: chatId,
+      text: text,
+      date: date,
+    );
+    json['sender_id'] = {'@type': 'messageSenderUser', 'user_id': senderUserId};
+    json['is_outgoing'] = isOutgoing;
+    json['is_channel_post'] = false;
+    json['edit_date'] = editDate;
+    if (sendingState != null) {
+      json['sending_state'] = sendingState == 'pending'
+          ? {'@type': 'messageSendingStatePending', 'sending_id': 0}
+          : {
+              '@type': 'messageSendingStateFailed',
+              'error': {
+                '@type': 'error',
+                'code': 400,
+                'message': 'MESSAGE_TOO_LONG',
+              },
+              'can_retry': false,
+              'need_another_sender': false,
+              'need_another_reply_quote': false,
+              'need_drop_reply': false,
+              'retry_after': 0.0,
+            };
+    }
+    if (replyToMessageId != null) {
+      json['reply_to'] = {
+        '@type': 'messageReplyToMessage',
+        'chat_id': replyToChatId,
+        'message_id': replyToMessageId,
+        // Non-nullable in TDLib's decoder even though it is meaningless for a
+        // same-chat reply — a missing key throws "Null is not a subtype of int".
+        'origin_send_date': 0,
+      };
+    }
+    return td.Message.fromJson(json);
+  }
 }

@@ -21,29 +21,36 @@ void main() {
     // Folding in only the unread count left everything read during a session
     // still looking unread — so a refresh handed the reader back what they had
     // just finished, and the unread sweep kept re-fetching it.
-    test('UpdateChatReadInbox advances the read cursor, not just the count',
-        () {
-      state.apply(TdFixtures.newChat(
-          TdFixtures.chat(id: -100123, unreadCount: 7)));
+    test(
+      'UpdateChatReadInbox advances the read cursor, not just the count',
+      () {
+        state.apply(
+          TdFixtures.newChat(TdFixtures.chat(id: -100123, unreadCount: 7)),
+        );
 
-      final changed = state.apply(td.UpdateChatReadInbox(
-        chatId: -100123,
-        lastReadInboxMessageId: 4194304,
-        unreadCount: 2,
-      ));
+        final changed = state.apply(
+          td.UpdateChatReadInbox(
+            chatId: -100123,
+            lastReadInboxMessageId: 4194304,
+            unreadCount: 2,
+          ),
+        );
 
-      expect(changed, isTrue);
-      expect(state.chats[-100123]?.lastReadInboxMessageId, 4194304);
-      expect(state.chats[-100123]?.unreadCount, 2);
-    });
+        expect(changed, isTrue);
+        expect(state.chats[-100123]?.lastReadInboxMessageId, 4194304);
+        expect(state.chats[-100123]?.unreadCount, 2);
+      },
+    );
 
     test('UpdateChatReadInbox for an unknown chat changes nothing', () {
       expect(
-        state.apply(td.UpdateChatReadInbox(
-          chatId: -100999,
-          lastReadInboxMessageId: 1,
-          unreadCount: 0,
-        )),
+        state.apply(
+          td.UpdateChatReadInbox(
+            chatId: -100999,
+            lastReadInboxMessageId: 1,
+            unreadCount: 0,
+          ),
+        ),
         isFalse,
       );
     });
@@ -54,7 +61,11 @@ void main() {
 
       final message = TdFixtures.textMessage(id: 4194304, chatId: -100123);
       final changed = state.apply(
-        TdFixtures.lastMessage(chatId: -100123, message: message, mainOrder: 90),
+        TdFixtures.lastMessage(
+          chatId: -100123,
+          message: message,
+          mainOrder: 90,
+        ),
       );
 
       expect(changed, isTrue);
@@ -69,7 +80,11 @@ void main() {
       final message = TdFixtures.textMessage(id: 4194304, chatId: -100123);
 
       final bufferedChange = state.apply(
-        TdFixtures.lastMessage(chatId: -100123, message: message, mainOrder: 77),
+        TdFixtures.lastMessage(
+          chatId: -100123,
+          message: message,
+          mainOrder: 77,
+        ),
       );
 
       expect(bufferedChange, isFalse, reason: 'nothing to change yet');
@@ -78,19 +93,24 @@ void main() {
 
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -100123)));
 
-      expect(state.chats[-100123]?.lastMessage?.id, 4194304,
-          reason: 'buffered message must survive and be applied');
+      expect(
+        state.chats[-100123]?.lastMessage?.id,
+        4194304,
+        reason: 'buffered message must survive and be applied',
+      );
       expect(ChatCacheState.mainListOrder(state.chats[-100123]!), 77);
       expect(state.pendingLastMessages, isEmpty);
     });
 
     test('updates for unknown chats are ignored, not crashed on', () {
       expect(
-        state.apply(td.UpdateChatReadInbox(
-          chatId: -999,
-          lastReadInboxMessageId: 1,
-          unreadCount: 5,
-        )),
+        state.apply(
+          td.UpdateChatReadInbox(
+            chatId: -999,
+            lastReadInboxMessageId: 1,
+            unreadCount: 5,
+          ),
+        ),
         isFalse,
       );
       expect(state.chats, isEmpty);
@@ -99,19 +119,23 @@ void main() {
     test('UpdateChatReadInbox updates the unread count', () {
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1, unreadCount: 9)));
 
-      state.apply(td.UpdateChatReadInbox(
-        chatId: -1,
-        lastReadInboxMessageId: 100,
-        unreadCount: 0,
-      ));
+      state.apply(
+        td.UpdateChatReadInbox(
+          chatId: -1,
+          lastReadInboxMessageId: 100,
+          unreadCount: 0,
+        ),
+      );
 
       expect(state.chats[-1]?.unreadCount, 0);
     });
 
     test('UpdateChatTitle renames without dropping other fields', () {
-      state.apply(TdFixtures.newChat(
-        TdFixtures.chat(id: -1, title: 'Old', unreadCount: 3),
-      ));
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(id: -1, title: 'Old', unreadCount: 3),
+        ),
+      );
 
       state.apply(td.UpdateChatTitle(chatId: -1, title: 'New'));
 
@@ -121,11 +145,13 @@ void main() {
 
     test('unrelated updates are ignored', () {
       expect(
-        state.apply(const td.UpdateChatFolders(
-          chatFolders: [],
-          mainChatListPosition: 0,
-          areTagsEnabled: false,
-        )),
+        state.apply(
+          const td.UpdateChatFolders(
+            chatFolders: [],
+            mainChatListPosition: 0,
+            areTagsEnabled: false,
+          ),
+        ),
         isFalse,
       );
     });
@@ -155,10 +181,7 @@ void main() {
       );
 
       expect(merged, hasLength(2));
-      expect(
-        merged.firstWhere((p) => p.list is td.ChatListArchive).order,
-        20,
-      );
+      expect(merged.firstWhere((p) => p.list is td.ChatListArchive).order, 20);
       expect(merged.firstWhere((p) => p.list is td.ChatListMain).order, 99);
     });
 
@@ -178,10 +201,16 @@ void main() {
   group('ChatCacheState.channels', () {
     test('returns only broadcast channels', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(
-          TdFixtures.chat(id: -1, isChannel: true, mainOrder: 10)));
-      state.apply(TdFixtures.newChat(
-          TdFixtures.chat(id: -2, isChannel: false, mainOrder: 10)));
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(id: -1, isChannel: true, mainOrder: 10),
+        ),
+      );
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(id: -2, isChannel: false, mainOrder: 10),
+        ),
+      );
 
       expect(state.channels.map((c) => c.id), [-1]);
     });
@@ -192,8 +221,7 @@ void main() {
     // channel the user never subscribed to started appearing.
     test('excludes channels the user is not subscribed to', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(
-          TdFixtures.chat(id: -1, mainOrder: 10)));
+      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1, mainOrder: 10)));
       // No chat-list position: TDLib knows this chat, the user is not in it.
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -2, mainOrder: 0)));
 
@@ -202,10 +230,14 @@ void main() {
 
     test('a chat in the archive still counts as subscribed', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(TdFixtures.chat(
-        id: -1,
-        positions: [TdFixtures.archiveListPosition(order: 5)],
-      )));
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(
+            id: -1,
+            positions: [TdFixtures.archiveListPosition(order: 5)],
+          ),
+        ),
+      );
 
       expect(state.channels.map((c) => c.id), [-1]);
     });
@@ -232,10 +264,14 @@ void main() {
 
     test('an archived channel sorts below one in the main list', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(TdFixtures.chat(
-        id: -1,
-        positions: [TdFixtures.archiveListPosition(order: 900)],
-      )));
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(
+            id: -1,
+            positions: [TdFixtures.archiveListPosition(order: 900)],
+          ),
+        ),
+      );
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -2, mainOrder: 5)));
 
       expect(state.channels.map((c) => c.id), [-2, -1]);
@@ -248,16 +284,21 @@ void main() {
       final chat = TdFixtures.chat(id: -1001234);
       state.apply(TdFixtures.newChat(chat));
 
-      expect(state.supergroupForChat(chat), isNull,
-          reason: 'nothing volunteered yet');
+      expect(
+        state.supergroupForChat(chat),
+        isNull,
+        reason: 'nothing volunteered yet',
+      );
 
       final supergroupId = (chat.type as td.ChatTypeSupergroup).supergroupId;
-      state.apply(TdFixtures.supergroup(
-        id: supergroupId,
-        memberCount: 4200,
-        isVerified: true,
-        username: 'news',
-      ));
+      state.apply(
+        TdFixtures.supergroup(
+          id: supergroupId,
+          memberCount: 4200,
+          isVerified: true,
+          username: 'news',
+        ),
+      );
 
       final found = state.supergroupForChat(chat);
       expect(found?.memberCount, 4200);
@@ -277,10 +318,12 @@ void main() {
     test('drops chats and buffered messages', () {
       final state = ChatCacheState();
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1)));
-      state.apply(TdFixtures.lastMessage(
-        chatId: -99,
-        message: TdFixtures.textMessage(id: 1, chatId: -99),
-      ));
+      state.apply(
+        TdFixtures.lastMessage(
+          chatId: -99,
+          message: TdFixtures.textMessage(id: 1, chatId: -99),
+        ),
+      );
 
       state.apply(TdFixtures.supergroup(id: 7));
 
@@ -289,6 +332,178 @@ void main() {
       expect(state.chats, isEmpty);
       expect(state.supergroups, isEmpty);
       expect(state.pendingLastMessages, isEmpty);
+    });
+  });
+
+  // Everything a conversation needs that a channel feed never did. Each of
+  // these used to be read straight off the chat TDLib first volunteered, which
+  // meant it was correct once and then frozen for the session.
+  group('ChatCacheState conversation fields', () {
+    late ChatCacheState state;
+
+    setUp(() => state = ChatCacheState());
+
+    test('mirrors users, so a chat row costs no GetUser', () {
+      state.apply(
+        TdFixtures.userUpdate(TdFixtures.user(id: 7, firstName: 'Ada')),
+      );
+      expect(state.users[7]?.firstName, 'Ada');
+    });
+
+    // Presence changes constantly and for people the reader is not looking at,
+    // so it folds into the existing record rather than replacing it — the
+    // update carries the status and nothing else.
+    test('a status update folds into the user rather than replacing it', () {
+      state.apply(
+        TdFixtures.userUpdate(
+          TdFixtures.user(id: 7, firstName: 'Ada', username: 'ada'),
+        ),
+      );
+      state.apply(
+        const td.UpdateUserStatus(
+          userId: 7,
+          status: td.UserStatusOnline(expires: 0),
+        ),
+      );
+
+      expect(state.users[7]?.status, isA<td.UserStatusOnline>());
+      expect(state.users[7]?.firstName, 'Ada');
+      expect(state.users[7]?.usernames?.activeUsernames, ['ada']);
+    });
+
+    test('a status for an unknown user is not invented', () {
+      expect(
+        state.apply(
+          const td.UpdateUserStatus(
+            userId: 7,
+            status: td.UserStatusOnline(expires: 0),
+          ),
+        ),
+        isFalse,
+      );
+      expect(state.users, isEmpty);
+    });
+
+    // Without this every message the account sends stays "sent" for the
+    // session, however long ago the other side read it.
+    test('the outbox cursor moves', () {
+      state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
+      state.apply(
+        const td.UpdateChatReadOutbox(chatId: 5, lastReadOutboxMessageId: 42),
+      );
+      expect(state.chats[5]?.lastReadOutboxMessageId, 42);
+    });
+
+    // A chat marked unread by hand carries no count, so a list reading only
+    // unreadCount draws it as read.
+    test('a hand-set unread mark is kept', () {
+      state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
+      state.apply(
+        const td.UpdateChatIsMarkedAsUnread(chatId: 5, isMarkedAsUnread: true),
+      );
+      expect(state.chats[5]?.isMarkedAsUnread, isTrue);
+    });
+
+    test('the action bar is kept, which is what Requests reads', () {
+      state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
+      state.apply(
+        td.UpdateChatActionBar(
+          chatId: 5,
+          actionBar: td.ChatActionBar.fromJson(TdFixtures.reportAddBlockBar()),
+        ),
+      );
+      expect(state.chats[5]?.actionBar, isA<td.ChatActionBarReportAddBlock>());
+    });
+
+    test('a draft is kept, so the list can mark one', () {
+      state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
+      final withDraft = TdFixtures.conversation(
+        id: 5,
+        draftText: 'half a thought',
+      );
+      state.apply(
+        td.UpdateChatDraftMessage(
+          chatId: 5,
+          draftMessage: withDraft.draftMessage,
+          positions: const [],
+        ),
+      );
+      expect(state.chats[5]?.draftMessage, isNotNull);
+    });
+
+    test('conversations exclude broadcast channels', () {
+      state.apply(
+        TdFixtures.newChat(TdFixtures.conversation(id: 5, mainOrder: 300)),
+      );
+      state.apply(
+        TdFixtures.newChat(TdFixtures.groupChat(id: -100200, mainOrder: 200)),
+      );
+      state.apply(
+        TdFixtures.newChat(TdFixtures.chat(id: -100999, mainOrder: 400)),
+      );
+
+      expect(state.conversations.map((c) => c.id), [5, -100200]);
+    });
+
+    test('clear drops the users too', () {
+      state.apply(TdFixtures.userUpdate(TdFixtures.user(id: 7)));
+      state.clear();
+      expect(state.users, isEmpty);
+    });
+  });
+
+  // T17-4. The channel a person runs lives on `UserFullInfo`, and the only
+  // affordable way to have one is to keep the ones TDLib volunteers. Asking
+  // for them would be a `GetUserFullInfo` per row of the chat list, which is
+  // the fan-out docs/TDLIB.md exists to forbid.
+  group('ChatCacheState full user records', () {
+    late ChatCacheState state;
+
+    setUp(() => state = ChatCacheState());
+
+    test('an UpdateUserFullInfo is folded in', () {
+      final changed = state.apply(
+        td.UpdateUserFullInfo(
+          userId: 7,
+          userFullInfo: TdFixtures.userFullInfo(personalChatId: -100),
+        ),
+      );
+
+      expect(changed, isTrue);
+      expect(state.userFullInfos[7]?.personalChatId, -100);
+    });
+
+    test('a later one replaces the earlier', () {
+      state.apply(
+        td.UpdateUserFullInfo(
+          userId: 7,
+          userFullInfo: TdFixtures.userFullInfo(personalChatId: -100),
+        ),
+      );
+      state.apply(
+        td.UpdateUserFullInfo(
+          userId: 7,
+          userFullInfo: TdFixtures.userFullInfo(),
+        ),
+      );
+
+      expect(state.userFullInfos[7]?.personalChatId, 0);
+    });
+
+    test('nothing arrives for a user TDLib has not described fully', () {
+      state.apply(TdFixtures.userUpdate(TdFixtures.user(id: 7)));
+      expect(state.userFullInfos, isEmpty);
+    });
+
+    test('clear drops them', () {
+      state.apply(
+        td.UpdateUserFullInfo(
+          userId: 7,
+          userFullInfo: TdFixtures.userFullInfo(),
+        ),
+      );
+      state.clear();
+      expect(state.userFullInfos, isEmpty);
     });
   });
 }

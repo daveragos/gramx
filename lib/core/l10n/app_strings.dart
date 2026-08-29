@@ -149,7 +149,6 @@ abstract class AppStrings {
   static const guestFeedEnd = 'You have reached the end of these channels.';
   static const a11yOpenMenu = 'Open navigation menu';
   static const a11yScrollToTop = 'Scroll to top';
-  static const a11ySearch = 'Search';
 
   static String a11yReplyWithCount(int count) =>
       count == 0 ? a11yReply : 'Reply, $count comments';
@@ -178,9 +177,8 @@ abstract class AppStrings {
   static const commentsHeading = 'Comments';
   static const commentsLoginPrompt = 'Log in to Telegram to post comments.';
   static const commentReplyingTo = 'Replying to ';
-
-  static String commentReplyingToAuthor(String author) =>
-      'Replying to @$author';
+  static const commentHint = 'Add a comment…';
+  static const commentReplyHint = 'Post your reply…';
 
   // ── Post statistics ────────────────────────────────────────────────────────
   static const statReposts = 'Reposts';
@@ -251,6 +249,18 @@ abstract class AppStrings {
 
   static String channelJoined(String title) => 'Joined $title';
   static String channelLeft(String title) => 'Left $title';
+
+  // Leaving is the one membership change that cannot be undone with the same
+  // tap: rejoining a private channel needs an invite the reader may not have.
+  // Joining is asymmetric — it is instantly reversible — so only this side is
+  // confirmed.
+  static const channelLeaveConfirmTitle = 'Leave this channel?';
+  static String channelLeaveConfirmBody(String title) =>
+      'Its posts stop arriving in your feed, and you leave $title on every '
+      'device signed in to your Telegram. A private channel needs a fresh '
+      'invite to get back into.';
+  static const channelLeaveConfirmAction = 'Leave';
+  static const channelLeaveCancelAction = 'Stay';
 
   // ── Muting ─────────────────────────────────────────────────────────────────
   static const muteSheetTitle = 'Mute this channel';
@@ -374,7 +384,13 @@ abstract class AppStrings {
 
   // ── Drawer ─────────────────────────────────────────────────────────────────
   static const drawerProfile = 'My Profile';
-  static const drawerBookmarks = 'Saved Messages & Bookmarks';
+  // Two different things that used to share one row. The label promised Saved
+  // Messages — Telegram's notes-to-self chat — and delivered the bookmark
+  // list, which is this app's own. They are separate entries now.
+  static const drawerBookmarks = 'Bookmarks';
+  static const drawerSavedMessages = 'Saved Messages';
+  static const savedMessagesUnavailable =
+      "Couldn't open Saved Messages. Try again in a moment.";
   static const drawerChannels = 'Subscribed Channels';
   static const drawerFolders = 'Folders';
   static const drawerSettings = 'Settings & Privacy';
@@ -468,10 +484,26 @@ abstract class AppStrings {
       '$kind $index of $total';
 
   // ── Document & audio downloads ──────────────────────────────────────────
-  static const documentDownloading = 'Downloading file…';
   static const documentOpenFailed = "Couldn't open this file";
   static const documentNoAppFound = 'No app found to open this file';
-  static const audioDownloading = 'Downloading audio…';
+
+  // Both rows show their own progress ring now, so neither announces the start
+  // of a download in a snackbar. A toast that says "downloading…" and is then
+  // never followed up is the least useful shape this could take: it covers the
+  // very control that would have shown how far along the file is.
+  static const documentFallbackName = 'Document file';
+  static const documentTapToDownload = 'Tap to download';
+  static const documentDownloaded = 'Downloaded';
+  static const documentDownloadingLabel = 'Downloading';
+
+  static String downloadPercent(int percent) => '$percent%';
+
+  static const audioPlay = 'Play';
+  static const audioPause = 'Pause';
+  static const audioDownload = 'Download';
+  static const audioSeek = 'Seek';
+  static const audioKindVoice = 'Voice';
+  static const audioKindAudio = 'Audio';
 
   // ── Composing ──────────────────────────────────────────────────────────────
   static const composeHint = "What's happening?";
@@ -537,8 +569,9 @@ abstract class AppStrings {
 
   /// Shown when the writer tries to attach an eleventh file. Telegram's own
   /// album limit, not this app's.
-  static String composeAttachmentLimit(int max) =>
-      max == 1 ? 'Only one file can be attached.' : 'Up to $max files per post.';
+  static String composeAttachmentLimit(int max) => max == 1
+      ? 'Only one file can be attached.'
+      : 'Up to $max files per post.';
 
   // Three ways Telegram refuses a photo. It answers all three with the same
   // unhelpful error, so each is named here instead.
@@ -556,4 +589,197 @@ abstract class AppStrings {
   /// Why the character allowance shrank the moment a photo was attached.
   static String composeCaptionLimit(int limit) =>
       'A post with media is captioned, so it is capped at $limit characters.';
+
+  // ── Messages ───────────────────────────────────────────────────────────────
+  static const messagesTitle = 'Chat';
+  static const messagesTab = 'Messages';
+  static const messagesSearchHint = 'Search';
+  static const messagesEmptyTitle = 'No conversations yet';
+  static const messagesEmptyBody =
+      'Messages you exchange on Telegram appear here.';
+  static const messagesEmptyFilteredTitle = 'Nothing here';
+  static const messagesEmptyFilteredBody =
+      'No conversation matches this filter.';
+  static const messagesNoSearchResults = 'No conversation matches that.';
+  static const messagesFilterTooltip = 'Filter conversations';
+  static const messagesMarkAllRead = 'Mark all as read';
+  static const messagesSettings = 'Settings';
+  static const messagesNewChat = 'New message';
+  static const messagesNewChatHint = 'Search for a person or group';
+  static const messagesGuestTitle = 'Messages need an account';
+  static const messagesGuestBody =
+      'Guest mode reads public channels through their web preview. There is no '
+      'account behind it to send or receive a message with.';
+  static const messagesGuestAction = 'Sign in to Telegram';
+  static const messagesDraftPrefix = 'Draft';
+  static const messagesYouPrefix = 'You';
+  static const messagesMarkedUnread = 'Marked unread';
+  static const messagesMuted = 'Muted';
+  static const messagesRequestBadge = 'Request';
+  static const messagesBotBadge = 'bot';
+  static const messagesPinned = 'Pinned';
+  static const messagesPin = 'Pin to top';
+  static const messagesUnpin = 'Unpin';
+  static const messagesMute = 'Mute';
+  static const messagesUnmute = 'Unmute';
+  static const messagesMarkRead = 'Mark as read';
+  static const messagesMarkUnread = 'Mark as unread';
+  static const messagesPinFailed =
+      "Telegram wouldn't pin that — you may have pinned as many as it allows.";
+  static const messagesStartOne = 'Start a conversation';
+  static const messagesAllReadDone = 'Everything marked as read.';
+
+  /// The count on the Messages tab. Conversations, not messages: "3" should
+  /// mean three people are waiting, which is a number somebody can act on.
+  static String messagesUnreadBadge(int count) =>
+      count > 99 ? '99+' : count.toString();
+
+  static String messagesUnreadSemantics(int count) => count == 1
+      ? 'Messages, 1 unread conversation'
+      : 'Messages, $count unread conversations';
+
+  // ── A conversation ─────────────────────────────────────────────────────────
+  static const chatComposerHint = 'Message';
+  static const chatSend = 'Send';
+  static const chatAttach = 'Attach a photo or video';
+  static const chatLoadingHistory = 'Loading messages';
+  static const chatEmptyTitle = 'No messages yet';
+  static const chatEmptyBody = 'Say something to start this conversation.';
+  static const chatHistoryFailed = "Couldn't load this conversation.";
+  static const chatSendFailed = "Couldn't send that. Tap to try again.";
+  static const chatRetry = 'Retry';
+  static const chatEdited = 'edited';
+  static const chatReplyingTo = 'Replying to';
+
+  /// being answered, above the answer. Telegram's bordered quote block is the
+  /// other convention, and it turns every reply in a conversation into a card
+  /// inside a card.
+  static String chatReplyingToName(String name) => 'Replying to $name';
+
+  /// The "↱ Forwarded from Ada" line above a forwarded message.
+  static String chatForwardedFrom(String name) => 'Forwarded from $name';
+  static const chatCancelReply = 'Cancel reply';
+  static const chatDeletedMessage = 'This message was deleted.';
+  static const chatOpenInTelegram = 'Open in Telegram';
+  static const chatUnsupported = "gramX can't show this message yet.";
+  static const chatScrollToBottom = 'Jump to the latest message';
+  static const chatOnline = 'online';
+
+  // Message long-press menu.
+  static const chatActionReply = 'Reply';
+  static const chatActionForward = 'Forward';
+
+  // Handing a file to another app on the device.
+  static const openWith = 'Open with…';
+  static const openWithNotReady = "That file hasn't finished downloading yet.";
+
+  /// A mention Telegram cannot resolve — a private account, or a name that has
+  /// since changed.
+  static String chatMentionUnknown(String username) =>
+      "Telegram doesn't know @$username.";
+  static const chatForwarded = 'Forwarded.';
+  static const chatForwardFailed = "Telegram wouldn't forward that.";
+  static const chatReplyNotLoaded =
+      "That message isn't loaded yet — scroll up to find it.";
+  static const chatActionCopy = 'Copy text';
+  static const chatActionEdit = 'Edit';
+  static const chatActionDelete = 'Delete';
+  static const chatActionDeleteForMe = 'Delete for me';
+  static const chatActionDeleteForEveryone = 'Delete for everyone';
+  static const chatActionReact = 'React';
+  static const chatCopied = 'Copied.';
+  static const chatDeleteTitle = 'Delete message?';
+  static const chatDeleteBody =
+      "This can't be undone. Choose who it disappears for.";
+  static const chatCancel = 'Cancel';
+  static const chatEditTitle = 'Edit message';
+  static const chatSave = 'Save';
+  static const chatEditFailed = "Telegram wouldn't take that edit.";
+  static const chatDeleteFailed = "Telegram wouldn't delete that.";
+
+  /// The date band between two days of messages. Today and yesterday get their
+  /// names because a date nobody has to decode reads faster.
+  /// The band a chat opens on when messages were waiting. Everything below it
+  /// is new since the reader was last here.
+  static const chatUnreadBand = 'Unread messages';
+
+  static const chatToday = 'Today';
+  static const chatYesterday = 'Yesterday';
+
+  /// What somebody in the chat is doing right now. In a group the name is
+  /// carried, because "typing" alone in a room of eight says nothing.
+  static String chatTyping(String action, {String? name}) =>
+      name == null ? '$action…' : '$name is $action…';
+
+  /// Presence, in Telegram's own hedged words. It refuses to give a time for a
+  /// contact who hides theirs, and inventing one here would be a lie about
+  /// somebody's privacy setting.
+  static const chatLastSeenRecently = 'last seen recently';
+  static const chatLastSeenWeek = 'last seen within a week';
+  static const chatLastSeenMonth = 'last seen within a month';
+  static const chatLastSeenOffline = 'offline';
+
+  static String chatMembers(int count) =>
+      count == 1 ? '1 member' : '$count members';
+
+  // What somebody is doing, for the typing line. Verb phrases, so they read
+  // after a name in a group ("Ada is recording audio…") and alone in a private
+  // chat ("recording audio…").
+  static const chatActionTyping = 'typing';
+  static const chatActionRecordingVideo = 'recording video';
+  static const chatActionSendingVideo = 'sending a video';
+  static const chatActionRecordingAudio = 'recording audio';
+  static const chatActionSendingAudio = 'sending audio';
+  static const chatActionSendingPhoto = 'sending a photo';
+  static const chatActionSendingFile = 'sending a file';
+  static const chatActionRecordingVideoMessage = 'recording a video message';
+  static const chatActionSendingVideoMessage = 'sending a video message';
+  static const chatActionChoosingSticker = 'choosing a sticker';
+  static const chatActionChoosingLocation = 'choosing a location';
+  static const chatActionChoosingContact = 'choosing a contact';
+  static const chatActionWatchingAnimation = 'watching an animation';
+  static const chatActionPlayingGame = 'playing a game';
+
+  // Delivery state, for screen readers. The ticks are the visual form and
+  // convey state by shape alone, which is exactly the case the accessibility
+  // rule in docs/CONVENTIONS.md names.
+  // ── Peeking, and who somebody speaks for ────────────────────────────────
+  static String chatPeekSemantics(String title) =>
+      'Peek into the conversation with $title';
+  static String chatAffiliation(String channel) => 'Runs the channel $channel';
+
+  /// When the cache has the channel's id but not yet its name — see
+  /// `ChatSummary.affiliatedChannelId` for why that is a normal state.
+  static const chatAffiliationUnnamed = 'Runs a channel';
+
+  static const chatPeekTitle = 'Peek';
+  static const chatPeekHint =
+      'Read-only. Nothing here is marked as read, and nobody is told you '
+      'looked.';
+  static const chatPeekOpen = 'Open chat';
+  static const chatPeekEmpty = 'Nothing to look at yet.';
+  static const chatPeekFailed = "Couldn't load this conversation.";
+
+  // ── A person's profile ─────────────────────────────────────────────────────
+  static const profileUserTitle = 'Profile';
+  static const profileUserMissing = "Telegram doesn't know this account.";
+  static const profileUserDeleted = 'This account was deleted.';
+  static const profileMessageAction = 'Message';
+  static const profileBotBadge = 'Bot';
+  static const profilePremiumBadge = 'Premium';
+  static const profileContactBadge = 'In your contacts';
+  static const profileBioHeading = 'Bio';
+  static const profilePhoneHeading = 'Phone';
+  static const profileUsernameHeading = 'Username';
+  static const profileChannelHeading = 'Runs';
+  static const profileOpenChannel = 'Open channel';
+  static const profileChannelUnnamed = 'A channel';
+
+  static String profileGroupsInCommon(int count) =>
+      count == 1 ? '1 group in common' : '$count groups in common';
+
+  static const chatStateSending = 'Sending';
+  static const chatStateSent = 'Sent';
+  static const chatStateRead = 'Read';
+  static const chatStateFailed = 'Failed to send';
 }

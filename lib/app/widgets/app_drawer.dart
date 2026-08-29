@@ -7,6 +7,7 @@ import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/chats/presentation/open_saved_messages.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class AppDrawer extends ConsumerWidget {
@@ -41,8 +42,8 @@ class AppDrawer extends ConsumerWidget {
 
     final String displayName =
         accountAsync.value?.displayName ?? AppStrings.drawerAccountFallback;
-    final String username = accountAsync.value?.username != null 
-        ? '@${accountAsync.value!.username}' 
+    final String username = accountAsync.value?.username != null
+        ? '@${accountAsync.value!.username}'
         : '';
     final int channelsCount = channelsAsync.value?.length ?? 0;
     final int foldersCount = foldersAsync.value?.length ?? 0;
@@ -82,10 +83,7 @@ class AppDrawer extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(
                     username,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: secondaryColor,
-                    ),
+                    style: TextStyle(fontSize: 14, color: secondaryColor),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -101,10 +99,7 @@ class AppDrawer extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text(
                         AppStrings.drawerChannelsCount,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: secondaryColor,
-                        ),
+                        style: TextStyle(fontSize: 14, color: secondaryColor),
                       ),
                       const SizedBox(width: 16),
                       Text(
@@ -118,10 +113,7 @@ class AppDrawer extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text(
                         AppStrings.drawerFoldersCount,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: secondaryColor,
-                        ),
+                        style: TextStyle(fontSize: 14, color: secondaryColor),
                       ),
                     ],
                   ),
@@ -129,47 +121,83 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(),
-            DrawerNavItem(
-              icon: Icons.person_outline_rounded,
-              title: AppStrings.drawerProfile,
-              onTap: () {
-                Navigator.pop(context);
-                GoRouter.of(context).push('/profile');
-              },
+            // The nav items scroll. They used to be laid out directly in the
+            // column above a Spacer, which fits until it doesn't — adding the
+            // Messages entry overflowed the drawer on a short viewport, and a
+            // list that silently clips the last item is worse than one that
+            // scrolls.
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerNavItem(
+                    icon: Icons.person_outline_rounded,
+                    title: AppStrings.drawerProfile,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push('/profile');
+                    },
+                  ),
+                  // Tabs switch branches rather than pushing. Pushing a branch route
+                  // onto the root stack leaves the shell's indexed stack behind and
+                  // throws away that tab's scroll position.
+                  // Bookmarks is a pushed route rather than a tab now that Messages
+                  // has the fourth slot — so it pushes, where a tab would goBranch.
+                  DrawerNavItem(
+                    icon: Icons.bookmark_border_rounded,
+                    title: AppStrings.drawerBookmarks,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push('/bookmarks');
+                    },
+                  ),
+                  DrawerNavItem(
+                    icon: Icons.mail_outline_rounded,
+                    title: AppStrings.messagesTab,
+                    onTap: () => _goToTab(context, ShellTab.messages),
+                  ),
+                  // Telegram's notes-to-self chat. It sorts by activity like
+                  // any other chat, so a reader who saves something once a
+                  // week has to hunt down the list for it otherwise.
+                  if (canOpenSavedMessages(ref))
+                    DrawerNavItem(
+                      icon: Icons.bookmark_added_outlined,
+                      title: AppStrings.drawerSavedMessages,
+                      onTap: () {
+                        Navigator.pop(context);
+                        openSavedMessages(context, ref);
+                      },
+                    ),
+                  DrawerNavItem(
+                    icon: Icons.list_alt_rounded,
+                    title: AppStrings.drawerChannels,
+                    onTap: () => _goToTab(context, ShellTab.channels),
+                  ),
+                  DrawerNavItem(
+                    icon: Icons.folder_outlined,
+                    title: AppStrings.drawerFolders,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push('/folders');
+                    },
+                  ),
+                  DrawerNavItem(
+                    icon: Icons.settings_outlined,
+                    title: AppStrings.drawerSettings,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push('/settings');
+                    },
+                  ),
+                ],
+              ),
             ),
-            // Tabs switch branches rather than pushing. Pushing a branch route
-            // onto the root stack leaves the shell's indexed stack behind and
-            // throws away that tab's scroll position.
-            DrawerNavItem(
-              icon: Icons.bookmark_border_rounded,
-              title: AppStrings.drawerBookmarks,
-              onTap: () => _goToTab(context, ShellTab.bookmarks),
-            ),
-            DrawerNavItem(
-              icon: Icons.list_alt_rounded,
-              title: AppStrings.drawerChannels,
-              onTap: () => _goToTab(context, ShellTab.channels),
-            ),
-            DrawerNavItem(
-              icon: Icons.folder_outlined,
-              title: AppStrings.drawerFolders,
-              onTap: () {
-                Navigator.pop(context);
-                GoRouter.of(context).push('/folders');
-              },
-            ),
-            DrawerNavItem(
-              icon: Icons.settings_outlined,
-              title: AppStrings.drawerSettings,
-              onTap: () {
-                Navigator.pop(context);
-                GoRouter.of(context).push('/settings');
-              },
-            ),
-            const Spacer(),
             const Divider(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Text(
                 AppStrings.appVersionLabel(),
                 style: TextStyle(color: secondaryColor, fontSize: 12),

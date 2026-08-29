@@ -19,6 +19,22 @@ class TextEntityRenderer extends StatelessWidget {
   /// Clamp the rendered text to this many lines. Null renders in full.
   final int? maxLines;
 
+  /// Colour for links, mentions, hashtags — anything this renderer styles as
+  /// tappable.
+  ///
+  /// except one: an outgoing message bubble, which *is* that blue. A mention
+  /// rendered in accent on accent is invisible, so the bubble passes its own
+  /// foreground colour instead.
+  final Color? linkColor;
+
+  /// Called when an `@name` is tapped, instead of this widget deciding.
+  ///
+  /// The default assumes a mention is a *channel* and pushes the channel screen
+  /// — which is right in a feed, where every mention is one, and wrong in a
+  /// conversation, where most are people. Resolving which reaches Telegram, and
+  /// `core/` must not; so the caller that can, does.
+  final ValueChanged<String>? onMentionTap;
+
   /// Called when a hashtag is tapped.
   ///
   /// Supplied by the caller rather than handled here: `core/` must not reach
@@ -33,12 +49,15 @@ class TextEntityRenderer extends StatelessWidget {
     this.onHashtagTap,
     this.style,
     this.maxLines,
+    this.linkColor,
+    this.onMentionTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final defaultStyle = style ?? AppTypography.body(color: theme.colorScheme.onSurface);
+    final defaultStyle =
+        style ?? AppTypography.body(color: theme.colorScheme.onSurface);
 
     if (entities.isEmpty) {
       if (maxLines != null) {
@@ -67,10 +86,12 @@ class TextEntityRenderer extends StatelessWidget {
 
       // Add preceding plain text
       if (entity.offset > currentIndex) {
-        spans.add(TextSpan(
-          text: text.substring(currentIndex, entity.offset),
-          style: defaultStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: text.substring(currentIndex, entity.offset),
+            style: defaultStyle,
+          ),
+        );
       }
 
       final entityEnd = entity.offset + entity.length;
@@ -85,10 +106,9 @@ class TextEntityRenderer extends StatelessWidget {
 
     // Add remaining plain text
     if (currentIndex < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(currentIndex),
-        style: defaultStyle,
-      ));
+      spans.add(
+        TextSpan(text: text.substring(currentIndex), style: defaultStyle),
+      );
     }
 
     // Clamped text is drawn with Text, not SelectableText. A selectable field
@@ -113,8 +133,18 @@ class TextEntityRenderer extends StatelessWidget {
     TextStyle baseStyle,
   ) {
     final accentStyle = baseStyle.copyWith(
-      color: AppColors.accent,
+      color: linkColor ?? AppColors.accent,
       fontWeight: FontWeight.w500,
+      // Set explicitly in both directions, so no inherited underline leaks in.
+      //
+      // On a coloured bubble the link and the body text are the same colour, so
+      // weight alone would have to carry "this is tappable" — and weight alone
+      // is not enough. The underline is what keeps it legible there, and it is
+      // drawn only when a caller has overridden the colour for that reason.
+      decoration: linkColor == null
+          ? TextDecoration.none
+          : TextDecoration.underline,
+      decorationColor: linkColor,
     );
 
     switch (entity.type) {
@@ -166,7 +196,7 @@ class TextEntityRenderer extends StatelessWidget {
         final tapUrl = entity.url ?? entityText;
         return TextSpan(
           text: entityText,
-          style: accentStyle.copyWith(decoration: TextDecoration.none),
+          style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(context, tapUrl),
         );
@@ -184,17 +214,19 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.emailAddress:
         return TextSpan(
           text: entityText,
-          style: accentStyle.copyWith(decoration: TextDecoration.none),
+          style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(context, 'mailto:$entityText'),
         );
       case TextEntityType.phoneNumber:
         return TextSpan(
           text: entityText,
-          style: accentStyle.copyWith(decoration: TextDecoration.none),
+          style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(
-                context, 'tel:${entityText.replaceAll(' ', '')}'),
+              context,
+              'tel:${entityText.replaceAll(' ', '')}',
+            ),
         );
       case TextEntityType.cashtag:
       case TextEntityType.botCommand:
@@ -217,10 +249,7 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.spoiler:
         return WidgetSpan(
           alignment: PlaceholderAlignment.middle,
-          child: SpoilerWidget(
-            text: entityText,
-            style: baseStyle,
-          ),
+          child: SpoilerWidget(text: entityText, style: baseStyle),
         );
       case TextEntityType.customEmoji:
         final emojiId = int.tryParse(entity.customEmojiId ?? '');
@@ -239,10 +268,7 @@ class TextEntityRenderer extends StatelessWidget {
           ),
         );
       case TextEntityType.unknown:
-        return TextSpan(
-          text: entityText,
-          style: baseStyle,
-        );
+        return TextSpan(text: entityText, style: baseStyle);
     }
   }
 
@@ -251,7 +277,9 @@ class TextEntityRenderer extends StatelessWidget {
       final uri = normalizeUrl(rawUrl);
 
       // In-app handling for Telegram t.me links
-      if (uri.host == 't.me' || uri.host == 'telegram.me' || uri.host == 'www.t.me') {
+      if (uri.host == 't.me' ||
+          uri.host == 'telegram.me' ||
+          uri.host == 'www.t.me') {
         final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
         if (segments.isNotEmpty) {
           if (segments.length == 1) {
@@ -290,9 +318,15 @@ class TextEntityRenderer extends StatelessWidget {
 
   Future<void> _handleMentionTap(BuildContext context, String mention) async {
     final username = mention.replaceFirst('@', '').trim();
-    if (username.isNotEmpty) {
-      NavigationUtils.openChannel(context, username);
+    if (username.isEmpty) return;
+
+    final handler = onMentionTap;
+    if (handler != null) {
+      handler(username);
+      return;
     }
+    // No handler: assume a channel, which is what a mention is in a feed.
+    NavigationUtils.openChannel(context, username);
   }
 }
 
@@ -300,11 +334,7 @@ class SpoilerWidget extends StatefulWidget {
   final String text;
   final TextStyle style;
 
-  const SpoilerWidget({
-    super.key,
-    required this.text,
-    required this.style,
-  });
+  const SpoilerWidget({super.key, required this.text, required this.style});
 
   @override
   State<SpoilerWidget> createState() => _SpoilerWidgetState();
@@ -391,8 +421,9 @@ class CodeBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final codeStyle = style.copyWith(
@@ -492,11 +523,14 @@ class _QuoteBlockState extends State<QuoteBlock> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
-    final clampable =
-        shouldClampText(widget.text, maxLines: kCollapsedQuoteLines);
+    final clampable = shouldClampText(
+      widget.text,
+      maxLines: kCollapsedQuoteLines,
+    );
     final collapsed = clampable && !_expanded;
     final label = _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
 
@@ -505,9 +539,7 @@ class _QuoteBlockState extends State<QuoteBlock> {
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       padding: const EdgeInsets.only(left: AppSpacing.sm, top: 2, bottom: 2),
       decoration: const BoxDecoration(
-        border: Border(
-          left: BorderSide(color: AppColors.accent, width: 3),
-        ),
+        border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,8 +562,9 @@ class _QuoteBlockState extends State<QuoteBlock> {
                   padding: const EdgeInsets.only(top: 2, bottom: 2),
                   child: Text(
                     label,
-                    style: AppTypography.actionCount(color: secondary)
-                        .copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.actionCount(
+                      color: secondary,
+                    ).copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

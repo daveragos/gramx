@@ -41,6 +41,12 @@ class ReaderCapabilities {
   /// no account to post as, and `t.me/s/` is a read-only page.
   final bool canPost;
 
+  /// Can hold a conversation — read a chat list, open a chat, send a message.
+  /// Off for a guest for the plainest reason of all: a message needs somebody
+  /// to be from, and there is nobody. The Messages tab is hidden rather than
+  /// disabled, because a tab that opens onto a refusal is furniture.
+  final bool canMessage;
+
   const ReaderCapabilities({
     required this.canReact,
     required this.canMarkRead,
@@ -50,6 +56,7 @@ class ReaderCapabilities {
     required this.canForward,
     required this.canSearchServerSide,
     required this.canPost,
+    required this.canMessage,
   });
 
   /// Signed in: everything.
@@ -62,6 +69,7 @@ class ReaderCapabilities {
     canForward: true,
     canSearchServerSide: true,
     canPost: true,
+    canMessage: true,
   );
 
   /// Guest: reading, and nothing that touches an account.
@@ -74,6 +82,7 @@ class ReaderCapabilities {
     canForward: false,
     canSearchServerSide: false,
     canPost: false,
+    canMessage: false,
   );
 
   /// True when the reader has no account behind them at all.
