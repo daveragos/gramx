@@ -140,7 +140,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     final tab = _selectedTab;
     if (tab.isHistory) return;
 
-    final chatId = ref.read(channelDetailProvider(widget.channelId)).value?.chatId;
+    final chatId = ref
+        .read(channelDetailProvider(widget.channelId))
+        .value
+        ?.chatId;
     if (chatId == null) return;
 
     ref
@@ -159,7 +162,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       return;
     }
 
-    final chatId = ref.read(channelDetailProvider(widget.channelId)).value?.chatId;
+    final chatId = ref
+        .read(channelDetailProvider(widget.channelId))
+        .value
+        ?.chatId;
     if (chatId == null) return;
     ref
         .read(channelTabNotifierProvider.notifier)
@@ -199,7 +205,38 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     if (mounted) _loadSelectedTab();
   }
 
+  /// Asks before leaving, and only before leaving.
+  ///
+  /// Joining is one tap away from being undone; leaving is not — a private
+  /// channel needs a fresh invite, and the change is pushed to every device
+  /// signed in to the account. That asymmetry is the whole reason this is here
+  /// rather than a confirmation on both halves of the same button.
+  Future<bool> _confirmLeave(Channel channel) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(AppStrings.channelLeaveConfirmTitle),
+        content: Text(AppStrings.channelLeaveConfirmBody(channel.title)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(AppStrings.channelLeaveCancelAction),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text(AppStrings.channelLeaveConfirmAction),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
   Future<void> _toggleMembership(Channel channel) async {
+    if (channel.isJoined && !await _confirmLeave(channel)) return;
+    if (!mounted) return;
+
     setState(() => _isActionLoading = true);
     final channelRepo = ref.read(channelRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
@@ -209,12 +246,16 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
         : await channelRepo.joinChannel(channel.chatId);
 
     if (success && mounted) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(channel.isJoined
-            ? AppStrings.channelLeft(channel.title)
-            : AppStrings.channelJoined(channel.title)),
-        duration: const Duration(seconds: 2),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            channel.isJoined
+                ? AppStrings.channelLeft(channel.title)
+                : AppStrings.channelJoined(channel.title),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
 
     ref.invalidate(channelDetailProvider(widget.channelId));
@@ -263,9 +304,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
           IconButton(
             tooltip: isMuted
                 ? (mutedUntil != null
-                    ? AppStrings.channelsMutedUntil(
-                        TimeUtils.untilWhen(mutedUntil))
-                    : AppStrings.channelsUnmuteAction)
+                      ? AppStrings.channelsMutedUntil(
+                          TimeUtils.untilWhen(mutedUntil),
+                        )
+                      : AppStrings.channelsUnmuteAction)
                 : AppStrings.channelsMuteAction,
             // Asks for how long, rather than muting forever by default —
             // see MuteSheet.
@@ -332,9 +374,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
             ),
           ),
           if (pinnedAsync.value != null)
-            SliverToBoxAdapter(
-              child: PinnedPostCard(post: pinnedAsync.value!),
-            ),
+            SliverToBoxAdapter(child: PinnedPostCard(post: pinnedAsync.value!)),
           SliverPersistentHeader(
             pinned: true,
             delegate: _TabBarHeader(
@@ -353,8 +393,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     final tab = _selectedTab;
     if (tab.isHistory) return _historySlivers();
 
-    final state =
-        ref.watch(channelTabPostsProvider(ChannelTabKey(widget.channelId, tab)));
+    final state = ref.watch(
+      channelTabPostsProvider(ChannelTabKey(widget.channelId, tab)),
+    );
 
     if (state.error != null) {
       return [
@@ -408,7 +449,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     return postsAsync.when(
       loading: () => const [
         SliverFillRemaining(
-          child: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.accent),
+          ),
         ),
       ],
       error: (err, _) => [
@@ -440,41 +483,39 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
 
   Widget _postCardSliver(List<Post> posts, {bool trackReads = false}) {
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final post = posts[index];
-          final isHighlighted = widget.highlightMessageId != null &&
-              post.messageId == widget.highlightMessageId;
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final post = posts[index];
+        final isHighlighted =
+            widget.highlightMessageId != null &&
+            post.messageId == widget.highlightMessageId;
 
-          final card = PostCard(
-            post: post,
-            isHighlighted: isHighlighted,
-            onTap: () {
-              if (!_isGuestChannel) ref.read(markPostAsReadProvider(post.id));
-              context.push('/post/${post.id}');
-            },
-          );
+        final card = PostCard(
+          post: post,
+          isHighlighted: isHighlighted,
+          onTap: () {
+            if (!_isGuestChannel) ref.read(markPostAsReadProvider(post.id));
+            context.push('/post/${post.id}');
+          },
+        );
 
-          // Read tracking on the history tab only. The Links and Voice tabs are
-          // a search result rather than a reading position, and acknowledging a
-          // post because it scrolled past in a filtered list would write that
-          // to every Telegram client the reader owns.
-          return trackReads
-              ? PostVisibilityReporter(postId: post.id, child: card)
-              : card;
-        },
-        childCount: posts.length,
-      ),
+        // Read tracking on the history tab only. The Links and Voice tabs are
+        // a search result rather than a reading position, and acknowledging a
+        // post because it scrolled past in a filtered list would write that
+        // to every Telegram client the reader owns.
+        return trackReads
+            ? PostVisibilityReporter(postId: post.id, child: card)
+            : card;
+      }, childCount: posts.length),
     );
   }
 
   static String _emptyMessageFor(ChannelTab tab) => switch (tab) {
-        ChannelTab.posts => AppStrings.channelNoPosts,
-        ChannelTab.media => AppStrings.channelTabNoMedia,
-        ChannelTab.files => AppStrings.channelTabNoFiles,
-        ChannelTab.links => AppStrings.channelTabNoLinks,
-        ChannelTab.voice => AppStrings.channelTabNoVoice,
-      };
+    ChannelTab.posts => AppStrings.channelNoPosts,
+    ChannelTab.media => AppStrings.channelTabNoMedia,
+    ChannelTab.files => AppStrings.channelTabNoFiles,
+    ChannelTab.links => AppStrings.channelTabNoLinks,
+    ChannelTab.voice => AppStrings.channelTabNoVoice,
+  };
 }
 
 /// The tab strip, pinned under the app bar while the profile scrolls away.
@@ -500,11 +541,16 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
   double get maxExtent => _height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Container(
       height: _height,
@@ -525,9 +571,7 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
               labelStyle: AppTypography.button().copyWith(fontSize: 15),
               unselectedLabelStyle: AppTypography.body(),
               dividerColor: Colors.transparent,
-              tabs: [
-                for (final tab in tabs) Tab(text: _labelFor(tab)),
-              ],
+              tabs: [for (final tab in tabs) Tab(text: _labelFor(tab))],
             ),
           ),
           Divider(
@@ -541,12 +585,12 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
   }
 
   static String _labelFor(ChannelTab tab) => switch (tab) {
-        ChannelTab.posts => AppStrings.channelTabPosts,
-        ChannelTab.media => AppStrings.channelTabMedia,
-        ChannelTab.files => AppStrings.channelTabFiles,
-        ChannelTab.links => AppStrings.channelTabLinks,
-        ChannelTab.voice => AppStrings.channelTabVoice,
-      };
+    ChannelTab.posts => AppStrings.channelTabPosts,
+    ChannelTab.media => AppStrings.channelTabMedia,
+    ChannelTab.files => AppStrings.channelTabFiles,
+    ChannelTab.links => AppStrings.channelTabLinks,
+    ChannelTab.voice => AppStrings.channelTabVoice,
+  };
 
   @override
   bool shouldRebuild(_TabBarHeader oldDelegate) =>
@@ -564,8 +608,9 @@ class _EmptyTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Center(
       child: Padding(
@@ -624,8 +669,9 @@ class ChannelRetry extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Center(
       child: Padding(
@@ -637,7 +683,9 @@ class ChannelRetry extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             Text(
               message,
-              style: AppTypography.subheading(color: theme.colorScheme.onSurface),
+              style: AppTypography.subheading(
+                color: theme.colorScheme.onSurface,
+              ),
               textAlign: TextAlign.center,
             ),
             if (detail != null) ...[

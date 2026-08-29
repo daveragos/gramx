@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,9 +19,12 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 /// name, handle, subscriber count, description, and the join control.
 ///
 /// Telegram has no separate cover image — a channel owns exactly one photo —
-/// so the banner is that photo, blurred and darkened behind itself. The
-/// alternative was an empty coloured band, which the profile screen already
-/// tried once and lost in T8-42.
+/// so the banner is that photo, shown as it is. It used to be blurred, on the
+/// theory that a small square blown up to a wide band would look wrong; in
+/// practice the blur threw away the only picture the channel has and left a
+/// coloured smear, which is the empty band the profile screen already lost to
+/// once in T8-42. A bottom-weighted scrim is what keeps the controls over it
+/// legible now, and it costs the image nothing.
 class ChannelHeader extends ConsumerWidget {
   final Channel channel;
   final bool isActionBusy;
@@ -44,8 +46,9 @@ class ChannelHeader extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -111,10 +114,9 @@ class ChannelHeader extends ConsumerWidget {
                   Flexible(
                     child: Text(
                       channel.title,
-                      style: AppTypography.heading(color: primary).copyWith(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: AppTypography.heading(
+                        color: primary,
+                      ).copyWith(fontSize: 21, fontWeight: FontWeight.w800),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -172,7 +174,7 @@ class ChannelHeader extends ConsumerWidget {
   }
 }
 
-/// The cover band: the channel's own photo, blurred, or a flat tint.
+/// The cover band: the channel's own photo, or a flat tint.
 class _Banner extends ConsumerWidget {
   final Channel channel;
   final bool isDark;
@@ -209,14 +211,21 @@ class _Banner extends ConsumerWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => ColoredBox(color: fallback),
                     ),
-                    // The avatar is a small square blown up to a wide band, so
-                    // it is blurred rather than shown sharp — and darkened, so
-                    // a light photo doesn't swallow the back button over it.
-                    BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.28),
+                    // Not a flat wash over the whole picture: a gradient that
+                    // is strongest at the top, where the back button sits, and
+                    // clear by the middle. The photo stays the photo; only the
+                    // band under the control is darkened enough to carry it
+                    // over a bright image.
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0x66000000), Color(0x00000000)],
+                          stops: [0, 0.6],
+                        ),
                       ),
+                      child: SizedBox.expand(),
                     ),
                   ],
                 ),
@@ -260,8 +269,9 @@ class _JoinButton extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -271,11 +281,11 @@ class _JoinButton extends StatelessWidget {
         side: isJoined
             ? BorderSide(color: secondary.withValues(alpha: 0.5))
             : null,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: 9,
         ),
-        padding:
-            const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: 9),
       ),
       onPressed: isBusy ? null : onPressed,
       child: isBusy
