@@ -42,7 +42,7 @@ class FoldersScreen extends ConsumerWidget {
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
         error: (err, _) => Center(
-          child: Text('Error loading folders: $err'),
+          child: Text(AppStrings.foldersError(err)),
         ),
         data: (folders) {
           if (folders.isEmpty) {

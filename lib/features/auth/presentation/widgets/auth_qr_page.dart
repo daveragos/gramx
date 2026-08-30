@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -91,7 +92,7 @@ class AuthQrPage extends StatelessWidget {
           TextButton.icon(
             onPressed: () => controller.selectPhoneLogin(),
             icon: const Icon(Icons.phone_android_rounded, size: 18),
-            label: const Text('Use a phone number instead'),
+            label: const Text(AppStrings.authUsePhoneInstead),
           ),
           const Spacer(flex: 2),
         ],

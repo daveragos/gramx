@@ -1,4 +1,5 @@
 import 'package:country_picker/country_picker.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -88,8 +89,8 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         inputDecoration: InputDecoration(
-          labelText: 'Search Country',
-          hintText: 'Start typing country name or code...',
+          labelText: AppStrings.authCountrySearchLabel,
+          hintText: AppStrings.authCountrySearchHint,
           prefixIcon: const Icon(Icons.search_rounded),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -197,7 +198,7 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
               FilteringTextInputFormatter.allow(RegExp(r'[\d\s\+\-\(\)]')),
             ],
             decoration: InputDecoration(
-              hintText: '$_selectedCountryCode 123 456 7890',
+              hintText: AppStrings.authPhoneHint(_selectedCountryCode),
               hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.4)),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),

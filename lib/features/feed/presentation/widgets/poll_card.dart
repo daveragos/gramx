@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -51,7 +52,7 @@ class _PollCardState extends ConsumerState<PollCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to vote: $e'),
+            content: Text(AppStrings.pollVoteFailed(e)),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -104,11 +105,16 @@ class _PollCardState extends ConsumerState<PollCard> {
           Row(
             children: [
               Text(
-                '${TimeUtils.formatCount(widget.poll.totalVoterCount)} votes',
+                AppStrings.pollVoteCount(
+                  TimeUtils.formatCount(widget.poll.totalVoterCount),
+                ),
                 style: AppTypography.actionCount(color: secondaryColor),
               ),
               const SizedBox(width: 8),
-              Text('·', style: TextStyle(color: secondaryColor)),
+              Text(
+                AppStrings.inlineSeparatorBare,
+                style: TextStyle(color: secondaryColor),
+              ),
               const SizedBox(width: 8),
               Text(
                 widget.poll.isQuiz ? 'Quiz' : 'Poll',
@@ -116,7 +122,10 @@ class _PollCardState extends ConsumerState<PollCard> {
               ),
               if (isClosed) ...[
                 const SizedBox(width: 8),
-                Text('·', style: TextStyle(color: secondaryColor)),
+                Text(
+                AppStrings.inlineSeparatorBare,
+                style: TextStyle(color: secondaryColor),
+              ),
                 const SizedBox(width: 8),
                 Text(
                   'Final results',

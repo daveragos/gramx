@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -73,7 +74,7 @@ class AuthPasswordPage extends StatelessWidget {
               color: primaryColor,
             ),
             decoration: InputDecoration(
-              hintText: 'Cloud password',
+              hintText: AppStrings.authPasswordHint,
               hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.5)),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),

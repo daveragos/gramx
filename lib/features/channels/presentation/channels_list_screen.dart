@@ -288,7 +288,7 @@ class _ChannelRow extends ConsumerWidget {
                         ),
                       if (channel.subscriberCount > 0) ...[
                         if (channel.username != null)
-                          Text(' · ',
+                          Text(AppStrings.inlineSeparator,
                               style: AppTypography.username(
                                   color: secondaryColor)),
                         Text(

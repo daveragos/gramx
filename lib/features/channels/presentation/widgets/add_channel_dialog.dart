@@ -89,7 +89,7 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
           TextField(
             controller: _controller,
             decoration: InputDecoration(
-              labelText: 'Channel Username',
+              labelText: AppStrings.channelAddFieldLabel,
               hintText: AppStrings.channelsAddFieldHint,
               prefixText: '@',
               errorText: _errorMsg,
@@ -101,7 +101,7 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const Text(AppStrings.channelAddCancel),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -118,7 +118,7 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
                     strokeWidth: 2,
                   ),
                 )
-              : const Text('Add'),
+              : const Text(AppStrings.channelAddSubmit),
         ),
       ],
     );

@@ -16,6 +16,26 @@
 /// `flutter_localizations` / generated ARB accessors. Call sites don't change.
 abstract class AppStrings {
   // ── App ────────────────────────────────────────────────────────────────────
+
+  /// A username as Telegram writes it, with the one `@` that marks it.
+  ///
+  /// Here rather than inlined at four call sites, because the prefix is a
+  /// convention rather than part of the name — a locale that marks handles
+  /// differently changes it once.
+  static String handle(String username) => '@$username';
+
+  /// The interpunct gramX separates inline facts with.
+  ///
+  /// gramX uses it between a handle and a subscriber count; it is one glyph in
+  /// one place so the spacing cannot drift between them.
+  static const inlineSeparator = ' · ';
+
+  /// The same mark where the layout already supplies the spacing.
+  static const inlineSeparatorBare = '·';
+
+  /// The second of two back presses is the one that leaves. Said in the shell
+  /// and on the sign-in screen, which are the two places back can exit from.
+  static const pressBackAgainToExit = 'Press back again to exit';
   static const appName = 'gramX';
 
   /// The one place the version is written.
@@ -25,7 +45,16 @@ abstract class AppStrings {
   /// `pubspec.yaml`; a test fails if the two drift.
   static const appVersion = '1.0.0';
 
+  /// The version alone, as the Settings row shows it. The drawer says
+  /// [appVersionLabel] instead, which names the app as well.
+  static const appVersionValue = 'v$appVersion';
+
   // ── Feed ───────────────────────────────────────────────────────────────────
+  static String feedError(Object error) => 'Error: $error';
+
+  /// How many people have answered a poll, already abbreviated by the caller.
+  static String pollVoteCount(String formattedCount) => '$formattedCount votes';
+  static String pollVoteFailed(Object error) => 'Failed to vote: $error';
   static const feedSyncingTitle = 'Syncing Telegram Feed';
   static const feedSyncingBody =
       'Fetching your subscribed channels and history from Telegram...';
@@ -35,7 +64,7 @@ abstract class AppStrings {
   static const feedCaughtUpBody =
       'Posts you have read are cleared on refresh. New ones will appear here.';
   static const feedScrollToTop = 'Top';
-  static const feedPressBackAgain = 'Press back again to exit';
+  static const feedPressBackAgain = pressBackAgainToExit;
   static const feedCommentsDisabled = 'Comments are disabled for this channel.';
   static const feedOriginalChannelUnavailable =
       'Original channel is unavailable';
@@ -50,6 +79,11 @@ abstract class AppStrings {
       count == 1 ? '1 new post' : '$count new posts';
 
   // ── Post actions ───────────────────────────────────────────────────────────
+
+  /// A counted action, read out as one phrase — "12 replies" rather than a
+  /// number and a word arriving as two separate labels.
+  static String a11yCountedAction(int count, String action) =>
+      '$count $action';
   static const postLinkCopied = 'Post link copied to clipboard.';
   static const postNotLinkable = "This post can't be linked to.";
   static const postNotFound = 'Post not found';
@@ -203,6 +237,9 @@ abstract class AppStrings {
   static String searchError(Object error) => 'Search failed: $error';
 
   // ── Channels ───────────────────────────────────────────────────────────────
+  static const channelAddFieldLabel = 'Channel Username';
+  static const channelAddCancel = 'Cancel';
+  static const channelAddSubmit = 'Add';
   static const channelsTitle = 'Channels';
   static const channelsEmptyTitle = 'No channels yet';
   static const channelsEmptyBody =
@@ -301,6 +338,7 @@ abstract class AppStrings {
   static String channelsError(Object error) => 'Error loading channels: $error';
 
   // ── Folders ────────────────────────────────────────────────────────────────
+  static String foldersError(Object error) => 'Error loading folders: $error';
   static const foldersTitle = 'Folders';
   static const foldersEmptyTitle = 'No folders found';
   static const foldersEmptyBody =
@@ -323,6 +361,8 @@ abstract class AppStrings {
       'Error loading bookmarks: $error';
 
   // ── Settings ───────────────────────────────────────────────────────────────
+  static String settingsAccountError(Object error) =>
+      'Error loading account: $error';
   static const settingsTitle = 'Settings and privacy';
   static const settingsSectionAccount = 'YOUR ACCOUNT';
   static const settingsSectionDisplay = 'DISPLAY AND SOUND';
@@ -420,6 +460,20 @@ abstract class AppStrings {
   static String profileError(Object error) => 'Error: $error';
 
   // ── Onboarding & auth ──────────────────────────────────────────────────────
+  /// Both the shell and the sign-in screen arm the same two-press exit, so
+  /// they say it with the same sentence rather than two that drift apart.
+  static const authPressBackAgain = pressBackAgainToExit;
+  static const authUsePhoneInstead = 'Use a phone number instead';
+  static const authCountrySearchLabel = 'Search Country';
+  static const authCountrySearchHint =
+      'Start typing country name or code...';
+  static const authPasswordHint = 'Cloud password';
+
+  /// The dots standing in for the login code, one per digit Telegram sends.
+  static const authCodeHint = '••••••';
+
+  /// An example number in the shape the reader's own country writes them.
+  static String authPhoneHint(String dialCode) => '$dialCode 123 456 7890';
   static const onboardingWelcome = 'Welcome to gramX';
   static const onboardingLoggedOutBody =
       'One timeline for the Telegram channels you follow. Log in with your '

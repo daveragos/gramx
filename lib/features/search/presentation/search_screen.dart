@@ -636,7 +636,9 @@ class _ChannelResultTile extends StatelessWidget {
               ),
             ),
             Text(
-              '${TimeUtils.formatCount(channel.subscriberCount)} subscribers',
+              AppStrings.subscriberCountShort(
+                TimeUtils.formatCount(channel.subscriberCount),
+              ),
               style: AppTypography.actionCount(color: secondaryColor),
             ),
           ],

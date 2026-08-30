@@ -122,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
         ),
       ),
-      error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+      error: (err, _) => Scaffold(body: Center(child: Text(AppStrings.feedError(err)))),
       data: (channels) {
         final isEmpty = channels.isEmpty;
         final isLoggedIn = accountAsync.value != null;

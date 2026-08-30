@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
@@ -72,7 +73,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Press back again to exit'),
+              content: Text(AppStrings.authPressBackAgain),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),

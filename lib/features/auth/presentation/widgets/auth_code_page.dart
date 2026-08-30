@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -76,7 +77,7 @@ class AuthCodePage extends StatelessWidget {
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               counterText: '',
-              hintText: '••••••',
+              hintText: AppStrings.authCodeHint,
               hintStyle: TextStyle(
                 color: secondaryColor.withValues(alpha: 0.3),
                 fontSize: 28,

@@ -66,7 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Text(AppStrings.settingsTitle, style: AppTypography.heading(color: primaryColor)),
             accountAsync.when(
               data: (acc) => acc != null && acc.username != null
-                  ? Text('@${acc.username}', style: AppTypography.actionCount(color: secondaryColor))
+                  ? Text(AppStrings.handle(acc.username!), style: AppTypography.actionCount(color: secondaryColor))
                   : const SizedBox.shrink(),
               loading: () => const SizedBox.shrink(),
               error: (err, st) => const SizedBox.shrink(),
@@ -87,7 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             error: (err, stack) => Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text('Error loading account: $err', style: const TextStyle(color: AppColors.error)),
+              child: Text(AppStrings.settingsAccountError(err), style: const TextStyle(color: AppColors.error)),
             ),
             data: (account) {
               final isLoggedIn = account != null;
@@ -356,7 +356,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text(AppStrings.settingsVersion, style: AppTypography.body(color: primaryColor)),
-            trailing: Text('v${AppStrings.appVersion}',
+            trailing: Text(AppStrings.appVersionValue,
                 style: AppTypography.actionCount(color: secondaryColor)),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),

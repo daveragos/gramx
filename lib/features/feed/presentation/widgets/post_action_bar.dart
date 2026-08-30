@@ -190,7 +190,7 @@ class PostStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '$count $semanticLabel',
+      label: AppStrings.a11yCountedAction(count, semanticLabel),
       excludeSemantics: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
