@@ -17,19 +17,31 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// AGP 9 removed `android { kotlinOptions { } }`; the Kotlin plugin owns this
+// now. Same value as `compileOptions` below, which is the point — a mismatch
+// between the Java and Kotlin targets is a link error at assembly time rather
+// than a compile error here.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
 android {
     namespace = "dev.ragoose.gramx"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // `flutter_local_notifications` uses java.time, which is not in the
+        // Android API level this app supports. Desugaring is how that library
+        // reaches an older device, and the build refuses outright without it —
+        // which is the right kind of failure: loud, and at assembly time.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
 
     defaultConfig {
         applicationId = "dev.ragoose.gramx"
@@ -69,6 +81,12 @@ android {
             }
         }
     }
+}
+
+dependencies {
+    // Required by the compileOptions flag above. Version tracks what AGP asks
+    // for; a mismatch is reported at assembly time rather than silently.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
