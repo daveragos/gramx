@@ -145,31 +145,81 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// state is pushed to every client this account owns. Opening a conversation
   /// *is* reading it, which is the one place the feed's dwell rules do not
   /// apply — a feed is a list you scroll past, a chat is a thing you opened.
+  /// How many times the anchor will step up the scrollback looking for the
+  /// band before it gives up and leaves the reader at the newest message.
+  ///
+  /// Bounded so a chat whose band is not in the loaded window cannot spin. Ten
+  /// viewports is far more than `historyAround` ever puts between the read
+  /// cursor and the bottom.
+  static const int _anchorSteps = 10;
+
   /// Brings the unread band to the top of the viewport, once.
   ///
-  /// `ensureVisible` rather than an offset: the rows have no fixed height, so
-  /// there is no arithmetic that could find the band, and the window loaded
-  /// around the read cursor puts it within a screen or two of the bottom —
-  /// close enough that the builder has built it. If it has not, this quietly
-  /// does nothing and the reader stays at the newest message, which is the old
-  /// behaviour rather than a broken one.
+  /// This is the whole point of loading a window around the read cursor: an
+  /// unread chat opens *at the line*, and the reader goes down from there to
+  /// the latest. Landing them on the newest message means scrolling up through
+  /// a conversation to read it forwards, which is backwards.
+  ///
+  /// Finding the band is two-step, for the same reason `_jumpToReply` is.
+  /// `ListView.builder` only builds near the viewport, so a band twenty rows up
+  /// has no `BuildContext` and `ensureVisible` silently does nothing — which is
+  /// exactly what the first version of this did, on every chat with more than a
+  /// screen of backlog. So: walk up a viewport at a time until the band is
+  /// built, then let `ensureVisible` land it exactly.
+  ///
+  /// Stepping rather than estimating from an average row height, because on the
+  /// first frame `maxScrollExtent` only covers what has been laid out so far —
+  /// an average taken then is an average of the wrong thing, and it
+  /// underestimates by however much of the chat has not been built.
   void _anchorToUnreadOnce() {
     if (_hasAnchoredToUnread) return;
     _hasAnchoredToUnread = true;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final context = _unreadBandKey.currentContext;
-      if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        // 1.0 in a reversed list puts the band at the top of the viewport, so
-        // the unread run reads downwards from it — which is the whole point.
-        alignment: 1,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-      );
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _anchorToUnread());
+  }
+
+  Future<void> _anchorToUnread() async {
+    if (!mounted || !_scroll.hasClients) return;
+
+    final state = ref.read(conversationProvider(widget.chatId)).value;
+    if (state == null || state.firstUnreadMessageId == null) return;
+
+    // The band has to exist in the rows at all. It does not when the first
+    // unread message is older than the window that was loaded.
+    final rows = ConversationRows.build(
+      state.messages,
+      firstUnreadMessageId: state.firstUnreadMessageId,
+    );
+    if (ConversationRows.unreadRowFromNewest(rows) == null) return;
+
+    for (var step = 0; step < _anchorSteps; step++) {
+      if (!mounted || !_scroll.hasClients) return;
+
+      final bandContext = _unreadBandKey.currentContext;
+      // `mounted` on the band's own context, not this State's: the band is
+      // rebuilt as the walk scrolls past it, so the element found on the
+      // previous turn of the loop may already be gone.
+      if (bandContext != null && bandContext.mounted) {
+        await Scrollable.ensureVisible(
+          bandContext,
+          // 1.0 in a reversed list puts the band at the top of the viewport, so
+          // the unread run reads downwards from it — which is the whole point.
+          alignment: 1,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+
+      final position = _scroll.position;
+      final target = position.pixels + position.viewportDimension * 0.8;
+      // Nothing further up has been loaded. Stepping again would land on the
+      // same pixel and burn the remaining tries.
+      if (position.pixels >= position.maxScrollExtent) return;
+
+      _scroll.jumpTo(target.clamp(0.0, position.maxScrollExtent));
+      await WidgetsBinding.instance.endOfFrame;
+    }
   }
 
   void _markReadOnce() {

@@ -53,6 +53,22 @@ abstract class ConversationRows {
   /// reply an hour later reads as part of the previous thought.
   static const Duration groupWindow = Duration(minutes: 5);
 
+  /// Where the unread band sits, counted from the *newest* row.
+  ///
+  /// The screen draws these reversed, so this is the band's index in the list
+  /// as built — and it is what lets the screen scroll to a band that has not
+  /// been built yet. `ListView.builder` only builds near the viewport, so a
+  /// band fifty rows up the scrollback has no `BuildContext` at all and
+  /// `ensureVisible` has nothing to work with.
+  ///
+  /// Null when there is no band, which is the ordinary case for a chat opened
+  /// with nothing waiting in it.
+  static int? unreadRowFromNewest(List<ConversationRow> rows) {
+    final index = rows.indexWhere((row) => row is ConversationUnreadRow);
+    if (index < 0) return null;
+    return rows.length - 1 - index;
+  }
+
   /// Builds the rows, oldest first.
   ///
   /// [messages] is expected in the order `ConversationState` keeps them —

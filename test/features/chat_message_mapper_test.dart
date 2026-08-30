@@ -289,6 +289,48 @@ void main() {
       expect((next as ConversationMessageRow).message.messageId, 200);
     });
 
+    // The screen scrolls to the band by walking up the scrollback until it has
+    // been built — `ListView.builder` builds nothing far from the viewport, so
+    // the band twenty rows up has no `BuildContext` for `ensureVisible` to find.
+    // Knowing how far up it is, in the reversed order the list is drawn in, is
+    // what tells the screen there is anything to walk towards.
+    test('the band knows how far it is from the newest row', () {
+      final rows = ConversationRows.build([
+        msg(100),
+        msg(200),
+        msg(300),
+        msg(400),
+      ], firstUnreadMessageId: 300);
+
+      final fromNewest = ConversationRows.unreadRowFromNewest(rows)!;
+
+      // Counted in the reversed order the list draws: the two newest messages
+      // sit below the band, so it is the third row from the bottom.
+      expect(rows[rows.length - 1 - fromNewest], isA<ConversationUnreadRow>());
+      expect(fromNewest, 2);
+    });
+
+    test('a band above everything is still found', () {
+      final rows = ConversationRows.build([
+        msg(100),
+        msg(200),
+      ], firstUnreadMessageId: 100);
+
+      final fromNewest = ConversationRows.unreadRowFromNewest(rows)!;
+      expect(rows[rows.length - 1 - fromNewest], isA<ConversationUnreadRow>());
+    });
+
+    // Nothing to walk towards. The screen has to be able to tell this apart
+    // from "the band is a long way up", or it steps ten viewports for nothing.
+    test('no band means no distance', () {
+      expect(
+        ConversationRows.unreadRowFromNewest(
+          ConversationRows.build([msg(100)]),
+        ),
+        isNull,
+      );
+    });
+
     // A chat opened with nothing waiting gets no band at all, and an id that
     // paged out of the loaded window must not conjure one somewhere else.
     test('no band without a target, or for a target off the page', () {
