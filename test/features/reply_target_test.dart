@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
@@ -15,6 +16,7 @@ Post post({
   int? replyToChatId,
   int? replyToThumbnailFileId,
   String? replyToThumbnailUrl,
+  bool replyToIsQuote = false,
   bool isChannelVerified = false,
 }) => Post(
   id: '-100_5',
@@ -28,6 +30,7 @@ Post post({
   isChannelVerified: isChannelVerified,
   publishedAt: DateTime(2026, 8, 30, 12),
   replyToText: replyToText,
+  replyToIsQuote: replyToIsQuote,
   replyToAuthorTitle: replyToAuthorTitle,
   replyToMessageId: replyToMessageId,
   replyToChatId: replyToChatId,
@@ -89,6 +92,48 @@ void main() {
     test('whitespace is not content', () {
       expect(
         replyPresentationFor(post(replyToMessageId: 4, replyToText: '   \n ')),
+        ReplyPresentation.line,
+      );
+    });
+
+    // The writer picked those words, so those words are what is drawn — not
+    // the post they came out of.
+    test('a selected passage beats the card', () {
+      expect(
+        replyPresentationFor(post(
+          replyToMessageId: 4,
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+        )),
+        ReplyPresentation.passage,
+      );
+    });
+
+    test('a passage outranks a picture too', () {
+      expect(
+        replyPresentationFor(post(
+          replyToMessageId: 4,
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+          replyToThumbnailFileId: 12,
+        )),
+        ReplyPresentation.passage,
+      );
+    });
+
+    // The flag says a span was selected; without the span there is nothing to
+    // stand above the reply, so it falls back rather than drawing an empty one.
+    test('the quote flag without words is not a passage', () {
+      expect(
+        replyPresentationFor(post(
+          replyToMessageId: 4,
+          replyToIsQuote: true,
+          replyToThumbnailFileId: 12,
+        )),
+        ReplyPresentation.card,
+      );
+      expect(
+        replyPresentationFor(post(replyToMessageId: 4, replyToIsQuote: true)),
         ReplyPresentation.line,
       );
     });
@@ -200,6 +245,45 @@ void main() {
       expect(opened, 1);
     });
 
+    // The passage stands above the post, outside the column ReplyTarget sits
+    // in, so the host draws it. PostCard has its own test that it does.
+    testWidgets('ReplyTarget leaves a passage to the host', (tester) async {
+      await tester.pumpWidget(
+        host(post(
+          replyToMessageId: 4,
+          replyToAuthorTitle: 'Ada Lovelace',
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+        )),
+      );
+      expect(find.byType(QuotedPostCard), findsNothing);
+      expect(find.byType(QuotedPassage), findsNothing);
+      expect(find.text('the part they picked'), findsNothing);
+    });
+
+    // A comment is already on a connector inside a thread. A second connector
+    // inside it would be the nested shape T17-5 removed, in a new form.
+    testWidgets('a comment shows a passage as the line, not a connector',
+        (tester) async {
+      await tester.pumpWidget(
+        host(
+          post(
+            replyToMessageId: 4,
+            replyToAuthorTitle: 'Ada Lovelace',
+            replyToText: 'the part they picked',
+            replyToIsQuote: true,
+          ),
+          compact: true,
+        ),
+      );
+      expect(find.byType(QuotedPassage), findsNothing);
+      expect(
+        find.text(AppStrings.chatReplyingToName('Ada Lovelace')),
+        findsOneWidget,
+      );
+      expect(find.text('the part they picked'), findsOneWidget);
+    });
+
     // The same fault PostSender was built to prevent, one level down: a quote
     // of another channel must not wear this channel's picture and tick.
     testWidgets('a cross-chat quote borrows no identity from this post',
@@ -235,6 +319,67 @@ void main() {
       expect(card.avatarFileId, 77);
       expect(card.authorUsername, 'nasadaily');
       expect(card.isAuthorVerified, isTrue);
+    });
+  });
+
+  group('QuotedPassage', () {
+    Widget host(Widget child) => ProviderScope(
+          overrides: [
+            fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+          ],
+          child: MaterialApp(home: Scaffold(body: child)),
+        );
+
+    testWidgets('draws the selected words under their author', (tester) async {
+      await tester.pumpWidget(host(const QuotedPassage(
+        authorTitle: 'Ada Lovelace',
+        authorUsername: 'ada',
+        passage: 'the part they picked',
+      )));
+
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      expect(find.text('@ada'), findsOneWidget);
+      expect(find.text('the part they picked'), findsOneWidget);
+    });
+
+    // A fragment of a message is not a thing that can be liked, forwarded or
+    // bookmarked. Drawing the controls under one would be the inert
+    // affordance the hard rules forbid.
+    testWidgets('carries no action bar', (tester) async {
+      await tester.pumpWidget(host(const QuotedPassage(
+        authorTitle: 'Ada Lovelace',
+        passage: 'the part they picked',
+      )));
+
+      expect(find.byType(PostActionBar), findsNothing);
+      expect(find.byIcon(Icons.bookmark_border), findsNothing);
+      expect(find.byIcon(Icons.repeat), findsNothing);
+    });
+
+    testWidgets('the whole block opens what it came out of', (tester) async {
+      var opened = 0;
+      await tester.pumpWidget(host(QuotedPassage(
+        authorTitle: 'Ada Lovelace',
+        passage: 'the part they picked',
+        onTap: () => opened++,
+      )));
+
+      await tester.tap(find.text('the part they picked'));
+      expect(opened, 1);
+    });
+
+    // Unlike the card, the passage is never clamped: the writer chose exactly
+    // these words, so hiding some of them behind an ellipsis hides the point.
+    testWidgets('a long passage is not truncated', (tester) async {
+      final long = List.filled(40, 'word').join(' ');
+      await tester.pumpWidget(host(QuotedPassage(
+        authorTitle: 'Ada Lovelace',
+        passage: long,
+      )));
+
+      final text = tester.widget<Text>(find.text(long));
+      expect(text.maxLines, isNull);
+      expect(text.overflow, isNull);
     });
   });
 }

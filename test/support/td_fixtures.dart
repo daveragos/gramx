@@ -392,6 +392,53 @@ abstract class TdFixtures {
     textMessageJson(id: id, chatId: chatId, text: text, date: date),
   );
 
+  /// A channel post that answers another message.
+  ///
+  /// [quote] is the passage the writer *selected* out of what they answered.
+  /// TDLib fills `reply_to.quote` only in that case, which is the one thing
+  /// separating a quoted passage from a reply to a whole post — and the two
+  /// are drawn differently, so a fixture that could not express the difference
+  /// could not test it.
+  ///
+  /// [targetText] is the answered message's own content, which TDLib inlines
+  /// for cross-chat replies and quotes. Supplying it alongside [quote] is the
+  /// case that matters: both arrive, and the selected passage must win.
+  static td.Message replyingMessage({
+    required int id,
+    required int chatId,
+    required int replyToMessageId,
+    String text = 'hello',
+    int replyToChatId = 0,
+    String? quote,
+    String? targetText,
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId, text: text);
+    final replyTo = <String, dynamic>{
+      '@type': 'messageReplyToMessage',
+      'chat_id': replyToChatId,
+      'message_id': replyToMessageId,
+      // Non-nullable in TDLib's decoder even though it is meaningless for a
+      // same-chat reply — a missing key throws "Null is not a subtype of int".
+      'origin_send_date': 0,
+    };
+    if (quote != null) {
+      replyTo['quote'] = {
+        '@type': 'textQuote',
+        'text': {'@type': 'formattedText', 'text': quote, 'entities': []},
+        'position': 0,
+        'is_manual': true,
+      };
+    }
+    if (targetText != null) {
+      replyTo['content'] = {
+        '@type': 'messageText',
+        'text': {'@type': 'formattedText', 'text': targetText, 'entities': []},
+      };
+    }
+    json['reply_to'] = replyTo;
+    return td.Message.fromJson(json);
+  }
+
   /// One entry in a message's reaction list.
   ///
   /// [type] is the raw `ReactionType` JSON, so a test can build the emoji, paid

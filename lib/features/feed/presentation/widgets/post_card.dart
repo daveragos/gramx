@@ -13,6 +13,7 @@ import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/domain/reply_presentation.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
@@ -176,8 +177,29 @@ class PostCard extends ConsumerWidget {
         ),
         child: Column(
           children: [
+            // A quoted passage stands above the post that answers it, on a
+            // connector running down into this card's own avatar — so it is
+            // drawn here rather than inside the column below. See
+            // QuotedPassage.
+            if (showsQuotedPassage)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.postPadding,
+                  AppSpacing.postPadding,
+                  AppSpacing.postPadding,
+                  0,
+                ),
+                child: _quotedPassage(context),
+              ),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.postPadding),
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.postPadding,
+                // The passage above already opened the card; a second top
+                // padding here would break the connector's run.
+                showsQuotedPassage ? 0 : AppSpacing.postPadding,
+                AppSpacing.postPadding,
+                AppSpacing.postPadding,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -434,6 +456,32 @@ class PostCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// Whether this post singles out a passage of what it answers.
+  bool get showsQuotedPassage =>
+      replyPresentationFor(post) == ReplyPresentation.passage;
+
+  /// The passage, with the byline of whoever wrote it.
+  ///
+  /// A reply inside this channel is answering this channel, so the face and
+  /// handle already on the card are the right ones. Across chats they belong
+  /// to somebody else and the avatar falls back to its initial rather than
+  /// wearing the wrong channel's picture — the same fault `PostSender` exists
+  /// to prevent, one level down.
+  Widget _quotedPassage(BuildContext context) {
+    final isSameChat = post.replyToChatId == null;
+    return QuotedPassage(
+      authorTitle: post.replyToAuthorTitle ?? post.channelTitle,
+      authorUsername: isSameChat ? post.channelUsername : null,
+      isAuthorVerified: isSameChat && post.isChannelVerified,
+      avatarPath: isSameChat ? post.channelAvatarUrl : null,
+      avatarFileId: isSameChat ? post.channelAvatarFileId : null,
+      avatarColorHex: isSameChat ? post.channelAvatarColor : null,
+      passage: post.replyToText!,
+      onTap: () => _openReplyTarget(context),
+      onAuthorTap: () => NavigationUtils.openChannel(context, post.channelId),
     );
   }
 

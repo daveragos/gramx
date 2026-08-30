@@ -26,6 +26,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/domain/reply_presentation.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
@@ -319,6 +320,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // The passage this post singles out stands above
+                              // it, on a connector running into its avatar.
+                              if (replyPresentationFor(post) ==
+                                  ReplyPresentation.passage)
+                                _quotedPassage(context, post),
                               // Channel header
                               GestureDetector(
                                 onTap: () =>
@@ -1322,6 +1328,30 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// The passage a post singles out of what it answers, above the post.
+  ///
+  /// Sized to this screen's larger avatar so the connector runs straight down
+  /// the gutter instead of stepping sideways where it meets the post.
+  Widget _quotedPassage(BuildContext context, Post post) {
+    final isSameChat = post.replyToChatId == null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: QuotedPassage(
+        authorTitle: post.replyToAuthorTitle ?? post.channelTitle,
+        authorUsername: isSameChat ? post.channelUsername : null,
+        isAuthorVerified: isSameChat && post.isChannelVerified,
+        avatarPath: isSameChat ? post.channelAvatarUrl : null,
+        avatarFileId: isSameChat ? post.channelAvatarFileId : null,
+        avatarColorHex: isSameChat ? post.channelAvatarColor : null,
+        passage: post.replyToText!,
+        avatarRadius: AppSpacing.avatarSizeLarge / 2,
+        gutterGap: AppSpacing.avatarGap,
+        onTap: () => _openReplyTarget(context, post),
+        onAuthorTap: () => context.push('/channel/${post.channelId}'),
       ),
     );
   }

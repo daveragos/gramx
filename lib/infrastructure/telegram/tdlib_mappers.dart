@@ -294,6 +294,7 @@ class TdlibMappers {
     }
 
     String? replyToText;
+    bool replyToIsQuote = false;
     String? replyToAuthorTitle;
     int? replyToMessageId;
     String? replyToThumbnailUrl;
@@ -326,10 +327,15 @@ class TdlibMappers {
       }
       replyToAuthorTitle ??= chat.title;
 
-      // Check for quoted text first (user selected specific text to reply to)
+      // A quote is the writer selecting a span out of the message they are
+      // answering. TDLib fills this only in that case, so it is the one place
+      // the distinction exists — and it is drawn differently from a reply to
+      // a whole post. Recorded before the two fallbacks below overwrite the
+      // fact by filling the same field from the target's own content.
       final quote = replyTo.quote;
       if (quote != null) {
         replyToText = _parseFormattedText(quote.text);
+        replyToIsQuote = replyToText != null && replyToText.trim().isNotEmpty;
       }
 
       // Resolved separately when TDLib didn't inline the content.
@@ -500,6 +506,7 @@ class TdlibMappers {
       forwardedFromChatId: forwardedFromChatId,
       forwardedFromMessageId: forwardedFromMessageId,
       replyToText: replyToText,
+      replyToIsQuote: replyToIsQuote,
       replyToAuthorTitle: replyToAuthorTitle,
       replyToMessageId: replyToMessageId,
       replyToChatId: replyToChatId,

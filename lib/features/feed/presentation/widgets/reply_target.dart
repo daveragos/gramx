@@ -55,6 +55,14 @@ class ReplyTarget extends StatelessWidget {
     final presentation = replyPresentationFor(post);
     if (presentation == ReplyPresentation.none) return const SizedBox.shrink();
 
+    // A passage stands *above* the post on a connector, outside the column
+    // this widget sits in, so the host draws it with [QuotedPassage]. Both
+    // hosts have a test asserting they do — a shape that silently vanished
+    // because a caller forgot would be indistinguishable from no reply.
+    if (presentation == ReplyPresentation.passage && !compact) {
+      return const SizedBox.shrink();
+    }
+
     final authorTitle = post.replyToAuthorTitle ?? post.channelTitle;
 
     if (compact || presentation == ReplyPresentation.line) {
@@ -156,6 +164,158 @@ class _ReplyingToLine extends StatelessWidget {
     );
   }
 }
+
+/// The passage a reply quoted, standing above the reply on a thread connector.
+///
+/// picked those words, so those words are what gets drawn — **not** the post
+/// they came out of, and not its media, which would bury the part that was
+/// picked under the part that was not.
+///
+/// It carries **no action bar**. A fragment of a message is not a thing that
+/// can be liked, forwarded, bookmarked or counted, and drawing the controls
+/// under one would be the styled-but-inert affordance the hard rules forbid.
+/// The reply underneath keeps every one of its own.
+///
+/// Drawn by the host rather than by [ReplyTarget], because it sits in the
+/// avatar gutter beside the post rather than inside the post's text column —
+/// which is what lets the connector run from this avatar down to the reply's.
+class QuotedPassage extends StatelessWidget {
+  final String authorTitle;
+  final String? authorUsername;
+  final bool isAuthorVerified;
+  final String? avatarPath;
+  final int? avatarFileId;
+  final String? avatarColorHex;
+
+  /// The selected words. The whole point of this shape, so it is required and
+  /// non-null — [replyPresentationFor] only picks `passage` when there are
+  /// some.
+  final String passage;
+
+  /// Matched to the host's own avatar so the connector runs straight down the
+  /// gutter instead of stepping sideways at the join.
+  final double avatarRadius;
+  final double gutterGap;
+
+  final VoidCallback? onTap;
+  final VoidCallback? onAuthorTap;
+
+  const QuotedPassage({
+    super.key,
+    required this.authorTitle,
+    required this.passage,
+    this.authorUsername,
+    this.isAuthorVerified = false,
+    this.avatarPath,
+    this.avatarFileId,
+    this.avatarColorHex,
+    this.avatarRadius = AppSpacing.avatarSize / 2,
+    this.gutterGap = AppSpacing.md,
+    this.onTap,
+    this.onAuthorTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final connector = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Semantics(
+      button: true,
+      label: AppStrings.quotedPassageBy(authorTitle),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        // Stretched so the connector can fill whatever height the passage
+        // turns out to need.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
+                children: [
+                  ChannelAvatar(
+                    title: authorTitle,
+                    avatarPath: avatarPath,
+                    avatarFileId: avatarFileId,
+                    avatarColorHex: avatarColorHex,
+                    radius: avatarRadius,
+                    onTap: onAuthorTap,
+                  ),
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.only(top: AppSpacing.xs),
+                      color: connector,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(width: gutterGap),
+              Expanded(
+                child: Padding(
+                  // The gap the connector runs through before the reply's own
+                  // avatar picks it up.
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _byline(primary, secondary),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        passage,
+                        style: AppTypography.body(color: secondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _byline(Color primary, Color secondary) {
+    return Row(
+      children: [
+        Flexible(
+          child: GestureDetector(
+            onTap: onAuthorTap,
+            child: Text(
+              authorTitle,
+              style: AppTypography.displayName(color: primary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        if (isAuthorVerified) ...[
+          const SizedBox(width: AppSpacing.xs),
+          const Icon(Icons.verified, color: AppColors.verified, size: 16),
+        ],
+        if (authorUsername != null && authorUsername!.isNotEmpty) ...[
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              '@$authorUsername',
+              style: AppTypography.username(color: secondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 
 ///
 /// Telegram draws this as a tinted block with an accent bar down its left edge

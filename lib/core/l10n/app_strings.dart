@@ -608,6 +608,12 @@ abstract class AppStrings {
   /// post it leads to before hearing the words in it.
   static String quotedPostBy(String name) => 'Quoted post by $name';
 
+  /// Read out for the passage a reply singled out, which stands above the
+  /// reply rather than inside it. Named apart from [quotedPostBy] because it
+  /// is a fragment of a post, not a post — and it leads to the message the
+  /// fragment came out of.
+  static String quotedPassageBy(String name) => 'Quoted passage from $name';
+
   // ── Rich text ──────────────────────────────────────────────────────────────
   static const codeBlockLabel = 'Code';
   static const codeBlockCopy = 'Copy code';

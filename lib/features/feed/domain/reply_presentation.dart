@@ -13,9 +13,21 @@ enum ReplyPresentation {
   /// sent. Nothing is drawn around it.
   line,
 
-  /// byline, its words and its picture. Earned by having something to put in
-  /// it — an empty bordered box is worse than the line.
+  /// own byline, its words and its picture. This is a reply to the **whole**
+  /// post — there is no passage to single out, so the post itself is shown.
+  /// Earned by having something to put in it; an empty bordered box is worse
+  /// than the line.
   card,
+
+  /// The selected passage, standing above the reply on a thread connector.
+  ///
+  /// When the writer quoted a *span* rather than answering the whole post,
+  /// the span is what they are talking about, so the span is what gets drawn
+  /// — not the post it came out of, and not its media. It carries no action
+  /// bar: a fragment of a message is not a thing that can be liked, forwarded
+  /// or bookmarked, and offering the controls would be the inert affordance
+  /// the hard rules forbid. The reply below keeps all of its own.
+  passage,
 }
 
 /// Whether [post] answers another message at all.
@@ -27,10 +39,15 @@ bool hasReplyTarget(Post post) =>
     post.replyToAuthorTitle != null ||
     post.replyToText != null;
 
-/// Whether there is enough of the quoted post to fill a card.
-bool hasQuotedContent(Post post) {
+/// Whether the reply carries words from the message it answers.
+bool hasQuotedText(Post post) {
   final text = post.replyToText;
-  if (text != null && text.trim().isNotEmpty) return true;
+  return text != null && text.trim().isNotEmpty;
+}
+
+/// Whether there is enough of the answered post to fill a card.
+bool hasQuotedContent(Post post) {
+  if (hasQuotedText(post)) return true;
   if (post.replyToThumbnailFileId != null &&
       post.replyToThumbnailFileId != 0) {
     return true;
@@ -40,8 +57,17 @@ bool hasQuotedContent(Post post) {
 }
 
 /// Which shape [post]'s reply target gets.
+///
+/// The first question is what was answered, not how much of it we have: a
+/// writer who selected a passage is talking about that passage, and drawing
+/// the whole post around it buries the part they picked. Only once that is
+/// ruled out does having something to show decide between the card and the
+/// line.
 ReplyPresentation replyPresentationFor(Post post) {
   if (!hasReplyTarget(post)) return ReplyPresentation.none;
+  if (post.replyToIsQuote && hasQuotedText(post)) {
+    return ReplyPresentation.passage;
+  }
   return hasQuotedContent(post)
       ? ReplyPresentation.card
       : ReplyPresentation.line;

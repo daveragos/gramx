@@ -52,6 +52,17 @@ abstract class Post with _$Post {
     /// Lets a forward link to the post itself rather than just the channel.
     int? forwardedFromMessageId,
     String? replyToText,
+
+    /// Whether [replyToText] is a passage the writer *selected* out of the
+    /// message being answered, rather than that message's opening words.
+    ///
+    /// differently from a reply to a whole post: the span becomes its own
+    /// block above the reply on a thread connector, while a whole-post reply
+    /// is embedded in a quote card. So the two cannot share one field. TDLib
+    /// fills `replyTo.quote` only in the first case, and the mapper folds it
+    /// into [replyToText] alongside two other sources — this is what survives
+    /// that fold. See `ReplyPresentation`.
+    @Default(false) bool replyToIsQuote,
     String? replyToAuthorTitle,
     int? replyToMessageId,
 
