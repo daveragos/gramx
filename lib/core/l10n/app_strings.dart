@@ -242,6 +242,11 @@ abstract class AppStrings {
 
   static String searchError(Object error) => 'Search failed: $error';
 
+  static const searchWhoToFollow = 'Channels you might like';
+  static const searchWhoToFollowBody =
+      'Suggested by Telegram, from the channels you already read.';
+  static const searchFollowAction = 'Follow';
+
   // ── Channels ───────────────────────────────────────────────────────────────
   static const channelAddFieldLabel = 'Channel Username';
   static const channelAddCancel = 'Cancel';

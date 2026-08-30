@@ -274,3 +274,13 @@ final activeAccountProvider = StreamProvider<Account?>((ref) {
     db.accounts,
   )..where((a) => a.isActive.equals(true))).watchSingleOrNull();
 });
+
+/// Channels Telegram suggests, for the Explore view.
+///
+/// One request, and it is deliberately **not** auto-disposed: the Search tab is
+/// a tab, and a reader who switches away and back should not spend a request
+/// each time. Recommendations do not change minute to minute.
+final recommendedChannelsProvider = FutureProvider<List<Channel>>((ref) async {
+  ref.keepAlive();
+  return ref.watch(channelRepositoryProvider).recommendedChannels();
+});

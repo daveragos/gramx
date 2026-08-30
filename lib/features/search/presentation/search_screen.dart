@@ -629,7 +629,7 @@ class _ChannelResultTile extends StatelessWidget {
                   ),
                   if (channel.username != null)
                     Text(
-                      '@${channel.username}',
+                      AppStrings.handle(channel.username!),
                       style: AppTypography.username(color: secondaryColor),
                     ),
                 ],
@@ -644,6 +644,80 @@ class _ChannelResultTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+///
+/// A sliver rather than a widget, so it scrolls with the posts under it rather
+/// than pinning a block to the top of a list somebody is reading.
+///
+/// Absent entirely when Telegram suggests nothing, or while the one request is
+/// in flight: a heading over an empty space is worse than no heading, and this
+/// is a section nobody asked for.
+class _WhoToFollow extends ConsumerWidget {
+  /// there is nowhere for a "more" to go here, so this is simply the list.
+  static const int maxShown = 5;
+
+  final Color primaryColor;
+  final Color secondaryColor;
+  final double topPadding;
+
+  const _WhoToFollow({
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.topPadding,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recommended =
+        ref.watch(recommendedChannelsProvider).value ?? const <Channel>[];
+
+    if (recommended.isEmpty) {
+      return SliverToBoxAdapter(child: SizedBox(height: topPadding));
+    }
+
+    final shown = recommended.take(maxShown).toList();
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: topPadding + AppSpacing.lg,
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              bottom: AppSpacing.xs,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.searchWhoToFollow,
+                  style: AppTypography.subheading(color: primaryColor),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  AppStrings.searchWhoToFollowBody,
+                  style: AppTypography.actionCount(color: secondaryColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _ChannelResultTile(
+              channel: shown[index],
+              primaryColor: primaryColor,
+              secondaryColor: secondaryColor,
+            ),
+            childCount: shown.length,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -699,10 +773,17 @@ class _ExploreView extends ConsumerWidget {
 
         return CustomScrollView(
           slivers: [
+            // one request for the whole session — see
+            // `recommendedChannelsProvider`.
+            _WhoToFollow(
+              primaryColor: primaryColor,
+              secondaryColor: secondaryColor,
+              topPadding: topPadding,
+            ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.only(
-                  top: topPadding + AppSpacing.lg,
+                padding: const EdgeInsets.only(
+                  top: AppSpacing.lg,
                   left: AppSpacing.lg,
                   right: AppSpacing.lg,
                   bottom: AppSpacing.sm,

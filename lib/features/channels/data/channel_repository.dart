@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/channels/domain/channel.dart';
+import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -17,6 +19,50 @@ class ChannelRepository {
   static const int _maxSupergroupLookups = 15;
 
   ChannelRepository(this._tdlib, this._chatCache);
+
+  /// Channels Telegram thinks this reader would want, given the ones they
+  /// already follow.
+  ///
+  ///
+  /// **One request, and the names are free.** `getRecommendedChats` answers
+  /// with chat *ids*, and TDLib always pushes `updateNewChat` for a chat before
+  /// it names it in a reply — so `ChatCache` already holds every one of them by
+  /// the time this returns. That is the same property T0-3 leans on, and it is
+  /// what keeps this off the per-chat fan-out the rules forbid: there is no
+  /// `GetChat` per result, because there does not need to be.
+  ///
+  /// Channels the reader is already in are dropped. Telegram usually excludes
+  /// them itself, but a suggestion to follow something you follow is the kind
+  /// of thing that reads as the app not knowing you.
+  Future<List<Channel>> recommendedChannels() async {
+    try {
+      final res = await _tdlib.sendRequest(const td.GetRecommendedChats());
+      if (res is! td.Chats) return const [];
+
+      final channels = <Channel>[];
+      for (final chatId in res.chatIds) {
+        final chat = _chatCache.chat(chatId);
+        if (chat == null) continue;
+
+        final supergroupId = TelegramIds.supergroupId(chatId);
+        final supergroup = supergroupId == null
+            ? null
+            : _chatCache.supergroup(supergroupId);
+
+        final channel = TdlibMappers.mapChatToChannel(
+          chat,
+          supergroup: supergroup,
+        );
+        if (channel.isJoined) continue;
+        channels.add(channel);
+      }
+      return channels;
+    } catch (e) {
+      debugPrint('[ChannelRepo] recommendations unavailable: $e');
+      return const [];
+    }
+  }
+
 
   /// Every subscribed broadcast channel, most recently active first.
   ///
