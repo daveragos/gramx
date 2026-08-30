@@ -49,8 +49,9 @@ class ReplyTarget extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final presentation = replyPresentationFor(post);
     if (presentation == ReplyPresentation.none) return const SizedBox.shrink();
@@ -126,7 +127,10 @@ class _ReplyingToLine extends StatelessWidget {
     final trimmed = excerpt?.trim();
 
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xxs, bottom: AppSpacing.sm),
+      padding: const EdgeInsets.only(
+        top: AppSpacing.xxs,
+        bottom: AppSpacing.sm,
+      ),
       child: Semantics(
         button: true,
         label: AppStrings.chatReplyingToName(authorTitle),
@@ -210,6 +214,14 @@ class QuotedPassage extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
 
+  /// The shortest the connector is allowed to be.
+  ///
+  /// The block's height comes from its content, and a one-line passage under a
+  /// one-line byline leaves the avatar almost touching the reply's — a stub of
+  /// a few pixels that reads as a rendering artefact rather than as a line
+  /// under it; a passage long enough to earn more simply gets more.
+  static const double minConnectorRun = 26;
+
   const QuotedPassage({
     super.key,
     required this.passage,
@@ -230,8 +242,9 @@ class QuotedPassage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final connector = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final title = authorTitle;
@@ -246,57 +259,65 @@ class QuotedPassage extends StatelessWidget {
         onTap: onTap,
         // Stretched so the connector can fill whatever height the passage
         // turns out to need.
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Column(
-                children: [
-                  if (title != null)
-                    ChannelAvatar(
-                      title: title,
-                      avatarPath: avatarPath,
-                      avatarFileId: avatarFileId,
-                      avatarColorHex: avatarColorHex,
-                      radius: avatarRadius,
-                      onTap: onAuthorTap,
-                    )
-                  else
-                    // No identity to draw, but the gutter still has to hold
-                    // the connector in line with the reply's own avatar.
-                    SizedBox(width: avatarRadius * 2, height: avatarRadius * 2),
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.only(top: AppSpacing.xs),
-                      color: connector,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: avatarRadius * 2 + AppSpacing.xs + minConnectorRun,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
+                  children: [
+                    if (title != null)
+                      ChannelAvatar(
+                        title: title,
+                        avatarPath: avatarPath,
+                        avatarFileId: avatarFileId,
+                        avatarColorHex: avatarColorHex,
+                        radius: avatarRadius,
+                        onTap: onAuthorTap,
+                      )
+                    else
+                      // No identity to draw, but the gutter still has to hold
+                      // the connector in line with the reply's own avatar.
+                      SizedBox(
+                        width: avatarRadius * 2,
+                        height: avatarRadius * 2,
+                      ),
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.only(top: AppSpacing.xs),
+                        color: connector,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(width: gutterGap),
+                Expanded(
+                  child: Padding(
+                    // The gap the connector runs through before the reply's own
+                    // avatar picks it up.
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (title != null) ...[
+                          _byline(title, primary, secondary),
+                          const SizedBox(height: AppSpacing.xs),
+                        ],
+                        Text(
+                          passage,
+                          style: AppTypography.body(color: secondary),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              SizedBox(width: gutterGap),
-              Expanded(
-                child: Padding(
-                  // The gap the connector runs through before the reply's own
-                  // avatar picks it up.
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (title != null) ...[
-                        _byline(title, primary, secondary),
-                        const SizedBox(height: AppSpacing.xs),
-                      ],
-                      Text(
-                        passage,
-                        style: AppTypography.body(color: secondary),
-                      ),
-                    ],
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -336,7 +357,6 @@ class QuotedPassage extends StatelessWidget {
     );
   }
 }
-
 
 ///
 /// Telegram draws this as a tinted block with an accent bar down its left edge
@@ -393,8 +413,9 @@ class QuotedPostCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final body = text?.trim();
@@ -446,11 +467,12 @@ class QuotedPostCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (_hasThumbnail) _QuotedMedia(
-                  path: thumbnailPath,
-                  fileId: thumbnailFileId,
-                  isDark: isDark,
-                ),
+                if (_hasThumbnail)
+                  _QuotedMedia(
+                    path: thumbnailPath,
+                    fileId: thumbnailFileId,
+                    isDark: isDark,
+                  ),
               ],
             ),
           ),

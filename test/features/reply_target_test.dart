@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
@@ -404,6 +405,42 @@ void main() {
 
       await tester.tap(find.text('the part they picked'));
       expect(opened, 1);
+    });
+
+    // The block's height comes from its content, so a one-line passage under a
+    // one-line byline left the avatar almost touching the reply's — a stub of
+    // a few pixels rather than a line joining two posts.
+    testWidgets('a short passage still gets a connector you can see',
+        (tester) async {
+      await tester.pumpWidget(host(const QuotedPassage(
+        authorTitle: 'Ada',
+        passage: 'short',
+      )));
+
+      final height = tester.getSize(find.byType(QuotedPassage)).height;
+      expect(
+        height,
+        greaterThanOrEqualTo(
+          AppSpacing.avatarSize + QuotedPassage.minConnectorRun,
+        ),
+      );
+    });
+
+    testWidgets('a long passage is given more, not clamped to the floor',
+        (tester) async {
+      await tester.pumpWidget(host(const QuotedPassage(
+        authorTitle: 'Ada',
+        passage: 'short',
+      )));
+      final short = tester.getSize(find.byType(QuotedPassage)).height;
+
+      await tester.pumpWidget(host(QuotedPassage(
+        authorTitle: 'Ada',
+        passage: List.filled(40, 'word').join(' '),
+      )));
+      final long = tester.getSize(find.byType(QuotedPassage)).height;
+
+      expect(long, greaterThan(short));
     });
   });
 }
