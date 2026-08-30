@@ -306,7 +306,9 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // Telegram's tinted block. See ReplyTarget.
+                        // "Replying to Ada" — context for words not read yet,
+                        // so it goes before them. The quote card is the other
+                        // shape and sits below the body; see ReplySlot.
                         ReplyTarget(
                           post: post,
                           onOpenPost: () => _openReplyTarget(context),
@@ -362,6 +364,15 @@ class PostCard extends ConsumerWidget {
                           const SizedBox(height: AppSpacing.md),
                           PostMediaGrid(media: post.media, post: post),
                         ],
+
+                        // order, and the whole point of the card.
+                        ReplyTarget(
+                          post: post,
+                          slot: ReplySlot.belowBody,
+                          onOpenPost: () => _openReplyTarget(context),
+                          onOpenAuthor: () => NavigationUtils.openChannel(
+                              context, post.channelId),
+                        ),
 
                         // Horizontal Reactions Scroll Bar
                         if (post.reactions.isNotEmpty) ...[

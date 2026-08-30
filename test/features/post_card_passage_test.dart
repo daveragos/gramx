@@ -104,4 +104,57 @@ void main() {
     expect(find.byType(QuotedPassage), findsNothing);
     expect(find.byType(QuotedPostCard), findsNothing);
   });
+
+  /// own words come first, and the post they answer is what you look at once
+  /// you have read them.
+  group('the quote card sits under the answer', () {
+    Post quoting() => Post(
+      id: '-100_5',
+      chatId: -100,
+      channelId: '-100',
+      messageId: 5,
+      channelTitle: 'Nasa Daily',
+      text: 'Extending consciousness beyond Earth',
+      publishedAt: DateTime(2026, 8, 30, 12),
+      replyToMessageId: 4,
+      replyToAuthorTitle: 'Deep Freeze',
+      replyToText: "SpaceX's road to making humanity multiplanetary",
+    );
+
+    testWidgets('below the reply\'s own words', (tester) async {
+      await tester.pumpWidget(host(quoting()));
+
+      final own = tester.getTopLeft(
+        find.text('Extending consciousness beyond Earth'),
+      );
+      final quoted = tester.getTopLeft(find.byType(QuotedPostCard));
+      expect(quoted.dy, greaterThan(own.dy));
+    });
+
+    testWidgets('and above the action bar, which belongs to the reply',
+        (tester) async {
+      await tester.pumpWidget(host(quoting()));
+
+      final quoted = tester.getTopLeft(find.byType(QuotedPostCard));
+      final bar = tester.getTopLeft(find.byType(PostActionBar));
+      expect(bar.dy, greaterThan(quoted.dy));
+    });
+
+    // The host draws ReplyTarget in both slots. A shape that answered in both
+    // would appear twice.
+    testWidgets('exactly once', (tester) async {
+      await tester.pumpWidget(host(quoting()));
+      expect(find.byType(QuotedPostCard), findsOneWidget);
+    });
+
+    // The line is context for words not read yet, so it keeps its place above
+    // them even though the card moved.
+    testWidgets('the line still comes before the words', (tester) async {
+      await tester.pumpWidget(host(post(replyToMessageId: 4)));
+
+      final line = tester.getTopLeft(find.textContaining('Replying to'));
+      final own = tester.getTopLeft(find.text('the reply itself'));
+      expect(line.dy, lessThan(own.dy));
+    });
+  });
 }

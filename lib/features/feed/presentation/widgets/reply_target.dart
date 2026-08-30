@@ -12,6 +12,20 @@ import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
 
+/// Where in a post's column a reply shape belongs.
+///
+/// The two shapes do not sit in the same place, because they are not doing the
+/// same job. "Replying to Ada" is context for words you have not read yet, so
+/// that **after** the answer — the writer's own words come first, and what
+/// post reads that way round, and gramX had it inverted.
+enum ReplySlot {
+  /// Between the byline and the post's own words.
+  aboveBody,
+
+  /// Under everything the post itself says — its text, its media, all of it.
+  belowBody,
+}
+
 ///
 /// Two Telegram conventions had made their way into gramX and stayed: the
 /// tinted block with an accent bar down its left edge for a reply, and the
@@ -37,12 +51,18 @@ class ReplyTarget extends StatelessWidget {
   /// Telegram happened to send.
   final bool compact;
 
+  /// Which of the two positions this call is filling. A host draws
+  /// [ReplyTarget] twice — once in each slot — and each shape appears in the
+  /// one it belongs to.
+  final ReplySlot slot;
+
   const ReplyTarget({
     super.key,
     required this.post,
     required this.onOpenPost,
     required this.onOpenAuthor,
     this.compact = false,
+    this.slot = ReplySlot.aboveBody,
   });
 
   @override
@@ -72,6 +92,7 @@ class ReplyTarget extends StatelessWidget {
     final authorTitle = post.replyToAuthorTitle;
 
     if (compact || presentation == ReplyPresentation.line) {
+      if (slot != ReplySlot.aboveBody) return const SizedBox.shrink();
       return _ReplyingToLine(
         authorTitle: authorTitle ?? post.channelTitle,
         // Absent rather than invented: TDLib sends no excerpt for a reply
@@ -82,6 +103,8 @@ class ReplyTarget extends StatelessWidget {
         onTap: onOpenPost,
       );
     }
+
+    if (slot != ReplySlot.belowBody) return const SizedBox.shrink();
 
     // A reply inside this channel is answering this channel, so the quoted
     // post's face and tick are the ones already on this card. Across chats

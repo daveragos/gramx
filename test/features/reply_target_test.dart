@@ -153,7 +153,12 @@ void main() {
   });
 
   group('ReplyTarget', () {
-    Widget host(Post p, {bool compact = false, VoidCallback? onOpenPost}) =>
+    Widget host(
+      Post p, {
+      bool compact = false,
+      VoidCallback? onOpenPost,
+      ReplySlot slot = ReplySlot.belowBody,
+    }) =>
         ProviderScope(
           // An avatar or a thumbnail asks TDLib for the file behind it. There
           // is no TDLib here, so every id resolves to "not downloaded" — which
@@ -165,6 +170,7 @@ void main() {
             home: Scaffold(
               body: ReplyTarget(
                 post: p,
+                slot: slot,
                 compact: compact,
                 onOpenPost: onOpenPost ?? () {},
                 onOpenAuthor: () {},
@@ -181,7 +187,10 @@ void main() {
 
     testWidgets('the line names who is being answered', (tester) async {
       await tester.pumpWidget(
-        host(post(replyToMessageId: 4, replyToAuthorTitle: 'Ada Lovelace')),
+        host(
+          post(replyToMessageId: 4, replyToAuthorTitle: 'Ada Lovelace'),
+          slot: ReplySlot.aboveBody,
+        ),
       );
       expect(
         find.text(AppStrings.chatReplyingToName('Ada Lovelace')),
@@ -215,6 +224,7 @@ void main() {
             replyToText: 'the analytical engine',
           ),
           compact: true,
+          slot: ReplySlot.aboveBody,
         ),
       );
       expect(find.byType(QuotedPostCard), findsNothing);
@@ -228,7 +238,9 @@ void main() {
 
     testWidgets('a reply with no named author falls back to this channel',
         (tester) async {
-      await tester.pumpWidget(host(post(replyToMessageId: 4)));
+      await tester.pumpWidget(
+        host(post(replyToMessageId: 4), slot: ReplySlot.aboveBody),
+      );
       expect(
         find.text(AppStrings.chatReplyingToName('Nasa Daily')),
         findsOneWidget,
@@ -276,6 +288,7 @@ void main() {
             replyToIsQuote: true,
           ),
           compact: true,
+          slot: ReplySlot.aboveBody,
         ),
       );
       expect(find.byType(QuotedPassage), findsNothing);
@@ -321,6 +334,38 @@ void main() {
       expect(card.avatarFileId, 77);
       expect(card.authorUsername, 'nasadaily');
       expect(card.isAuthorVerified, isTrue);
+    });
+
+    // Each shape belongs to exactly one slot. A host draws ReplyTarget twice,
+    // and a shape that answered in both would be drawn twice with it.
+    group('slots', () {
+      final replied = post(
+        replyToMessageId: 4,
+        replyToAuthorTitle: 'Ada Lovelace',
+        replyToText: 'the analytical engine',
+      );
+      final bare = post(replyToMessageId: 4, replyToAuthorTitle: 'Ada');
+
+      testWidgets('the card is below the body and nowhere else',
+          (tester) async {
+        await tester.pumpWidget(host(replied, slot: ReplySlot.belowBody));
+        expect(find.byType(QuotedPostCard), findsOneWidget);
+
+        await tester.pumpWidget(host(replied, slot: ReplySlot.aboveBody));
+        expect(find.byType(QuotedPostCard), findsNothing);
+      });
+
+      testWidgets('the line is above the body and nowhere else',
+          (tester) async {
+        await tester.pumpWidget(host(bare, slot: ReplySlot.aboveBody));
+        expect(
+          find.text(AppStrings.chatReplyingToName('Ada')),
+          findsOneWidget,
+        );
+
+        await tester.pumpWidget(host(bare, slot: ReplySlot.belowBody));
+        expect(find.text(AppStrings.chatReplyingToName('Ada')), findsNothing);
+      });
     });
   });
 

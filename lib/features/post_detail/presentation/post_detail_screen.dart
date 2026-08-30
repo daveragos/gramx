@@ -377,6 +377,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.lg),
+                              // "Replying to Ada", above the words it gives
+                              // context for. The card is the other shape and
+                              // sits below the body; see ReplySlot.
                               ReplyTarget(
                                 post: post,
                                 onOpenPost: () => _openReplyTarget(context, post),
@@ -422,6 +425,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 const SizedBox(height: AppSpacing.md),
                                 PostMediaGrid(media: post.media, post: post),
                               ],
+                              // The post being answered, under the answer.
+                              ReplyTarget(
+                                post: post,
+                                slot: ReplySlot.belowBody,
+                                onOpenPost: () =>
+                                    _openReplyTarget(context, post),
+                                onOpenAuthor: () =>
+                                    context.push('/channel/${post.channelId}'),
+                              ),
                               // Horizontal Reactions Scroll Bar
                               if (post.reactions.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.sm),
