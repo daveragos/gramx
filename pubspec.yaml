@@ -10,6 +10,14 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Material's own strings, and the text direction that comes with a locale.
+  # gramX ships English only — every string of its own is in
+  # `core/l10n/app_strings.dart` — but without these delegates the framework's
+  # widgets (the text selection menu, date pickers, semantics) are English on
+  # every device regardless, and there is no locale for the app to react to.
+  flutter_localizations:
+    sdk: flutter
+
   # State management
   flutter_riverpod: ^3.3.2
 
