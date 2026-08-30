@@ -53,6 +53,35 @@
 	     app never opens the camera, so no NSCameraUsageDescription. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>gramX needs access to your photos so you can attach one to a post.</string>
+	<!-- Universal links for t.me. iOS checks Telegram's own
+	     apple-app-site-association for our team id, which it will not carry,
+	     so these are here for completeness and for the tg:// scheme below —
+	     which is the half that does work, because a scheme needs no
+	     cooperation from the domain's owner. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>dev.ragoose.gramx.telegram</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tg</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Without these, canLaunchUrl answers false for every one of them and
+	     each "open in Telegram" control looks broken. The Android side
+	     declares the same list under <queries>. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tg</string>
+		<string>https</string>
+		<string>http</string>
+		<string>mailto</string>
+		<string>tel</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

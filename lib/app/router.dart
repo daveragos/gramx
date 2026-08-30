@@ -209,7 +209,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: ComposeFab.route,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ComposeScreen(),
+        // `extra` rather than a query parameter: shared text can be long and
+        // can carry anything, and a URL is the wrong place for either.
+        builder: (context, state) =>
+            ComposeScreen(initialText: state.extra as String?),
       ),
       GoRoute(
         path: '/auth',

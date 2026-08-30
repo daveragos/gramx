@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -38,6 +41,11 @@ Future<ProviderContainer> bootstrap() async {
   // was built, and the transition that matters most — the first `resumed` —
   // is the earliest one there is.
   container.read(tdlibLifecycleProvider).start();
+
+  // Start listening for links, and pick up the one the app was launched with.
+  // Not awaited: a launch link is parked in the provider and collected by the
+  // shell once there is a navigator, so nothing here has to wait for it.
+  unawaited(container.read(pendingDeepLinkProvider.notifier).start());
 
   return container;
 }

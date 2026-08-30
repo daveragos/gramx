@@ -588,6 +588,10 @@ abstract class AppStrings {
   static const audioKindVoice = 'Voice';
   static const audioKindAudio = 'Audio';
 
+  static const shareNowhereToPost =
+      'There is nowhere to post this. gramX can only write to channels and '
+      'chats your account can post in.';
+
   // ── Composing ──────────────────────────────────────────────────────────────
   static const composeHint = "What's happening?";
   static const composePost = 'Post';

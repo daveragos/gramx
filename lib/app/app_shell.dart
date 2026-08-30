@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,13 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/core/navigation/telegram_link.dart';
+import 'package:gramx/core/navigation/share_intake.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
+import 'package:gramx/features/compose/presentation/compose_providers.dart';
+import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
+import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
@@ -77,13 +85,104 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver {
   /// How long a second back press still counts as "I meant it".
   static const Duration _exitWindow = Duration(seconds: 2);
 
   DateTime? _lastBackPress;
 
   StatefulNavigationShell get navigationShell => widget.navigationShell;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Sharing into gramX resumes the app rather than starting it, most of the
+    // time — so the shared text is collected on every resume as well as here.
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_openSharedText());
+
+    // A link can arrive before there is anywhere to send it: a cold start from
+    // a tapped `t.me` link runs before the first frame, so the link is parked
+    // in a provider and collected here, where a navigator exists. Listened to
+    // rather than watched — opening one is an action, not a rebuild.
+    ref.listenManual<Uri?>(
+      pendingDeepLinkProvider,
+      (_, next) {
+        if (next != null) unawaited(_openDeepLink());
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_openSharedText());
+  }
+
+  /// Opens the composer on text shared in from another app.
+  ///
+  /// Nothing happens when there is nothing to post *to*: the compose button
+  /// hides itself for an account that can write nowhere, and a share that
+  /// opened a screen saying no would be the same inert control by another
+  /// route. Saying so is the honest answer, since the reader did just ask for
+  /// something.
+  Future<void> _openSharedText() async {
+    final text = await ref.read(shareIntakeProvider).take();
+    if (text == null || !mounted) return;
+
+    if (ref.read(composeTargetsProvider).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.shareNowhereToPost),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    GoRouter.of(context).push(ComposeFab.route, extra: text);
+  }
+
+  /// Opens whatever link is waiting.
+  ///
+  /// A username costs one `SearchPublicChat` to turn into a chat id, which is
+  /// the on-demand, one-tap-one-request shape `docs/TDLIB.md` allows. Anything
+  /// this app has no screen for — an invite, a sticker pack, a name Telegram
+  /// does not know — is handed to Telegram itself rather than swallowed. That
+  /// is the honest end of a link gramX cannot open, and it is what the reader
+  /// expected before this app registered for the link at all.
+  Future<void> _openDeepLink() async {
+    final uri = ref.read(pendingDeepLinkProvider.notifier).take();
+    if (uri == null) return;
+
+    final link = TelegramLinks.parse(uri);
+    if (link == null) return;
+
+    var chatId = link is TelegramPrivatePostLink ? link.chatId : null;
+
+    final username = DeepLinkRoutes.usernameToResolve(link);
+    if (username != null) {
+      final resolved = await ref
+          .read(chatsRepositoryProvider)
+          .resolveUsername(username);
+      chatId = resolved?.chatId;
+    }
+
+    final route = DeepLinkRoutes.routeFor(link, chatId: chatId);
+    if (route == null) {
+      await openExternalUrl(uri);
+      return;
+    }
+    if (!mounted) return;
+    GoRouter.of(context).push(route);
+  }
 
   /// Back behaviour for the whole shell.
   ///

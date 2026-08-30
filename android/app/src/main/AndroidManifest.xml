@@ -38,6 +38,46 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- t.me links. Deliberately NOT autoVerify: without a hosted
+                 assetlinks.json on t.me — which is Telegram's domain, not
+                 ours — Android would fail verification and silently stop
+                 offering gramX at all. Unverified, the reader gets a chooser
+                 and picks, which is the honest arrangement for an app that
+                 opens somebody else's links. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="t.me"/>
+                <data android:scheme="http" android:host="t.me"/>
+                <data android:scheme="https" android:host="telegram.me"/>
+                <data android:scheme="http" android:host="telegram.me"/>
+                <data android:scheme="https" android:host="telegram.dog"/>
+                <data android:scheme="http" android:host="telegram.dog"/>
+            </intent-filter>
+
+            <!-- tg:// — the scheme Telegram's own links use once an app has
+                 claimed them. Kept separate from the https filter because a
+                 single filter matching both would match every https link on
+                 the device that had no host. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="tg"/>
+            </intent-filter>
+
+            <!-- Sharing a link or some text into gramX, which opens the
+                 composer with it. text/plain only: the composer takes photos
+                 and videos from the gallery picker, and accepting them here
+                 as well would be two ways into one screen with different
+                 rules. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

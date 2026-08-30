@@ -29,7 +29,11 @@ import 'package:gramx/features/compose/presentation/widgets/compose_target_sheet
 /// with one lifetime, nothing else reads it, and holding it here means closing
 /// the screen genuinely discards it — a provider would have to be told to.
 class ComposeScreen extends ConsumerStatefulWidget {
-  const ComposeScreen({super.key});
+  /// Text the screen opens with — a link or a note shared into gramX from
+  /// another app. Null for the ordinary case, where the writer starts empty.
+  final String? initialText;
+
+  const ComposeScreen({super.key, this.initialText});
 
   @override
   ConsumerState<ComposeScreen> createState() => _ComposeScreenState();
@@ -56,6 +60,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Seeded before the listener is attached, so the one write that is not a
+    // keystroke does not count as one.
+    final seed = widget.initialText;
+    if (seed != null && seed.isNotEmpty) {
+      _controller.text = seed;
+      _controller.selection = TextSelection.collapsed(offset: seed.length);
+    }
+
     // The counter and the Post button both read the text, so every keystroke
     // has to reach build.
     _controller.addListener(_onTextChanged);

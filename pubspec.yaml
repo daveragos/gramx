@@ -53,6 +53,12 @@ dependencies:
   # without a platform plugin. Used for exactly that, in
   # `infrastructure/telegram/tdlib_lifecycle.dart`, and nowhere else.
   connectivity_plus: ^6.1.0
+
+  # Deep links. A Telegram client that cannot open a t.me link is the one
+  # link every post in it renders — see docs/ROADMAP.md T18-2. This delivers
+  # the launch link and the ones that arrive while running; what they mean is
+  # decided in `core/navigation/telegram_link.dart`, which is pure.
+  app_links: ^6.3.2
   lottie: ^3.5.1
   open_filex: ^4.7.0
 
