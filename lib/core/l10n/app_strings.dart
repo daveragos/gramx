@@ -923,6 +923,21 @@ abstract class AppStrings {
   // Delivery state, for screen readers. The ticks are the visual form and
   // convey state by shape alone, which is exactly the case the accessibility
   // rule in docs/CONVENTIONS.md names.
+  static const chatSearchTooltip = 'Search this conversation';
+  static const chatSearchClose = 'Close search';
+  static const chatSearchHint = 'Search messages';
+  static const chatSearchPrompt = 'Type to search this conversation.';
+  static const chatSearchFailed = 'Could not search this conversation.';
+  static String chatSearchNoResults(String query) => 'No messages match "$query".';
+
+  /// A hit older than the loaded page cannot be scrolled to.
+  static const chatSearchResultNotLoaded =
+      'That message is further back than this chat has loaded. Scroll up to '
+      'load it, then try again.';
+
+  static const chatPinnedMessage = 'Pinned message';
+  static const chatPinnedNoText = 'Pinned';
+
   // ── Peeking, and who somebody speaks for ────────────────────────────────
   static String chatPeekSemantics(String title) =>
       'Peek into the conversation with $title';

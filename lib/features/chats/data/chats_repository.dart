@@ -166,6 +166,105 @@ class ChatsRepository {
     );
   }
 
+  /// Messages in one chat matching [query].
+  ///
+  /// The half of a chat app that is only ever missed when you need it, and
+  /// named in the T15 notes as absent rather than half-built.
+  ///
+  /// **On the budget, and driven by a person typing** — so it must reach TDLib
+  /// only after the 300 ms debounce `docs/TDLIB.md` requires, which is the
+  /// caller's job and is why this takes a settled query rather than a
+  /// controller. One page per call; [fromMessageId] pages back through the
+  /// results using TDLib's own `nextFromMessageId`, which answers 0 when they
+  /// end — inferring exhaustion from a short page would stop early, because
+  /// TDLib chooses its own batch size.
+  Future<({List<ChatMessage> messages, int nextFromMessageId})> searchInChat(
+    int chatId,
+    String query, {
+    int fromMessageId = 0,
+    int limit = historyPageSize,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      return (messages: const <ChatMessage>[], nextFromMessageId: 0);
+    }
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SearchChatMessages(
+          chatId: chatId,
+          query: trimmed,
+          fromMessageId: fromMessageId,
+          offset: 0,
+          limit: limit,
+          messageThreadId: 0,
+          savedMessagesTopicId: 0,
+        ),
+      );
+      if (res is! td.FoundChatMessages) {
+        return (messages: const <ChatMessage>[], nextFromMessageId: 0);
+      }
+
+      final mapped = ChatMessageMapper.mapHistory(
+        res.messages,
+        users: _chatCache.usersById,
+        lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        isGroup: isGroupChat(chatId),
+      );
+
+      return (
+        messages: mapped,
+        nextFromMessageId: res.nextFromMessageId,
+      );
+    } catch (e) {
+      debugPrint('[ChatsRepo] search in $chatId failed: $e');
+      return (messages: const <ChatMessage>[], nextFromMessageId: 0);
+    }
+  }
+
+  /// The message pinned at the top of a chat, if there is one.
+  ///
+  /// **This costs a request even when the answer is "none".** TDLib 2.x carries
+  /// no `pinnedMessageId` on `Chat`, so the only way to ask is a networked
+  /// `SearchChatMessages` with the pinned filter — there is no free version of
+  /// this question. It is therefore issued once per chat, when a conversation
+  /// is opened, and the provider that calls it holds the answer for the rest of
+  /// the session: one tap, one request, which is the on-demand shape
+  /// `docs/TDLIB.md` allows.
+  ///
+  /// Only the newest pin is returned. Telegram allows several and shows a
+  /// counter to page through them; that is a control gramX does not have, and
+  /// a bar that showed one of five without saying so would be lying about
+  /// which one.
+  Future<ChatMessage?> pinnedMessage(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SearchChatMessages(
+          chatId: chatId,
+          query: '',
+          fromMessageId: 0,
+          offset: 0,
+          limit: 1,
+          filter: const td.SearchMessagesFilterPinned(),
+          messageThreadId: 0,
+          savedMessagesTopicId: 0,
+        ),
+      );
+      if (res is! td.FoundChatMessages || res.messages.isEmpty) return null;
+
+      final mapped = ChatMessageMapper.mapHistory(
+        res.messages,
+        users: _chatCache.usersById,
+        lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        isGroup: isGroupChat(chatId),
+      );
+      return mapped.isEmpty ? null : mapped.first;
+    } catch (e) {
+      debugPrint('[ChatsRepo] pinned message in $chatId failed: $e');
+      return null;
+    }
+  }
+
   /// A page centred on the reader's unread cursor.
   ///
   /// `getChatHistory` walks *backwards* from `fromMessageId` by default, so

@@ -7,6 +7,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
@@ -17,6 +18,7 @@ import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
+import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 import 'package:gramx/features/chats/presentation/conversation_providers.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_date_separator.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_actions_sheet.dart';
@@ -50,6 +52,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   static const double _atBottomSlack = 200;
 
   final ScrollController _scroll = ScrollController();
+
+  /// The search field's own controller, so closing the field clears it.
+  final TextEditingController _searchController = TextEditingController();
 
   /// Attached to the unread band, so the first frame can bring it into view.
   final GlobalKey _unreadBandKey = GlobalKey();
@@ -299,18 +304,33 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     // A cross-chat reply points somewhere this screen cannot scroll to.
     if (targetId == null || message.replyToChatId != null) return;
 
+    await _jumpToMessage(targetId, missing: AppStrings.chatReplyNotLoaded);
+  }
+
+  /// Scrolls to one message and flashes it.
+  ///
+  /// Two-step, then a walk. `ListView.builder` only builds near the viewport,
+  /// so a target far up the scrollback has no `BuildContext` for
+  /// `ensureVisible` to work with: estimate the offset from the average row
+  /// height and jump roughly there, then — because that estimate is only as
+  /// good as the part of the list already laid out — step the rest of the way
+  /// until the target is built. T21-1 is the round that learned the estimate
+  /// alone is not enough.
+  Future<void> _jumpToMessage(int targetId, {String? missing}) async {
     final state = ref.read(conversationProvider(widget.chatId)).value;
     if (state == null) return;
 
     final index = state.messages.indexWhere((m) => m.messageId == targetId);
     if (index < 0) {
       // Older than what is loaded. Saying so beats a tap that does nothing.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(AppStrings.chatReplyNotLoaded),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (missing != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(missing),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
 
@@ -327,21 +347,67 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       );
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    for (var step = 0; step < _anchorSteps; step++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_scroll.hasClients) break;
+
       final target = _jumpKey.currentContext;
-      if (target == null) return;
-      Scrollable.ensureVisible(
-        target,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+        );
+        break;
+      }
+
+      final position = _scroll.position;
+      if (position.pixels >= position.maxScrollExtent) break;
+      _scroll.jumpTo(
+        (position.pixels + position.viewportDimension * 0.8)
+            .clamp(0.0, position.maxScrollExtent),
       );
-    });
+    }
 
     // A flash, not a state: it says "here", and a bubble that stayed tinted
     // would read as selected.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (mounted) setState(() => _jumpTargetId = null);
+  }
+
+  /// Jumps to the pinned message.
+  ///
+  /// The same two-step walk a reply uses, and for the same reason: a pin is
+  /// usually the oldest thing in the chat, which is the furthest a
+  /// `ListView.builder` will not have built.
+  Future<void> _jumpToPinned() async {
+    final pinned = ref.read(pinnedMessageProvider(widget.chatId)).value;
+    if (pinned == null) return;
+    await _jumpToMessage(pinned.messageId);
+  }
+
+  /// Closes the search field and goes to the result.
+  ///
+  /// A hit older than the loaded page cannot be scrolled to, so the field
+  /// stays open and says so rather than closing onto a list that did not move.
+  Future<void> _openSearchResult(ChatMessage message) async {
+    final state = ref.read(conversationProvider(widget.chatId)).value;
+    final loaded =
+        state?.messages.any((m) => m.messageId == message.messageId) ?? false;
+
+    if (!loaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.chatSearchResultNotLoaded),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    ref.read(inChatSearchQueryProvider.notifier).close();
+    await _jumpToMessage(message.messageId);
   }
 
   /// Opens whatever an `@name` refers to.
@@ -389,14 +455,43 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Widget build(BuildContext context) {
     final conversation = ref.watch(conversationProvider(widget.chatId));
     final summary = ref.watch(chatSummaryProvider(widget.chatId));
+    final searchQuery = ref.watch(inChatSearchQueryProvider);
 
     return Scaffold(
-      appBar: _ConversationAppBar(
-        summary: summary,
-        typing: conversation.value?.typing,
-      ),
+      appBar: searchQuery == null
+          ? _ConversationAppBar(
+              summary: summary,
+              typing: conversation.value?.typing,
+              onSearch: () {
+                ref.read(inChatSearchQueryProvider.notifier).open();
+                _searchController.clear();
+              },
+            )
+          : _ChatSearchAppBar(
+              controller: _searchController,
+              onChanged: (value) =>
+                  ref.read(inChatSearchQueryProvider.notifier).setQuery(value),
+              onClose: () =>
+                  ref.read(inChatSearchQueryProvider.notifier).close(),
+            ),
       body: Column(
         children: [
+          // Above the list rather than over it: a pinned message is part of
+          // the chat's furniture, and one that floated would sit on top of
+          // whatever the reader had scrolled to.
+          if (searchQuery == null)
+            _PinnedBar(
+              chatId: widget.chatId,
+              onTap: _jumpToPinned,
+            ),
+          if (searchQuery != null)
+            Expanded(
+              child: _ChatSearchResults(
+                chatId: widget.chatId,
+                onTap: _openSearchResult,
+              ),
+            )
+          else
           Expanded(
             child: conversation.when(
               loading: () => const Center(
@@ -467,13 +562,229 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 }
 
+
+/// The header while a chat is being searched.
+///
+/// Replaces the header rather than sitting under it: searching a conversation
+/// is a mode, and a screen showing both who you are talking to and a field
+/// asking what you are looking for is two headers arguing.
+class _ChatSearchAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClose;
+
+  const _ChatSearchAppBar({
+    required this.controller,
+    required this.onChanged,
+    required this.onClose,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+
+    return AppBar(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: AppStrings.chatSearchClose,
+        onPressed: onClose,
+      ),
+      titleSpacing: 0,
+      title: TextField(
+        controller: controller,
+        autofocus: true,
+        onChanged: onChanged,
+        style: AppTypography.body(color: primary),
+        decoration: InputDecoration(
+          hintText: AppStrings.chatSearchHint,
+          hintStyle: AppTypography.body(color: secondary),
+          border: InputBorder.none,
+          isDense: true,
+        ),
+      ),
+    );
+  }
+}
+
+/// Matches for what is being searched for.
+class _ChatSearchResults extends ConsumerWidget {
+  final int chatId;
+  final ValueChanged<ChatMessage> onTap;
+
+  const _ChatSearchResults({required this.chatId, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    final query = ref.watch(inChatSearchQueryProvider) ?? '';
+    final results = ref.watch(inChatSearchResultsProvider(chatId));
+
+    // Nothing typed yet is not "no results". A screen saying nothing matched
+    // an empty query has answered a question nobody asked.
+    if (query.trim().isEmpty) {
+      return _SearchMessage(
+        text: AppStrings.chatSearchPrompt,
+        color: secondary,
+      );
+    }
+
+    return results.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+      error: (_, _) =>
+          _SearchMessage(text: AppStrings.chatSearchFailed, color: secondary),
+      data: (messages) {
+        if (messages.isEmpty) {
+          return _SearchMessage(
+            text: AppStrings.chatSearchNoResults(query),
+            color: secondary,
+          );
+        }
+
+        return ListView.separated(
+          itemCount: messages.length,
+          separatorBuilder: (_, _) =>
+              Divider(height: 1, thickness: 0.5, color: borderColor),
+          itemBuilder: (context, index) {
+            final message = messages[index];
+            return ListTile(
+              onTap: () => onTap(message),
+              title: Text(
+                message.text ?? '',
+                style: AppTypography.body(color: primary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                TimeUtils.fullDateTime(message.sentAt),
+                style: AppTypography.timestamp(color: secondary),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _SearchMessage extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _SearchMessage({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Text(
+        text,
+        style: AppTypography.body(color: color),
+        textAlign: TextAlign.center,
+      ),
+    ),
+  );
+}
+
+/// The pinned message, above the conversation.
+///
+/// Absent entirely when there is no pin — and while the one request that
+/// answers that is in flight, because a bar that appears a second after the
+/// chat does moves what somebody has already started reading.
+class _PinnedBar extends ConsumerWidget {
+  final int chatId;
+  final VoidCallback onTap;
+
+  const _PinnedBar({required this.chatId, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinned = ref.watch(pinnedMessageProvider(chatId)).value;
+    if (pinned == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: borderColor, width: 0.5),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            // A short accent rule, which is how Telegram marks a pin and how
+            // this app already marks a quoted reply.
+            Container(width: 2, height: 30, color: AppColors.accent),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.chatPinnedMessage,
+                    style: AppTypography.timestamp(color: AppColors.accent),
+                  ),
+                  Text(
+                    pinned.text ?? AppStrings.chatPinnedNoText,
+                    style: AppTypography.actionCount(color: primary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.push_pin_outlined, size: 16, color: secondary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The header: who this is, and what they are doing.
 class _ConversationAppBar extends StatelessWidget
     implements PreferredSizeWidget {
   final ChatSummary? summary;
   final ChatTyping? typing;
 
-  const _ConversationAppBar({required this.summary, this.typing});
+  /// Opens the search field. Null when there is nothing to search — a chat
+  /// still loading — so the control is absent rather than inert.
+  final VoidCallback? onSearch;
+
+  const _ConversationAppBar({
+    required this.summary,
+    this.typing,
+    this.onSearch,
+  });
 
   @override
   Size get preferredSize => const Size.fromHeight(56);
@@ -504,6 +815,14 @@ class _ConversationAppBar extends StatelessWidget
     return AppBar(
       titleSpacing: 0,
       backgroundColor: theme.scaffoldBackgroundColor,
+      actions: [
+        if (onSearch != null)
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: AppStrings.chatSearchTooltip,
+            onPressed: onSearch,
+          ),
+      ],
       title: _MaybeTappable(
         onTap: userId == null || summary?.kind == ChatKind.savedMessages
             ? null
