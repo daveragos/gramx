@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/core/config/app_links.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/settings/presentation/diagnostics_screen.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -351,6 +352,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 style: AppTypography.actionCount(color: secondaryColor)),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () => context.push(LegalTexts.termsRoute),
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          ListTile(
+            leading: Icon(Icons.bug_report_outlined, color: primaryColor),
+            title: Text(AppStrings.settingsDiagnostics,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.settingsDiagnosticsBody,
+                style: AppTypography.actionCount(color: secondaryColor)),
+            trailing: Icon(Icons.chevron_right, color: secondaryColor),
+            onTap: () => context.push(DiagnosticsScreen.route),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(

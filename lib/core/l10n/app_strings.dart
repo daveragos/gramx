@@ -1,3 +1,5 @@
+import 'package:gramx/core/diagnostics/error_log.dart' show ErrorSource;
+
 /// Every user-facing string in the app, in one place.
 ///
 /// This is the groundwork for translation, not translation itself. The point is
@@ -400,6 +402,31 @@ abstract class AppStrings {
   static const settingsTerms = 'Terms of Service';
   static const settingsTermsBody = 'What this app is, and what it is not';
   static const settingsVersion = 'Version';
+
+  // ── Diagnostics ────────────────────────────────────────────────────────────
+  static const diagnosticsTitle = 'Diagnostics';
+  static const settingsDiagnostics = 'Diagnostics';
+  static const settingsDiagnosticsBody =
+      'What went wrong, and when. Nothing here is sent anywhere.';
+  static const diagnosticsBody =
+      'Errors gramX caught, newest first. They stay on this device — there is '
+      'no reporting service — and phone numbers, file paths and keys are '
+      'removed before anything is written down, so this is safe to share when '
+      'somebody asks what happened.';
+  static const diagnosticsEmptyTitle = 'Nothing has gone wrong';
+  static const diagnosticsEmptyBody =
+      'Errors gramX catches will be listed here.';
+  static const diagnosticsCopy = 'Copy the whole log';
+  static const diagnosticsCopied = 'Diagnostics copied to clipboard.';
+  static const diagnosticsClear = 'Delete the log';
+
+  /// Where an error came from, said the way a reader would say it.
+  static String diagnosticsSource(ErrorSource source) => switch (source) {
+    ErrorSource.widget => 'Drawing the screen',
+    ErrorSource.platform => 'The device',
+    ErrorSource.zone => 'Background work',
+    ErrorSource.reported => 'gramX',
+  };
 
   // ── Legal ──────────────────────────────────────────────────────────────────
   static const legalNotFoundTitle = 'Not found';

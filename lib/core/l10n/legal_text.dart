@@ -97,6 +97,10 @@ abstract class LegalTexts {
         'Your bookmarks, as a list of chat and message ids.',
         'Your preferences: theme, autoplay, and which channels you have muted '
             'along with when each mute expires.',
+        'A short log of errors the app has caught — the last fifty, with '
+            'phone numbers, file paths and keys stripped out before anything '
+            'is written down. Settings \u2192 Diagnostics shows you exactly '
+            'what it holds, and deletes it on request.',
         'None of this leaves the device.',
       ]),
       LegalSection('Keeping it safe', [
@@ -123,8 +127,11 @@ abstract class LegalTexts {
             'where you can end it at any time.',
       ]),
       LegalSection('What the app never does', [
-        'No analytics, no crash reporting, no advertising, no tracking of any '
-            'kind. There is no third-party SDK in the app that phones home.',
+        'No analytics, no advertising, no tracking of any kind. There is no '
+            'third-party SDK in the app that phones home.',
+        'No crash reporting service. The app keeps its own error log on the '
+            'device so you can be asked what went wrong, and there is nowhere '
+            'for it to send that log even if it wanted to.',
         'Nothing is sold, shared or transmitted to anyone. There is nobody to '
             'transmit it to.',
         'Media and link previews are fetched through Telegram, never from '
@@ -143,6 +150,7 @@ abstract class LegalTexts {
             'account record, your bookmarks, and Telegram\'s local database.',
         'Your preferences — theme, autoplay, muted channels — stay on the '
             'device until you uninstall the app.',
+        'Settings \u2192 Diagnostics deletes the error log.',
         'Settings → Media storage and cache clears downloaded media without '
             'signing you out.',
       ]),

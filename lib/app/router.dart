@@ -25,6 +25,7 @@ import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
 import 'package:gramx/features/settings/presentation/profile_screen.dart';
 import 'package:gramx/features/settings/presentation/legal_screen.dart';
+import 'package:gramx/features/settings/presentation/diagnostics_screen.dart';
 
 // Navigation keys for each branch
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -254,6 +255,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ProfileScreen(),
+      ),
+      // What the app knows about its own failures. A pushed route rather than a
+      // section of Settings: it is a list that can be long, and it is the one
+      // screen somebody is sent to rather than one they browse.
+      GoRoute(
+        path: DiagnosticsScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DiagnosticsScreen(),
       ),
       GoRoute(
         path: '/settings',
