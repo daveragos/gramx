@@ -14,6 +14,7 @@ import 'package:gramx/features/compose/domain/compose_draft.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
+import 'package:gramx/features/compose/presentation/post_progress_provider.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_attachment_strip.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_remote_preview.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
@@ -185,7 +186,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final label = composeTargetLabel(target);
 
     setState(() => _isSending = true);
-    final ok = await ref.read(composeRepositoryProvider).send(
+    final result = await ref.read(composeRepositoryProvider).send(
           chatId: target.chatId,
           text: draft.trimmedText,
           attachments: draft.attachments,
@@ -193,7 +194,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         );
 
     if (!mounted) return;
-    if (!ok) {
+    if (!result.accepted) {
       setState(() => _isSending = false);
       messenger.showSnackBar(
         SnackBar(content: Text(AppStrings.composeFailed(label))),
@@ -201,10 +202,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       return;
     }
 
+    // Accepted is not sent. TDLib answers as soon as the message is queued and
+    // the files go up afterwards, so a snackbar here said "Posted" several
+    // composer and keeps a progress bar over the timeline until the upload
+    // actually finishes; that bar is what this hands off to.
+    ref
+        .read(postSendTrackerProvider.notifier)
+        .track(result, targetLabel: label);
+
     navigator.pop();
-    messenger.showSnackBar(
-      SnackBar(content: Text(AppStrings.composeSent(label))),
-    );
   }
 
   /// Closes the screen, asking first if there is anything to lose.

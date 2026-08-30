@@ -1,4 +1,6 @@
 import 'package:gramx/core/diagnostics/error_log.dart' show ErrorSource;
+import 'package:gramx/features/compose/presentation/post_progress_provider.dart'
+    show PostSendStatus;
 
 /// Every user-facing string in the app, in one place.
 ///
@@ -670,6 +672,18 @@ abstract class AppStrings {
   /// Why the character allowance shrank the moment a photo was attached.
   static String composeCaptionLimit(int limit) =>
       'A post with media is captioned, so it is capped at $limit characters.';
+
+  /// What the bar over the timeline is saying, for a screen reader.
+  ///
+  /// The bar itself is three pixels of colour: it carries its meaning by
+  /// position and motion, neither of which is read out. This is the sentence
+  /// that says the same thing.
+  static String composeProgressLabel(PostSendStatus status, String target) =>
+      switch (status) {
+        PostSendStatus.uploading => 'Posting to $target…',
+        PostSendStatus.sent => 'Posted to $target.',
+        PostSendStatus.failed => 'Could not post to $target.',
+      };
 
   // ── Messages ───────────────────────────────────────────────────────────────
   static const messagesTitle = 'Chat';

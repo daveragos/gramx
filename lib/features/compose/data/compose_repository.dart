@@ -82,7 +82,69 @@ abstract class ComposeTargets {
 ///   Telegram client;
 /// * a sticker or GIF is exactly one message and never an album, because
 ///   `sendMessageAlbum` groups only audio, document, photo and video.
+/// What a send left behind for the progress bar to watch.
+///
+/// TDLib answers a send the moment the message is *queued*, and any attached
+/// file uploads after that — so "accepted" is where the composer's job ends and
+/// the progress bar's begins. These are the two things it needs: which messages
+/// to wait on, and which files are still going up.
+@immutable
+class ComposeSendResult {
+  /// The temporary message ids TDLib assigned. `updateMessageSendSucceeded`
+  /// reports each one back as `oldMessageId`, which is how a finish is
+  /// recognised.
+  final List<int> messageIds;
+
+  /// The files being uploaded, if any. Empty for a text post, and for a
+  /// sticker or GIF already on Telegram's servers — neither uploads anything,
+  /// so neither has a fraction to show.
+  final List<int> fileIds;
+
+  /// False when TDLib refused the send outright.
+  final bool accepted;
+
+  const ComposeSendResult({
+    required this.accepted,
+    this.messageIds = const [],
+    this.fileIds = const [],
+  });
+
+  static const refused = ComposeSendResult(accepted: false);
+
+  /// Whether anything is actually going up. A text post is accepted and has
+  /// nothing to measure.
+  bool get hasUpload => fileIds.isNotEmpty;
+}
+
 abstract class ComposeMessages {
+  /// The files a just-queued message is still uploading.
+  ///
+  /// A message TDLib has accepted carries its content with the local file
+  /// already attached, so the ids are there to be read — no request needed.
+  /// Only the kinds the composer can attach are named; anything else has
+  /// nothing being uploaded on its behalf and contributes no id.
+  ///
+  /// The *largest* photo size is the one that takes the time, and the smaller
+  /// ones are generated from it, so counting only the largest keeps the
+  /// fraction honest rather than averaging a thumbnail's instant completion
+  /// against the real upload.
+  static List<int> uploadingFileIds(td.Message message) {
+    final content = message.content;
+    return switch (content) {
+      td.MessagePhoto() when content.photo.sizes.isNotEmpty => [
+        content.photo.sizes.last.photo.id,
+      ],
+      td.MessageVideo() => [content.video.video.id],
+      td.MessageAnimation() => [content.animation.animation.id],
+      td.MessageDocument() => [content.document.document.id],
+      td.MessageAudio() => [content.audio.audio.id],
+      td.MessageVoiceNote() => [content.voiceNote.voice.id],
+      // A sticker is already on Telegram's servers; nothing goes up for it.
+      _ => const [],
+    };
+  }
+
+
   /// Builds one content object per message to send.
   ///
   /// Length is not checked here — [ComposeDraft.canPost] is what stands between
@@ -253,11 +315,10 @@ class ComposeRepository {
   /// Sends the draft. Returns true when TDLib accepted it.
   ///
   /// "Accepted" is the honest word: TDLib answers as soon as the message is
-  /// queued, and any attached file uploads *after* that. So a true here means
-  /// the post is on its way and will appear in the channel, not that the bytes
-  /// have landed — which is why the screen closes on it rather than sitting on
-  /// a progress bar the upload would outlive anyway.
-  Future<bool> send({
+  /// queued, and any attached file uploads *after* that. So an accepted result
+  /// means the post is on its way, not that the bytes have landed — which is
+  /// why the screen closes on it and hands the rest to the progress bar, the
+  Future<ComposeSendResult> send({
     required int chatId,
     required String text,
     List<ComposeAttachment> attachments = const [],
@@ -277,7 +338,15 @@ class ComposeRepository {
           options: _sendOptions,
           inputMessageContents: contents,
         ));
-        return res is td.Messages;
+        if (res is! td.Messages) return ComposeSendResult.refused;
+        final sent = res.messages;
+        return ComposeSendResult(
+          accepted: sent.isNotEmpty,
+          messageIds: [for (final m in sent) m.id],
+          fileIds: [
+            for (final m in sent) ...ComposeMessages.uploadingFileIds(m),
+          ],
+        );
       }
 
       final res = await _tdlib.sendRequest(td.SendMessage(
@@ -286,10 +355,15 @@ class ComposeRepository {
         options: _sendOptions,
         inputMessageContent: contents.first,
       ));
-      return res is td.Message;
+      if (res is! td.Message) return ComposeSendResult.refused;
+      return ComposeSendResult(
+        accepted: true,
+        messageIds: [res.id],
+        fileIds: ComposeMessages.uploadingFileIds(res),
+      );
     } catch (e) {
       debugPrint('[ComposeRepo] Send failed: $e');
-      return false;
+      return ComposeSendResult.refused;
     }
   }
 }

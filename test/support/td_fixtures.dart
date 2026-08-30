@@ -303,6 +303,86 @@ abstract class TdFixtures {
     },
   };
 
+  /// A message carrying a photo, with one `photoSize` per id given.
+  ///
+  /// Sizes ascend, so the last id is the largest — which is the one the upload
+  /// tracker counts, and the reason this takes a list rather than one id.
+  static td.Message photoMessage({
+    required int id,
+    required int chatId,
+    required List<int> fileIds,
+    String caption = '',
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messagePhoto',
+      'photo': {
+        '@type': 'photo',
+        'has_stickers': false,
+        'minithumbnail': null,
+        'sizes': [
+          for (var i = 0; i < fileIds.length; i++)
+            {
+              '@type': 'photoSize',
+              'type': ['s', 'm', 'x', 'y'][i.clamp(0, 3)],
+              'photo': fileJson(id: fileIds[i]),
+              'width': 100 * (i + 1),
+              'height': 100 * (i + 1),
+              'progressive_sizes': <int>[],
+            },
+        ],
+      },
+      'caption': {
+        '@type': 'formattedText',
+        'text': caption,
+        'entities': <Object>[],
+      },
+      'show_caption_above_media': false,
+      'has_spoiler': false,
+      'is_secret': false,
+    };
+    return td.Message.fromJson(json);
+  }
+
+  /// A message carrying a video.
+  static td.Message videoMessage({
+    required int id,
+    required int chatId,
+    required int fileId,
+    String caption = '',
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messageVideo',
+      'video': {
+        '@type': 'video',
+        'duration': 10,
+        'width': 640,
+        'height': 480,
+        'file_name': 'clip.mp4',
+        'mime_type': 'video/mp4',
+        'has_stickers': false,
+        'supports_streaming': true,
+        'minithumbnail': null,
+        'thumbnail': null,
+        'video': fileJson(id: fileId),
+      },
+      'alternative_videos': <Object>[],
+      'storyboards': <Object>[],
+      'cover': null,
+      'start_timestamp': 0,
+      'caption': {
+        '@type': 'formattedText',
+        'text': caption,
+        'entities': <Object>[],
+      },
+      'show_caption_above_media': false,
+      'has_spoiler': false,
+      'is_secret': false,
+    };
+    return td.Message.fromJson(json);
+  }
+
   static td.Message textMessage({
     required int id,
     required int chatId,

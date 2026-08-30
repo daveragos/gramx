@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/features/compose/presentation/widgets/post_progress_bar.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 
@@ -343,18 +344,33 @@ class ChromeScaffold extends StatelessWidget {
               ),
               child: SizedBox(
                 height: totalHeight,
-                child: SafeArea(
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      SizedBox(height: headerHeight, child: header),
-                      if (headerBottom != null)
-                        SizedBox(
-                          height: headerBottomHeight,
-                          child: headerBottom,
-                        ),
-                    ],
-                  ),
+                // The post-progress bar rides the header's bottom edge rather
+                // than sitting in the layout: a bar that pushed the feed down
+                // and pulled it back up would move what somebody is reading,
+                // twice, for something that is not about them. Inside the
+                // sliding chrome, so it leaves with the header it belongs to.
+                child: Stack(
+                  children: [
+                    SafeArea(
+                      bottom: false,
+                      child: Column(
+                        children: [
+                          SizedBox(height: headerHeight, child: header),
+                          if (headerBottom != null)
+                            SizedBox(
+                              height: headerBottomHeight,
+                              child: headerBottom,
+                            ),
+                        ],
+                      ),
+                    ),
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: PostProgressBar(),
+                    ),
+                  ],
                 ),
               ),
             ),
