@@ -146,6 +146,10 @@ class TdlibService {
   /// These bypass the flood gate: a rate limit must not stop the app from
   /// reading content it already has on disk, or a flood wait would black out
   /// the cached feed instead of just pausing new fetches.
+  @visibleForTesting
+  static bool isLocalOnlyRequest(td.TdFunction function) =>
+      _isLocalOnlyRequest(function);
+
   static bool _isLocalOnlyRequest(td.TdFunction function) {
     if (function is td.GetChatHistory) return function.onlyLocal;
     // Options live in TDLib's own store, pushed there by `updateOption` — a
@@ -162,6 +166,16 @@ class TdlibService {
     // which actions to offer, so it must not be gated behind a flood wait the
     // reader would experience as a menu that never opens.
     if (function is td.GetMessageProperties) return true;
+    // Client configuration, not content. `setNetworkType` is documented as
+    // callable before authorization, and both of these have to work *while*
+    // rate limited: telling TDLib the app went away, or that the network
+    // changed, is how a flood wait ends sooner rather than later. Gating them
+    // would park the one call that reopens a dead connection behind the
+    // deadline that dead connection caused.
+    if (function is td.SetNetworkType) return true;
+    if (function is td.SetOption) return true;
+    // Shutting down must never wait on anything.
+    if (function is td.Close) return true;
     return function is td.GetMessageLocally;
   }
 
@@ -665,6 +679,80 @@ class TdlibService {
       await initialize();
     } catch (e) {
       _updateStatus('Error resetting session: $e');
+    }
+  }
+
+  /// Whether TDLib has been told this account is at the keyboard.
+  ///
+  /// Tracked so a run of `inactive` → `resumed` transitions — which Android and
+  /// iOS both emit freely — doesn't spend a request each time to repeat what
+  /// TDLib already believes.
+  bool? _isOnline;
+
+  /// Set once `Close` has been sent. A closed client answers nothing, so
+  /// anything still in flight is better refused here than left to time out.
+  bool _isClosing = false;
+
+  bool get isClosing => _isClosing;
+
+  /// Tells Telegram whether the reader is at the keyboard.
+  ///
+  /// This is what drives the "online" dot other people see, and it is also how
+  /// Telegram decides whether to bother pushing a notification to this device.
+  /// An app that never says it left keeps the account looking permanently
+  /// present.
+  Future<void> setOnline(bool online) async {
+    if (_isClosing) return;
+    if (_isOnline == online) return;
+    _isOnline = online;
+    try {
+      await sendRequest(
+        td.SetOption(name: 'online', value: td.OptionValueBoolean(value: online)),
+        timeout: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      // The next transition will try again; a missed presence update is not
+      // worth surfacing to the reader.
+      _isOnline = null;
+      debugPrint('[TDLib] setOnline($online) failed: $e');
+    }
+  }
+
+  /// Tells TDLib which network it is on.
+  ///
+  /// TDLib's own documentation is emphatic that this "must be called whenever
+  /// the network is changed, even if the network type remains the same",
+  /// because the call is what forces every connection to reopen. Without it a
+  /// client that went to sleep on one network wakes up still waiting on a
+  /// socket that will never answer.
+  Future<void> setNetworkType(td.NetworkType type) async {
+    if (_isClosing) return;
+    try {
+      await sendRequest(
+        td.SetNetworkType(type: type),
+        timeout: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      debugPrint('[TDLib] setNetworkType failed: $e');
+    }
+  }
+
+  /// Asks TDLib to shut down cleanly.
+  ///
+  /// TDLib buffers writes, so a process killed without this leaves a database
+  /// that has to be recovered on the next launch — which is slow, and is the
+  /// one startup cost the reader pays for nothing. Best-effort and short:
+  /// the platform is already taking the process away.
+  Future<void> close() async {
+    if (_isClosing || _clientId == null) return;
+    _isClosing = true;
+    try {
+      await sendRequest(
+        const td.Close(),
+        timeout: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      debugPrint('[TDLib] close failed: $e');
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// Initializes services before running the app.
@@ -29,6 +30,14 @@ Future<ProviderContainer> bootstrap() async {
   // when a widget reads authControllerProvider — which may never happen if
   // the router hasn't redirected to /auth yet.
   container.read(authControllerProvider);
+
+  // Start observing the app's lifecycle and the device's network.
+  //
+  // Here rather than in a widget: an observer created by whichever screen
+  // happened to read it first would miss every transition before that screen
+  // was built, and the transition that matters most — the first `resumed` —
+  // is the earliest one there is.
+  container.read(tdlibLifecycleProvider).start();
 
   return container;
 }

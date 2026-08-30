@@ -46,6 +46,13 @@ dependencies:
   url_launcher: ^6.3.2
   country_picker: ^2.0.28
   visibility_detector: ^0.4.0+2
+
+  # Telling TDLib which network it is on. TDLib's own documentation requires
+  # `setNetworkType` to be called on every network change — the call is what
+  # forces its connections to reopen — and Flutter has no way to observe one
+  # without a platform plugin. Used for exactly that, in
+  # `infrastructure/telegram/tdlib_lifecycle.dart`, and nowhere else.
+  connectivity_plus: ^6.1.0
   lottie: ^3.5.1
   open_filex: ^4.7.0
 
