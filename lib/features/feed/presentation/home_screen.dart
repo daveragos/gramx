@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/activity/presentation/widgets/activity_bell.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_feed_screen.dart';
 import 'package:gramx/app/app_shell.dart';
@@ -89,6 +90,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final header = ChromeHeaderRow(
       title: AppStrings.appName,
       centerTitle: true,
+      // Channels and stays that way, so the bell lives here — which is where
+      actions: const [ActivityBell()],
       leading: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Semantics(

@@ -5,6 +5,7 @@ import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/activity/presentation/activity_screen.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/chats/presentation/open_saved_messages.dart';
@@ -143,6 +144,16 @@ class AppDrawer extends ConsumerWidget {
                   // throws away that tab's scroll position.
                   // Bookmarks is a pushed route rather than a tab now that Messages
                   // has the fourth slot — so it pushes, where a tab would goBranch.
+                  // bottom bar; gramX's third slot is Channels, so it is here
+                  // and on the bell in the feed header instead.
+                  DrawerNavItem(
+                    icon: Icons.notifications_none_rounded,
+                    title: AppStrings.drawerActivity,
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push(ActivityScreen.route);
+                    },
+                  ),
                   DrawerNavItem(
                     icon: Icons.bookmark_border_rounded,
                     title: AppStrings.drawerBookmarks,

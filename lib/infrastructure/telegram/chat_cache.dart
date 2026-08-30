@@ -286,6 +286,17 @@ class ChatCacheState {
         );
         return true;
 
+      // The other half of the same fact, and it was arriving on this stream
+      // already with nowhere to go. It is what lets the Activity screen know
+      // which chats to ask about without a request per chat — see T19-1.
+      case td.UpdateChatUnreadReactionCount():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          unreadReactionCount: update.unreadReactionCount,
+        );
+        return true;
+
       // The action bar is how Telegram says "this is somebody you don't know",
       // which is what the Requests filter is built on.
       case td.UpdateChatActionBar():

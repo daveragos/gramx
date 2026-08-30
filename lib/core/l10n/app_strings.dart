@@ -1,4 +1,6 @@
 import 'package:gramx/core/diagnostics/error_log.dart' show ErrorSource;
+import 'package:gramx/features/activity/domain/activity_item.dart'
+    show ActivityKind;
 import 'package:gramx/features/compose/presentation/post_progress_provider.dart'
     show PostSendStatus;
 
@@ -353,6 +355,52 @@ abstract class AppStrings {
 
   static String folderChannelCount(int count) =>
       count == 1 ? '1 channel' : '$count channels';
+
+  // ── Activity ───────────────────────────────────────────────────────────────
+  static const activityTitle = 'Activity';
+  static const drawerActivity = 'Activity';
+  static const activityEmptyTitle = 'Nothing has happened';
+  static const activityEmptyBody =
+      'Mentions, replies and reactions to your messages will appear here.';
+  static const activityErrorTitle = 'Could not load your activity';
+  static String activityError(Object error) => '$error';
+
+  /// The one-line headline on a row.
+  ///
+  /// Reads as the sentence it produces — "Ada reacted ❤️ in Flutter Devs" —
+  /// which is why it takes named parts rather than a format string: a locale
+  /// that puts the place first only has to change this.
+  static String activityHeadline({
+    required ActivityKind kind,
+    required String who,
+    required String where,
+    String? emoji,
+  }) {
+    final place = where.isEmpty ? '' : ' in $where';
+    return switch (kind) {
+      ActivityKind.mention => '$who mentioned you$place',
+      ActivityKind.reply => '$who replied to you$place',
+      ActivityKind.reaction =>
+        emoji == null || emoji.isEmpty
+            ? '$who reacted to your message$place'
+            : '$who reacted $emoji$place',
+    };
+  }
+
+  /// The mark beside a row carries its meaning by shape and colour, neither of
+  /// which is read out. This is the word for it.
+  static String activityKindLabel(ActivityKind kind) => switch (kind) {
+    ActivityKind.mention => 'Mention',
+    ActivityKind.reply => 'Reply',
+    ActivityKind.reaction => 'Reaction',
+  };
+
+  /// The bell's badge, capped the way every unread count is.
+  static String activityBadge(int count) => count > 99 ? '99+' : '$count';
+
+  static String a11yActivity(int count) => count == 0
+      ? 'Activity'
+      : 'Activity, $count new';
 
   // ── Bookmarks ──────────────────────────────────────────────────────────────
   static const bookmarksTitle = 'Bookmarks';

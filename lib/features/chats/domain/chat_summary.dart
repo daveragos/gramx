@@ -119,6 +119,12 @@ abstract class ChatSummary with _$ChatSummary {
     /// showing only [unreadCount] renders it as read.
     @Default(false) bool isMarkedAsUnread,
     @Default(0) int unreadMentionCount,
+
+    /// How many reactions to this account's own messages are still unseen.
+    ///
+    /// Arrives free on the update stream, exactly like [unreadMentionCount].
+    /// It is what the Activity screen counts as "somebody reacted to you",
+    @Default(0) int unreadReactionCount,
     @Default(false) bool isMuted,
     @Default(false) bool isVerified,
 

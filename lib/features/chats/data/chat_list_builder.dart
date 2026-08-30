@@ -148,6 +148,7 @@ abstract class ChatListBuilder {
       unreadCount: chat.unreadCount,
       isMarkedAsUnread: chat.isMarkedAsUnread,
       unreadMentionCount: chat.unreadMentionCount,
+      unreadReactionCount: chat.unreadReactionCount,
       isMuted: isMuted(chat.notificationSettings),
       isVerified: user?.isVerified ?? supergroup?.isVerified ?? false,
       isRequest: isRequest(chat),

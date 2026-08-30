@@ -25,6 +25,7 @@ import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
 import 'package:gramx/features/settings/presentation/profile_screen.dart';
 import 'package:gramx/features/settings/presentation/legal_screen.dart';
+import 'package:gramx/features/activity/presentation/activity_screen.dart';
 import 'package:gramx/features/settings/presentation/diagnostics_screen.dart';
 
 // Navigation keys for each branch
@@ -258,6 +259,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ProfileScreen(),
+      ),
+      // What happened while you were away. A pushed route rather than a tab:
+      // puts Channels there, which stays as it is — so this is reached from
+      // the drawer and from the bell in the feed header, both of which are
+      GoRoute(
+        path: ActivityScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ActivityScreen(),
       ),
       // What the app knows about its own failures. A pushed route rather than a
       // section of Settings: it is a list that can be long, and it is the one
