@@ -218,4 +218,80 @@ void main() {
       expect(link.chatId, -1001234567890);
     });
   });
+
+  /// The bug a browser found: tapping a `tg://` link opened "Page Not Found"
+  /// with `GoException: no routes for location: tg:/resolve?domain=…` under
+  /// it. Two faults met. Flutter's own deep linking was also on, so the raw
+  /// URI was pushed into go_router as a location — and by the time it got
+  /// there a normaliser had rewritten `tg://resolve` as `tg:/resolve`, moving
+  /// the action from the authority into the path, where nothing matched it.
+  group('a tg: action is found wherever the form puts it', () {
+    void expectsChannel(String raw, String username) {
+      final link = TelegramLinks.parse(Uri.parse(raw));
+      expect(link, isA<TelegramChannelLink>(), reason: raw);
+      expect((link as TelegramChannelLink).username, username, reason: raw);
+    }
+
+    test('in the authority, as Android hands it over', () {
+      expectsChannel('tg://resolve?domain=Meseretegeez', 'Meseretegeez');
+    });
+
+    test('in the path, as a normaliser leaves it', () {
+      expectsChannel('tg:/resolve?domain=Meseretegeez', 'Meseretegeez');
+    });
+
+    test('with no slash at all', () {
+      expectsChannel('tg:resolve?domain=Meseretegeez', 'Meseretegeez');
+    });
+
+    test('and a trailing slash is not part of the action', () {
+      expectsChannel('tg://resolve/?domain=Meseretegeez', 'Meseretegeez');
+    });
+
+    test('a post keeps its id through the same forms', () {
+      for (final raw in [
+        'tg://resolve?domain=Meseretegeez&post=42',
+        'tg:/resolve?domain=Meseretegeez&post=42',
+      ]) {
+        final link = TelegramLinks.parse(Uri.parse(raw));
+        expect(link, isA<TelegramPostLink>(), reason: raw);
+        expect((link as TelegramPostLink).username, 'Meseretegeez');
+        expect(link.serverMessageId, 42);
+      }
+    });
+
+    test('and so does a private post', () {
+      final link = TelegramLinks.parse(
+        Uri.parse('tg:/privatepost?channel=123&post=9'),
+      );
+      expect(link, isA<TelegramPrivatePostLink>());
+    });
+
+    test('an action this app does not know is still nothing', () {
+      expect(TelegramLinks.parse(Uri.parse('tg:/settings')), isNull);
+      expect(TelegramLinks.parse(Uri.parse('tg://settings')), isNull);
+    });
+  });
+
+  /// The safety net under the platform fix: a link that reaches the router as
+  /// a location anyway is handed back to the handler that owns links, rather
+  /// than shown to the reader as a routing failure.
+  group('deepLinkFromStrayLocation', () {
+    test('claims a link this app can open', () {
+      final uri = Uri.parse('tg:/resolve?domain=Meseretegeez');
+      expect(deepLinkFromStrayLocation(uri), uri);
+    });
+
+    test('claims a t.me location too', () {
+      final uri = Uri.parse('https://t.me/Meseretegeez/12');
+      expect(deepLinkFromStrayLocation(uri), uri);
+    });
+
+    // A real route that simply does not exist is a routing bug, not a link,
+    // and must not be laundered into one.
+    test('leaves an ordinary bad route alone', () {
+      expect(deepLinkFromStrayLocation(Uri.parse('/nope')), isNull);
+      expect(deepLinkFromStrayLocation(Uri.parse('/post/')), isNull);
+    });
+  });
 }

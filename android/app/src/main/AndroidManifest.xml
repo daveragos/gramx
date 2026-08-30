@@ -74,6 +74,17 @@
                 <data android:scheme="tg"/>
             </intent-filter>
 
+            <!-- Flutter's own deep linking is off, because this app already
+                 has one. app_links reads the intent and parks the URI in
+                 PendingDeepLink, which the shell collects once a navigator
+                 exists. With both enabled Flutter *also* pushed the raw URI
+                 into go_router as a location, and "tg:/resolve?domain=…" is
+                 not a route — so a tapped link landed on Page Not Found with
+                 a GoException printed under it. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
+
             <!-- Sharing a link or some text into gramX, which opens the
                  composer with it. text/plain only: the composer takes photos
                  and videos from the gallery picker, and accepting them here

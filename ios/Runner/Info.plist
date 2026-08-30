@@ -58,6 +58,11 @@
 	     so these are here for completeness and for the tg:// scheme below —
 	     which is the half that does work, because a scheme needs no
 	     cooperation from the domain's owner. -->
+	<!-- Off for the same reason as Android's flutter_deeplinking_enabled:
+	     app_links owns incoming links, and letting Flutter route them as
+	     locations as well lands the reader on Page Not Found. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

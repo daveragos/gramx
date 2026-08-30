@@ -39,6 +39,20 @@ abstract class DeepLinkRoutes {
   };
 }
 
+/// What to do with a location the router has no route for.
+///
+/// A Telegram link should never reach the router as a *location* — app_links
+/// owns them and parks them in [PendingDeepLink]. But a platform that routes
+/// one anyway, on any OS, past or future, lands the reader on "Page Not Found"
+/// with a raw `GoException` under it: the worst version of an outcome that is
+/// entirely recoverable, since the link is right there and the app knows how
+/// to open it.
+///
+/// Returns the link to hand back to [PendingDeepLink], or null when the
+/// location really is nothing this app knows.
+Uri? deepLinkFromStrayLocation(Uri location) =>
+    TelegramLinks.parse(location) == null ? null : location;
+
 /// A link waiting to be opened.
 ///
 /// Held in a provider rather than pushed directly, because a link can arrive

@@ -201,7 +201,16 @@ abstract class TelegramLinks {
 
   static TelegramLink? _parseScheme(Uri uri) {
     final params = uri.queryParameters;
-    switch (uri.host.isEmpty ? uri.path : uri.host) {
+
+    // The action is the authority in `tg://resolve?…` and the path in
+    // `tg:/resolve?…` — the same link, written the way a URI normaliser leaves
+    // it. Both forms arrive: Android hands over the first, and a router that
+    // took the link as a location hands over the second. Matching only the
+    // authority meant the normalised form parsed as nothing at all.
+    final raw = uri.host.isEmpty ? uri.path : uri.host;
+    final action = raw.replaceAll(RegExp(r'^/+|/+$'), '').toLowerCase();
+
+    switch (action) {
       case 'resolve':
         final domain = params['domain'];
         if (domain == null || !isUsername(domain)) return null;

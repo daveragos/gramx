@@ -7,6 +7,7 @@ import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/guest/presentation/guest_channels_screen.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/auth_redirect.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/app/splash_screen.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
@@ -103,6 +104,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
+    // A Telegram link that arrives as a location rather than through
+    // app_links is still a link this app can open, so it is handed back to
+    // the handler that owns them instead of being shown to the reader as a
+    // routing failure. See deepLinkFromStrayLocation.
+    onException: (context, state, router) {
+      final link = deepLinkFromStrayLocation(state.uri);
+      if (link != null) {
+        ref.read(pendingDeepLinkProvider.notifier).offer(link);
+      }
+      router.go(ShellTab.home.path);
+    },
     // Neither the feed nor the sign-in screen: see SplashScreen for why the
     // app opens on a destination that means "not decided yet".
     initialLocation: SplashScreen.route,
