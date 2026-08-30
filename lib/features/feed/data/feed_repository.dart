@@ -759,6 +759,18 @@ class FeedRepository {
   }
 
   /// Toggle bookmark using chatId + messageId.
+  ///
+  /// The local row is the index; **Saved Messages is the copy that lasts.** A
+  /// bookmark used to be a Drift row and nothing else, so reinstalling the app
+  /// — or signing in on a second device — lost every one of them. Telegram's
+  /// own durable save is a forward to Saved Messages, so that is what this
+  /// writes, and [restoreBookmarks] is what reads it back.
+  ///
+  /// The mirror is best-effort. A tap while offline, or while rate limited,
+  /// still bookmarks locally and simply has no saved copy; it is not queued
+  /// and not retried, because a bookmark is not worth a queue. What that costs
+  /// is one bookmark missing from a restore, which is better than a tap that
+  /// appears to do nothing.
   Future<void> toggleBookmark(int chatId, int messageId) async {
     final existing =
         await (_db.select(_db.bookmarkEntries)..where(
@@ -771,22 +783,204 @@ class FeedRepository {
             (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
           ))
           .go();
-    } else {
-      final accounts = await (_db.select(
-        _db.accounts,
-      )..where((a) => a.isActive.equals(true))).get();
-      final accountId = accounts.isNotEmpty ? accounts.first.id : 1;
-
-      await _db
-          .into(_db.bookmarkEntries)
-          .insert(
-            BookmarkEntriesCompanion.insert(
-              accountId: accountId,
-              chatId: chatId,
-              messageId: messageId,
-            ),
-          );
+      await _removeSavedCopy(existing.savedMessageId);
+      return;
     }
+
+    final accountId = (await _activeAccount())?.id ?? 1;
+
+    // Written before the local row, so the row is stored with its handle
+    // rather than needing a second write to attach one.
+    final savedMessageId = await _writeSavedCopy(chatId, messageId);
+
+    await _db
+        .into(_db.bookmarkEntries)
+        .insert(
+          BookmarkEntriesCompanion.insert(
+            accountId: accountId,
+            chatId: chatId,
+            messageId: messageId,
+            savedMessageId: Value(savedMessageId),
+          ),
+        );
+  }
+
+  /// The signed-in account's row, which is also where the reader's own
+  /// Telegram user id lives.
+  Future<Account?> _activeAccount() async {
+    final accounts = await (_db.select(
+      _db.accounts,
+    )..where((a) => a.isActive.equals(true))).get();
+    return accounts.isEmpty ? null : accounts.first;
+  }
+
+  /// This account's Saved Messages chat, or null when there is no account.
+  ///
+  /// Telegram models notes-to-self as a private chat with yourself, so the
+  /// chat id *is* the user id — once the chat exists. On a fresh account it
+  /// does not, which is why this can have to create it.
+  Future<int?> _savedMessagesChatId() async {
+    final selfId = int.tryParse((await _activeAccount())?.telegramUserId ?? '');
+    if (selfId == null) return null;
+    if (_chatCache.chat(selfId) != null) return selfId;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.CreatePrivateChat(userId: selfId, force: false),
+      );
+      return res is td.Chat ? res.id : null;
+    } catch (e) {
+      debugPrint('[FeedRepo] Saved Messages unavailable: $e');
+      return null;
+    }
+  }
+
+  /// Forwards a post into Saved Messages, answering the copy's id.
+  Future<int?> _writeSavedCopy(int chatId, int messageId) async {
+    final saved = await _savedMessagesChatId();
+    if (saved == null) return null;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.ForwardMessages(
+          chatId: saved,
+          messageThreadId: 0,
+          fromChatId: chatId,
+          messageIds: [messageId],
+          options: const td.MessageSendOptions(
+            // A note to yourself should not buzz your own phone.
+            disableNotification: true,
+            fromBackground: true,
+            protectContent: false,
+            updateOrderOfInstalledStickerSets: false,
+            effectId: 0,
+            sendingId: 0,
+            onlyPreview: false,
+          ),
+          // Attribution is the whole point: the copy has to say where it came
+          // from, because that is what a restore reads to find the original.
+          sendCopy: false,
+          removeCaption: false,
+        ),
+      );
+      if (res is! td.Messages || res.messages.isEmpty) return null;
+      return res.messages.first.id;
+    } catch (e) {
+      debugPrint('[FeedRepo] Could not save bookmark to Saved Messages: $e');
+      return null;
+    }
+  }
+
+  /// Deletes a bookmark's copy out of Saved Messages.
+  Future<void> _removeSavedCopy(int? savedMessageId) async {
+    if (savedMessageId == null) return;
+    final saved = await _savedMessagesChatId();
+    if (saved == null) return;
+
+    try {
+      await _tdlib.sendRequest(
+        td.DeleteMessages(
+          chatId: saved,
+          messageIds: [savedMessageId],
+          // Saved Messages is a chat with yourself; there is no other side for
+          // a copy to be left on.
+          revoke: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[FeedRepo] Could not remove the saved copy: $e');
+    }
+  }
+
+  /// How far back a restore reads.
+  ///
+  /// Paged like any history read, and bounded: Saved Messages is also where a
+  /// reader keeps everything else they have ever sent themselves, and walking
+  /// all of it to find bookmarks would be a fan-out with extra steps.
+  static const int _restorePages = 8;
+  static const int _restorePageSize = 100;
+
+  /// Rebuilds the local bookmark rows from Saved Messages.
+  ///
+  /// This is what makes a bookmark survive a reinstall. Every mirror carries
+  /// `forwardInfo`, and a channel origin names the chat and the message it came
+  /// from — which is exactly the pair a bookmark is.
+  ///
+  /// Existing rows are left alone, so running this twice adds nothing and
+  /// running it after deleting a bookmark does not bring that bookmark back:
+  /// unbookmarking deletes the mirror too, so there is nothing to find.
+  ///
+  /// Answers how many bookmarks it added.
+  Future<int> restoreBookmarks() async {
+    final saved = await _savedMessagesChatId();
+    if (saved == null) return 0;
+
+    final accountId = (await _activeAccount())?.id ?? 1;
+    final known = await _bookmarkKeys();
+    var added = 0;
+    var fromMessageId = 0;
+
+    for (var page = 0; page < _restorePages; page++) {
+      final messages = await _savedMessagesPage(saved, fromMessageId);
+      if (messages.isEmpty) break;
+
+      for (final message in messages) {
+        final origin = bookmarkOriginOf(message);
+        if (origin == null) continue;
+        if (!known.add('${origin.chatId}_${origin.messageId}')) continue;
+
+        await _db
+            .into(_db.bookmarkEntries)
+            .insert(
+              BookmarkEntriesCompanion.insert(
+                accountId: accountId,
+                chatId: origin.chatId,
+                messageId: origin.messageId,
+                savedMessageId: Value(message.id),
+              ),
+              mode: InsertMode.insertOrIgnore,
+            );
+        added++;
+      }
+
+      fromMessageId = messages.last.id;
+    }
+
+    return added;
+  }
+
+  Future<List<td.Message>> _savedMessagesPage(int chatId, int from) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChatHistory(
+          chatId: chatId,
+          fromMessageId: from,
+          offset: 0,
+          limit: _restorePageSize,
+          onlyLocal: false,
+        ),
+      );
+      return res is td.Messages ? res.messages : const [];
+    } catch (e) {
+      debugPrint('[FeedRepo] Saved Messages page failed: $e');
+      return const [];
+    }
+  }
+
+  /// The channel post a saved copy was forwarded from, if it was one.
+  ///
+  /// Pure, and the part worth testing: Saved Messages holds everything a reader
+  /// has ever sent themselves, and only a forward *from a channel* with a
+  /// message id behind it is a bookmark. A note typed to yourself, a forward
+  /// from a person, and a channel origin with no message id all answer null —
+  /// the last of those is a forward Telegram could not attribute precisely,
+  /// which is not enough to find a post with.
+  @visibleForTesting
+  static ({int chatId, int messageId})? bookmarkOriginOf(td.Message message) {
+    final origin = message.forwardInfo?.origin;
+    if (origin is! td.MessageOriginChannel) return null;
+    if (origin.messageId <= 0) return null;
+    return (chatId: origin.chatId, messageId: origin.messageId);
   }
 
   /// Check if a post is bookmarked.

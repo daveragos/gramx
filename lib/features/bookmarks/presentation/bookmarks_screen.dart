@@ -26,6 +26,19 @@ final bookmarkedPostsProvider = FutureProvider<List<Post>>((ref) async {
 class BookmarksScreen extends ConsumerWidget {
   const BookmarksScreen({super.key});
 
+  /// Reads the bookmarks back out of Saved Messages.
+  Future<void> _restore(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final added = await ref.read(feedRepositoryProvider).restoreBookmarks();
+    if (added > 0) ref.invalidate(bookmarkedPostsProvider);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(AppStrings.bookmarksRestored(added)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Bookmarks are stored against the signed-in account, so a guest has none
@@ -41,7 +54,20 @@ class BookmarksScreen extends ConsumerWidget {
     final bookmarksAsync = ref.watch(bookmarkedPostsProvider);
 
     return ChromeScaffold(
-      header: const ChromeHeaderRow(title: AppStrings.bookmarksTitle),
+      header: ChromeHeaderRow(
+        title: AppStrings.bookmarksTitle,
+        actions: [
+          // A bookmark is mirrored into Saved Messages so it survives a
+          // reinstall; this is the way back in. Offered rather than run
+          // automatically: a reader who cleared their bookmarks should not
+          // have them reappear because the app decided to be helpful.
+          IconButton(
+            icon: const Icon(Icons.restore_rounded),
+            tooltip: AppStrings.bookmarksRestore,
+            onPressed: () => _restore(context, ref),
+          ),
+        ],
+      ),
       body: (context, topPadding, bottomPadding) => bookmarksAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),

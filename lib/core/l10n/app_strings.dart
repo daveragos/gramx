@@ -364,6 +364,17 @@ abstract class AppStrings {
   static String bookmarksError(Object error) =>
       'Error loading bookmarks: $error';
 
+  static const bookmarksRestore = 'Restore from Saved Messages';
+  static const bookmarksRestoreBody =
+      'gramX keeps a copy of every bookmark in your Telegram Saved Messages, '
+      'so they survive a reinstall. This reads them back.';
+
+  static String bookmarksRestored(int count) => switch (count) {
+    0 => 'Nothing to restore — every saved bookmark is already here.',
+    1 => 'Restored 1 bookmark.',
+    _ => 'Restored $count bookmarks.',
+  };
+
   // ── Settings ───────────────────────────────────────────────────────────────
   static String settingsAccountError(Object error) =>
       'Error loading account: $error';

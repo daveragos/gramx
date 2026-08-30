@@ -623,6 +623,17 @@ class $BookmarkEntriesTable extends BookmarkEntries
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _savedMessageIdMeta = const VerificationMeta(
+    'savedMessageId',
+  );
+  @override
+  late final GeneratedColumn<int> savedMessageId = GeneratedColumn<int>(
+    'saved_message_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -641,6 +652,7 @@ class $BookmarkEntriesTable extends BookmarkEntries
     accountId,
     chatId,
     messageId,
+    savedMessageId,
     createdAt,
   ];
   @override
@@ -682,6 +694,15 @@ class $BookmarkEntriesTable extends BookmarkEntries
     } else if (isInserting) {
       context.missing(_messageIdMeta);
     }
+    if (data.containsKey('saved_message_id')) {
+      context.handle(
+        _savedMessageIdMeta,
+        savedMessageId.isAcceptableOrUnknown(
+          data['saved_message_id']!,
+          _savedMessageIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -717,6 +738,10 @@ class $BookmarkEntriesTable extends BookmarkEntries
         DriftSqlType.int,
         data['${effectivePrefix}message_id'],
       )!,
+      savedMessageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}saved_message_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -735,12 +760,25 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
   final int accountId;
   final int chatId;
   final int messageId;
+
+  /// The id of this post's copy in Saved Messages, when there is one.
+  ///
+  /// A bookmark used to be a row here and nothing else, so it died with the
+  /// install and never followed the account to a second device. Telegram's own
+  /// durable "save" is a forward to Saved Messages, so that is what a bookmark
+  /// now is; this is the handle needed to take it back out again.
+  ///
+  /// Null for a bookmark whose mirror could not be written — an offline tap, a
+  /// flood wait. The local row still stands, and the mirror is not retried:
+  /// a bookmark is not worth a queue.
+  final int? savedMessageId;
   final DateTime createdAt;
   const BookmarkEntry({
     required this.id,
     required this.accountId,
     required this.chatId,
     required this.messageId,
+    this.savedMessageId,
     required this.createdAt,
   });
   @override
@@ -750,6 +788,9 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
     map['account_id'] = Variable<int>(accountId);
     map['chat_id'] = Variable<int>(chatId);
     map['message_id'] = Variable<int>(messageId);
+    if (!nullToAbsent || savedMessageId != null) {
+      map['saved_message_id'] = Variable<int>(savedMessageId);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -760,6 +801,9 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
       accountId: Value(accountId),
       chatId: Value(chatId),
       messageId: Value(messageId),
+      savedMessageId: savedMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(savedMessageId),
       createdAt: Value(createdAt),
     );
   }
@@ -774,6 +818,7 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
       accountId: serializer.fromJson<int>(json['accountId']),
       chatId: serializer.fromJson<int>(json['chatId']),
       messageId: serializer.fromJson<int>(json['messageId']),
+      savedMessageId: serializer.fromJson<int?>(json['savedMessageId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -785,6 +830,7 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
       'accountId': serializer.toJson<int>(accountId),
       'chatId': serializer.toJson<int>(chatId),
       'messageId': serializer.toJson<int>(messageId),
+      'savedMessageId': serializer.toJson<int?>(savedMessageId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -794,12 +840,16 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
     int? accountId,
     int? chatId,
     int? messageId,
+    Value<int?> savedMessageId = const Value.absent(),
     DateTime? createdAt,
   }) => BookmarkEntry(
     id: id ?? this.id,
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
     messageId: messageId ?? this.messageId,
+    savedMessageId: savedMessageId.present
+        ? savedMessageId.value
+        : this.savedMessageId,
     createdAt: createdAt ?? this.createdAt,
   );
   BookmarkEntry copyWithCompanion(BookmarkEntriesCompanion data) {
@@ -808,6 +858,9 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
       accountId: data.accountId.present ? data.accountId.value : this.accountId,
       chatId: data.chatId.present ? data.chatId.value : this.chatId,
       messageId: data.messageId.present ? data.messageId.value : this.messageId,
+      savedMessageId: data.savedMessageId.present
+          ? data.savedMessageId.value
+          : this.savedMessageId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -819,13 +872,15 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
           ..write('accountId: $accountId, ')
           ..write('chatId: $chatId, ')
           ..write('messageId: $messageId, ')
+          ..write('savedMessageId: $savedMessageId, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, accountId, chatId, messageId, createdAt);
+  int get hashCode =>
+      Object.hash(id, accountId, chatId, messageId, savedMessageId, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -834,6 +889,7 @@ class BookmarkEntry extends DataClass implements Insertable<BookmarkEntry> {
           other.accountId == this.accountId &&
           other.chatId == this.chatId &&
           other.messageId == this.messageId &&
+          other.savedMessageId == this.savedMessageId &&
           other.createdAt == this.createdAt);
 }
 
@@ -842,12 +898,14 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
   final Value<int> accountId;
   final Value<int> chatId;
   final Value<int> messageId;
+  final Value<int?> savedMessageId;
   final Value<DateTime> createdAt;
   const BookmarkEntriesCompanion({
     this.id = const Value.absent(),
     this.accountId = const Value.absent(),
     this.chatId = const Value.absent(),
     this.messageId = const Value.absent(),
+    this.savedMessageId = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   BookmarkEntriesCompanion.insert({
@@ -855,6 +913,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
     required int accountId,
     required int chatId,
     required int messageId,
+    this.savedMessageId = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : accountId = Value(accountId),
        chatId = Value(chatId),
@@ -864,6 +923,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
     Expression<int>? accountId,
     Expression<int>? chatId,
     Expression<int>? messageId,
+    Expression<int>? savedMessageId,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -871,6 +931,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
       if (accountId != null) 'account_id': accountId,
       if (chatId != null) 'chat_id': chatId,
       if (messageId != null) 'message_id': messageId,
+      if (savedMessageId != null) 'saved_message_id': savedMessageId,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -880,6 +941,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
     Value<int>? accountId,
     Value<int>? chatId,
     Value<int>? messageId,
+    Value<int?>? savedMessageId,
     Value<DateTime>? createdAt,
   }) {
     return BookmarkEntriesCompanion(
@@ -887,6 +949,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
       accountId: accountId ?? this.accountId,
       chatId: chatId ?? this.chatId,
       messageId: messageId ?? this.messageId,
+      savedMessageId: savedMessageId ?? this.savedMessageId,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -906,6 +969,9 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
     if (messageId.present) {
       map['message_id'] = Variable<int>(messageId.value);
     }
+    if (savedMessageId.present) {
+      map['saved_message_id'] = Variable<int>(savedMessageId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -919,6 +985,7 @@ class BookmarkEntriesCompanion extends UpdateCompanion<BookmarkEntry> {
           ..write('accountId: $accountId, ')
           ..write('chatId: $chatId, ')
           ..write('messageId: $messageId, ')
+          ..write('savedMessageId: $savedMessageId, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1330,6 +1397,7 @@ typedef $$BookmarkEntriesTableCreateCompanionBuilder =
       required int accountId,
       required int chatId,
       required int messageId,
+      Value<int?> savedMessageId,
       Value<DateTime> createdAt,
     });
 typedef $$BookmarkEntriesTableUpdateCompanionBuilder =
@@ -1338,6 +1406,7 @@ typedef $$BookmarkEntriesTableUpdateCompanionBuilder =
       Value<int> accountId,
       Value<int> chatId,
       Value<int> messageId,
+      Value<int?> savedMessageId,
       Value<DateTime> createdAt,
     });
 
@@ -1389,6 +1458,11 @@ class $$BookmarkEntriesTableFilterComposer
 
   ColumnFilters<int> get messageId => $composableBuilder(
     column: $table.messageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get savedMessageId => $composableBuilder(
+    column: $table.savedMessageId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1445,6 +1519,11 @@ class $$BookmarkEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get savedMessageId => $composableBuilder(
+    column: $table.savedMessageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -1491,6 +1570,11 @@ class $$BookmarkEntriesTableAnnotationComposer
 
   GeneratedColumn<int> get messageId =>
       $composableBuilder(column: $table.messageId, builder: (column) => column);
+
+  GeneratedColumn<int> get savedMessageId => $composableBuilder(
+    column: $table.savedMessageId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -1553,12 +1637,14 @@ class $$BookmarkEntriesTableTableManager
                 Value<int> accountId = const Value.absent(),
                 Value<int> chatId = const Value.absent(),
                 Value<int> messageId = const Value.absent(),
+                Value<int?> savedMessageId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => BookmarkEntriesCompanion(
                 id: id,
                 accountId: accountId,
                 chatId: chatId,
                 messageId: messageId,
+                savedMessageId: savedMessageId,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -1567,12 +1653,14 @@ class $$BookmarkEntriesTableTableManager
                 required int accountId,
                 required int chatId,
                 required int messageId,
+                Value<int?> savedMessageId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => BookmarkEntriesCompanion.insert(
                 id: id,
                 accountId: accountId,
                 chatId: chatId,
                 messageId: messageId,
+                savedMessageId: savedMessageId,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

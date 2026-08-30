@@ -9,7 +9,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -18,6 +18,17 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (m, from, to) async {
+        // v4 only adds a column. Additive rather than the drop-and-recreate
+        // below, because a bookmark is now a thing on the reader's Telegram
+        // account rather than a local note — throwing the rows away would
+        // leave the mirrors in Saved Messages with nothing pointing at them.
+        if (from >= 3) {
+          await m.addColumn(
+            bookmarkEntries,
+            bookmarkEntries.savedMessageId,
+          );
+          return;
+        }
         for (final table in allTables) {
           await m.drop(table);
         }

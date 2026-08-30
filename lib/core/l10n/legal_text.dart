@@ -94,7 +94,9 @@ abstract class LegalTexts {
         'A record of the signed-in account — your Telegram user id, display '
             'name, username, phone number and the path to your avatar — so the '
             'app can show whose feed it is showing.',
-        'Your bookmarks, as a list of chat and message ids.',
+        'Your bookmarks, as a list of chat and message ids. Each one also '
+            'has a copy in your Telegram Saved Messages — see below — and '
+            'that copy is what lets them survive reinstalling the app.',
         'Your preferences: theme, autoplay, and which channels you have muted '
             'along with when each mute expires.',
         'A short log of errors the app has caught — the last fifty, with '
@@ -119,8 +121,10 @@ abstract class LegalTexts {
             'Specifically, gramX will: mark posts as read once they have been '
             'on your screen long enough, and that read state syncs to every '
             'device you use Telegram on; send the reactions you tap; post the '
-            'comments you write; forward the posts you forward; and subscribe '
-            'you to a channel when you add one.',
+            'comments you write; forward the posts you forward; subscribe '
+            'you to a channel when you add one; and forward a post into your '
+            'Saved Messages when you bookmark it, deleting that copy again '
+            'when you remove the bookmark.',
         'Read state cannot be undone. If you want the unread badges on your '
             'other devices left alone, do not read those posts here.',
         'Your gramX session appears in Telegram under Settings → Devices, '
