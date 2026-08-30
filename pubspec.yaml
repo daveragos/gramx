@@ -67,6 +67,11 @@ dependencies:
   # the launch link and the ones that arrive while running; what they mean is
   # decided in `core/navigation/telegram_link.dart`, which is pure.
   app_links: ^6.3.2
+
+  # Showing a notification. TDLib decides *what* should be notified and keeps
+  # the groups in step across the reader's devices; it has no way to draw one,
+  # which is what this is for. See docs/ROADMAP.md T19-2.
+  flutter_local_notifications: ^18.0.1
   lottie: ^3.5.1
   open_filex: ^4.7.0
 

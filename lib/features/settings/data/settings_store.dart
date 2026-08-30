@@ -94,6 +94,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// Persisted, because it decides whether the shell is reachable: a guest who
   /// closes the app must reopen into their feed rather than onto the sign-in
   /// screen they walked past.
+  void setNotificationsEnabled(bool enabled) =>
+      _update(state.copyWith(notificationsEnabled: enabled));
+
   void setGuestMode(bool enabled) =>
       _update(state.copyWith(guestMode: enabled));
 }

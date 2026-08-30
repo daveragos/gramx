@@ -5,6 +5,12 @@
          the app's own file. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Putting a notification on the screen. Android 13+ also requires a
+         runtime grant, which Settings asks for when the reader turns
+         notifications on — never at launch, where a permission dialog with no
+         context is the one every reader declines. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <!-- ExoPlayer (via video_player) asks for this to keep the CPU awake
          during playback. This app only ever plays files TDLib already
          downloaded, and never sets a wake mode, so the permission would only

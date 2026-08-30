@@ -65,11 +65,21 @@ class AppSettings {
   /// walked past.
   final bool guestMode;
 
+  /// Whether gramX may put a notification on the screen.
+  ///
+  /// Defaults **off**, and that is deliberate: turning it on is also what asks
+  /// the operating system for permission, and a permission dialog nobody asked
+  /// for is the one every reader declines — after which the app has to send
+  /// them to their system settings to undo it. Off until Settings is visited
+  /// costs a reader who wants notifications one tap, once.
+  final bool notificationsEnabled;
+
   const AppSettings({
     this.themeMode = AppThemeMode.dark,
     this.autoPlay = AutoPlayPolicy.always,
     this.autoDownloadImages = AutoDownloadPolicy.always,
     this.guestMode = false,
+    this.notificationsEnabled = false,
   });
 
   /// True when videos and GIFs should start on their own.
@@ -84,12 +94,15 @@ class AppSettings {
     AutoPlayPolicy? autoPlay,
     AutoDownloadPolicy? autoDownloadImages,
     bool? guestMode,
+    bool? notificationsEnabled,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
       autoPlay: autoPlay ?? this.autoPlay,
       autoDownloadImages: autoDownloadImages ?? this.autoDownloadImages,
       guestMode: guestMode ?? this.guestMode,
+      notificationsEnabled:
+          notificationsEnabled ?? this.notificationsEnabled,
     );
   }
 
@@ -98,6 +111,7 @@ class AppSettings {
         'autoPlay': autoPlay.name,
         'autoDownloadImages': autoDownloadImages.name,
         'guestMode': guestMode,
+        'notificationsEnabled': notificationsEnabled,
       };
 
   /// Tolerant by design: a settings file written by an older or newer build
@@ -109,6 +123,7 @@ class AppSettings {
       autoDownloadImages:
           AutoDownloadPolicy.fromName(json['autoDownloadImages'] as String?),
       guestMode: json['guestMode'] as bool? ?? false,
+      notificationsEnabled: json['notificationsEnabled'] as bool? ?? false,
     );
   }
 

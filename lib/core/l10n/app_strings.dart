@@ -489,6 +489,23 @@ abstract class AppStrings {
     ErrorSource.reported => 'gramX',
   };
 
+  // ── Notifications ──────────────────────────────────────────────────────────
+  static const settingsSectionNotifications = 'Notifications';
+  static const notificationsEnableTitle = 'Notify me';
+  static const notificationsEnableBody =
+      'Mentions, replies and messages, decided by Telegram — so a chat you '
+      'muted there stays quiet here.';
+  static const notificationsDeniedTitle = 'Notifications are blocked';
+  static const notificationsDeniedBody =
+      'Your device refused the request. Turn gramX on in your system '
+      'notification settings, then try again.';
+
+  /// The name of the Android channel, which the reader sees in their own
+  /// system settings — so it says what it carries, not what the code calls it.
+  static const notificationsChannelName = 'Messages and mentions';
+  static const notificationsChannelBody =
+      'New messages, mentions and replies from Telegram.';
+
   // ── Legal ──────────────────────────────────────────────────────────────────
   static const legalNotFoundTitle = 'Not found';
   static const legalNotFoundBody = 'That document does not exist.';

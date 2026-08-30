@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/core/config/app_links.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/activity/data/notification_service.dart';
 import 'package:gramx/features/settings/presentation/diagnostics_screen.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
@@ -45,6 +46,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _isClearingCache = false);
     }
+  }
+
+  /// Turning notifications on is also what asks the operating system for
+  /// permission — which is why the setting defaults off and lives here rather
+  /// than being asked for at launch. A refusal is reported rather than
+  /// silently leaving a switch on that does nothing: Android 13+ declines
+  /// without telling the app anything the reader would notice.
+  Future<void> _setNotifications(
+    BuildContext context,
+    WidgetRef ref,
+    bool enabled,
+  ) async {
+    final notifier = ref.read(settingsProvider.notifier);
+    final service = ref.read(notificationServiceProvider);
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (!enabled) {
+      notifier.setNotificationsEnabled(false);
+      await service.disableTdlibNotifications();
+      return;
+    }
+
+    final granted = await service.requestPermission();
+    if (!granted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.notificationsDeniedBody),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    notifier.setNotificationsEnabled(true);
+    await service.start();
   }
 
   @override
@@ -196,6 +232,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // The account section is gone: it linked to the profile, which linked
           // back here. The drawer reaches both directly.
+
+          _SectionHeader(
+              title: AppStrings.settingsSectionNotifications,
+              secondaryColor: secondaryColor),
+          SwitchListTile(
+            value: settings.notificationsEnabled,
+            title: Text(AppStrings.notificationsEnableTitle,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.notificationsEnableBody,
+                style: AppTypography.actionCount(color: secondaryColor)),
+            onChanged: (enabled) => _setNotifications(context, ref, enabled),
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
 
           _SectionHeader(title: AppStrings.settingsSectionDisplay, secondaryColor: secondaryColor),
           Padding(

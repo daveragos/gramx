@@ -10,6 +10,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/features/activity/data/notification_service.dart';
 import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/navigation/share_intake.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
@@ -101,6 +102,20 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     // time — so the shared text is collected on every resume as well as here.
     WidgetsBinding.instance.addObserver(this);
     unawaited(_openSharedText());
+
+    // A notification tapped from the lock screen wakes the app from cold, so
+    // the route it asks for is parked the same way a link is and collected
+    // here, where a navigator exists.
+    ref.listenManual<String?>(
+      pendingNotificationRouteProvider,
+      (_, next) {
+        if (next == null) return;
+        final route =
+            ref.read(pendingNotificationRouteProvider.notifier).take();
+        if (route != null && mounted) GoRouter.of(context).push(route);
+      },
+      fireImmediately: true,
+    );
 
     // A link can arrive before there is anywhere to send it: a cold start from
     // a tapped `t.me` link runs before the first frame, so the link is parked

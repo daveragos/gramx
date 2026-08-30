@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/features/activity/data/notification_service.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -46,6 +48,19 @@ Future<ProviderContainer> bootstrap() async {
   // Not awaited: a launch link is parked in the provider and collected by the
   // shell once there is a navigator, so nothing here has to wait for it.
   unawaited(container.read(pendingDeepLinkProvider.notifier).start());
+
+  // Notifications, but only for a reader who has said yes. Starting the
+  // service is also what tells TDLib to generate notification groups at all —
+  // it produces none until asked — so a reader with the setting off costs
+  // nothing rather than costing groups that are thrown away here.
+  //
+  // The launch tap is collected either way: it is a tap that already happened,
+  // and the setting may have been turned off since.
+  final notifications = container.read(notificationServiceProvider);
+  unawaited(notifications.collectLaunchTap());
+  if (container.read(settingsProvider).notificationsEnabled) {
+    unawaited(notifications.start());
+  }
 
   return container;
 }

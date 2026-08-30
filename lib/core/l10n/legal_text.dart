@@ -146,6 +146,10 @@ abstract class LegalTexts {
         'Tapping a link in a post opens it in your browser. From that point '
             'you are on that website, and it can see your visit as any website '
             'you open would.',
+        'If you turn notifications on, your device shows them. Telegram '
+            'decides what is worth a notification — a chat you muted there '
+            'stays quiet here — and the text comes from Telegram; gramX only '
+            'draws it. Notifications are off until you turn them on.',
         'Settings has two links of its own — a way to support the work, and '
             'the source code. They open in your browser too.',
       ]),
