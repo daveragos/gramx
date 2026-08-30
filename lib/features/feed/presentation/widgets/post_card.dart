@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,11 +19,11 @@ import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart'
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
-import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 class PostCard extends ConsumerWidget {
   final Post post;
@@ -285,9 +284,13 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        if (post.replyToText != null || post.replyToAuthorTitle != null || post.replyToMessageId != null) ...[
-                          _buildQuotedReplyCard(context, ref, post, isDark, secondaryColor),
-                        ],
+                        // Telegram's tinted block. See ReplyTarget.
+                        ReplyTarget(
+                          post: post,
+                          onOpenPost: () => _openReplyTarget(context),
+                          onOpenAuthor: () => NavigationUtils.openChannel(
+                              context, post.channelId),
+                        ),
 
                         // Text content with link launcher. Long posts clamp
                         // with a "Show more" rather than pushing every other
@@ -434,153 +437,19 @@ class PostCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildQuotedReplyCard(
-      BuildContext context, WidgetRef ref, Post post, bool isDark, Color secondaryColor) {
-    final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
-    final replyText = post.replyToText ?? AppStrings.replyUnavailable;
-    final hasThumbnail = post.replyToThumbnailFileId != null ||
-        (post.replyToThumbnailUrl != null && post.replyToThumbnailUrl!.isNotEmpty);
-
-    void goToOriginalPost() {
-      if (post.replyToMessageId != null) {
-        // A reply can point into another chat; assuming this one asked for a
-        // message id that doesn't exist there and reported "post not found".
-        final chatId = post.replyToChatId ?? post.chatId;
-        NavigationUtils.openPost(context, '${chatId}_${post.replyToMessageId}');
-      } else {
-        NavigationUtils.openChannel(context, post.channelId);
-      }
-    }
-
-    void goToOriginalChannel() {
+  /// Opens the message this post answers.
+  ///
+  /// A reply can point into another chat. Assuming it points into this one
+  /// asked for a message id that does not exist there, which reports itself as
+  /// "post not found" however reachable the real one is.
+  void _openReplyTarget(BuildContext context) {
+    final messageId = post.replyToMessageId;
+    if (messageId == null) {
       NavigationUtils.openChannel(context, post.channelId);
+      return;
     }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 6, bottom: 4),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: goToOriginalPost,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1C2733) : const Color(0xFFEFF5FC),
-            borderRadius: BorderRadius.circular(10),
-            border: const Border(
-              left: BorderSide(color: AppColors.accent, width: 3.5),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: goToOriginalChannel,
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.campaign_rounded,
-                            size: 14,
-                            color: AppColors.accent,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              replyTitle,
-                              style: const TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.1,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      replyText,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.body(color: secondaryColor).copyWith(
-                        fontSize: 12.5,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (hasThumbnail) ...[
-                const SizedBox(width: 8),
-                _buildReplyThumbnail(ref, post, isDark),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReplyThumbnail(WidgetRef ref, Post post, bool isDark) {
-    final fileId = post.replyToThumbnailFileId;
-    final directUrl = post.replyToThumbnailUrl;
-
-    Widget imageWidget;
-    if (fileId != null && fileId != 0) {
-      final fileState = ref.watch(fileDownloadProvider(fileId));
-      final resolvedPath = fileState.value ?? directUrl;
-      if (resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
-        imageWidget = Image.file(
-          File(resolvedPath),
-          width: 42,
-          height: 42,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildReplyThumbnailPlaceholder(isDark),
-        );
-      } else {
-        imageWidget = _buildReplyThumbnailPlaceholder(isDark);
-      }
-    } else if (directUrl != null && directUrl.isNotEmpty && File(directUrl).existsSync()) {
-      imageWidget = Image.file(
-        File(directUrl),
-        width: 42,
-        height: 42,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildReplyThumbnailPlaceholder(isDark),
-      );
-    } else {
-      imageWidget = _buildReplyThumbnailPlaceholder(isDark);
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox(
-        width: 42,
-        height: 42,
-        child: imageWidget,
-      ),
-    );
-  }
-
-  Widget _buildReplyThumbnailPlaceholder(bool isDark) {
-    return Container(
-      width: 42,
-      height: 42,
-      color: isDark ? const Color(0xFF283647) : Colors.grey.shade300,
-      child: const Icon(
-        Icons.image_outlined,
-        size: 18,
-        color: AppColors.accent,
-      ),
-    );
+    NavigationUtils.openPost(
+        context, '${post.replyToChatId ?? post.chatId}_$messageId');
   }
 }
 

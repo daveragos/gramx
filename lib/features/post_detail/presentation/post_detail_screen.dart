@@ -26,6 +26,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_control.dart';
@@ -370,16 +371,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.lg),
-                              // Quoted Reply Preview Card
-                              if (post.replyToText != null ||
-                                  post.replyToAuthorTitle != null ||
-                                  post.replyToMessageId != null) ...[
-                                _buildQuotedReplyCard(
-                                  context,
-                                  post,
-                                  secondaryColor,
-                                ),
-                              ],
+                              ReplyTarget(
+                                post: post,
+                                onOpenPost: () => _openReplyTarget(context, post),
+                                onOpenAuthor: () =>
+                                    context.push('/channel/${post.channelId}'),
+                              ),
                               // Post text
                               if (post.text != null &&
                                   post.text!.isNotEmpty) ...[
@@ -945,12 +942,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     required Color primaryColor,
     required Color secondaryColor,
   }) {
-    final isReply =
-        comment.replyToMessageId != null ||
-        comment.replyToText != null ||
-        comment.replyToAuthorTitle != null;
-    final replyAuthor = comment.replyToAuthorTitle ?? 'post';
-
     // A commenter is a person, and gramX has somewhere to put one now. The
     // channel screen is still where a comment posted *by a channel* leads,
     // which is what the null case is.
@@ -1046,57 +1037,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     ],
                   ),
 
-                  // Replying to @Author Tag
-                  if (isReply) ...[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          AppStrings.commentReplyingTo,
-                          style: AppTypography.body(
-                            color: secondaryColor,
-                          ).copyWith(fontSize: 12.5),
-                        ),
-                        Text(
-                          '@$replyAuthor',
-                          style: const TextStyle(
-                            color: AppColors.accent,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  // Quoted reply card snippet (if present)
-                  if (comment.replyToText != null &&
-                      comment.replyToText!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1E2836)
-                            : const Color(0xFFEAF2FB),
-                        borderRadius: BorderRadius.circular(6),
-                        border: const Border(
-                          left: BorderSide(color: AppColors.accent, width: 2.5),
-                        ),
-                      ),
-                      child: Text(
-                        comment.replyToText!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.body(
-                          color: secondaryColor,
-                        ).copyWith(fontSize: 12),
-                      ),
-                    ),
-                  ],
+                  // A comment is already inside a thread, under a
+                  // connector, inside this screen. The card form would be a
+                  // fourth box, so it stays the line whatever it has.
+                  ReplyTarget(
+                    post: comment,
+                    compact: true,
+                    onOpenPost: () => _openReplyTarget(context, comment),
+                    onOpenAuthor: openAuthor,
+                  ),
 
                   // Text Content
                   if (comment.text != null && comment.text!.isNotEmpty) ...[
@@ -1377,78 +1326,18 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  /// Who a comment is answering, above the answer.
+  /// Opens the message [post] answers.
   ///
-  /// accent bar down its left edge, sitting inside a comment that is itself
-  /// one grey line and lets the reply be the thing you read; the quoted words
-  /// follow underneath in the same muted weight, with nothing drawn around
-  /// either of them.
-  ///
-  /// Both targets stay live: the line goes to the message being answered, the
-  /// name to whoever wrote it.
-  Widget _buildQuotedReplyCard(
-    BuildContext context,
-    Post post,
-    Color secondaryColor,
-  ) {
-    final replyTitle = post.replyToAuthorTitle ?? post.channelTitle;
-    final replyText = post.replyToText;
-
-    void goToOriginalPost() {
-      if (post.replyToMessageId != null) {
-        // The reply may live in another chat — see Post.replyToChatId.
-        final targetPostId =
-            '${post.replyToChatId ?? post.chatId}_${post.replyToMessageId}';
-        context.push('/post/$targetPostId');
-      } else {
-        context.push('/channel/${post.channelId}');
-      }
+  /// The reply may live in another chat — see `Post.replyToChatId`. Assuming
+  /// this one asks for a message id that does not exist there, which reports
+  /// itself as "post not found" however reachable the real one is.
+  void _openReplyTarget(BuildContext context, Post post) {
+    final messageId = post.replyToMessageId;
+    if (messageId == null) {
+      context.push('/channel/${post.channelId}');
+      return;
     }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 8),
-      child: Semantics(
-        button: true,
-        label: AppStrings.chatReplyingToName(replyTitle),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: goToOriginalPost,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.reply_rounded, size: 13, color: secondaryColor),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      AppStrings.chatReplyingToName(replyTitle),
-                      style: AppTypography.timestamp(
-                        color: AppColors.accent,
-                      ).copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              // Absent rather than invented. TDLib leaves this empty for a
-              // reply within the same chat, and "Original post" in its place
-              // was a sentence nobody wrote.
-              if (replyText != null && replyText.isNotEmpty)
-                Text(
-                  replyText,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.timestamp(color: secondaryColor),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
+    context.push('/post/${post.replyToChatId ?? post.chatId}_$messageId');
   }
 }
 

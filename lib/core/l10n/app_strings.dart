@@ -604,6 +604,10 @@ abstract class AppStrings {
 
   static const replyUnavailable = 'Message unavailable';
 
+  /// quotes it. The card is a link, and a screen reader needs to hear whose
+  /// post it leads to before hearing the words in it.
+  static String quotedPostBy(String name) => 'Quoted post by $name';
+
   // ── Rich text ──────────────────────────────────────────────────────────────
   static const codeBlockLabel = 'Code';
   static const codeBlockCopy = 'Copy code';
