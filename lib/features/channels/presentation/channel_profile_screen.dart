@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +50,6 @@ class ChannelProfileScreen extends ConsumerStatefulWidget {
 class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  final ScrollController _scrollController = ScrollController();
   late final FeedRepository _feedRepository;
 
   bool _isActionLoading = false;
@@ -82,7 +82,6 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
 
     _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(_onTabChanged);
-    _scrollController.addListener(_onScroll);
 
     // Opening a chat is a TDLib request, so it must not happen as a side effect
     // of rendering. listenManual belongs in initState and fireImmediately
@@ -103,8 +102,6 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
 
     if (_openedChatId != null) {
       _feedRepository.closeChat(_openedChatId!);
@@ -151,25 +148,35 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
         .ensureLoaded(ChannelTabKey(widget.channelId, tab), chatId);
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final position = _scrollController.position;
-    if (position.pixels < position.maxScrollExtent * 0.85) return;
+  /// Pagination, driven by the tab that is actually scrolling.
+  ///
+  /// A `NotificationListener` rather than a `ScrollController`: swiping needs a
+  /// scrollable per tab, and `NestedScrollView` hands each of them a controller
+  /// of its own so the header can collapse with whichever one is on screen —
+  /// which leaves nothing for one shared controller to read. The notification
+  /// carries the metrics, and the tab is passed in rather than read from the
+  /// controller so a body still settling cannot page its neighbour.
+  bool _onTabScroll(ChannelTab tab, ScrollNotification notification) {
+    if (notification.depth != 0) return false;
 
-    final tab = _selectedTab;
+    final metrics = notification.metrics;
+    if (metrics.maxScrollExtent <= 0) return false;
+    if (metrics.pixels < metrics.maxScrollExtent * 0.85) return false;
+
     if (tab.isHistory) {
       ref.read(olderChannelPostsProvider.notifier).loadMore(widget.channelId);
-      return;
+      return false;
     }
 
     final chatId = ref
         .read(channelDetailProvider(widget.channelId))
         .value
         ?.chatId;
-    if (chatId == null) return;
+    if (chatId == null) return false;
     ref
         .read(channelTabNotifierProvider.notifier)
         .loadMore(ChannelTabKey(widget.channelId, tab), chatId);
+    return false;
   }
 
   /// Loads another page when the first one doesn't fill the screen.
@@ -179,11 +186,13 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   /// show a third. Bounded, and it stops as soon as the channel says it has
   /// nothing older. History tab only: a media grid that doesn't fill the
   /// viewport has genuinely run out.
-  void _fillViewport() {
+  void _fillViewport({ScrollMetrics? metrics}) {
     if (!_selectedTab.isHistory) return;
     if (_autoFills >= _maxAutoFills) return;
-    if (!_scrollController.hasClients) return;
-    if (_scrollController.position.maxScrollExtent > 0) return;
+    // No metrics yet means nothing has been laid out, which is not the same as
+    // a list too short to scroll — and acting on it would page a tab that has
+    // not drawn a single row.
+    if (metrics == null || metrics.maxScrollExtent > 0) return;
 
     final older = ref.read(olderChannelPostsProvider.notifier);
     if (older.isLoading(widget.channelId) ||
@@ -191,12 +200,11 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       return;
     }
 
+    // No recursion here: a page that lays out emits another
+    // `ScrollMetricsNotification`, which calls this again if the list is still
+    // too short. The bound is what stops that becoming a loop.
     _autoFills++;
-    older.loadMore(widget.channelId).then((added) {
-      if (added && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _fillViewport());
-      }
-    });
+    unawaited(older.loadMore(widget.channelId));
   }
 
   Future<void> _refresh() async {
@@ -268,11 +276,6 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   Widget build(BuildContext context) {
     final channelAsync = ref.watch(channelDetailProvider(widget.channelId));
     final channel = channelAsync.value;
-
-    // After the frame, never during it: this can spend a TDLib request.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _fillViewport();
-    });
 
     // Keeps the focus controller alive while this screen is open; it owns the
     // dwell timers behind read tracking.
@@ -358,14 +361,17 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       // cached fetch and the pull did nothing at all. The refresh has to reach
       // the future that does the work.
       onRefresh: _refresh,
-      // One scroll view, not a NestedScrollView: the tab bodies are slivers in
-      // the same list, so the header scrolls away naturally and there is a
-      // single scroll position for the pagination listener to read. A nested
-      // view would give each tab its own controller and its own idea of how
-      // far down the reader is.
-      child: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
+      // A `NestedScrollView`, so the tabs can be swiped between — which is what
+      // every tab's body in *one* `CustomScrollView`, which made the header
+      // scroll away for free and gave pagination a single position to read; the
+      // price was that a tab could only be reached by tapping it.
+      //
+      // What replaces those two properties: the header slivers move into
+      // `headerSliverBuilder`, which collapses them for whichever body is on
+      // screen, and pagination moves from a shared `ScrollController` to a
+      // `NotificationListener` per body — see `_onTabScroll`.
+      child: NestedScrollView(
+        headerSliverBuilder: (context, _) => [
           SliverToBoxAdapter(
             child: ChannelHeader(
               channel: channel,
@@ -383,14 +389,44 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
               background: Theme.of(context).scaffoldBackgroundColor,
             ),
           ),
-          ..._tabSlivers(channel),
         ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [for (final tab in _tabs) _tabBody(channel, tab)],
+        ),
       ),
     );
   }
 
-  List<Widget> _tabSlivers(Channel channel) {
-    final tab = _selectedTab;
+  /// One tab's scrollable.
+  ///
+  /// Two listeners, for two different questions. `ScrollNotification` is "the
+  /// reader has got near the end, fetch more"; `ScrollMetricsNotification` is
+  /// "this list changed shape without being scrolled", which is the only way to
+  /// notice a first page too short to scroll at all — the case that used to
+  /// leave a channel with two posts and no way to ask for a third.
+  ///
+  /// No `ScrollController`: `NestedScrollView` gives each body its own so the
+  /// header collapses with whichever one is on screen, and taking that over
+  /// would break the collapse. The `PageStorageKey` is what keeps each tab's
+  /// position while the reader is on another one.
+  Widget _tabBody(Channel channel, ChannelTab tab) {
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (notification) {
+        if (tab == _selectedTab) _fillViewport(metrics: notification.metrics);
+        return false;
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) => _onTabScroll(tab, notification),
+        child: CustomScrollView(
+          key: PageStorageKey<ChannelTab>(tab),
+          slivers: _tabSlivers(channel, tab),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _tabSlivers(Channel channel, ChannelTab tab) {
     if (tab.isHistory) return _historySlivers();
 
     final state = ref.watch(
