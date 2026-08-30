@@ -110,4 +110,110 @@ void main() {
     expect(post.replyToIsQuote, isFalse);
     expect(replyPresentationFor(post), isNot(ReplyPresentation.passage));
   });
+
+  /// The bug the third device session found. A quote out of a **photo** post's
+  /// caption came out as "📷 Photo": only the `messageText` branch filled
+  /// `replyToText` with `??=`, and every other content branch assigned over
+  /// whatever was there — including the passage the writer had chosen.
+  group('a quote survives what the answered message is', () {
+    test('quoting a photo caption keeps the words, not "Photo"', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          quote: 'the sounds differ basing on the amount you sent',
+          targetIsPhoto: true,
+          targetCaption: 'an app that sends you meme sounds',
+        ),
+        channel,
+      );
+
+      expect(post.replyToText, 'the sounds differ basing on the amount you sent');
+      expect(post.replyToIsQuote, isTrue);
+      expect(replyPresentationFor(post), ReplyPresentation.passage);
+    });
+
+    test('a photo answered as a whole still describes itself', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          targetIsPhoto: true,
+        ),
+        channel,
+      );
+
+      expect(post.replyToText, '📷 Photo');
+      expect(post.replyToIsQuote, isFalse);
+    });
+
+    test('a photo caption is the preview when nothing was quoted', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          targetIsPhoto: true,
+          targetCaption: 'an app that sends you meme sounds',
+        ),
+        channel,
+      );
+
+      expect(post.replyToText, 'an app that sends you meme sounds');
+      expect(post.replyToIsQuote, isFalse);
+    });
+  });
+
+  /// The other half of the same screenshot: the passage was drawn under the
+  /// byline of the channel doing the quoting, not the channel it came out of.
+  group('a quote is not attributed to whoever quoted it', () {
+    test('a passage from another channel has no borrowed author', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          replyToChatId: -1002,
+          originChatId: -1002,
+          quote: 'the part they picked',
+        ),
+        channel,
+      );
+
+      expect(post.replyToAuthorTitle, isNull);
+    });
+
+    test('and takes the real name once the chat is known', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          replyToChatId: -1002,
+          originChatId: -1002,
+          quote: 'the part they picked',
+        ),
+        channel,
+        knownChatTitles: {-1002: 'RaGoose Projects'},
+      );
+
+      expect(post.replyToAuthorTitle, 'RaGoose Projects');
+    });
+
+    test('a reply within this channel is still authored by it', () {
+      final post = TdlibMappers.mapMessageToPost(
+        TdFixtures.replyingMessage(
+          id: 5,
+          chatId: -1001,
+          replyToMessageId: 4,
+          quote: 'the part they picked',
+        ),
+        channel,
+      );
+
+      expect(post.replyToAuthorTitle, 'The Channel');
+    });
+  });
 }

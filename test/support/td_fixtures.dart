@@ -411,6 +411,9 @@ abstract class TdFixtures {
     int replyToChatId = 0,
     String? quote,
     String? targetText,
+    bool targetIsPhoto = false,
+    String? targetCaption,
+    int? originChatId,
   }) {
     final json = textMessageJson(id: id, chatId: chatId, text: text);
     final replyTo = <String, dynamic>{
@@ -433,6 +436,41 @@ abstract class TdFixtures {
       replyTo['content'] = {
         '@type': 'messageText',
         'text': {'@type': 'formattedText', 'text': targetText, 'entities': []},
+      };
+    }
+    if (targetIsPhoto) {
+      replyTo['content'] = {
+        '@type': 'messagePhoto',
+        'photo': {
+          '@type': 'photo',
+          'has_stickers': false,
+          'sizes': [
+            {
+              '@type': 'photoSize',
+              'type': 'm',
+              'photo': fileJson(id: 4242),
+              'width': 320,
+              'height': 320,
+              'progressive_sizes': <int>[],
+            },
+          ],
+        },
+        'caption': {
+          '@type': 'formattedText',
+          'text': targetCaption ?? '',
+          'entities': [],
+        },
+        'show_caption_above_media': false,
+        'has_spoiler': false,
+        'is_secret': false,
+      };
+    }
+    if (originChatId != null) {
+      replyTo['origin'] = {
+        '@type': 'messageOriginChannel',
+        'chat_id': originChatId,
+        'message_id': replyToMessageId,
+        'author_signature': '',
       };
     }
     json['reply_to'] = replyTo;

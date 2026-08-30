@@ -614,6 +614,11 @@ abstract class AppStrings {
   /// fragment came out of.
   static String quotedPassageBy(String name) => 'Quoted passage from $name';
 
+  /// The same, for a passage whose origin channel Telegram would not name — a
+  /// private one, or one nothing has cached. Saying whose it is would mean
+  /// guessing, and the guess is always the channel doing the quoting.
+  static const quotedPassageUnattributed = 'Quoted passage';
+
   // ── Rich text ──────────────────────────────────────────────────────────────
   static const codeBlockLabel = 'Code';
   static const codeBlockCopy = 'Copy code';

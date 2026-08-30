@@ -310,22 +310,32 @@ class TdlibMappers {
           : null;
 
       // Author title resolution
+      // Each branch resolves a *name* or gives up. None of them falls back to
+      // this chat: an origin that says the words came from somewhere else has
+      // already ruled this chat out, and answering with it anyway is how a
+      // passage quoted from another channel ended up under this one's byline.
       final origin = replyTo.origin;
       if (origin is td.MessageOriginChannel) {
         replyToAuthorTitle =
             knownChatTitles?[origin.chatId] ??
             (origin.authorSignature.isNotEmpty
                 ? origin.authorSignature
-                : chat.title);
+                : (origin.chatId == chat.id ? chat.title : null));
       } else if (origin is td.MessageOriginChat) {
         replyToAuthorTitle =
-            knownChatTitles?[origin.senderChatId] ?? chat.title;
+            knownChatTitles?[origin.senderChatId] ??
+            (origin.senderChatId == chat.id ? chat.title : null);
       } else if (origin is td.MessageOriginUser) {
         replyToAuthorTitle = 'User';
       } else if (origin is td.MessageOriginHiddenUser) {
         replyToAuthorTitle = origin.senderName;
       }
-      replyToAuthorTitle ??= chat.title;
+      // Only a reply *within* this chat is authored by this chat. Falling back
+      // to it for a reply that came out of somewhere else attributes another
+      // channel's words to this one — which is what put "ragoose cooks" over a
+      // passage quoted from a different channel. Unknown stays unknown; the
+      // shapes that draw it omit the byline rather than invent one.
+      if (replyToChatId == null) replyToAuthorTitle ??= chat.title;
 
       // A quote is the writer selecting a span out of the message they are
       // answering. TDLib fills this only in that case, so it is the one place
@@ -341,6 +351,15 @@ class TdlibMappers {
       // Resolved separately when TDLib didn't inline the content.
       replyToText ??=
           knownReplyExcerpts?['${replyToChatId ?? chat.id}_${replyTo.messageId}'];
+
+      // Every branch below assigns replyToText unconditionally, to say what
+      // the answered message *is* — "📷 Photo" for a picture, the file name
+      // for a document. That is the right preview for a reply to the whole
+      // message and the wrong one for a quote, which is a span the writer
+      // chose out of it. Only the MessageText branch used `??=`, so quoting
+      // words out of a photo's caption showed "📷 Photo" instead of the words.
+      // Held here and put back below, so the branches stay simple.
+      final selectedQuote = replyToIsQuote ? replyToText : null;
 
       // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
@@ -464,6 +483,10 @@ class TdlibMappers {
             ? captionText
             : '🎵 ${content.audio.fileName}';
       }
+
+      // The passage the writer picked outranks whatever the branch above
+      // decided the message it came from "is".
+      if (selectedQuote != null) replyToText = selectedQuote;
     }
 
     final hasDiscussionGroup = message.interactionInfo?.replyInfo != null;

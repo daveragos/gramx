@@ -63,11 +63,16 @@ class ReplyTarget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final authorTitle = post.replyToAuthorTitle ?? post.channelTitle;
+    // Null means Telegram would not say whose this is. The card and the line
+    // both name somebody, so they fall back to this channel — which is a lie
+    // only when the target is somewhere else, and `replyToAuthorTitle` is now
+    // null exactly in that case. See QuotedPassage for the shape that omits
+    // the byline instead.
+    final authorTitle = post.replyToAuthorTitle;
 
     if (compact || presentation == ReplyPresentation.line) {
       return _ReplyingToLine(
-        authorTitle: authorTitle,
+        authorTitle: authorTitle ?? post.channelTitle,
         // Absent rather than invented: TDLib sends no excerpt for a reply
         // inside one channel, and a placeholder sentence in its place is a
         // line nobody wrote.
@@ -84,7 +89,7 @@ class ReplyTarget extends StatelessWidget {
     final isSameChat = post.replyToChatId == null;
 
     return QuotedPostCard(
-      authorTitle: authorTitle,
+      authorTitle: authorTitle ?? post.channelTitle,
       authorUsername: isSameChat ? post.channelUsername : null,
       isAuthorVerified: isSameChat && post.isChannelVerified,
       avatarPath: isSameChat ? post.channelAvatarUrl : null,
@@ -180,7 +185,12 @@ class _ReplyingToLine extends StatelessWidget {
 /// avatar gutter beside the post rather than inside the post's text column —
 /// which is what lets the connector run from this avatar down to the reply's.
 class QuotedPassage extends StatelessWidget {
-  final String authorTitle;
+  /// Whoever wrote the passage. **Null when Telegram would not say** — a
+  /// private origin channel, or one the cache could not name. The byline and
+  /// the avatar are then omitted entirely rather than borrowed from the post
+  /// doing the quoting, which would put one channel's name over another's
+  /// words.
+  final String? authorTitle;
   final String? authorUsername;
   final bool isAuthorVerified;
   final String? avatarPath;
@@ -202,8 +212,8 @@ class QuotedPassage extends StatelessWidget {
 
   const QuotedPassage({
     super.key,
-    required this.authorTitle,
     required this.passage,
+    this.authorTitle,
     this.authorUsername,
     this.isAuthorVerified = false,
     this.avatarPath,
@@ -224,9 +234,13 @@ class QuotedPassage extends StatelessWidget {
         isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
     final connector = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
+    final title = authorTitle;
+
     return Semantics(
       button: true,
-      label: AppStrings.quotedPassageBy(authorTitle),
+      label: title == null
+          ? AppStrings.quotedPassageUnattributed
+          : AppStrings.quotedPassageBy(title),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -238,14 +252,19 @@ class QuotedPassage extends StatelessWidget {
             children: [
               Column(
                 children: [
-                  ChannelAvatar(
-                    title: authorTitle,
-                    avatarPath: avatarPath,
-                    avatarFileId: avatarFileId,
-                    avatarColorHex: avatarColorHex,
-                    radius: avatarRadius,
-                    onTap: onAuthorTap,
-                  ),
+                  if (title != null)
+                    ChannelAvatar(
+                      title: title,
+                      avatarPath: avatarPath,
+                      avatarFileId: avatarFileId,
+                      avatarColorHex: avatarColorHex,
+                      radius: avatarRadius,
+                      onTap: onAuthorTap,
+                    )
+                  else
+                    // No identity to draw, but the gutter still has to hold
+                    // the connector in line with the reply's own avatar.
+                    SizedBox(width: avatarRadius * 2, height: avatarRadius * 2),
                   Expanded(
                     child: Container(
                       width: 2,
@@ -265,8 +284,10 @@ class QuotedPassage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _byline(primary, secondary),
-                      const SizedBox(height: AppSpacing.xs),
+                      if (title != null) ...[
+                        _byline(title, primary, secondary),
+                        const SizedBox(height: AppSpacing.xs),
+                      ],
                       Text(
                         passage,
                         style: AppTypography.body(color: secondary),
@@ -282,14 +303,14 @@ class QuotedPassage extends StatelessWidget {
     );
   }
 
-  Widget _byline(Color primary, Color secondary) {
+  Widget _byline(String title, Color primary, Color secondary) {
     return Row(
       children: [
         Flexible(
           child: GestureDetector(
             onTap: onAuthorTap,
             child: Text(
-              authorTitle,
+              title,
               style: AppTypography.displayName(color: primary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

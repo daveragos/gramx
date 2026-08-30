@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
@@ -380,6 +381,29 @@ void main() {
       final text = tester.widget<Text>(find.text(long));
       expect(text.maxLines, isNull);
       expect(text.overflow, isNull);
+    });
+
+    // Telegram would not say whose the passage is — a private origin channel,
+    // or one nothing has cached. The byline is omitted rather than borrowed
+    // from the post doing the quoting, which is always the wrong name.
+    testWidgets('an unattributed passage draws no byline', (tester) async {
+      await tester.pumpWidget(host(const QuotedPassage(
+        passage: 'the part they picked',
+      )));
+
+      expect(find.text('the part they picked'), findsOneWidget);
+      expect(find.byType(ChannelAvatar), findsNothing);
+    });
+
+    testWidgets('and still leads to where it came from', (tester) async {
+      var opened = 0;
+      await tester.pumpWidget(host(QuotedPassage(
+        passage: 'the part they picked',
+        onTap: () => opened++,
+      )));
+
+      await tester.tap(find.text('the part they picked'));
+      expect(opened, 1);
     });
   });
 }

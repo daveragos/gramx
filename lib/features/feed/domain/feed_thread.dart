@@ -30,6 +30,16 @@ class FeedThread {
   List<Post> get earlier =>
       replies.isEmpty ? const [] : allPosts.sublist(0, allPosts.length - 1);
 
+  /// Whether the "show earlier posts" control is worth drawing.
+  ///
+  /// Every post in a thread is a reply to the one before it, and a reply
+  /// already draws what it answers — as a quoted passage above it, or as a
+  /// quote card under its own words. So a thread hiding exactly **one** post
+  /// is hiding a post that is on screen anyway, and the control offers to
+  /// reveal what the reader can already read. Two or more is the point at
+  /// which there is genuinely something behind the card.
+  bool get hasEarlierToBeShown => earlier.length >= 2;
+
   /// The most recent post anywhere in the thread. A thread is as fresh as its
   /// newest message, so a follow-up to an old post still surfaces.
   DateTime get lastActivity {

@@ -69,7 +69,10 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
           ),
         );
 
-    if (!thread.hasReplies) return cardFor(thread.root);
+    // A thread hiding one post is hiding a post the reply already shows, so
+    // the newest card stands on its own with no control under it. See
+    // FeedThread.hasEarlierToBeShown.
+    if (!thread.hasEarlierToBeShown) return cardFor(thread.latest);
 
     // The toggle sits under the post and above the hairline that closes the
     // feed item, so the whole thread — newest post, its history, the control

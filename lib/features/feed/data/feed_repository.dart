@@ -435,25 +435,36 @@ class FeedRepository {
       knownChatTitles[chat.id] = chat.title;
     }
 
-    // Name forwarded-from channels. The cache answers most of these for free;
-    // only genuinely unknown chats cost a request, and that is capped.
+    // Name the channels a post points at — the one it was forwarded from, and
+    // the one a reply or a quote came out of. Both used to be one list; only
+    // forwards were on it, so a passage quoted from another channel had no
+    // name for its author and the mapper fell back to the channel doing the
+    // quoting, putting the wrong byline over somebody else's words.
+    //
+    // The cache answers most of these for free; only genuinely unknown chats
+    // cost a request, and that is capped. See docs/TDLIB.md.
     final unresolved = <int>{};
+    void nameOrigin(td.MessageOrigin? origin) {
+      final originId = switch (origin) {
+        td.MessageOriginChannel() => origin.chatId,
+        td.MessageOriginChat() => origin.senderChatId,
+        _ => null,
+      };
+      if (originId == null || knownChatTitles.containsKey(originId)) return;
+
+      final cached = _chatCache.chat(originId);
+      if (cached != null) {
+        knownChatTitles[originId] = cached.title;
+      } else {
+        unresolved.add(originId);
+      }
+    }
+
     for (final messages in messagesByChatId.values) {
       for (final msg in messages) {
-        final origin = msg.forwardInfo?.origin;
-        final originId = switch (origin) {
-          td.MessageOriginChannel() => origin.chatId,
-          td.MessageOriginChat() => origin.senderChatId,
-          _ => null,
-        };
-        if (originId == null || knownChatTitles.containsKey(originId)) continue;
-
-        final cached = _chatCache.chat(originId);
-        if (cached != null) {
-          knownChatTitles[originId] = cached.title;
-        } else {
-          unresolved.add(originId);
-        }
+        nameOrigin(msg.forwardInfo?.origin);
+        final replyTo = msg.replyTo;
+        if (replyTo is td.MessageReplyToMessage) nameOrigin(replyTo.origin);
       }
     }
 

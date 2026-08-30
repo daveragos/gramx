@@ -473,7 +473,7 @@ class PostCard extends ConsumerWidget {
   Widget _quotedPassage(BuildContext context) {
     final isSameChat = post.replyToChatId == null;
     return QuotedPassage(
-      authorTitle: post.replyToAuthorTitle ?? post.channelTitle,
+      authorTitle: post.replyToAuthorTitle,
       authorUsername: isSameChat ? post.channelUsername : null,
       isAuthorVerified: isSameChat && post.isChannelVerified,
       avatarPath: isSameChat ? post.channelAvatarUrl : null,

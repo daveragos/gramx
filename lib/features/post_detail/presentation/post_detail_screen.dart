@@ -1341,7 +1341,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: QuotedPassage(
-        authorTitle: post.replyToAuthorTitle ?? post.channelTitle,
+        authorTitle: post.replyToAuthorTitle,
         authorUsername: isSameChat ? post.channelUsername : null,
         isAuthorVerified: isSameChat && post.isChannelVerified,
         avatarPath: isSameChat ? post.channelAvatarUrl : null,
