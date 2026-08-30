@@ -82,6 +82,54 @@ class TelegramPrivatePostLink extends TelegramLink {
       'TelegramPrivatePostLink($supergroupId, $serverMessageId)';
 }
 
+/// `t.me/c/1234567890` — a private channel with no post singled out.
+///
+/// The same address as [TelegramPrivatePostLink] without the message, which
+/// Telegram emits when somebody copies a link to the channel rather than to
+/// one of its posts. It used to parse as nothing, because the message id was
+/// read as required — so the one link shape that names a channel you are
+/// already in was the one gramX handed back to Telegram.
+class TelegramPrivateChannelLink extends TelegramLink {
+  final int supergroupId;
+
+  const TelegramPrivateChannelLink(this.supergroupId);
+
+  /// The chat id TDLib knows this supergroup by.
+  int get chatId => int.parse('-100$supergroupId');
+
+  @override
+  bool operator ==(Object other) =>
+      other is TelegramPrivateChannelLink &&
+      other.supergroupId == supergroupId;
+
+  @override
+  int get hashCode => supergroupId.hashCode;
+
+  @override
+  String toString() => 'TelegramPrivateChannelLink($supergroupId)';
+}
+
+/// `tg://search?query=%23flutter` — Telegram's global hashtag search.
+///
+/// gramX has had the screen since T20-1; it just had no link into it. The tag
+/// keeps its leading `#`, because that is what the search field expects and
+/// re-adding it at the other end is a second place to get it wrong.
+class TelegramHashtagLink extends TelegramLink {
+  final String tag;
+
+  const TelegramHashtagLink(this.tag);
+
+  @override
+  bool operator ==(Object other) =>
+      other is TelegramHashtagLink && other.tag == tag;
+
+  @override
+  int get hashCode => tag.hashCode;
+
+  @override
+  String toString() => 'TelegramHashtagLink($tag)';
+}
+
 /// `t.me/+AbCdEf` or `t.me/joinchat/AbCdEf` — an invite to somewhere this
 /// account is not yet.
 class TelegramInviteLink extends TelegramLink {
@@ -103,7 +151,7 @@ class TelegramInviteLink extends TelegramLink {
 /// Reads a Telegram link.
 abstract class TelegramLinks {
   /// Hosts Telegram serves its links from.
-  static const hosts = {'t.me', 'telegram.me', 'telegram.dog', 'www.t.me'};
+  static const hosts = {'t.me', 'telegram.me', 'telegram.dog'};
 
   /// First path segments that are a *feature*, not a username.
   ///
@@ -141,7 +189,10 @@ abstract class TelegramLinks {
   };
 
   static TelegramLink? _parseWeb(Uri uri) {
-    if (!hosts.contains(uri.host.toLowerCase())) return null;
+    // `www.` is an alias on every one of these, not a fourth host. Listing
+    // `www.t.me` as its own entry covered one third of the cases.
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+    if (!hosts.contains(host)) return null;
 
     final segments = [
       for (final segment in uri.pathSegments)
@@ -162,8 +213,12 @@ abstract class TelegramLinks {
       final group = segments.length >= 2 ? int.tryParse(segments[1]) : null;
       if (group == null) return null;
       final message = _lastNumber(segments.skip(2));
-      if (message == null) return null;
-      return TelegramPrivatePostLink(group, message);
+      // No message is a link to the channel itself, not a broken link to a
+      // post. A forum topic id lands here too — gramX has no topics (T13-12),
+      // so it opens the channel rather than refusing the link.
+      return message == null
+          ? TelegramPrivateChannelLink(group)
+          : TelegramPrivatePostLink(group, message);
     }
 
     if (first == 'joinchat' && segments.length >= 2) {
@@ -185,7 +240,10 @@ abstract class TelegramLinks {
 
   /// A username, optionally followed by a post id — and, in a forum, a topic
   /// id before it.
-  static TelegramLink? _publicLink(String name, List<String> rest) {
+  static TelegramLink? _publicLink(String rawName, List<String> rest) {
+    // Telegram writes a handle both ways, and `t.me/@durov` redirects to
+    // `t.me/durov`. The sigil is punctuation, not part of the name.
+    final name = _stripHandleSigil(rawName);
     if (!isUsername(name)) return null;
 
     // The *last* number is the message. A forum link carries the topic first,
@@ -212,8 +270,8 @@ abstract class TelegramLinks {
 
     switch (action) {
       case 'resolve':
-        final domain = params['domain'];
-        if (domain == null || !isUsername(domain)) return null;
+        final domain = _stripHandleSigil(params['domain'] ?? '');
+        if (!isUsername(domain)) return null;
         final post = int.tryParse(params['post'] ?? '');
         return post == null || post <= 0
             ? TelegramChannelLink(domain)
@@ -224,6 +282,12 @@ abstract class TelegramLinks {
         final post = int.tryParse(params['post'] ?? '');
         if (channel == null || post == null || post <= 0) return null;
         return TelegramPrivatePostLink(channel, post);
+
+      // Telegram's global hashtag search. `q` is the older spelling of the
+      // same parameter and both are still emitted.
+      case 'search':
+        final tag = normaliseHashtag(params['query'] ?? params['q'] ?? '');
+        return tag == null ? null : TelegramHashtagLink(tag);
 
       case 'join':
         final invite = params['invite'];
@@ -254,4 +318,24 @@ abstract class TelegramLinks {
   /// word reaches this — and `t.me/1234` is not a channel called "1234".
   static bool isUsername(String value) =>
       RegExp(r'^[A-Za-z][A-Za-z0-9_]{3,31}$').hasMatch(value);
+
+  static String _stripHandleSigil(String value) =>
+      value.startsWith('@') ? value.substring(1) : value;
+
+  /// A search query as a `#tag`, or null when it is not one.
+  ///
+  /// Telegram sends the tag with or without its `#` depending on which client
+  /// wrote the link, so both are accepted and the sigil is put back — one
+  /// spelling reaches the search field, whichever arrived.
+  static String? normaliseHashtag(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    final core = _stripHandleSigil(
+      trimmed.startsWith('#') ? trimmed.substring(1) : trimmed,
+    );
+    // A phrase is a text search, not a hashtag, and gramX's hashtag screen
+    // would search for something nobody can have tagged.
+    if (core.isEmpty || core.contains(RegExp(r'\s'))) return null;
+    return '#$core';
+  }
 }

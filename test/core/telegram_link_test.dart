@@ -79,8 +79,14 @@ void main() {
       expect(link.serverMessageId, 42);
     });
 
-    test('a private channel with no message is not a post', () {
-      expect(parse('https://t.me/c/1234567890'), isNull);
+    // Superseded. This used to expect null: no message meant no link at all,
+    // so the one shape that names a private channel you are already in was
+    // handed back to Telegram. It is a channel link now, not a broken post.
+    test('a private channel with no message is a channel, not nothing', () {
+      expect(
+        parse('https://t.me/c/1234567890'),
+        const TelegramPrivateChannelLink(1234567890),
+      );
     });
   });
 
@@ -292,6 +298,98 @@ void main() {
     test('leaves an ordinary bad route alone', () {
       expect(deepLinkFromStrayLocation(Uri.parse('/nope')), isNull);
       expect(deepLinkFromStrayLocation(Uri.parse('/post/')), isNull);
+    });
+  });
+
+  /// had no case for. Each is a link Telegram really emits.
+  group('shapes gramX used to hand back to Telegram', () {
+    test('a private channel with no post opens the channel', () {
+      final link = TelegramLinks.parse(Uri.parse('https://t.me/c/1234567890'));
+      expect(link, isA<TelegramPrivateChannelLink>());
+      expect((link as TelegramPrivateChannelLink).chatId, -1001234567890);
+      expect(DeepLinkRoutes.routeFor(link), '/channel/-1001234567890');
+    });
+
+    test('and a trailing slash does not change that', () {
+      expect(
+        TelegramLinks.parse(Uri.parse('https://t.me/c/1234567890/')),
+        isA<TelegramPrivateChannelLink>(),
+      );
+    });
+
+    test('a post in one still opens the post', () {
+      expect(
+        TelegramLinks.parse(Uri.parse('https://t.me/c/1234567890/42')),
+        isA<TelegramPrivatePostLink>(),
+      );
+    });
+
+    test('a handle may carry its sigil', () {
+      for (final raw in [
+        'https://t.me/@durov_test',
+        'tg://resolve?domain=@durov_test',
+      ]) {
+        final link = TelegramLinks.parse(Uri.parse(raw));
+        expect(link, isA<TelegramChannelLink>(), reason: raw);
+        expect((link as TelegramChannelLink).username, 'durov_test');
+      }
+    });
+
+    test('www is an alias on every Telegram host, not just t.me', () {
+      for (final host in ['www.t.me', 'www.telegram.me', 'www.telegram.dog']) {
+        expect(
+          TelegramLinks.parse(Uri.parse('https://$host/durov_test')),
+          isA<TelegramChannelLink>(),
+          reason: host,
+        );
+      }
+    });
+
+    test('a host that merely ends in a Telegram domain is still not one', () {
+      expect(
+        TelegramLinks.parse(Uri.parse('https://evil-t.me/durov_test')),
+        isNull,
+      );
+      expect(
+        TelegramLinks.parse(Uri.parse('https://t.me.evil.com/durov_test')),
+        isNull,
+      );
+    });
+  });
+
+  group('hashtag search links', () {
+    test('a tg://search opens the search field on the tag', () {
+      final link = TelegramLinks.parse(
+        Uri.parse('tg://search?query=%23flutter'),
+      );
+      expect(link, isA<TelegramHashtagLink>());
+      expect((link as TelegramHashtagLink).tag, '#flutter');
+    });
+
+    test('the older q spelling is the same parameter', () {
+      final link = TelegramLinks.parse(Uri.parse('tg://search?q=flutter'));
+      expect((link as TelegramHashtagLink).tag, '#flutter');
+    });
+
+    test('a bare tag gets its sigil back', () {
+      expect(TelegramLinks.normaliseHashtag('flutter'), '#flutter');
+      expect(TelegramLinks.normaliseHashtag('#flutter'), '#flutter');
+      expect(TelegramLinks.normaliseHashtag('  #flutter  '), '#flutter');
+    });
+
+    // A phrase is a text search. gramX's hashtag screen would look for
+    // something nobody can have tagged.
+    test('a phrase is not a hashtag', () {
+      expect(TelegramLinks.normaliseHashtag('two words'), isNull);
+      expect(TelegramLinks.normaliseHashtag('#'), isNull);
+      expect(TelegramLinks.normaliseHashtag(''), isNull);
+      expect(TelegramLinks.parse(Uri.parse('tg://search')), isNull);
+    });
+
+    // It is a query and a tab switch, not a screen — the shell handles it.
+    test('it is deliberately not a route', () {
+      expect(DeepLinkRoutes.routeFor(const TelegramHashtagLink('#flutter')),
+          isNull);
     });
   });
 }

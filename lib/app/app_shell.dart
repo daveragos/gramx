@@ -19,6 +19,7 @@ import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/search/presentation/search_screen.dart';
 
 /// The tabs in the bottom bar, in order.
 ///
@@ -179,6 +180,14 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
 
     final link = TelegramLinks.parse(uri);
     if (link == null) return;
+
+    // A hashtag is not a destination — it is a query put into the search field
+    // and a tab switch, the same thing tapping a #tag in a post does. Handled
+    // here rather than by a route, because there is no screen to push.
+    if (link is TelegramHashtagLink) {
+      if (mounted) openHashtagSearch(context, ref, link.tag);
+      return;
+    }
 
     var chatId = link is TelegramPrivatePostLink ? link.chatId : null;
 

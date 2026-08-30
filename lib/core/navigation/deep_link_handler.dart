@@ -26,8 +26,13 @@ abstract class DeepLinkRoutes {
       '/post/${chatId}_${link.tdlibMessageId}',
     TelegramPrivatePostLink() =>
       '/post/${link.chatId}_${link.tdlibMessageId}',
+    // A private channel with no post singled out. The id is already the one
+    // TDLib knows, so unlike a username this costs no resolution.
+    TelegramPrivateChannelLink() => '/channel/${link.chatId}',
     // An invite is a join, not a destination. Nothing in gramX joins a private
-    // chat, so this is one of the shapes handed back to Telegram.
+    // chat, so this is one of the shapes handed back to Telegram. A hashtag is
+    // not a route either — it sets the search field and switches tab, which
+    // the shell does directly.
     _ => null,
   };
 
