@@ -180,6 +180,25 @@ abstract class TelegramLinks {
     'm',
   };
 
+  /// Whether [uri] is Telegram's at all — its scheme or its host, nothing
+  /// more.
+  ///
+  /// Deliberately weaker than [parse]. It answers the question a *gate* asks
+  /// ("is this ours to think about?") rather than the one a router asks
+  /// ("where does it go?"), and the two used to be the same call: a link was
+  /// dropped on arrival unless the local parser could already route it, which
+  /// meant TDLib never got to see the shapes only TDLib knows. Cheap enough to
+  /// run on the link stream, and wrong only in the direction that keeps a link
+  /// alive long enough to be asked about properly.
+  static bool couldBeTelegram(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'tg') return true;
+    if (scheme != 'http' && scheme != 'https') return false;
+    return hosts.contains(
+      uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), ''),
+    );
+  }
+
   /// What [uri] points at, or null when it is not a Telegram link this app can
   /// open.
   static TelegramLink? parse(Uri uri) => switch (uri.scheme.toLowerCase()) {

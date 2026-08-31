@@ -99,12 +99,16 @@ class PendingDeepLink extends Notifier<Uri?> {
 
   /// Records a link for the shell to act on.
   ///
-  /// Anything this app cannot open is dropped here rather than carried to the
-  /// navigator and dropped there — the reader's own browser or Telegram
-  /// already handled it, since it was that handoff that sent it to us.
+  /// The gate is `couldBeTelegram` — scheme and host — and not a full parse.
+  /// It used to be the parse, which quietly made the local regex the final
+  /// word on every incoming link: a shape only TDLib recognises was dropped
+  /// here and never reached the resolver that could have typed it. Deciding
+  /// *where* a link goes needs TDLib and is therefore asynchronous, and this
+  /// runs on a stream listener, so the decision belongs downstream. Anything
+  /// Telegram's but unopenable is handed back to the OS by the shell.
   void offer(Uri uri) {
-    if (TelegramLinks.parse(uri) == null) {
-      debugPrint('[DeepLink] not a link gramX can open: $uri');
+    if (!TelegramLinks.couldBeTelegram(uri)) {
+      debugPrint('[DeepLink] not a Telegram link: $uri');
       return;
     }
     state = uri;

@@ -174,6 +174,13 @@ class TdlibService {
     // deadline that dead connection caused.
     if (function is td.SetNetworkType) return true;
     if (function is td.SetOption) return true;
+    // TDLib's own documentation: "Returns a 404 error if the link is not
+    // internal. Can be called before authorization." Callable pre-auth is only
+    // possible for a request that never reaches the server, so classifying a
+    // tapped link is off the budget — and it has to work while rate limited,
+    // since a reader who taps a t.me link during a flood wait should still
+    // land somewhere rather than watch nothing happen.
+    if (function is td.GetInternalLinkType) return true;
     // Shutting down must never wait on anything.
     if (function is td.Close) return true;
     return function is td.GetMessageLocally;

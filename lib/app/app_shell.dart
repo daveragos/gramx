@@ -10,6 +10,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/core/navigation/telegram_link_resolver.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
 import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/navigation/share_intake.dart';
@@ -178,8 +179,16 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     final uri = ref.read(pendingDeepLinkProvider.notifier).take();
     if (uri == null) return;
 
-    final link = TelegramLinks.parse(uri);
-    if (link == null) return;
+    // Telegram's own parser first, ours as the fallback — see
+    // TelegramLinkResolver. Offline and off the request budget.
+    final link = await ref.read(telegramLinkResolverProvider).resolve(uri);
+    if (link == null) {
+      // Recognised by Telegram, with no screen here: a bot start, a story, a
+      // sticker set. The reader asked for something, so it goes to whoever can
+      // open it rather than nowhere.
+      await openExternalUrl(uri);
+      return;
+    }
 
     // A hashtag is not a destination — it is a query put into the search field
     // and a tab switch, the same thing tapping a #tag in a post does. Handled
