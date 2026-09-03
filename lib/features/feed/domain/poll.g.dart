@@ -33,6 +33,7 @@ _Poll _$PollFromJson(Map<String, dynamic> json) => _Poll(
   isAnonymous: json['isAnonymous'] as bool,
   isClosed: json['isClosed'] as bool,
   isQuiz: json['isQuiz'] as bool,
+  allowsMultipleAnswers: json['allowsMultipleAnswers'] as bool? ?? false,
   correctOptionId: (json['correctOptionId'] as num?)?.toInt(),
   chosenOptionIds:
       (json['chosenOptionIds'] as List<dynamic>?)
@@ -49,6 +50,7 @@ Map<String, dynamic> _$PollToJson(_Poll instance) => <String, dynamic>{
   'isAnonymous': instance.isAnonymous,
   'isClosed': instance.isClosed,
   'isQuiz': instance.isQuiz,
+  'allowsMultipleAnswers': instance.allowsMultipleAnswers,
   'correctOptionId': instance.correctOptionId,
   'chosenOptionIds': instance.chosenOptionIds,
 };

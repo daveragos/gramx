@@ -166,7 +166,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (choice == null || !mounted) return;
 
     final picker = ref.read(composeMediaPickerProvider);
-    final attachment = choice == ComposeMediaKind.photo
+    final attachment = choice == ComposeAttachChoice.photo
         ? await picker.pickPhoto()
         : await picker.pickVideo();
     if (attachment == null || !mounted) return;
@@ -414,7 +414,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               // Poll display
                               if (post.poll != null) ...[
                                 const SizedBox(height: AppSpacing.md),
-                                PollCard(
+                                FeedPollCard(
                                   poll: post.poll!,
                                   channelId: post.channelId,
                                   messageId: post.messageId,

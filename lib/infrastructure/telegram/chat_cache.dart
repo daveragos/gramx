@@ -4,6 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
+/// One of Telegram's per-kind send permissions.
+///
+/// Telegram does not have a single "may write here" flag: a group can allow
+/// photos and forbid voice messages, and each of those is its own bit on
+/// `chatPermissions`. Naming them as a type is what lets one function answer
+/// for all of them without six near-identical copies.
+enum ChatSendRight { photos, videos, documents, voiceNotes, videoNotes, polls }
+
 /// The chat map and the rules for folding TDLib updates into it.
 ///
 /// Pure state with no I/O, so the folding logic — which is where the subtle
@@ -37,6 +45,15 @@ class ChatCacheState {
   /// optional in the UI for that reason.
   final Map<int, td.UserFullInfo> userFullInfos = {};
 
+  /// Secret chat records keyed by **secret chat id**, not chat id.
+  ///
+  /// TDLib volunteers these through `UpdateSecretChat`, and they carry the one
+  /// thing a `td.Chat` does not: the state. A secret chat is *pending* until
+  /// the other device comes online and the key exchange finishes, and messages
+  /// sent into a pending one are refused — so a client that cannot tell pending
+  /// from ready offers a composer that silently fails.
+  final Map<int, td.SecretChat> secretChats = {};
+
   /// `UpdateChatLastMessage` can arrive before the `UpdateNewChat` that
   /// introduces its chat. Stash those and flush them when the chat lands,
   /// otherwise the newest post of a channel is silently dropped on cold start.
@@ -68,12 +85,8 @@ class ChatCacheState {
   }
 
   /// Everything that is a conversation rather than a broadcast: private chats,
-  /// bot chats, basic groups and non-broadcast supergroups. Most recent first.
-  ///
-  /// Secret chats are excluded. TDLib gives them their own chat type and their
-  /// own end-to-end rules, and half-supporting one is worse than not offering
-  /// it — see `ChatCacheState.canPostIn`, which refuses them for the same
-  /// reason.
+  /// bot chats, basic groups, non-broadcast supergroups and secret chats. Most
+  /// recent first.
   List<td.Chat> get conversations {
     final list = chats.values
         .where((c) => isConversation(c) && isSubscribed(c))
@@ -88,10 +101,27 @@ class ChatCacheState {
     final type = chat.type;
     if (type is td.ChatTypePrivate) return true;
     if (type is td.ChatTypeBasicGroup) return true;
+    if (type is td.ChatTypeSecret) return true;
     if (type is td.ChatTypeSupergroup) return !type.isChannel;
-    // ChatTypeSecret and anything a future TDLib adds: not ours to draw.
+    // Anything a future TDLib adds: not ours to draw.
     return false;
   }
+
+  /// The secret chat behind a chat, if it is one and TDLib has described it.
+  td.SecretChat? secretChatFor(td.Chat chat) {
+    final type = chat.type;
+    if (type is! td.ChatTypeSecret) return null;
+    return secretChats[type.secretChatId];
+  }
+
+  /// Whether a secret chat's key exchange has finished.
+  ///
+  /// The state lives on the `SecretChat` record, not on the `Chat`, and it is
+  /// the difference between a composer that works and one that is refused: a
+  /// chat stays *pending* until the other device comes online, which can be
+  /// hours.
+  static bool isSecretChatReady(td.SecretChat? secret) =>
+      secret?.state is td.SecretChatStateReady;
 
   /// The user record behind a private chat, if TDLib has volunteered it.
   td.User? userForChat(td.Chat chat) {
@@ -145,7 +175,11 @@ class ChatCacheState {
     final type = chat.type;
 
     if (type is td.ChatTypePrivate) return true;
-    // Secret chats can't carry a forwarded channel post.
+    // A secret chat takes messages only once its key exchange has finished.
+    // Before that Telegram refuses the send, so the composer must not offer
+    // one. `canPostIn` has no secret chat record to consult — the forward
+    // picker deliberately still excludes them, because a forwarded channel post
+    // cannot go into one at all.
     if (type is td.ChatTypeSecret) return false;
 
     // Basic groups: the cache holds no BasicGroup record, so the chat's
@@ -160,6 +194,75 @@ class ChatCacheState {
       return chat.permissions.canSendBasicMessages || _canPostAsAdmin(status);
     }
 
+    return false;
+  }
+
+  /// Whether one kind of thing may be sent into [chat]. Pure, so the rules are
+  /// testable.
+  ///
+  /// Telegram permissions media by *kind*, and a group can permit one and
+  /// forbid the next — photos allowed, voice messages not, is a common setting.
+  /// So this is one function with a right rather than a bool per control, and
+  /// it is held here rather than at the repositories that ask, because a second
+  /// copy is how the composer and the conversation come to disagree about which
+  /// buttons belong.
+  ///
+  /// A private chat allows everything except a poll, which Telegram takes only
+  /// in a chat with a bot. A channel is an admin question. A group is the
+  /// chat's own permission, or admin rights over it.
+  static bool canSendIn(
+    td.Chat chat,
+    td.Supergroup? supergroup,
+    ChatSendRight right,
+  ) {
+    final type = chat.type;
+    // A secret chat takes every media kind and no poll — TDLib's own line is
+    // that polls cannot be sent to secret chats. Whether it is *ready* is a
+    // separate question, asked by the screen through [isSecretChatReady].
+    if (type is td.ChatTypeSecret) return right != ChatSendRight.polls;
+    if (type is td.ChatTypePrivate) return right != ChatSendRight.polls;
+
+    if (type is td.ChatTypeSupergroup && type.isChannel) {
+      return _canPostAsAdmin(supergroup?.status);
+    }
+
+    final permissions = chat.permissions;
+    final permitted = switch (right) {
+      ChatSendRight.photos => permissions.canSendPhotos,
+      ChatSendRight.videos => permissions.canSendVideos,
+      ChatSendRight.documents => permissions.canSendDocuments,
+      ChatSendRight.voiceNotes => permissions.canSendVoiceNotes,
+      ChatSendRight.videoNotes => permissions.canSendVideoNotes,
+      ChatSendRight.polls => permissions.canSendPolls,
+    };
+    // An admin is not bound by the members' default permissions.
+    return permitted || _canPostAsAdmin(supergroup?.status);
+  }
+
+  /// Whether a poll may be sent into [chat].
+  ///
+  /// Kept as its own name because it is asked from two features and reads
+  /// better than the general form at those call sites.
+  static bool canSendPollsIn(td.Chat chat, td.Supergroup? supergroup) =>
+      canSendIn(chat, supergroup, ChatSendRight.polls);
+
+  /// Whether this account may change the chat's auto-delete timer.
+  ///
+  /// A one-to-one chat always may — the timer is a property both people share
+  /// and either may set. Anywhere else it is an admin power, and the specific
+  /// right Telegram checks is the one to delete messages, because that is what
+  /// the timer does on everybody's behalf. A member of a group who tapped it
+  /// would get a refusal, so the menu is absent for them instead.
+  static bool canSetAutoDeleteIn(td.Chat chat, td.Supergroup? supergroup) {
+    final type = chat.type;
+    if (type is td.ChatTypePrivate) return true;
+    if (type is td.ChatTypeSecret) return false;
+
+    final status = supergroup?.status;
+    if (status is td.ChatMemberStatusCreator) return true;
+    if (status is td.ChatMemberStatusAdministrator) {
+      return status.rights.canDeleteMessages;
+    }
     return false;
   }
 
@@ -210,6 +313,13 @@ class ChatCacheState {
           unreadCount: update.unreadCount,
           lastReadInboxMessageId: update.lastReadInboxMessageId,
         );
+        return true;
+
+      // The state of an end-to-end chat, which lives nowhere else. Mirrored so
+      // the composer can tell "waiting for them to come online" from "ready",
+      // and so closing one is reflected without a refetch.
+      case td.UpdateSecretChat():
+        secretChats[update.secretChat.id] = update.secretChat;
         return true;
 
       case td.UpdateChatTitle():
@@ -275,6 +385,28 @@ class ChatCacheState {
         if (existing == null) return false;
         chats[update.chatId] = existing.copyWith(
           isMarkedAsUnread: update.isMarkedAsUnread,
+        );
+        return true;
+
+      // The chat's auto-delete timer, which either side can change from any
+      // client. Mirrored so the sheet that sets it opens showing what is
+      // actually set rather than what it was when the chat was first cached.
+      case td.UpdateChatMessageAutoDeleteTime():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          messageAutoDeleteTime: update.messageAutoDeleteTime,
+        );
+        return true;
+
+      // Whether this chat has messages waiting to be sent. The header's
+      // "Scheduled" row is drawn from it, so a chat with nothing queued offers
+      // no way into an empty screen.
+      case td.UpdateChatHasScheduledMessages():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          hasScheduledMessages: update.hasScheduledMessages,
         );
         return true;
 
@@ -352,6 +484,7 @@ class ChatCacheState {
 
   void clear() {
     chats.clear();
+    secretChats.clear();
     supergroups.clear();
     users.clear();
     userFullInfos.clear();
@@ -407,6 +540,12 @@ class ChatCache {
   /// The supergroup record behind a chat, if TDLib has volunteered it.
   td.Supergroup? supergroupForChat(td.Chat chat) =>
       _state.supergroupForChat(chat);
+
+  /// The end-to-end record behind a chat, if it is a secret one.
+  td.SecretChat? secretChatFor(td.Chat chat) => _state.secretChatFor(chat);
+
+  /// Every secret chat record, keyed by secret chat id.
+  Map<int, td.SecretChat> get secretChatsById => _state.secretChats;
 
   td.Supergroup? supergroup(int supergroupId) =>
       _state.supergroups[supergroupId];

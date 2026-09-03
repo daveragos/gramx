@@ -145,6 +145,19 @@ abstract class ChatSummary with _$ChatSummary {
     /// not, and without saying so a pinned chat is indistinguishable from a
     /// busy one.
     @Default(false) bool isPinned,
+
+    /// An end-to-end chat. Drawn with a lock, because that is the whole
+    /// difference between it and the ordinary chat with the same person — and
+    /// a reader who cannot tell them apart cannot use either safely.
+    @Default(false) bool isSecret,
+
+    /// True while a secret chat's key exchange is still going.
+    ///
+    /// A secret chat is *pending* until the other person's device comes online,
+    /// which can be hours, and Telegram refuses messages sent into one before
+    /// then. Kept apart from [isSecret] so the composer can say "waiting for
+    /// them" rather than failing.
+    @Default(false) bool isSecretPending,
   }) = _ChatSummary;
 
   factory ChatSummary.fromJson(Map<String, dynamic> json) =>

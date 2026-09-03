@@ -19,6 +19,28 @@
         android:name="android.permission.WAKE_LOCK"
         tools:node="remove"/>
 
+    <!-- Recording a voice message, and the audio track of a round video
+         message. Asked for at the moment the reader holds the record button,
+         never at launch. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- Recording a round video message. The one control in the app that opens
+         the camera; nothing else here has a viewfinder. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- Sending a location. Coarse as well as fine, so a reader who grants only
+         approximate location still gets a working control rather than a denial
+         — Telegram is being told roughly where somebody is, not navigating.
+         Never requested in the background: the app takes one fix and stops. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+
+    <!-- The camera is used for one optional feature, so a device without one
+         must still be able to install the app. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false"/>
+
     <application
         android:label="gramX"
         android:name="${applicationName}"

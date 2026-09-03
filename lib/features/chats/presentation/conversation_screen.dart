@@ -9,21 +9,35 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/features/chats/data/conversation_rows.dart';
 import 'package:gramx/features/chats/data/conversation_state.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/features/chats/domain/message_place.dart';
+import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 import 'package:gramx/features/chats/presentation/conversation_providers.dart';
+import 'package:gramx/features/chats/presentation/widgets/auto_delete_sheet.dart';
+import 'package:gramx/features/chats/presentation/scheduled_messages_screen.dart';
+import 'package:gramx/features/chats/presentation/video_note_recorder_screen.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_date_separator.dart';
+import 'package:gramx/features/chats/presentation/widgets/contact_picker_sheet.dart';
+import 'package:gramx/features/chats/presentation/widgets/forward_message_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_actions_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_bubble.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_composer.dart';
+import 'package:gramx/features/chats/presentation/widgets/schedule_sheet.dart';
+import 'package:gramx/features/chats/presentation/widgets/secret_media_bubble.dart';
+import 'package:gramx/features/compose/data/location_service.dart';
+import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/poll_draft.dart';
 
 /// One conversation, open.
 ///
@@ -70,6 +84,24 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   int? _jumpTargetId;
 
   ChatMessage? _replyTo;
+
+  /// The messages the reader has ticked, in the order they ticked them.
+  ///
+  /// Null — not empty — when selection mode is off. An empty *set* is a real
+  /// state the reader can reach by unticking the last one, and it has to look
+  /// different from never having started: one keeps the selection bar up, the
+  /// other puts the header back.
+  Set<int>? _selected;
+
+  /// What Telegram says may be done to each selected message, kept as it is
+  /// ticked.
+  ///
+  /// One `getMessageProperties` per tick — user-driven and bounded, which is
+  /// the on-demand shape `docs/TDLIB.md` allows, and the same request the
+  /// long-press menu already makes for one message. Unticking costs nothing:
+  /// the answer is still here, and the bar recomputes from what is left.
+  final Map<int, MessageActions> _selectionRights = {};
+
   bool _showJumpButton = false;
   bool _hasMarkedRead = false;
   bool _hasAnchoredToUnread = false;
@@ -251,12 +283,115 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
-  Future<bool> _send(String text, List attachments) async {
+  Future<bool> _send(
+    String text,
+    List<ComposeAttachment> attachments,
+    MessageSchedule schedule,
+  ) async {
     final sent = await ref
         .read(conversationProvider(widget.chatId).notifier)
         .send(
           text: text,
-          attachments: attachments.cast(),
+          attachments: attachments,
+          replyToMessageId: _replyTo?.messageId,
+          schedule: schedule,
+        );
+    if (sent && mounted) {
+      setState(() => _replyTo = null);
+      // A scheduled message is not in the conversation — Telegram holds it
+      // apart until it goes — so there is nothing at the bottom to scroll to,
+      // and saying where it went is the only feedback there can be.
+      if (schedule.isImmediate) {
+        _jumpToLatest();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(AppStrings.scheduleQueued),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+    return sent;
+  }
+
+  /// Asks when a message should go, and refuses a time Telegram would.
+  Future<MessageSchedule?> _pickSchedule() async {
+    final schedule = await ScheduleSheet.show(
+      context,
+      // "When they come online" needs a *they*. There is no such moment for a
+      // group, so the row is absent rather than present and meaningless.
+      allowsWhenOnline: ref
+          .read(chatsRepositoryProvider)
+          .isPrivateChat(widget.chatId),
+    );
+    if (schedule == null || !mounted) return null;
+
+    if (!schedule.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.scheduleInvalid),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return null;
+    }
+    return schedule;
+  }
+
+  /// Opens a location or venue in whatever maps app the device has.
+  ///
+  /// A `geo:` URI, which every platform routes to its own maps app — gramX
+  /// draws no map of its own and has no tile provider to draw one from, so the
+  /// honest thing is to hand the place to something that does.
+  Future<void> _openPlace(MessagePlace place) async {
+    final opened = await openExternalUrl(Uri.parse(place.geoUri));
+    if (opened || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.placeOpenFailed),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Records a round video message and hands it back to the composer.
+  Future<ComposeAttachment?> _recordVideoNote() =>
+      VideoNoteRecorderScreen.show(context);
+
+  /// Asks the device where it is and sends that.
+  ///
+  /// The permission is requested inside [LocationService], at this moment and
+  /// nowhere else. Both failures say something the reader can act on — one is
+  /// fixable in Settings, the other is not fixable at all — so they are told
+  /// apart rather than collapsed into "couldn't send".
+  Future<bool> _sendLocation() async {
+    final result = await const LocationService().current();
+    if (!mounted) return false;
+
+    final location = result.location;
+    if (location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.failure == LocationFailure.noPermission
+                ? AppStrings.locationNoPermission
+                : AppStrings.locationUnavailable,
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      // True, so the composer does not add a second message on top of the one
+      // just shown. The reader has been told why; saying it twice is noise.
+      return true;
+    }
+
+    final sent = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .sendLocation(
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
           replyToMessageId: _replyTo?.messageId,
         );
     if (sent && mounted) {
@@ -266,12 +401,103 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return sent;
   }
 
+  Future<bool> _sendContact() async {
+    final userId = await ContactPickerSheet.show(context);
+    // Backing out of the picker is not a failure, and must not draw one.
+    if (userId == null || !mounted) return true;
+
+    final sent = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .sendContact(
+          userId: userId,
+          replyToMessageId: _replyTo?.messageId,
+        );
+    if (sent && mounted) {
+      setState(() => _replyTo = null);
+      _jumpToLatest();
+    }
+    return sent;
+  }
+
+  Future<bool> _sendPoll(PollDraft draft) async {
+    final sent = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .sendPoll(draft, replyToMessageId: _replyTo?.messageId);
+    if (sent && mounted) {
+      setState(() => _replyTo = null);
+      _jumpToLatest();
+    }
+    return sent;
+  }
+
+  /// Opens media that disappears once opened.
+  ///
+  /// The confirmation is not ceremony. Opening is irreversible: Telegram tells
+  /// the sender it was seen, the clock starts, and for view-once media the
+  /// content is gone the moment the viewer closes it. Somebody who taps a
+  /// bubble by accident should not lose the thing they were sent, so the tap
+  /// asks, and the answer is what reaches TDLib.
+  Future<void> _openSecretMedia(ChatMessage message) async {
+    if (message.isOutgoing || !message.isSecretMedia) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.secretMediaTapToView),
+        content: Text(
+          message.isViewOnce
+              ? AppStrings.secretMediaOnceWarning
+              : AppStrings.secretMediaTimerWarning(message.selfDestructSeconds),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(AppStrings.chatCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(AppStrings.secretMediaTapToView),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final opened = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .openSecretMedia(message.messageId);
+    if (!mounted) return;
+
+    if (!opened || message.media.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.secretMediaOpenFailed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    await SecretMediaViewer.show(
+      context,
+      item: message.media.first,
+      seconds: message.selfDestructSeconds,
+    );
+  }
+
   /// A failed bubble is tappable, and that is its only way out.
   ///
   /// Nothing else on a bubble responds to a plain tap, so the gesture is free
   /// — and a warning icon with no action behind it is the inert control the
   /// hard rules forbid.
   Future<void> _handleTap(ChatMessage message) async {
+    // While selecting, a tap is a tick. Every other meaning a tap has in a
+    // conversation is suspended for as long as the bar is up, which is what
+    // makes selection mode a mode rather than a second gesture to remember.
+    if (_isSelecting) {
+      await _toggleSelected(message);
+      return;
+    }
     if (message.sendState != MessageSendState.failed) return;
     HapticFeedback.lightImpact();
 
@@ -441,13 +667,239 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
+  // ── Selecting several messages ────────────────────────────────────────────
+
+  /// Telegram's own cap on a bulk delete or forward.
+  static const int _maxSelected = 100;
+
+  bool get _isSelecting => _selected != null;
+
+  /// Whether every ticked message may be taken back from everybody.
+  ///
+  /// An `AND` across the selection, from the answers Telegram already gave for
+  /// each one — so "Delete for everyone" is offered exactly when it would work
+  /// for all of them, rather than for some and failing on the rest.
+  bool get _canRevokeSelection {
+    final selected = _selected;
+    if (selected == null || selected.isEmpty) return false;
+    return selected.every(
+      (id) => _selectionRights[id]?.canDeleteForAll ?? false,
+    );
+  }
+
+  bool get _canForwardSelection {
+    final selected = _selected;
+    if (selected == null || selected.isEmpty) return false;
+    return selected.every((id) => _selectionRights[id]?.canForward ?? false);
+  }
+
+  /// Enters selection mode with [message] already ticked.
+  void _startSelecting(ChatMessage message) {
+    setState(() => _selected = <int>{});
+    _toggleSelected(message);
+  }
+
+  void _stopSelecting() {
+    setState(() => _selected = null);
+    _selectionRights.clear();
+  }
+
+  Future<void> _toggleSelected(ChatMessage message) async {
+    final selected = _selected;
+    if (selected == null) return;
+
+    if (selected.contains(message.messageId)) {
+      setState(() => selected.remove(message.messageId));
+      return;
+    }
+
+    if (selected.length >= _maxSelected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.chatSelectLimit(_maxSelected)),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => selected.add(message.messageId));
+
+    // Asked once per message and remembered, so re-ticking one costs nothing.
+    if (_selectionRights.containsKey(message.messageId)) return;
+    final rights = await ref
+        .read(chatsRepositoryProvider)
+        .messageActions(chatId: widget.chatId, messageId: message.messageId);
+    if (!mounted) return;
+    setState(() => _selectionRights[message.messageId] = rights);
+  }
+
+  Future<void> _forwardSelection() async {
+    final ids = _selected?.toList();
+    if (ids == null || ids.isEmpty) return;
+
+    final toChatId = await ForwardMessageSheet.show(context);
+    if (toChatId == null || !mounted) return;
+
+    // Oldest first, so they land in the order they were written rather than
+    // the order they happened to be tapped in.
+    ids.sort();
+    final ok = await ref
+        .read(chatsRepositoryProvider)
+        .forward(
+          fromChatId: widget.chatId,
+          messageIds: ids,
+          toChatId: toChatId,
+        );
+    if (!mounted) return;
+
+    _stopSelecting();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? AppStrings.chatForwardedCount(ids.length)
+              : AppStrings.chatForwardFailedPlain,
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _deleteSelection() async {
+    final ids = _selected?.toList();
+    if (ids == null || ids.isEmpty) return;
+
+    final revoke = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.chatDeleteCountTitle(ids.length)),
+        content: const Text(AppStrings.chatDeleteBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(AppStrings.chatCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(AppStrings.chatActionDeleteForMe),
+          ),
+          // Only when it would work for every one of them — see
+          // [_canRevokeSelection].
+          if (_canRevokeSelection)
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(AppStrings.chatActionDeleteForEveryone),
+            ),
+        ],
+      ),
+    );
+    if (revoke == null || !mounted) return;
+
+    final ok = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .delete(ids, revoke: revoke);
+    if (!mounted) return;
+
+    _stopSelecting();
+    if (ok) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.chatDeleteFailed),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Ends an end-to-end chat, asking first.
+  ///
+  /// Irreversible and two-sided — Telegram deletes the messages from both
+  /// devices — so it confirms, and the confirmation says which of those two
+  /// things is about to happen.
+  Future<void> _closeSecretChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.secretChatCloseTitle),
+        content: const Text(AppStrings.secretChatCloseBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(AppStrings.chatCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              AppStrings.secretChatCloseConfirm,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final ok = await ref
+        .read(chatsRepositoryProvider)
+        .closeSecretChat(widget.chatId);
+    if (!mounted) return;
+
+    if (ok) {
+      // The chat is gone. Staying on a screen for one would leave the reader
+      // looking at a conversation that no longer exists on either device.
+      Navigator.of(context).maybePop();
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.secretChatCloseFailed),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Sets how long messages live in this chat.
+  ///
+  /// Chat-wide and two-sided, which is why it sits in the header's overflow
+  /// rather than on the composer: it is a property of the conversation, not of
+  /// the message being written.
+  Future<void> _setAutoDelete() async {
+    final repository = ref.read(chatsRepositoryProvider);
+    final seconds = await AutoDeleteSheet.show(
+      context,
+      current: repository.autoDeleteTime(widget.chatId),
+    );
+    if (seconds == null || !mounted) return;
+
+    final ok = await repository.setAutoDeleteTime(widget.chatId, seconds);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? AppStrings.autoDeleteSet(seconds) : AppStrings.autoDeleteFailed,
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _openActions(ChatMessage message) async {
+    // A long press while selecting would open a menu about one message on top
+    // of a bar about several. It ticks instead, which is the same thing a tap
+    // does and the only sensible reading of the gesture in this mode.
+    if (_isSelecting) {
+      await _toggleSelected(message);
+      return;
+    }
+
     HapticFeedback.mediumImpact();
     await MessageActionsSheet.show(
       context,
       chatId: widget.chatId,
       message: message,
       onReply: () => setState(() => _replyTo = message),
+      onSelect: () => _startSelecting(message),
     );
   }
 
@@ -458,7 +910,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final searchQuery = ref.watch(inChatSearchQueryProvider);
 
     return Scaffold(
-      appBar: searchQuery == null
+      appBar: _isSelecting
+          ? _SelectionAppBar(
+              count: _selected!.length,
+              canForward: _canForwardSelection,
+              onClose: _stopSelecting,
+              onForward: _forwardSelection,
+              onDelete: _deleteSelection,
+            )
+          : searchQuery == null
           ? _ConversationAppBar(
               summary: summary,
               typing: conversation.value?.typing,
@@ -466,6 +926,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 ref.read(inChatSearchQueryProvider.notifier).open();
                 _searchController.clear();
               },
+              onAutoDelete:
+                  ref.read(chatsRepositoryProvider).canSetAutoDelete(
+                    widget.chatId,
+                  )
+                  ? _setAutoDelete
+                  : null,
+              // Only when there is something on it. TDLib keeps
+              // `hasScheduledMessages` current, so this costs nothing to ask
+              // and there is no way into an empty screen.
+              onScheduled:
+                  ref.read(chatsRepositoryProvider).hasScheduledMessages(
+                    widget.chatId,
+                  )
+                  ? () => ScheduledMessagesScreen.show(context, widget.chatId)
+                  : null,
+              onCloseSecretChat:
+                  ref.read(chatsRepositoryProvider).isSecretChat(widget.chatId)
+                  ? _closeSecretChat
+                  : null,
             )
           : _ChatSearchAppBar(
               controller: _searchController,
@@ -513,6 +992,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   unreadBandKey: _unreadBandKey,
                   onTap: _handleTap,
                   onLongPress: _openActions,
+                  selected: _selected,
                   onReplyTap: _jumpToReply,
                   onMentionTap: _openMention,
                   onSenderTap: (userId) =>
@@ -522,10 +1002,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   onReact: (message, emoji) => ref
                       .read(conversationProvider(widget.chatId).notifier)
                       .toggleReaction(message.messageId, emoji),
+                  onVote: (message, optionIds) => ref
+                      .read(conversationProvider(widget.chatId).notifier)
+                      .vote(message.messageId, optionIds),
+                  onOpenSecretMedia: _openSecretMedia,
+                  onOpenPlace: _openPlace,
                 );
               },
             ),
           ),
+          // A secret chat that has not finished its key exchange takes nothing.
+          // Telegram refuses the send outright, so the composer goes and a line
+          // says what is being waited for — a composer that swallowed messages
+          // until the other person happened to open Telegram is the worst
+          // possible reading of "sent".
+          if (ref.read(chatsRepositoryProvider).isSecretChatPending(
+            widget.chatId,
+          ))
+            const _SecretChatPendingNotice()
+          else
           MessageComposer(
             // TDLib holds the draft, so one typed on a laptop is here and one
             // typed here is there. Read once, when the composer is built.
@@ -538,6 +1033,33 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             replyTo: _replyTo,
             onCancelReply: () => setState(() => _replyTo = null),
             onSend: _send,
+            // Both are the chat's own answer, read from the cache rather than
+            // guessed: Telegram takes a poll only where polls are permitted and
+            // disappearing media only in a one-to-one chat, and a control that
+            // is offered and then refused is worse than one that is not there.
+            onSendPoll: ref.read(chatsRepositoryProvider).canSendPollsIn(widget.chatId)
+                ? _sendPoll
+                : null,
+            allowsSelfDestruct: ref
+                .read(chatsRepositoryProvider)
+                .isPrivateChat(widget.chatId),
+            // Telegram permissions media by kind, so each control asks its own
+            // question. A group that allows photos and forbids voice messages
+            // is a common setting, and a microphone that fails when held is
+            // exactly the inert control the hard rules forbid.
+            allowsVoiceNotes: ref
+                .read(chatsRepositoryProvider)
+                .canSendIn(widget.chatId, ChatSendRight.voiceNotes),
+            allowsVideoNotes: ref
+                .read(chatsRepositoryProvider)
+                .canSendIn(widget.chatId, ChatSendRight.videoNotes),
+            allowsDocuments: ref
+                .read(chatsRepositoryProvider)
+                .canSendIn(widget.chatId, ChatSendRight.documents),
+            onRecordVideoNote: _recordVideoNote,
+            onSendLocation: _sendLocation,
+            onSendContact: _sendContact,
+            onPickSchedule: _pickSchedule,
             onChanged: (value) {
               final signal = ref.read(typingSignalProvider(widget.chatId));
               if (value.isEmpty) {
@@ -562,6 +1084,113 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 }
 
+
+/// What sits where the composer would, in a secret chat that is not ready yet.
+class _SecretChatPendingNotice extends StatelessWidget {
+  const _SecretChatPendingNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: border, width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            children: [
+              Icon(Icons.lock_clock_rounded, size: 18, color: secondary),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  AppStrings.secretChatPending,
+                  style: AppTypography.timestamp(color: secondary),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The header while several messages are ticked.
+///
+/// Replaces the header rather than sitting under it, the same way the search
+/// bar does and for the same reason: selecting is a mode, and a screen showing
+/// both who you are talking to and how many of their messages you have ticked
+/// is two headers arguing.
+class _SelectionAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final int count;
+
+  /// Whether Telegram would forward every one of them. False hides the button
+  /// rather than disabling it — a greyed control with no explanation is the
+  /// same dead end as one that fails.
+  final bool canForward;
+
+  final VoidCallback onClose;
+  final VoidCallback onForward;
+  final VoidCallback onDelete;
+
+  const _SelectionAppBar({
+    required this.count,
+    required this.canForward,
+    required this.onClose,
+    required this.onForward,
+    required this.onDelete,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AppBar(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      leading: IconButton(
+        icon: const Icon(Icons.close_rounded),
+        tooltip: AppStrings.chatSelectCancel,
+        onPressed: onClose,
+      ),
+      titleSpacing: 0,
+      title: Text(
+        AppStrings.chatSelectedCount(count),
+        style: AppTypography.displayName(color: theme.colorScheme.onSurface),
+      ),
+      actions: [
+        // Both are absent at zero rather than greyed: unticking the last
+        // message leaves the bar up so the mode is still obvious, and there is
+        // nothing for either button to act on.
+        if (count > 0 && canForward)
+          IconButton(
+            icon: const Icon(Icons.forward_rounded),
+            tooltip: AppStrings.chatActionForward,
+            onPressed: onForward,
+          ),
+        if (count > 0)
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded),
+            color: theme.colorScheme.error,
+            tooltip: AppStrings.chatActionDelete,
+            onPressed: onDelete,
+          ),
+      ],
+    );
+  }
+}
 
 /// The header while a chat is being searched.
 ///
@@ -780,10 +1409,23 @@ class _ConversationAppBar extends StatelessWidget
   /// still loading — so the control is absent rather than inert.
   final VoidCallback? onSearch;
 
+  /// Opens the auto-delete timer. Null in a chat where Telegram does not offer
+  /// one, so the overflow menu is absent rather than carrying a dead row.
+  final VoidCallback? onAutoDelete;
+
+  /// Opens the queue of messages waiting to be sent. Null when there is none.
+  final VoidCallback? onScheduled;
+
+  /// Ends an end-to-end chat. Null in every chat that is not one.
+  final VoidCallback? onCloseSecretChat;
+
   const _ConversationAppBar({
     required this.summary,
     this.typing,
     this.onSearch,
+    this.onAutoDelete,
+    this.onScheduled,
+    this.onCloseSecretChat,
   });
 
   @override
@@ -822,6 +1464,54 @@ class _ConversationAppBar extends StatelessWidget
             tooltip: AppStrings.chatSearchTooltip,
             onPressed: onSearch,
           ),
+        if (onAutoDelete != null ||
+            onScheduled != null ||
+            onCloseSecretChat != null)
+          PopupMenuButton<void>(
+            tooltip: AppStrings.chatMoreTooltip,
+            itemBuilder: (context) => [
+              if (onScheduled != null)
+                PopupMenuItem<void>(
+                  onTap: onScheduled,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.schedule_rounded, size: 20),
+                      SizedBox(width: AppSpacing.md),
+                      Text(AppStrings.scheduleMenu),
+                    ],
+                  ),
+                ),
+              if (onAutoDelete != null)
+                PopupMenuItem<void>(
+                  onTap: onAutoDelete,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.auto_delete_outlined, size: 20),
+                      SizedBox(width: AppSpacing.md),
+                      Text(AppStrings.autoDeleteMenu),
+                    ],
+                  ),
+                ),
+              if (onCloseSecretChat != null)
+                PopupMenuItem<void>(
+                  onTap: onCloseSecretChat,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lock_open_rounded,
+                        size: 20,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Text(
+                        AppStrings.secretChatClose,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
       ],
       title: _MaybeTappable(
         onTap: userId == null || summary?.kind == ChatKind.savedMessages
@@ -845,6 +1535,21 @@ class _ConversationAppBar extends StatelessWidget
                 children: [
                   Row(
                     children: [
+                      // The lock leads, before the name. It is the only visible
+                      // difference between this chat and the ordinary one with
+                      // the same person, and the header is where somebody
+                      // checks which one they are typing into.
+                      if (summary?.isSecret == true) ...[
+                        Tooltip(
+                          message: AppStrings.secretChatLockLabel,
+                          child: Icon(
+                            Icons.lock_rounded,
+                            size: 14,
+                            color: AppColors.verified,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                      ],
                       Flexible(
                         child: Text(
                           summary?.title ?? '',
@@ -944,6 +1649,12 @@ class _MessageList extends StatelessWidget {
   final GlobalKey jumpKey;
   final int? jumpTargetId;
   final void Function(ChatMessage message, String emoji) onReact;
+  final Future<void> Function(ChatMessage message, List<int> optionIds) onVote;
+  final void Function(ChatMessage message) onOpenSecretMedia;
+  final void Function(MessagePlace place) onOpenPlace;
+
+  /// The ticked message ids, or null when selection mode is off.
+  final Set<int>? selected;
 
   const _MessageList({
     required this.state,
@@ -957,6 +1668,10 @@ class _MessageList extends StatelessWidget {
     required this.jumpTargetId,
     required this.onLongPress,
     required this.onReact,
+    required this.onVote,
+    required this.onOpenSecretMedia,
+    required this.onOpenPlace,
+    required this.selected,
   });
 
   @override
@@ -1013,6 +1728,14 @@ class _MessageList extends StatelessWidget {
                 ? null
                 : () => onSenderTap(row.message.senderId!),
             onReactionTap: (emoji) => onReact(row.message, emoji),
+            onVote: (optionIds) => onVote(row.message, optionIds),
+            onOpenSecretMedia: () => onOpenSecretMedia(row.message),
+            onOpenPlace: row.message.place == null
+                ? null
+                : () => onOpenPlace(row.message.place!),
+            onOpenContact: onSenderTap,
+            isSelecting: selected != null,
+            isSelected: selected?.contains(row.message.messageId) ?? false,
           ),
         };
       },

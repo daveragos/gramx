@@ -10,7 +10,10 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/chats/presentation/widgets/bubble_media.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_reactions_row.dart';
+import 'package:gramx/features/chats/presentation/widgets/place_bubble.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_send_state_icon.dart';
+import 'package:gramx/features/chats/presentation/widgets/secret_media_bubble.dart';
+import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
 /// One message in a conversation.
 ///
@@ -52,6 +55,30 @@ class MessageBubble extends StatelessWidget {
   /// person to lead to, and the avatar is where every chat app puts that door.
   final VoidCallback? onSenderTap;
 
+  /// Records an answer to the poll in this bubble. Supplied by the screen,
+  /// because voting reaches Telegram and a widget must not.
+  final Future<void> Function(List<int> optionIds)? onVote;
+
+  /// Opens media that disappears once it is opened. Null on an outgoing one and
+  /// on one that has already been opened — and null is what makes the cover
+  /// untappable, so a bubble cannot offer a tap that destroys nothing.
+  final VoidCallback? onOpenSecretMedia;
+
+  /// Opens a location or venue in a maps app. Supplied by the screen, because
+  /// launching one leaves the app.
+  final VoidCallback? onOpenPlace;
+
+  /// Opens the profile of a shared contact. Null when they are not on Telegram.
+  final ValueChanged<int>? onOpenContact;
+
+  /// Whether the conversation is in selection mode. Every bubble reserves the
+  /// tick gutter while it is, so ticking one does not shunt the others
+  /// sideways under the reader's thumb.
+  final bool isSelecting;
+
+  /// Whether this one is ticked.
+  final bool isSelected;
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -65,6 +92,12 @@ class MessageBubble extends StatelessWidget {
     this.onMentionTap,
     this.onReactionTap,
     this.onSenderTap,
+    this.onVote,
+    this.onOpenSecretMedia,
+    this.onOpenPlace,
+    this.onOpenContact,
+    this.isSelecting = false,
+    this.isSelected = false,
   });
 
   /// enough for a paragraph, narrow enough that the other side of the
@@ -78,14 +111,20 @@ class MessageBubble extends StatelessWidget {
     // something a person said.
     if (message.isService) return _ServiceLine(message: message);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOutgoing = message.isOutgoing;
     final maxWidth = MediaQuery.of(context).size.width * maxWidthFraction;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
-      color: isHighlighted
-          ? AppColors.accent.withValues(alpha: 0.12)
-          : Colors.transparent,
+      // Selection wins over the jump flash: the flash is a moment, the tick is
+      // a state, and a bubble that lost its tint mid-selection would read as
+      // having been unticked.
+      color: isSelected
+          ? AppColors.accent.withValues(alpha: 0.18)
+          : (isHighlighted
+                ? AppColors.accent.withValues(alpha: 0.12)
+                : Colors.transparent),
       padding: EdgeInsets.only(
         left: AppSpacing.md,
         right: AppSpacing.md,
@@ -98,6 +137,26 @@ class MessageBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // The tick, on the leading edge for both sides. Colour alone does not
+          // say a message is selected — the tint is easy to miss on one bubble
+          // in a run — so the state is drawn as a mark as well.
+          if (isSelecting) ...[
+            Semantics(
+              selected: isSelected,
+              child: Icon(
+                isSelected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 20,
+                color: isSelected
+                    ? AppColors.accent
+                    : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           // The avatar gutter is reserved for every incoming bubble in a group,
           // not just the one that draws an avatar — otherwise a run of messages
           // steps sideways under the one that has it.
@@ -133,6 +192,10 @@ class MessageBubble extends StatelessWidget {
                   onLongPress: onLongPress,
                   onReplyTap: onReplyTap,
                   onMentionTap: onMentionTap,
+                  onVote: onVote,
+                  onOpenSecretMedia: onOpenSecretMedia,
+                  onOpenPlace: onOpenPlace,
+                  onOpenContact: onOpenContact,
                 ),
                 if (message.reactions.isNotEmpty)
                   Padding(
@@ -163,6 +226,10 @@ class _Body extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onReplyTap;
   final ValueChanged<String>? onMentionTap;
+  final Future<void> Function(List<int> optionIds)? onVote;
+  final VoidCallback? onOpenSecretMedia;
+  final VoidCallback? onOpenPlace;
+  final ValueChanged<int>? onOpenContact;
 
   const _Body({
     required this.message,
@@ -174,6 +241,10 @@ class _Body extends StatelessWidget {
     this.onLongPress,
     this.onReplyTap,
     this.onMentionTap,
+    this.onVote,
+    this.onOpenSecretMedia,
+    this.onOpenPlace,
+    this.onOpenContact,
   });
 
   @override
@@ -234,18 +305,64 @@ class _Body extends StatelessWidget {
               onTap: onReplyTap,
             ),
           ),
-        for (final item in message.media)
+        // Media that disappears is drawn as a cover, never as itself. The
+        // thumbnail is a small copy of the picture, and a feature whose whole
+        // point is that it has not been seen cannot lead with one.
+        if (message.isSecretMedia)
           Padding(
             padding: EdgeInsets.only(
               bottom: message.isMediaOnly ? 0 : AppSpacing.xs,
             ),
-            child: BubbleMedia(
-              item: item,
-              // The bubble's padding is inside its width, so the media gets
-              // what is left of it.
+            child: SecretMediaCover(
+              message: message,
               maxWidth: maxWidth - AppSpacing.md * 2,
-              isAlone: message.isMediaOnly,
+              foregroundColor: textColor,
+              mutedColor: metaColor,
+              onOpen: message.isOutgoing ? null : onOpenSecretMedia,
             ),
+          )
+        else
+          for (final item in message.media)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: message.isMediaOnly ? 0 : AppSpacing.xs,
+              ),
+              child: BubbleMedia(
+                item: item,
+                // The bubble's padding is inside its width, so the media gets
+                // what is left of it.
+                maxWidth: maxWidth - AppSpacing.md * 2,
+                isAlone: message.isMediaOnly,
+              ),
+            ),
+        if (message.place case final place?)
+          PlaceBubble(
+            place: place,
+            maxWidth: maxWidth - AppSpacing.md * 2,
+            foregroundColor: textColor,
+            mutedColor: metaColor,
+            onOpen: onOpenPlace,
+          ),
+        if (message.contact case final contact?)
+          ContactBubble(
+            contact: contact,
+            maxWidth: maxWidth - AppSpacing.md * 2,
+            foregroundColor: textColor,
+            mutedColor: metaColor,
+            onOpen: contact.hasTelegramAccount && onOpenContact != null
+                ? () => onOpenContact!(contact.userId)
+                : null,
+          ),
+        if (message.poll case final poll?)
+          PollCard(
+            poll: poll,
+            isEmbedded: true,
+            foregroundColor: textColor,
+            mutedColor: metaColor,
+            // On an outgoing bubble the accent *is* the background, so the
+            // bars and ticks borrow the bubble's foreground instead.
+            accentColor: isOutgoing ? textColor : AppColors.accent,
+            onVote: onVote ?? (_) async {},
           ),
         if (message.text != null && message.text!.isNotEmpty)
           TextEntityRenderer(

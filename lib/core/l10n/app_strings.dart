@@ -1,6 +1,8 @@
 import 'package:gramx/core/diagnostics/error_log.dart' show ErrorSource;
 import 'package:gramx/features/activity/domain/activity_item.dart'
     show ActivityKind;
+import 'package:gramx/features/compose/domain/poll_draft.dart'
+    show PollDraft, PollDraftError;
 import 'package:gramx/features/compose/presentation/post_progress_provider.dart'
     show PostSendStatus;
 
@@ -61,6 +63,13 @@ abstract class AppStrings {
   /// How many people have answered a poll, already abbreviated by the caller.
   static String pollVoteCount(String formattedCount) => '$formattedCount votes';
   static String pollVoteFailed(Object error) => 'Failed to vote: $error';
+
+  /// Sends a multiple-answer poll's selection. Single-answer polls have no
+  /// such moment — the tap is the vote — so this appears on nothing else.
+  static const pollVote = 'Vote';
+  static const pollPoll = 'Poll';
+  static const pollQuiz = 'Quiz';
+  static const pollFinalResults = 'Final results';
   static const feedSyncingTitle = 'Syncing Telegram Feed';
   static const feedSyncingBody =
       'Fetching your subscribed channels and history from Telegram...';
@@ -709,6 +718,10 @@ abstract class AppStrings {
 
   static const composeAddPhoto = 'Add photo';
   static const composeAddVideo = 'Add video';
+  static const composeAddFile = 'Add file';
+  static const composeAddVideoNote = 'Record a video message';
+  static const composeAddLocation = 'Send my location';
+  static const composeAddContact = 'Share a contact';
   static const composeAddSticker = 'Add sticker';
   static const composeAddGif = 'Add GIF';
 
@@ -822,6 +835,236 @@ abstract class AppStrings {
   static const messagesPinFailed =
       "Telegram wouldn't pin that — you may have pinned as many as it allows.";
   static const messagesStartOne = 'Start a conversation';
+
+  // ── Polls somebody is writing ──────────────────────────────────────────────
+  static const pollComposeTitle = 'New poll';
+  static const pollComposeCreate = 'Create';
+  static const pollComposeQuestionHint = 'Ask a question';
+  static const pollComposeQuestionLabel = 'Question';
+  static const pollComposeOptionsLabel = 'Options';
+  static const pollComposeAddOption = 'Add an option';
+  static const pollComposeRemoveOption = 'Remove this option';
+  static const pollComposeAnonymous = 'Anonymous votes';
+  static const pollComposeAnonymousBody = "Voters' names stay hidden.";
+  static const pollComposeMultiple = 'Multiple answers';
+  static const pollComposeMultipleBody = 'Let people pick more than one.';
+  static const pollComposeQuizMode = 'Quiz mode';
+  static const pollComposeQuizModeBody =
+      'One answer is right, and voters are told which.';
+  static const pollComposeMarkCorrect = 'Mark as the right answer';
+  static const pollComposeDiscardTitle = 'Discard poll?';
+  static const pollComposeDiscardBody = "This poll won't be saved.";
+  static const pollComposeSendFailed = "Telegram wouldn't take that poll.";
+  static const pollComposeUnavailable = 'Polls';
+  static String pollComposeOptionHint(int number) => 'Option $number';
+
+  /// Why the Create button is off. One sentence per rule the draft breaks,
+  /// shown for the one it is currently breaking — a poll refused by Telegram
+  /// comes back as a flat error that names no field at all.
+  static String pollComposeProblem(PollDraftError error) => switch (error) {
+    PollDraftError.questionEmpty => 'A poll needs a question.',
+    PollDraftError.questionTooLong =>
+      'That question is longer than Telegram allows '
+          '(${PollDraft.maxQuestionLength} characters).',
+    PollDraftError.tooFewOptions =>
+      'A poll needs at least ${PollDraft.minOptions} options.',
+    PollDraftError.optionTooLong =>
+      'An option can be at most ${PollDraft.maxOptionLength} characters.',
+    PollDraftError.duplicateOptions => 'Two options say the same thing.',
+    PollDraftError.quizNeedsAnswer => 'Mark which answer is the right one.',
+  };
+
+  // ── Voice messages ─────────────────────────────────────────────────────────
+  static const voiceRecord = 'Record a voice message';
+  static const voiceCancel = 'Discard this recording';
+  static const voiceNoMicrophone =
+      'gramX needs the microphone to record a voice message.';
+  static const voiceUnavailable = "This device wouldn't start recording.";
+  static const voiceTooShort = 'That was too short to send.';
+
+  static String voiceRecordingLabel(int seconds) =>
+      'Recording, $seconds seconds so far';
+
+  // ── Round video messages ───────────────────────────────────────────────────
+  static const videoNoteTitle = 'Video message';
+  static const videoNoteHint = 'Tap the button to record. Tap again to send.';
+  static const videoNoteNoCamera =
+      'gramX needs the camera to record a video message.';
+  static const videoNoteUnavailable = "This device wouldn't start the camera.";
+  static const videoNoteRecord = 'Start recording';
+  static const videoNoteStop = 'Stop and send';
+  static const videoNoteFlip = 'Switch camera';
+  static const videoNoteClose = 'Close';
+
+  static String videoNoteRemaining(int seconds) => '${seconds}s left';
+
+  // ── Locations and contacts ─────────────────────────────────────────────────
+  static const locationSendFailed = "Couldn't send your location.";
+  static const locationNoPermission =
+      'gramX needs your location to send it. You can allow it in Settings.';
+  static const locationUnavailable =
+      "This device couldn't work out where it is.";
+  static const locationOpenInMaps = 'Open in maps';
+  static const locationLabel = 'Location';
+  static const contactSendFailed = "Couldn't send that contact.";
+  static const contactPickTitle = 'Share a contact';
+  static const contactPickHint = 'Search your Telegram contacts';
+  static const contactPickEmpty = 'No contacts to share';
+  static const contactPickNoMatch = 'No contact matches that';
+  static const contactMessage = 'Contact';
+  static const placeLiveLocation = 'Live location';
+  static const placeOpenFailed = "Couldn't open a maps app.";
+
+  /// A place with no name and no address: the numbers are the only thing that
+  /// says which place it is.
+  static String placeCoordinates(double latitude, double longitude) =>
+      '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}';
+
+  // ── End-to-end chats ───────────────────────────────────────────────────────
+  static const secretChatBadge = 'Secret';
+  static const secretChatStart = 'Start a secret chat';
+  static const secretChatStartBody =
+      'Messages are encrypted end to end, live only on these two devices, and '
+      'are not in your Telegram cloud.';
+  static const secretChatStartConfirm = 'Start';
+  static const secretChatFailed = "Telegram wouldn't start a secret chat.";
+  static const secretChatPending =
+      'Waiting for them to come online. Nothing can be sent until their device '
+      'finishes setting up the encryption.';
+  static const secretChatPendingShort = 'Waiting for them to come online';
+  static const secretChatClose = 'End secret chat';
+  static const secretChatCloseTitle = 'End this secret chat?';
+  static const secretChatCloseBody =
+      "It ends for both of you, and it can't be reopened. The messages in it "
+      'are deleted from both devices.';
+  static const secretChatCloseConfirm = 'End it';
+  static const secretChatCloseFailed = "Couldn't end that chat.";
+  static const secretChatLockLabel = 'End-to-end encrypted';
+
+  // ── Scheduled messages ─────────────────────────────────────────────────────
+  static const scheduleTitle = 'Send later';
+  static const scheduleWhenOnline = 'When they come online';
+  static const scheduleWhenOnlineBody =
+      'Telegram holds it until they next open the app.';
+  static const schedulePickDate = 'Pick a date and time';
+  static const scheduleTooltip = 'Send later';
+  static const chatSendOrSchedule = 'Send. Hold to send later.';
+  static const scheduleScreenTitle = 'Scheduled';
+  static const scheduleMenu = 'Scheduled messages';
+  static const scheduleEmpty = 'Nothing is scheduled here';
+  static const scheduleSendNow = 'Send now';
+  static const scheduleDelete = 'Delete';
+  static const scheduleFailed = "Telegram wouldn't schedule that.";
+  static const scheduleInvalid =
+      'Pick a time at least a minute from now, and within a year.';
+  static const scheduleSent = 'Sent.';
+  static const scheduleQueued = 'Scheduled.';
+  static const scheduleRescheduleFailed = "Couldn't change that.";
+  static const scheduleWhenOnlineRow = 'When they come online';
+
+  static String scheduleIn(Duration offset) {
+    if (offset.inHours < 24) {
+      return offset.inHours == 1 ? 'In 1 hour' : 'In ${offset.inHours} hours';
+    }
+    final days = offset.inDays;
+    return days == 1 ? 'In 1 day' : 'In $days days';
+  }
+
+  static String scheduledFor(String when) => 'Sends $when';
+
+  // ── Selecting several messages ─────────────────────────────────────────────
+  static const chatActionSelect = 'Select';
+  static const chatSelectCancel = 'Stop selecting';
+  static const chatForwardFailedPlain = "Couldn't forward those.";
+
+  static String chatSelectedCount(int count) =>
+      count == 1 ? '1 selected' : '$count selected';
+
+  static String chatSelectLimit(int max) =>
+      'Telegram takes at most $max messages at a time.';
+
+  static String chatForwardedCount(int count) =>
+      count == 1 ? 'Forwarded.' : 'Forwarded $count messages.';
+
+  static String chatDeleteCountTitle(int count) =>
+      count == 1 ? chatDeleteTitle : 'Delete $count messages?';
+
+  // ── The chat's own timer ───────────────────────────────────────────────────
+  static const autoDeleteTitle = 'Auto-delete messages';
+  static const autoDeleteBody =
+      'Applies to everything either of you sends from now on. Both of you are '
+      'told when it changes.';
+  static const autoDeleteMenu = 'Auto-delete messages';
+  static const chatMoreTooltip = 'More';
+  static const autoDeleteOff = 'Off';
+  static const autoDeleteFailed = "Telegram wouldn't change that timer.";
+
+  /// One auto-delete length, in the words Telegram's own clients use.
+  ///
+  /// Falls back to a day count for a timer set elsewhere to a length gramX does
+  /// not offer — the sheet shows it rather than pretending nothing is set.
+  static String autoDeleteChoice(int seconds) => switch (seconds) {
+    0 => autoDeleteOff,
+    86400 => 'After 1 day',
+    604800 => 'After 1 week',
+    2678400 => 'After 1 month',
+    _ when seconds >= 86400 => 'After ${seconds ~/ 86400} days',
+    _ when seconds >= 3600 => 'After ${seconds ~/ 3600} hours',
+    _ => 'After $seconds seconds',
+  };
+
+  static String autoDeleteSet(int seconds) => seconds == 0
+      ? 'Messages will no longer auto-delete.'
+      : 'Messages will delete ${autoDeleteChoice(seconds).toLowerCase()}.';
+
+  // ── Pinning one message ────────────────────────────────────────────────────
+  static const chatActionPin = 'Pin';
+  static const chatActionUnpin = 'Unpin';
+  static const chatPinTitle = 'Pin this message?';
+  static const chatPinBody =
+      'Everybody in this chat will see it at the top. They are not notified.';
+  static const chatPinConfirm = 'Pin';
+  static const chatPinned = 'Pinned.';
+  static const chatUnpinned = 'Unpinned.';
+  static const chatPinFailed = "Telegram wouldn't pin that.";
+  static const chatUnpinFailed = "Telegram wouldn't unpin that.";
+
+  // ── Media that disappears ──────────────────────────────────────────────────
+  static const selfDestructTitle = 'Disappearing media';
+  static const selfDestructOff = 'Stays in the chat';
+  static const selfDestructViewOnce = 'View once';
+  static const selfDestructViewOnceBody = 'Gone as soon as they close it.';
+  static const selfDestructOption = 'Disappearing';
+  static const selfDestructSpoiler = 'Hide behind a spoiler';
+  static const selfDestructSpoilerOn = 'Spoiler on';
+  static const selfDestructPrivateOnly =
+      'Telegram only takes disappearing media in a one-to-one chat.';
+
+  static String selfDestructAfter(int seconds) =>
+      seconds >= 60 ? 'After 1 minute' : 'After $seconds seconds';
+
+  /// The strip under an attachment, saying what will happen to it.
+  static String selfDestructSummary(int seconds, bool viewOnce) => viewOnce
+      ? selfDestructViewOnce
+      : (seconds >= 60 ? '1 min' : '$seconds s');
+
+  /// The cover over a disappearing photo somebody has been sent.
+  static const secretMediaTapToView = 'Tap to view';
+  static const secretMediaPhoto = 'Photo';
+  static const secretMediaVideo = 'Video';
+  static const secretMediaOutgoing = 'They have not opened it yet';
+  static const secretMediaOpenFailed = "Couldn't open that.";
+  static const secretMediaClose = 'Close';
+
+  /// What tapping the cover is about to do, said before it is done. Opening is
+  /// irreversible — Telegram tells the sender, and the media is then gone.
+  static const secretMediaOnceWarning =
+      'You can only see this once. It disappears when you close it.';
+
+  static String secretMediaTimerWarning(int seconds) =>
+      'You get $seconds seconds with this, then it disappears.';
+
+  static String secretMediaCountdown(int seconds) => '${seconds}s';
   static const messagesAllReadDone = 'Everything marked as read.';
 
   /// The count on the Messages tab. Conversations, not messages: "3" should

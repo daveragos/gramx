@@ -1,6 +1,8 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:gramx/features/chats/domain/message_place.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 
 part 'chat_message.freezed.dart';
@@ -64,6 +66,41 @@ abstract class ChatMessage with _$ChatMessage {
     String? text,
     @Default([]) List<TextEntity> entities,
     @Default([]) List<MediaItem> media,
+
+    /// The poll this message is, if it is one.
+    ///
+    /// Carried rather than flattened to its question text. A poll bubble used
+    /// to render as an empty box: `MessagePoll` is content the feed draws in
+    /// full, so it had no fallback label to borrow, and nothing here knew what
+    /// to do with it — a message with no words, no media and no poll is a
+    /// bubble with nothing in it.
+    @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? poll,
+
+    /// A place somebody sent: a location, or a venue with a name on it.
+    ///
+    /// Drawn as a card rather than reduced to the words "📍 Location", which
+    /// is what a conversation showed for one — a label with the coordinates
+    /// thrown away, so the one thing a location is for could not be done with
+    /// it.
+    @JsonKey(fromJson: _placeFromJson, toJson: _placeToJson) MessagePlace? place,
+
+    /// A contact card somebody sent.
+    @JsonKey(fromJson: _contactFromJson, toJson: _contactToJson)
+    MessageContactCard? contact,
+
+    /// True while this message's media is Telegram's tap-to-view kind and has
+    /// not been opened. The bubble draws a cover rather than the picture, which
+    /// is the whole point of it.
+    @Default(false) bool isSecretMedia,
+
+    /// True when the media is "view once": gone when the viewer closes it,
+    /// however long they looked. Mutually exclusive with
+    /// [selfDestructSeconds] — Telegram's type is one or the other.
+    @Default(false) bool isViewOnce,
+
+    /// How long the viewer gets once they open it, in seconds. Zero for
+    /// [isViewOnce] media and for anything that does not self-destruct.
+    @Default(0) int selfDestructSeconds,
     required DateTime sentAt,
 
     /// When Telegram says the message was edited, if it was.
@@ -91,6 +128,13 @@ abstract class ChatMessage with _$ChatMessage {
     String? linkPreviewDescription,
     int? linkPreviewFileId,
 
+    /// Whether this message is pinned to the top of the chat.
+    ///
+    /// Read so the long-press menu can offer the right one of Pin and Unpin.
+    /// It arrives on `updateMessageIsPinned` rather than as a content change,
+    /// because nothing about the message itself moved.
+    @Default(false) bool isPinned,
+
     /// Telegram's own notice about the chat — "you joined", "photo changed".
     /// Drawn as a centred line rather than a bubble, the way every Telegram
     /// client does it, so it reads as narration and not as something somebody
@@ -113,4 +157,64 @@ abstract class ChatMessage with _$ChatMessage {
 
   /// no bubble at all — the media *is* the message.
   bool get isMediaOnly => hasMedia && (text == null || text!.isEmpty);
+
+  /// Whether this message's media disappears after it is opened.
+  ///
+  /// True for both shapes — view once and a countdown — because every caller
+  /// that asks wants the same answer: draw a cover, not the picture.
+  bool get selfDestructs => isViewOnce || selfDestructSeconds > 0;
 }
+
+/// A place round-trips through a plain map. It is never actually persisted —
+/// nothing writes a `ChatMessage` to disk — but `json_serializable` generates
+/// a converter call for every field, so one has to exist.
+MessagePlace? _placeFromJson(dynamic json) {
+  if (json == null) return null;
+  final map = json as Map<String, dynamic>;
+  return MessagePlace(
+    latitude: (map['latitude'] as num).toDouble(),
+    longitude: (map['longitude'] as num).toDouble(),
+    title: map['title'] as String?,
+    address: map['address'] as String?,
+    livePeriod: map['livePeriod'] as int? ?? 0,
+    expiresIn: map['expiresIn'] as int? ?? 0,
+  );
+}
+
+Map<String, dynamic>? _placeToJson(MessagePlace? place) => place == null
+    ? null
+    : {
+        'latitude': place.latitude,
+        'longitude': place.longitude,
+        'title': place.title,
+        'address': place.address,
+        'livePeriod': place.livePeriod,
+        'expiresIn': place.expiresIn,
+      };
+
+MessageContactCard? _contactFromJson(dynamic json) {
+  if (json == null) return null;
+  final map = json as Map<String, dynamic>;
+  return MessageContactCard(
+    firstName: map['firstName'] as String? ?? '',
+    lastName: map['lastName'] as String? ?? '',
+    phoneNumber: map['phoneNumber'] as String? ?? '',
+    userId: map['userId'] as int? ?? 0,
+  );
+}
+
+Map<String, dynamic>? _contactToJson(MessageContactCard? contact) =>
+    contact == null
+    ? null
+    : {
+        'firstName': contact.firstName,
+        'lastName': contact.lastName,
+        'phoneNumber': contact.phoneNumber,
+        'userId': contact.userId,
+      };
+
+Poll? _pollFromJson(dynamic json) =>
+    json == null ? null : Poll.fromJson(json as Map<String, dynamic>);
+
+Map<String, dynamic>? _pollToJson(Poll? poll) =>
+    poll == null ? null : (poll as dynamic).toJson() as Map<String, dynamic>;

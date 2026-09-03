@@ -7,9 +7,11 @@ import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/data/user_profile_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/domain/user_profile.dart';
 import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
@@ -24,6 +26,11 @@ typedef MessageActions = ({
   bool canReply,
   bool canForward,
   bool canCopy,
+
+  /// Whether Telegram would take a pin for this message. Its rules depend on
+  /// the chat type and this account's rights, which is exactly the kind of
+  /// thing `getMessageProperties` answers and a guess here would get wrong.
+  bool canPin,
 });
 
 /// Nothing is allowed — the honest answer when TDLib could not be asked.
@@ -38,6 +45,7 @@ extension MessageActionsNone on MessageActions {
     canReply: false,
     canForward: false,
     canCopy: false,
+    canPin: false,
   );
 }
 
@@ -83,6 +91,7 @@ class ChatsRepository {
     selfUserId: selfUserId,
     userFullInfos: _chatCache.userFullInfosById,
     chatsById: _chatCache.chatsById,
+    secretChats: _chatCache.secretChatsById,
   );
 
   /// One chat's row, or null if the cache doesn't know it.
@@ -96,6 +105,7 @@ class ChatsRepository {
       selfUserId: selfUserId,
       userFullInfos: _chatCache.userFullInfosById,
       chatsById: _chatCache.chatsById,
+      secretChats: _chatCache.secretChatsById,
     );
   }
 
@@ -105,6 +115,41 @@ class ChatsRepository {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return false;
     return chat.type is! td.ChatTypePrivate;
+  }
+
+  /// Whether this is a one-to-one chat with another person.
+  ///
+  /// Not simply the inverse of [isGroupChat]: a secret chat is private but is
+  /// not a `chatTypePrivate`, and self-destructing media is exactly the feature
+  /// that would be offered wrongly if the two were treated as the same
+  /// question. Telegram takes a self-destruct timer only in a `chatTypePrivate`.
+  bool isPrivateChat(int chatId) =>
+      _chatCache.chat(chatId)?.type is td.ChatTypePrivate;
+
+  /// Whether a poll may be sent into this chat.
+  ///
+  /// Telegram's rules, not a guess: a poll cannot go into a private chat with a
+  /// person at all (only into one with a bot), a group has to permit them, and
+  /// a channel needs posting rights. The control is hidden where this is false
+  /// rather than offered and rejected on send.
+  bool canSendPollsIn(int chatId) {
+    final chat = _chatCache.chat(chatId);
+    if (chat == null) return false;
+    return ChatCacheState.canSendPollsIn(chat, _chatCache.supergroupForChat(chat));
+  }
+
+  /// Whether one kind of thing may be sent into this chat.
+  ///
+  /// The composer asks this per control, so a group that forbids voice messages
+  /// shows no microphone rather than one that fails when held.
+  bool canSendIn(int chatId, ChatSendRight right) {
+    final chat = _chatCache.chat(chatId);
+    if (chat == null) return false;
+    return ChatCacheState.canSendIn(
+      chat,
+      _chatCache.supergroupForChat(chat),
+      right,
+    );
   }
 
   /// The chat's outbox cursor — everything at or below it has been read by the
@@ -411,6 +456,7 @@ class ChatsRepository {
     required String text,
     List<ComposeAttachment> attachments = const [],
     int? replyToMessageId,
+    MessageSchedule schedule = MessageSchedule.now,
   }) async {
     final contents = ComposeMessages.build(
       text: text,
@@ -419,6 +465,7 @@ class ChatsRepository {
     final replyTo = replyToMessageId == null
         ? null
         : td.InputMessageReplyToMessage(messageId: replyToMessageId);
+    final options = _optionsFor(schedule);
 
     try {
       if (ComposeMessages.isAlbum(contents)) {
@@ -427,7 +474,7 @@ class ChatsRepository {
             chatId: chatId,
             messageThreadId: 0,
             replyTo: replyTo,
-            options: _sendOptions,
+            options: options,
             inputMessageContents: contents,
           ),
         );
@@ -444,7 +491,7 @@ class ChatsRepository {
           chatId: chatId,
           messageThreadId: 0,
           replyTo: replyTo,
-          options: _sendOptions,
+          options: options,
           inputMessageContent: contents.first,
         ),
       );
@@ -452,6 +499,305 @@ class ChatsRepository {
     } catch (e) {
       debugPrint('[ChatsRepo] send to $chatId failed: $e');
       return null;
+    }
+  }
+
+  /// The send options for one schedule.
+  ///
+  /// A null `schedulingState` is "send it now", and it is the *absence* of the
+  /// field rather than a date of zero — TDLib reads a present state as "this is
+  /// scheduled", so a zero date would queue the message for 1970.
+  static td.MessageSendOptions _optionsFor(MessageSchedule schedule) =>
+      schedule.isImmediate
+      ? _sendOptions
+      : _sendOptions.copyWith(schedulingState: schedule.toTdlib());
+
+  /// Whether this chat has messages waiting to be sent.
+  ///
+  /// Read from the cache, which mirrors `updateChatHasScheduledMessages`, so
+  /// the header can offer the scheduled screen only when there is something on
+  /// it — and costs nothing to ask.
+  bool hasScheduledMessages(int chatId) =>
+      _chatCache.chat(chatId)?.hasScheduledMessages ?? false;
+
+  /// The messages waiting to be sent in this chat, soonest first.
+  ///
+  /// One request, when the scheduled screen is opened. Telegram keeps the queue
+  /// server-side — it sends them whether or not this app is running — so there
+  /// is nothing local to read it from.
+  Future<List<ChatMessage>> scheduledMessages(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChatScheduledMessages(chatId: chatId),
+      );
+      if (res is! td.Messages) return const [];
+
+      final messages = ChatMessageMapper.mapHistory(
+        res.messages,
+        users: _chatCache.usersById,
+        lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        isGroup: isGroupChat(chatId),
+      );
+      // Soonest first. `mapHistory` orders by message id, which for a scheduled
+      // message is the order it was *written* rather than the order it goes.
+      messages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+      return messages;
+    } catch (e) {
+      debugPrint('[ChatsRepo] scheduled for $chatId failed: $e');
+      return const [];
+    }
+  }
+
+  /// Moves a scheduled message, or sends it now.
+  ///
+  /// [MessageSchedule.now] is how a message is sent immediately: TDLib takes a
+  /// null scheduling state on this call to mean "send it".
+  Future<bool> reschedule({
+    required int chatId,
+    required int messageId,
+    required MessageSchedule schedule,
+  }) async {
+    try {
+      await _tdlib.sendRequest(
+        td.EditMessageSchedulingState(
+          chatId: chatId,
+          messageId: messageId,
+          schedulingState: schedule.toTdlib(),
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] reschedule $chatId/$messageId failed: $e');
+      return false;
+    }
+  }
+
+  /// Sends a poll. Returns the queued message, or null if Telegram refused it.
+  ///
+  /// Separate from [send] rather than a branch inside it: a poll carries no
+  /// text and no attachments, and threading a nullable draft through the media
+  /// path would put a `if (poll != null) ignore everything else` at the top of
+  /// the one method that decides what a message *is*.
+  Future<td.Message?> sendPoll({
+    required int chatId,
+    required PollDraft draft,
+    int? replyToMessageId,
+  }) async {
+    if (!draft.canSend) return null;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SendMessage(
+          chatId: chatId,
+          messageThreadId: 0,
+          replyTo: replyToMessageId == null
+              ? null
+              : td.InputMessageReplyToMessage(messageId: replyToMessageId),
+          options: _sendOptions,
+          inputMessageContent: ComposeMessages.pollContent(draft),
+        ),
+      );
+      return res is td.Message ? res : null;
+    } catch (e) {
+      debugPrint('[ChatsRepo] poll to $chatId failed: $e');
+      return null;
+    }
+  }
+
+  /// Starts an end-to-end chat with somebody. Returns the new chat's id.
+  ///
+  /// The chat exists immediately and is **pending**: TDLib has generated this
+  /// side of the key exchange, and nothing can be sent until the other person's
+  /// device comes online and finishes it. That can be hours, so the screen it
+  /// opens says so rather than showing a composer that would be refused.
+  ///
+  /// Always a *new* chat. `createNewSecretChat` is deliberate rather than
+  /// `createSecretChat`, which joins an existing one by id — two people who
+  /// have talked secretly before and want to again are starting a new
+  /// end-to-end session, which is the point of the feature.
+  Future<int?> createSecretChat(int userId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.CreateNewSecretChat(userId: userId),
+      );
+      return res is td.Chat ? res.id : null;
+    } catch (e) {
+      debugPrint('[ChatsRepo] secret chat with $userId failed: $e');
+      return null;
+    }
+  }
+
+  /// Ends an end-to-end chat. Irreversible, and visible to the other side.
+  Future<bool> closeSecretChat(int chatId) async {
+    final chat = _chatCache.chat(chatId);
+    final type = chat?.type;
+    if (type is! td.ChatTypeSecret) return false;
+
+    try {
+      await _tdlib.sendRequest(
+        td.CloseSecretChat(secretChatId: type.secretChatId),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] closing secret chat $chatId failed: $e');
+      return false;
+    }
+  }
+
+  /// Whether this is an end-to-end chat.
+  bool isSecretChat(int chatId) =>
+      _chatCache.chat(chatId)?.type is td.ChatTypeSecret;
+
+  /// Whether an end-to-end chat is still waiting on the other device.
+  ///
+  /// False for every chat that is not a secret one, so a caller can ask without
+  /// checking the type first.
+  bool isSecretChatPending(int chatId) {
+    final chat = _chatCache.chat(chatId);
+    if (chat == null || chat.type is! td.ChatTypeSecret) return false;
+    return !ChatCacheState.isSecretChatReady(_chatCache.secretChatFor(chat));
+  }
+
+  /// Sends where this device is. Returns whether Telegram queued it.
+  ///
+  /// A still location, never a live one: `livePeriod` of zero is Telegram's
+  /// spelling of "this is where I was when I sent it". A live location would
+  /// need a position stream running while the app is in the background, which
+  /// is a different permission and a foreground service — see
+  /// [LocationService].
+  Future<td.Message?> sendLocation({
+    required int chatId,
+    required double latitude,
+    required double longitude,
+    double accuracy = 0,
+    int? replyToMessageId,
+  }) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SendMessage(
+          chatId: chatId,
+          messageThreadId: 0,
+          replyTo: replyToMessageId == null
+              ? null
+              : td.InputMessageReplyToMessage(messageId: replyToMessageId),
+          options: _sendOptions,
+          inputMessageContent: td.InputMessageLocation(
+            location: td.Location(
+              latitude: latitude,
+              longitude: longitude,
+              horizontalAccuracy: accuracy,
+            ),
+            livePeriod: 0,
+            // Both are live-location machinery: a compass heading to draw an
+            // arrow with, and a radius to alert on approach. Zero is "none" for
+            // each, and neither means anything on a still location.
+            heading: 0,
+            proximityAlertRadius: 0,
+          ),
+        ),
+      );
+      return res is td.Message ? res : null;
+    } catch (e) {
+      debugPrint('[ChatsRepo] location to $chatId failed: $e');
+      return null;
+    }
+  }
+
+  /// Shares one of this account's Telegram contacts.
+  Future<td.Message?> sendContact({
+    required int chatId,
+    required int userId,
+    int? replyToMessageId,
+  }) async {
+    final user = _chatCache.usersById[userId];
+    if (user == null) return null;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SendMessage(
+          chatId: chatId,
+          messageThreadId: 0,
+          replyTo: replyToMessageId == null
+              ? null
+              : td.InputMessageReplyToMessage(messageId: replyToMessageId),
+          options: _sendOptions,
+          inputMessageContent: td.InputMessageContact(
+            contact: td.Contact(
+              phoneNumber: user.phoneNumber,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              // Telegram builds the vCard itself from the fields above when
+              // this is empty. Writing one here would mean this app deciding
+              // what a contact card says, which is not its call.
+              vcard: '',
+              userId: userId,
+            ),
+          ),
+        ),
+      );
+      return res is td.Message ? res : null;
+    } catch (e) {
+      debugPrint('[ChatsRepo] contact to $chatId failed: $e');
+      return null;
+    }
+  }
+
+  /// This account's Telegram contacts, by name.
+  ///
+  /// **No device permission.** These are the contacts Telegram already holds
+  /// for this account, which is what somebody sharing a contact from a Telegram
+  /// client is choosing from anyway — reading the phone's address book would
+  /// mean asking for it, and would offer people who are not on Telegram and
+  /// therefore cannot be sent as a Telegram contact.
+  ///
+  /// One request, when the picker opens. `GetContacts` answers with ids and
+  /// TDLib has already volunteered the user records behind them through
+  /// `UpdateUser`, so there is no per-contact lookup after it.
+  Future<List<UserProfile>> contacts() async {
+    try {
+      final res = await _tdlib.sendRequest(const td.GetContacts());
+      if (res is! td.Users) return const [];
+
+      final profiles = <UserProfile>[];
+      for (final id in res.userIds) {
+        final user = _chatCache.usersById[id];
+        if (user == null) continue;
+        profiles.add(UserProfileMapper.from(user));
+      }
+      profiles.sort(
+        (a, b) => a.displayName.toLowerCase().compareTo(
+          b.displayName.toLowerCase(),
+        ),
+      );
+      return profiles;
+    } catch (e) {
+      debugPrint('[ChatsRepo] contacts failed: $e');
+      return const [];
+    }
+  }
+
+  /// Opens self-destructing media, which starts its clock.
+  ///
+  /// This is the one request in the app that *destroys* something, and it is
+  /// irreversible: Telegram treats the call as "this person has now seen it",
+  /// tells the sender so, and — for view-once media — the content is gone the
+  /// moment the viewer closes it. Nothing calls this on the reader's behalf.
+  /// It is wired to a deliberate tap on a cover that says what will happen.
+  ///
+  /// The expiry itself arrives back on `updateMessageContent` as
+  /// `messageExpiredPhoto`, so nothing here has to guess when it happened.
+  Future<bool> openSecretMedia({
+    required int chatId,
+    required int messageId,
+  }) async {
+    try {
+      await _tdlib.sendRequest(
+        td.OpenMessageContent(chatId: chatId, messageId: messageId),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] open secret $chatId/$messageId failed: $e');
+      return false;
     }
   }
 
@@ -542,10 +888,80 @@ class ChatsRepository {
         canReply: res.canBeReplied,
         canForward: res.canBeForwarded,
         canCopy: res.canBeSaved,
+        canPin: res.canBePinned,
       );
     } catch (e) {
       debugPrint('[ChatsRepo] properties for $chatId/$messageId failed: $e');
       return MessageActionsNone.none;
+    }
+  }
+
+  /// Pins a message to the top of the chat, or takes the pin off.
+  ///
+  /// [isPinned] is the state being moved *to*, matching [setPinned] and
+  /// [setMuted] — every toggle in this repository takes the destination rather
+  /// than the current value, so a caller cannot invert one by accident.
+  ///
+  /// A pin is visible to everybody in the chat and notifies them, which is why
+  /// `disableNotification` is true: gramX pins from a long-press menu with no
+  /// second step, and silently pinning is the recoverable half of a mis-tap.
+  /// Telegram's own clients ask; ours does too, at the call site.
+  Future<bool> setMessagePinned({
+    required int chatId,
+    required int messageId,
+    required bool isPinned,
+  }) async {
+    try {
+      await _tdlib.sendRequest(
+        isPinned
+            ? td.PinChatMessage(
+                chatId: chatId,
+                messageId: messageId,
+                disableNotification: true,
+                onlyForSelf: false,
+              )
+            : td.UnpinChatMessage(chatId: chatId, messageId: messageId),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] pin $chatId/$messageId failed: $e');
+      return false;
+    }
+  }
+
+  /// Whether this account may change this chat's auto-delete timer.
+  bool canSetAutoDelete(int chatId) {
+    final chat = _chatCache.chat(chatId);
+    if (chat == null) return false;
+    return ChatCacheState.canSetAutoDeleteIn(
+      chat,
+      _chatCache.supergroupForChat(chat),
+    );
+  }
+
+  /// How long a message survives in this chat before Telegram deletes it, in
+  /// seconds. Zero means never, which is every chat's default.
+  int autoDeleteTime(int chatId) =>
+      _chatCache.chat(chatId)?.messageAutoDeleteTime ?? 0;
+
+  /// Sets the chat's auto-delete timer. [seconds] of zero turns it off.
+  ///
+  /// Chat-wide and two-sided: it applies to everything either side sends from
+  /// now on, both people see the change, and Telegram posts a service notice
+  /// about it. Distinct from the per-message self-destruct in T24-3, which the
+  /// sender chooses for one picture.
+  Future<bool> setAutoDeleteTime(int chatId, int seconds) async {
+    try {
+      await _tdlib.sendRequest(
+        td.SetChatMessageAutoDeleteTime(
+          chatId: chatId,
+          messageAutoDeleteTime: seconds,
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] auto-delete for $chatId failed: $e');
+      return false;
     }
   }
 
@@ -956,6 +1372,7 @@ class ChatsRepository {
                 users: _chatCache.usersById,
                 supergroups: _chatCache.supergroupsById,
                 selfUserId: selfUserId,
+                secretChats: _chatCache.secretChatsById,
               ),
       ];
     } catch (e) {

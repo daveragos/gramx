@@ -28,6 +28,12 @@ _ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => _ChatMessage(
           ?.map((e) => MediaItem.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const [],
+  poll: _pollFromJson(json['poll']),
+  place: _placeFromJson(json['place']),
+  contact: _contactFromJson(json['contact']),
+  isSecretMedia: json['isSecretMedia'] as bool? ?? false,
+  isViewOnce: json['isViewOnce'] as bool? ?? false,
+  selfDestructSeconds: (json['selfDestructSeconds'] as num?)?.toInt() ?? 0,
   sentAt: DateTime.parse(json['sentAt'] as String),
   editedAt: json['editedAt'] == null
       ? null
@@ -55,6 +61,7 @@ _ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => _ChatMessage(
   linkPreviewTitle: json['linkPreviewTitle'] as String?,
   linkPreviewDescription: json['linkPreviewDescription'] as String?,
   linkPreviewFileId: (json['linkPreviewFileId'] as num?)?.toInt(),
+  isPinned: json['isPinned'] as bool? ?? false,
   isService: json['isService'] as bool? ?? false,
   unsupportedKind: json['unsupportedKind'] as String?,
 );
@@ -74,6 +81,12 @@ Map<String, dynamic> _$ChatMessageToJson(_ChatMessage instance) =>
       'text': instance.text,
       'entities': instance.entities,
       'media': instance.media,
+      'poll': _pollToJson(instance.poll),
+      'place': _placeToJson(instance.place),
+      'contact': _contactToJson(instance.contact),
+      'isSecretMedia': instance.isSecretMedia,
+      'isViewOnce': instance.isViewOnce,
+      'selfDestructSeconds': instance.selfDestructSeconds,
       'sentAt': instance.sentAt.toIso8601String(),
       'editedAt': instance.editedAt?.toIso8601String(),
       'sendState': _$MessageSendStateEnumMap[instance.sendState]!,
@@ -89,6 +102,7 @@ Map<String, dynamic> _$ChatMessageToJson(_ChatMessage instance) =>
       'linkPreviewTitle': instance.linkPreviewTitle,
       'linkPreviewDescription': instance.linkPreviewDescription,
       'linkPreviewFileId': instance.linkPreviewFileId,
+      'isPinned': instance.isPinned,
       'isService': instance.isService,
       'unsupportedKind': instance.unsupportedKind,
     };

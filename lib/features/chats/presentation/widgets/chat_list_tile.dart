@@ -211,6 +211,28 @@ class _TitleRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // The lock comes before every other mark on the row. It is the
+              // only difference between this chat and the ordinary one with the
+              // same person, under the same name and the same face — a reader
+              // who cannot tell them apart at a glance cannot use either
+              // safely.
+              if (chat.isSecret) ...[
+                const SizedBox(width: AppSpacing.xs),
+                Tooltip(
+                  message: chat.isSecretPending
+                      ? AppStrings.secretChatPendingShort
+                      : AppStrings.secretChatLockLabel,
+                  child: Icon(
+                    chat.isSecretPending
+                        ? Icons.lock_clock_rounded
+                        : Icons.lock_rounded,
+                    color: chat.isSecretPending
+                        ? secondary
+                        : AppColors.verified,
+                    size: 14,
+                  ),
+                ),
+              ],
               if (chat.isVerified) ...[
                 const SizedBox(width: AppSpacing.xs),
                 const Icon(Icons.verified, color: AppColors.verified, size: 15),

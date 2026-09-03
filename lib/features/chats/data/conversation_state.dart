@@ -4,7 +4,6 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/chats/data/chat_events.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
-import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 /// Who is doing something in the chat right now, and what.
 @immutable
@@ -184,13 +183,21 @@ class ConversationState {
         return copyWith(messages: kept);
 
       case ChatMessageContentChanged():
-        return _update(event.messageId, (message) {
-          final content = event.content;
-          return message.copyWith(
-            text: _textOf(content) ?? message.text,
-            media: TdlibMappers.extractMediaFromContent(content),
-          );
-        });
+        // Everything the content decides is re-read, not just the caption and
+        // the media. This one update carries an edited caption, a vote landing
+        // on a poll, and self-destructing media expiring into
+        // `messageExpiredPhoto` — and the poll and the expiry were both dropped
+        // while it only looked at two fields.
+        return _update(
+          event.messageId,
+          (message) => ChatMessageMapper.withContent(message, event.content),
+        );
+
+      case ChatMessagePinChanged():
+        return _update(
+          event.messageId,
+          (message) => message.copyWith(isPinned: event.isPinned),
+        );
 
       case ChatMessageEdited():
         return _update(
@@ -319,14 +326,49 @@ class ConversationState {
     return name.isEmpty ? 'Someone' : name;
   }
 
-  static String? _textOf(td.MessageContent content) => switch (content) {
-    td.MessageText() => TdlibMappers.plainTextOf(content.text),
-    td.MessagePhoto() => TdlibMappers.plainTextOf(content.caption),
-    td.MessageVideo() => TdlibMappers.plainTextOf(content.caption),
-    td.MessageAnimation() => TdlibMappers.plainTextOf(content.caption),
-    td.MessageDocument() => TdlibMappers.plainTextOf(content.caption),
-    td.MessageAudio() => TdlibMappers.plainTextOf(content.caption),
-    td.MessageVoiceNote() => TdlibMappers.plainTextOf(content.caption),
-    _ => null,
-  };
+  /// Shows a vote as taken before Telegram has confirmed it.
+  ///
+  /// A poll answer is a round trip, and a card that does nothing until it comes
+  /// back reads as a tap that missed. The real counts land moments later on
+  /// `updateMessageContent` and replace all of this — so the arithmetic here
+  /// only has to be *plausible*, not authoritative: the chosen options are
+  /// marked, one voter is added, and the percentages are recomputed from the
+  /// new total.
+  ///
+  /// Answers null when there is nothing to do — no such message, not a poll,
+  /// already closed, or already voted in — so the caller can tell a no-op from
+  /// a change without comparing states.
+  ConversationState? withOptimisticVote(int messageId, List<int> optionIds) {
+    if (optionIds.isEmpty) return null;
+
+    return _update(messageId, (message) {
+      final poll = message.poll;
+      if (poll == null || poll.isClosed || poll.chosenOptionIds.isNotEmpty) {
+        return message;
+      }
+
+      final total = poll.totalVoterCount + 1;
+      final options = [
+        for (var i = 0; i < poll.options.length; i++)
+          if (optionIds.contains(i))
+            poll.options[i].copyWith(
+              isChosen: true,
+              voterCount: poll.options[i].voterCount + 1,
+              votePercentage: (poll.options[i].voterCount + 1) * 100 / total,
+            )
+          else
+            poll.options[i].copyWith(
+              votePercentage: poll.options[i].voterCount * 100 / total,
+            ),
+      ];
+
+      return message.copyWith(
+        poll: poll.copyWith(
+          options: options,
+          totalVoterCount: total,
+          chosenOptionIds: optionIds,
+        ),
+      );
+    });
+  }
 }

@@ -76,8 +76,8 @@ dependencies:
   open_filex: ^4.7.0
 
   # Composing: picking a photo or video off the device to attach to a post.
-  # Gallery only — nothing here opens the camera, so the app asks for no
-  # camera permission.
+  # Gallery only. The camera is reached through `camera` below, and only from
+  # the one control that needs it.
   image_picker: ^1.1.2
 
   # Guest mode only: fetching and parsing t.me/s/<channel> preview pages.
@@ -85,6 +85,26 @@ dependencies:
   # traffic all goes through TDLib.
   http: ^1.2.2
   html: ^0.15.5
+  # Attaching a file that is not a picture. Uses the platform's own document
+  # picker (SAF on Android, UIDocumentPicker on iOS), which hands back a single
+  # file the app has been granted — so it needs no storage permission of its
+  # own. See docs/ROADMAP.md T24-10.
+  file_picker: ^11.0.3
+
+  # Recording a voice message. Configured for Opus in an OGG container, which
+  # is what `inputMessageVoiceNote` wants — anything else arrives in other
+  # Telegram clients as a file rather than a playable waveform. Needs the
+  # microphone permission, asked for at the moment the reader holds the button.
+  record: ^7.1.1
+
+  # One position fix, for sending a location. Never a stream and never in the
+  # background: gramX asks once, when somebody taps "send my location", and
+  # stops. See docs/ROADMAP.md T24-8 for what that rules out.
+  geolocator: ^14.0.2
+
+  # Recording a round video message. The only thing in the app that opens the
+  # camera, and the only reason the camera permission is declared.
+  camera: ^0.12.0+2
 
 dev_dependencies:
   flutter_test:

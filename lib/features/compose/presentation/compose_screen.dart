@@ -16,6 +16,7 @@ import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/compose/presentation/post_progress_provider.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_attachment_strip.dart';
+import 'package:gramx/features/compose/presentation/widgets/poll_composer_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_remote_preview.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_target_sheet.dart';
@@ -185,6 +186,35 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       final next = [..._attachments]..removeAt(index);
       _attachments = next;
     });
+  }
+
+  /// Writes and posts a poll.
+  ///
+  /// Posted on its own, not staged beside the text: a poll carries neither a
+  /// caption nor media, so there is nothing for the words already typed to
+  /// attach to. The composer stays open with those words intact, which is what
+  /// Telegram does too.
+  Future<void> _composePoll(ComposeTarget target) async {
+    _focusNode.unfocus();
+
+    final poll = await PollComposerSheet.show(
+      context,
+      // Telegram refuses a poll with named voters in a channel.
+      allowsPublicVotes: target.kind != ComposeTargetKind.channel,
+    );
+    if (poll == null || !mounted) return;
+
+    final label = composeTargetLabel(target);
+    final result = await ref
+        .read(composeRepositoryProvider)
+        .sendPoll(chatId: target.chatId, draft: poll);
+    if (!mounted) return;
+
+    if (!result.accepted) {
+      _say(AppStrings.pollComposeSendFailed);
+      return;
+    }
+    _say(AppStrings.composeSent(label));
   }
 
   Future<void> _post(ComposeDraft draft) async {
@@ -376,6 +406,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   onAddSticker: () =>
                       _pickRemote(ComposeRemoteKind.sticker),
                   onAddGif: () => _pickRemote(ComposeRemoteKind.animation),
+                  // Telegram takes a poll in a channel or a group and nowhere
+                  // else, so the button is absent for Saved Messages and for a
+                  // direct message rather than present and refused.
+                  onAddPoll: draft.target!.allowsPolls
+                      ? () => _composePoll(draft.target!)
+                      : null,
                 ),
             ],
           ),
@@ -557,6 +593,9 @@ class _ComposeFooter extends StatelessWidget {
   final VoidCallback onAddSticker;
   final VoidCallback onAddGif;
 
+  /// Null where Telegram will not take a poll, which is what hides the button.
+  final VoidCallback? onAddPoll;
+
   const _ComposeFooter({
     required this.draft,
     required this.borderColor,
@@ -567,6 +606,7 @@ class _ComposeFooter extends StatelessWidget {
     required this.onAddVideo,
     required this.onAddSticker,
     required this.onAddGif,
+    required this.onAddPoll,
   });
 
   @override
@@ -664,6 +704,13 @@ class _ComposeFooter extends StatelessWidget {
                   tooltip: AppStrings.composeAddGif,
                   onPressed: canPickRemote ? onAddGif : null,
                 ),
+                if (onAddPoll != null)
+                  IconButton(
+                    icon: const Icon(Icons.poll_outlined),
+                    color: AppColors.accent,
+                    tooltip: AppStrings.pollComposeTitle,
+                    onPressed: onAddPoll,
+                  ),
                 const Spacer(),
                 _CharacterCounter(draft: draft, secondary: secondary),
                 const SizedBox(width: AppSpacing.sm),

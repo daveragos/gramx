@@ -2,13 +2,14 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_draft.dart';
 
-/// Picks a photo or a video off the device and measures it.
+/// Picks a file off the device and measures it.
 ///
 /// Measuring is the part that matters. `InputMessagePhoto` and
 /// `InputMessageVideo` both require width and height, and a post sent without
@@ -16,8 +17,9 @@ import 'package:gramx/features/compose/domain/compose_draft.dart';
 /// finishes downloading — so the dimensions are read here, at the one moment
 /// the app is allowed to take a beat, rather than guessed at send time.
 ///
-/// Gallery only. Opening the camera would mean asking for the camera
-/// permission, and this app has exactly one permission today.
+/// The gallery and the platform's document picker. Neither opens the camera —
+/// the one control that does is the round-video recorder, which owns the
+/// camera permission and lives on its own screen.
 class ComposeMediaPicker {
   final ImagePicker _picker;
 
@@ -54,6 +56,36 @@ class ComposeMediaPicker {
     final file = await _picker.pickVideo(source: ImageSource.gallery);
     if (file == null) return null;
     return describeVideo(file.path);
+  }
+
+  /// Picks one file of any kind. Null if the writer backed out of the picker.
+  ///
+  /// Through the platform's own document picker — SAF on Android,
+  /// `UIDocumentPicker` on iOS — which grants this app that one file and
+  /// nothing else. That is why attaching a file needs no storage permission,
+  /// and why gramX does not ask for one.
+  ///
+  /// No size check. Telegram's document ceiling is 2 GB for a free account and
+  /// the picker cannot know which account this is, so a refusal here would be a
+  /// guess; the send reports the real answer.
+  Future<ComposeAttachment?> pickDocument() async {
+    final result = await FilePicker.pickFiles(withData: false);
+    final file = result?.files.singleOrNull;
+    final path = file?.path;
+    if (file == null || path == null) return null;
+
+    return ComposeAttachment(
+      path: path,
+      kind: ComposeMediaKind.document,
+      width: 0,
+      height: 0,
+      sizeBytes: file.size,
+      fileName: file.name,
+      // The picker reports an extension, not a MIME type. Telegram works the
+      // real type out from the bytes — `disableContentTypeDetection` is false
+      // — so this is a hint for the composer's own row, not a claim.
+      mimeType: file.extension,
+    );
   }
 
   /// Reads a photo's pixel dimensions off its header.
@@ -95,7 +127,10 @@ class ComposeMediaPicker {
   ///
   /// Uses `video_player`, which is already a dependency for playback, rather
   /// than adding a metadata package for three integers.
-  @visibleForTesting
+  ///
+  /// Public because the round-video recorder measures its own output through
+  /// it: a note whose duration came from the screen's wall clock rather than
+  /// from the file is wrong by however long the encoder took to stop.
   static Future<ComposeAttachment> describeVideo(String path) async {
     var width = 0;
     var height = 0;

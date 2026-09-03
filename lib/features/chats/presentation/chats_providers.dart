@@ -6,7 +6,9 @@ import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/chats/data/chat_list_builder.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
+import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/features/chats/domain/user_profile.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -191,3 +193,27 @@ final chatsScrollToTopProvider =
 final chatUpdatesProvider = Provider<Stream<td.TdObject>>((ref) {
   return ref.watch(tdlibServiceProvider).updatesStream;
 });
+
+/// This account's Telegram contacts, for the contact picker.
+///
+/// One `GetContacts` when the picker opens, and nothing after it — the user
+/// records behind the ids are already in [ChatCache], put there by the
+/// `UpdateUser` stream, so there is no per-contact lookup. Auto-disposed, so
+/// closing the picker forgets the list rather than holding a copy of somebody's
+/// address book for the session.
+final contactsProvider = FutureProvider.autoDispose<List<UserProfile>>((
+  ref,
+) async {
+  return ref.watch(chatsRepositoryProvider).contacts();
+});
+
+/// One chat's queue of messages waiting to be sent.
+///
+/// One `GetChatScheduledMessages` when the screen opens. Telegram holds the
+/// queue server-side and sends it whether or not this app is running, so there
+/// is nothing local to read it from and nothing that keeps it current — the
+/// screen invalidates this after any change it makes.
+final scheduledMessagesProvider = FutureProvider.autoDispose
+    .family<List<ChatMessage>, int>((ref, chatId) async {
+      return ref.watch(chatsRepositoryProvider).scheduledMessages(chatId);
+    });

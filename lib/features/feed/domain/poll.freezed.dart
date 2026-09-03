@@ -290,7 +290,9 @@ as bool,
 /// @nodoc
 mixin _$Poll {
 
- String get id; String get question; List<PollOption> get options; int get totalVoterCount; bool get isAnonymous; bool get isClosed; bool get isQuiz; int? get correctOptionId; List<int> get chosenOptionIds;
+ String get id; String get question; List<PollOption> get options; int get totalVoterCount; bool get isAnonymous; bool get isClosed; bool get isQuiz;/// Whether a voter may pick more than one option. Regular polls only —
+/// a quiz has exactly one right answer, so Telegram never sets both.
+ bool get allowsMultipleAnswers; int? get correctOptionId; List<int> get chosenOptionIds;
 /// Create a copy of Poll
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -303,16 +305,16 @@ $PollCopyWith<Poll> get copyWith => _$PollCopyWithImpl<Poll>(this as Poll, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Poll&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&const DeepCollectionEquality().equals(other.options, options)&&(identical(other.totalVoterCount, totalVoterCount) || other.totalVoterCount == totalVoterCount)&&(identical(other.isAnonymous, isAnonymous) || other.isAnonymous == isAnonymous)&&(identical(other.isClosed, isClosed) || other.isClosed == isClosed)&&(identical(other.isQuiz, isQuiz) || other.isQuiz == isQuiz)&&(identical(other.correctOptionId, correctOptionId) || other.correctOptionId == correctOptionId)&&const DeepCollectionEquality().equals(other.chosenOptionIds, chosenOptionIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Poll&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&const DeepCollectionEquality().equals(other.options, options)&&(identical(other.totalVoterCount, totalVoterCount) || other.totalVoterCount == totalVoterCount)&&(identical(other.isAnonymous, isAnonymous) || other.isAnonymous == isAnonymous)&&(identical(other.isClosed, isClosed) || other.isClosed == isClosed)&&(identical(other.isQuiz, isQuiz) || other.isQuiz == isQuiz)&&(identical(other.allowsMultipleAnswers, allowsMultipleAnswers) || other.allowsMultipleAnswers == allowsMultipleAnswers)&&(identical(other.correctOptionId, correctOptionId) || other.correctOptionId == correctOptionId)&&const DeepCollectionEquality().equals(other.chosenOptionIds, chosenOptionIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,question,const DeepCollectionEquality().hash(options),totalVoterCount,isAnonymous,isClosed,isQuiz,correctOptionId,const DeepCollectionEquality().hash(chosenOptionIds));
+int get hashCode => Object.hash(runtimeType,id,question,const DeepCollectionEquality().hash(options),totalVoterCount,isAnonymous,isClosed,isQuiz,allowsMultipleAnswers,correctOptionId,const DeepCollectionEquality().hash(chosenOptionIds));
 
 @override
 String toString() {
-  return 'Poll(id: $id, question: $question, options: $options, totalVoterCount: $totalVoterCount, isAnonymous: $isAnonymous, isClosed: $isClosed, isQuiz: $isQuiz, correctOptionId: $correctOptionId, chosenOptionIds: $chosenOptionIds)';
+  return 'Poll(id: $id, question: $question, options: $options, totalVoterCount: $totalVoterCount, isAnonymous: $isAnonymous, isClosed: $isClosed, isQuiz: $isQuiz, allowsMultipleAnswers: $allowsMultipleAnswers, correctOptionId: $correctOptionId, chosenOptionIds: $chosenOptionIds)';
 }
 
 
@@ -323,7 +325,7 @@ abstract mixin class $PollCopyWith<$Res>  {
   factory $PollCopyWith(Poll value, $Res Function(Poll) _then) = _$PollCopyWithImpl;
 @useResult
 $Res call({
- String id, String question, List<PollOption> options, int totalVoterCount, bool isAnonymous, bool isClosed, bool isQuiz, int? correctOptionId, List<int> chosenOptionIds
+ String id, String question, List<PollOption> options, int totalVoterCount, bool isAnonymous, bool isClosed, bool isQuiz, bool allowsMultipleAnswers, int? correctOptionId, List<int> chosenOptionIds
 });
 
 
@@ -340,7 +342,7 @@ class _$PollCopyWithImpl<$Res>
 
 /// Create a copy of Poll
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? question = null,Object? options = null,Object? totalVoterCount = null,Object? isAnonymous = null,Object? isClosed = null,Object? isQuiz = null,Object? correctOptionId = freezed,Object? chosenOptionIds = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? question = null,Object? options = null,Object? totalVoterCount = null,Object? isAnonymous = null,Object? isClosed = null,Object? isQuiz = null,Object? allowsMultipleAnswers = null,Object? correctOptionId = freezed,Object? chosenOptionIds = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
@@ -349,6 +351,7 @@ as List<PollOption>,totalVoterCount: null == totalVoterCount ? _self.totalVoterC
 as int,isAnonymous: null == isAnonymous ? _self.isAnonymous : isAnonymous // ignore: cast_nullable_to_non_nullable
 as bool,isClosed: null == isClosed ? _self.isClosed : isClosed // ignore: cast_nullable_to_non_nullable
 as bool,isQuiz: null == isQuiz ? _self.isQuiz : isQuiz // ignore: cast_nullable_to_non_nullable
+as bool,allowsMultipleAnswers: null == allowsMultipleAnswers ? _self.allowsMultipleAnswers : allowsMultipleAnswers // ignore: cast_nullable_to_non_nullable
 as bool,correctOptionId: freezed == correctOptionId ? _self.correctOptionId : correctOptionId // ignore: cast_nullable_to_non_nullable
 as int?,chosenOptionIds: null == chosenOptionIds ? _self.chosenOptionIds : chosenOptionIds // ignore: cast_nullable_to_non_nullable
 as List<int>,
@@ -436,10 +439,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  int? correctOptionId,  List<int> chosenOptionIds)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  bool allowsMultipleAnswers,  int? correctOptionId,  List<int> chosenOptionIds)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Poll() when $default != null:
-return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.correctOptionId,_that.chosenOptionIds);case _:
+return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.allowsMultipleAnswers,_that.correctOptionId,_that.chosenOptionIds);case _:
   return orElse();
 
 }
@@ -457,10 +460,10 @@ return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  int? correctOptionId,  List<int> chosenOptionIds)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  bool allowsMultipleAnswers,  int? correctOptionId,  List<int> chosenOptionIds)  $default,) {final _that = this;
 switch (_that) {
 case _Poll():
-return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.correctOptionId,_that.chosenOptionIds);case _:
+return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.allowsMultipleAnswers,_that.correctOptionId,_that.chosenOptionIds);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -477,10 +480,10 @@ return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  int? correctOptionId,  List<int> chosenOptionIds)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String question,  List<PollOption> options,  int totalVoterCount,  bool isAnonymous,  bool isClosed,  bool isQuiz,  bool allowsMultipleAnswers,  int? correctOptionId,  List<int> chosenOptionIds)?  $default,) {final _that = this;
 switch (_that) {
 case _Poll() when $default != null:
-return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.correctOptionId,_that.chosenOptionIds);case _:
+return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_that.isAnonymous,_that.isClosed,_that.isQuiz,_that.allowsMultipleAnswers,_that.correctOptionId,_that.chosenOptionIds);case _:
   return null;
 
 }
@@ -492,7 +495,7 @@ return $default(_that.id,_that.question,_that.options,_that.totalVoterCount,_tha
 @JsonSerializable()
 
 class _Poll implements Poll {
-  const _Poll({required this.id, required this.question, required final  List<PollOption> options, required this.totalVoterCount, required this.isAnonymous, required this.isClosed, required this.isQuiz, this.correctOptionId, final  List<int> chosenOptionIds = const []}): _options = options,_chosenOptionIds = chosenOptionIds;
+  const _Poll({required this.id, required this.question, required final  List<PollOption> options, required this.totalVoterCount, required this.isAnonymous, required this.isClosed, required this.isQuiz, this.allowsMultipleAnswers = false, this.correctOptionId, final  List<int> chosenOptionIds = const []}): _options = options,_chosenOptionIds = chosenOptionIds;
   factory _Poll.fromJson(Map<String, dynamic> json) => _$PollFromJson(json);
 
 @override final  String id;
@@ -508,6 +511,9 @@ class _Poll implements Poll {
 @override final  bool isAnonymous;
 @override final  bool isClosed;
 @override final  bool isQuiz;
+/// Whether a voter may pick more than one option. Regular polls only —
+/// a quiz has exactly one right answer, so Telegram never sets both.
+@override@JsonKey() final  bool allowsMultipleAnswers;
 @override final  int? correctOptionId;
  final  List<int> _chosenOptionIds;
 @override@JsonKey() List<int> get chosenOptionIds {
@@ -530,16 +536,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Poll&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&const DeepCollectionEquality().equals(other._options, _options)&&(identical(other.totalVoterCount, totalVoterCount) || other.totalVoterCount == totalVoterCount)&&(identical(other.isAnonymous, isAnonymous) || other.isAnonymous == isAnonymous)&&(identical(other.isClosed, isClosed) || other.isClosed == isClosed)&&(identical(other.isQuiz, isQuiz) || other.isQuiz == isQuiz)&&(identical(other.correctOptionId, correctOptionId) || other.correctOptionId == correctOptionId)&&const DeepCollectionEquality().equals(other._chosenOptionIds, _chosenOptionIds));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Poll&&(identical(other.id, id) || other.id == id)&&(identical(other.question, question) || other.question == question)&&const DeepCollectionEquality().equals(other._options, _options)&&(identical(other.totalVoterCount, totalVoterCount) || other.totalVoterCount == totalVoterCount)&&(identical(other.isAnonymous, isAnonymous) || other.isAnonymous == isAnonymous)&&(identical(other.isClosed, isClosed) || other.isClosed == isClosed)&&(identical(other.isQuiz, isQuiz) || other.isQuiz == isQuiz)&&(identical(other.allowsMultipleAnswers, allowsMultipleAnswers) || other.allowsMultipleAnswers == allowsMultipleAnswers)&&(identical(other.correctOptionId, correctOptionId) || other.correctOptionId == correctOptionId)&&const DeepCollectionEquality().equals(other._chosenOptionIds, _chosenOptionIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,question,const DeepCollectionEquality().hash(_options),totalVoterCount,isAnonymous,isClosed,isQuiz,correctOptionId,const DeepCollectionEquality().hash(_chosenOptionIds));
+int get hashCode => Object.hash(runtimeType,id,question,const DeepCollectionEquality().hash(_options),totalVoterCount,isAnonymous,isClosed,isQuiz,allowsMultipleAnswers,correctOptionId,const DeepCollectionEquality().hash(_chosenOptionIds));
 
 @override
 String toString() {
-  return 'Poll(id: $id, question: $question, options: $options, totalVoterCount: $totalVoterCount, isAnonymous: $isAnonymous, isClosed: $isClosed, isQuiz: $isQuiz, correctOptionId: $correctOptionId, chosenOptionIds: $chosenOptionIds)';
+  return 'Poll(id: $id, question: $question, options: $options, totalVoterCount: $totalVoterCount, isAnonymous: $isAnonymous, isClosed: $isClosed, isQuiz: $isQuiz, allowsMultipleAnswers: $allowsMultipleAnswers, correctOptionId: $correctOptionId, chosenOptionIds: $chosenOptionIds)';
 }
 
 
@@ -550,7 +556,7 @@ abstract mixin class _$PollCopyWith<$Res> implements $PollCopyWith<$Res> {
   factory _$PollCopyWith(_Poll value, $Res Function(_Poll) _then) = __$PollCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String question, List<PollOption> options, int totalVoterCount, bool isAnonymous, bool isClosed, bool isQuiz, int? correctOptionId, List<int> chosenOptionIds
+ String id, String question, List<PollOption> options, int totalVoterCount, bool isAnonymous, bool isClosed, bool isQuiz, bool allowsMultipleAnswers, int? correctOptionId, List<int> chosenOptionIds
 });
 
 
@@ -567,7 +573,7 @@ class __$PollCopyWithImpl<$Res>
 
 /// Create a copy of Poll
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? question = null,Object? options = null,Object? totalVoterCount = null,Object? isAnonymous = null,Object? isClosed = null,Object? isQuiz = null,Object? correctOptionId = freezed,Object? chosenOptionIds = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? question = null,Object? options = null,Object? totalVoterCount = null,Object? isAnonymous = null,Object? isClosed = null,Object? isQuiz = null,Object? allowsMultipleAnswers = null,Object? correctOptionId = freezed,Object? chosenOptionIds = null,}) {
   return _then(_Poll(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
@@ -576,6 +582,7 @@ as List<PollOption>,totalVoterCount: null == totalVoterCount ? _self.totalVoterC
 as int,isAnonymous: null == isAnonymous ? _self.isAnonymous : isAnonymous // ignore: cast_nullable_to_non_nullable
 as bool,isClosed: null == isClosed ? _self.isClosed : isClosed // ignore: cast_nullable_to_non_nullable
 as bool,isQuiz: null == isQuiz ? _self.isQuiz : isQuiz // ignore: cast_nullable_to_non_nullable
+as bool,allowsMultipleAnswers: null == allowsMultipleAnswers ? _self.allowsMultipleAnswers : allowsMultipleAnswers // ignore: cast_nullable_to_non_nullable
 as bool,correctOptionId: freezed == correctOptionId ? _self.correctOptionId : correctOptionId // ignore: cast_nullable_to_non_nullable
 as int?,chosenOptionIds: null == chosenOptionIds ? _self._chosenOptionIds : chosenOptionIds // ignore: cast_nullable_to_non_nullable
 as List<int>,

@@ -111,6 +111,19 @@ class ChatReactionsChanged extends ChatEvent {
   );
 }
 
+/// A message was pinned to the top of the chat, or unpinned from it.
+///
+/// Its own event rather than a content change: nothing about the message
+/// itself moved, and folding it through the content decoder would re-read a
+/// body that has not changed.
+class ChatMessagePinChanged extends ChatEvent {
+  @override
+  final int chatId;
+  final int messageId;
+  final bool isPinned;
+  const ChatMessagePinChanged(this.chatId, this.messageId, this.isPinned);
+}
+
 /// Somebody in the chat started or stopped doing something — typing, recording
 /// a voice note, sending a photo. [action] is null when they stopped.
 class ChatActionChanged extends ChatEvent {
@@ -196,6 +209,13 @@ abstract class ChatEvents {
           update.messageId,
           mapped.counts,
           mapped.chosen,
+        );
+
+      case td.UpdateMessageIsPinned():
+        return ChatMessagePinChanged(
+          update.chatId,
+          update.messageId,
+          update.isPinned,
         );
 
       case td.UpdateChatAction():

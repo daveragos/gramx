@@ -50,9 +50,15 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<!-- Composing a post with a photo or video attached. Gallery only: the
-	     app never opens the camera, so no NSCameraUsageDescription. -->
+	     app opens the camera only to record a round video message. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>gramX needs access to your photos so you can attach one to a post.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>gramX needs the microphone to record a voice message.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>gramX needs the camera to record a video message.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>gramX needs your location only when you choose to send it in a message.</string>
 	<!-- Universal links for t.me. iOS checks Telegram's own
 	     apple-app-site-association for our team id, which it will not carry,
 	     so these are here for completeness and for the tg:// scheme below —

@@ -43,6 +43,8 @@ _ChatSummary _$ChatSummaryFromJson(Map<String, dynamic> json) => _ChatSummary(
       ChatPresence.unknown,
   mainListOrder: (json['mainListOrder'] as num?)?.toInt() ?? 0,
   isPinned: json['isPinned'] as bool? ?? false,
+  isSecret: json['isSecret'] as bool? ?? false,
+  isSecretPending: json['isSecretPending'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$ChatSummaryToJson(
@@ -75,6 +77,8 @@ Map<String, dynamic> _$ChatSummaryToJson(
   'presence': _$ChatPresenceEnumMap[instance.presence]!,
   'mainListOrder': instance.mainListOrder,
   'isPinned': instance.isPinned,
+  'isSecret': instance.isSecret,
+  'isSecretPending': instance.isSecretPending,
 };
 
 const _$ChatKindEnumMap = {

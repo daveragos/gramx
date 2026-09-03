@@ -41,6 +41,15 @@ class ComposeTarget {
   /// inside each [kind].
   final int mainListOrder;
 
+  /// Whether Telegram will take a poll here.
+  ///
+  /// Carried on the target rather than asked for when the toolbar is drawn:
+  /// the answer needs the chat *and* its supergroup, which is a cache lookup,
+  /// and `build()` is not allowed to reach for one. Decided once, where the
+  /// list is built. Narrower than "can post here" — polls are their own group
+  /// permission, and a private chat with a person never takes one.
+  final bool allowsPolls;
+
   const ComposeTarget({
     required this.chatId,
     required this.title,
@@ -48,6 +57,7 @@ class ComposeTarget {
     this.avatarPath,
     this.avatarFileId,
     this.mainListOrder = 0,
+    this.allowsPolls = false,
   });
 
   @override
@@ -58,7 +68,8 @@ class ComposeTarget {
       other.kind == kind &&
       other.avatarPath == avatarPath &&
       other.avatarFileId == avatarFileId &&
-      other.mainListOrder == mainListOrder;
+      other.mainListOrder == mainListOrder &&
+      other.allowsPolls == allowsPolls;
 
   @override
   int get hashCode => Object.hash(
@@ -68,6 +79,7 @@ class ComposeTarget {
         avatarPath,
         avatarFileId,
         mainListOrder,
+        allowsPolls,
       );
 
   @override

@@ -6,6 +6,8 @@ import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_draft.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/compose_target.dart';
+import 'package:gramx/features/compose/domain/poll_draft.dart';
+import 'package:gramx/features/compose/domain/voice_waveform.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
@@ -27,9 +29,15 @@ abstract class ComposeTargets {
   /// to tell Saved Messages from a chat with somebody else: TDLib models it as
   /// a private chat with yourself. Null when the account record hasn't loaded,
   /// in which case it simply reads as a direct chat.
+  ///
+  /// [supergroupOf] resolves a chat's supergroup record, which is where a
+  /// channel's posting rights live. Only [ComposeTarget.allowsPolls] needs it,
+  /// and it defaults to answering null so a caller that has no cache — a test,
+  /// mainly — still gets a correct list with the poll button off.
   static List<ComposeTarget> fromChats(
     List<td.Chat> chats, {
     int? selfUserId,
+    td.Supergroup? Function(td.Chat chat)? supergroupOf,
   }) {
     final targets = [
       for (final chat in chats)
@@ -40,6 +48,10 @@ abstract class ComposeTargets {
           avatarPath: chat.photo?.small.local.path,
           avatarFileId: chat.photo?.small.id,
           mainListOrder: ChatCacheState.mainListOrder(chat),
+          allowsPolls: ChatCacheState.canSendPollsIn(
+            chat,
+            supergroupOf?.call(chat),
+          ),
         ),
     ];
 
@@ -179,9 +191,31 @@ abstract class ComposeMessages {
     ];
   }
 
-  /// Whether these contents go out as an album rather than a single message.
-  static bool isAlbum(List<td.InputMessageContent> contents) =>
-      contents.length >= ComposeLimits.minAlbumAttachments;
+  /// Whether these contents go out as an album rather than as several
+  /// separate messages.
+  ///
+  /// Count is not enough. TDLib's rule is that only audio, document, photo and
+  /// video may be grouped, and that documents group only with documents — so a
+  /// photo picked beside a PDF is two messages, not one album, and asking for
+  /// an album anyway is refused with an error naming no file. Anything
+  /// ungroupable — a voice note, a round video note — makes the whole send
+  /// separate messages, which is also the only correct answer for one.
+  static bool isAlbum(List<td.InputMessageContent> contents) {
+    if (contents.length < ComposeLimits.minAlbumAttachments) return false;
+
+    final families = {for (final content in contents) _albumFamilyOf(content)};
+    return families.length == 1 && !families.contains(null);
+  }
+
+  /// Which album pile a content object belongs to, or null if it belongs to
+  /// none. Mirrors [ComposeMediaKind.albumFamily] on the TDLib side, because
+  /// this is the side the repository has in hand at send time.
+  static int? _albumFamilyOf(td.InputMessageContent content) =>
+      switch (content) {
+        td.InputMessagePhoto() || td.InputMessageVideo() => 0,
+        td.InputMessageDocument() || td.InputMessageAudio() => 1,
+        _ => null,
+      };
 
   static td.InputMessageContent _remoteContent(
     ComposeRemoteMedia media, {
@@ -220,6 +254,48 @@ abstract class ComposeMessages {
   }) {
     final file = td.InputFileLocal(path: attachment.path);
 
+    final selfDestruct = _selfDestructTypeOf(attachment.selfDestruct);
+
+    if (attachment.isDocument) {
+      return td.InputMessageDocument(
+        document: file,
+        // False, so Telegram works the type out from the bytes rather than
+        // from the extension. Disabling detection is for the case where a
+        // sender means "keep this as a file whatever it looks like", and
+        // gramX has no control that asks for that.
+        disableContentTypeDetection: false,
+        caption: caption,
+      );
+    }
+
+    if (attachment.isVoiceNote) {
+      return td.InputMessageVoiceNote(
+        voiceNote: file,
+        duration: attachment.durationSeconds,
+        // Packed five bits per sample and base64'd — TDLib's own format, and
+        // the reason this goes through VoiceWaveform rather than being
+        // assembled here.
+        waveform: VoiceWaveform.encode(attachment.waveform),
+        caption: caption,
+        selfDestructType: selfDestruct,
+      );
+    }
+
+    if (attachment.isVideoNote) {
+      return td.InputMessageVideoNote(
+        videoNote: file,
+        duration: attachment.durationSeconds,
+        // A round note is square by definition, and `length` is that one side.
+        // The recorder crops to square, but a device that hands back something
+        // else must not produce a note whose declared size is a lie — so this
+        // is the shorter side, which is what a centre crop would leave.
+        length: attachment.width < attachment.height
+            ? attachment.width
+            : attachment.height,
+        selfDestructType: selfDestruct,
+      );
+    }
+
     if (attachment.isPhoto) {
       return td.InputMessagePhoto(
         photo: file,
@@ -228,7 +304,8 @@ abstract class ComposeMessages {
         height: attachment.height,
         caption: caption,
         showCaptionAboveMedia: false,
-        hasSpoiler: false,
+        selfDestructType: selfDestruct,
+        hasSpoiler: attachment.hasSpoiler,
       );
     }
 
@@ -246,7 +323,61 @@ abstract class ComposeMessages {
       supportsStreaming: false,
       caption: caption,
       showCaptionAboveMedia: false,
-      hasSpoiler: false,
+      selfDestructType: selfDestruct,
+      hasSpoiler: attachment.hasSpoiler,
+    );
+  }
+
+  /// Turns the composer's self-destruct choice into TDLib's, or null.
+  ///
+  /// Null rather than a zero-second timer for ordinary media: TDLib reads the
+  /// presence of the field as "this message disappears", and a
+  /// `messageSelfDestructTypeTimer(0)` is a self-destructing message with no
+  /// time on the clock rather than a normal one.
+  static td.MessageSelfDestructType? _selfDestructTypeOf(SelfDestruct value) {
+    if (value.isViewOnce) return const td.MessageSelfDestructTypeImmediately();
+    if (value.seconds > 0) {
+      return td.MessageSelfDestructTypeTimer(selfDestructTime: value.seconds);
+    }
+    return null;
+  }
+
+  /// The content object for a poll.
+  ///
+  /// The zeros are not placeholders: `openPeriod`, `closeDate` and `isClosed`
+  /// are bot-only fields, and TDLib documents them as such. A user account
+  /// passing anything else gets the send refused.
+  ///
+  /// [PollDraft.correctOptionIndex] indexes the *filled* options, which is the
+  /// same list built here — a draft with a blank row between two answers would
+  /// otherwise mark the wrong one correct.
+  static td.InputMessageContent pollContent(PollDraft draft) {
+    final options = draft.filledOptions;
+
+    return td.InputMessagePoll(
+      question: td.FormattedText(
+        text: draft.question.trim(),
+        entities: const [],
+      ),
+      options: [
+        for (final option in options)
+          td.FormattedText(text: option, entities: const []),
+      ],
+      isAnonymous: draft.isAnonymous,
+      type: draft.isQuiz
+          ? td.PollTypeQuiz(
+              correctOptionId: draft.correctOptionIndex ?? 0,
+              // Telegram's "why this is the answer" note. gramX does not ask
+              // for one, and an empty formatted text is how TDLib spells its
+              // absence.
+              explanation: const td.FormattedText(text: '', entities: []),
+            )
+          : td.PollTypeRegular(
+              allowMultipleAnswers: draft.allowsMultipleAnswers,
+            ),
+      openPeriod: 0,
+      closeDate: 0,
+      isClosed: false,
     );
   }
 }
@@ -310,6 +441,7 @@ class ComposeRepository {
   List<ComposeTarget> targets({int? selfUserId}) => ComposeTargets.fromChats(
         _chatCache.forwardTargets,
         selfUserId: selfUserId,
+        supergroupOf: _chatCache.supergroupForChat,
       );
 
   /// Sends the draft. Returns true when TDLib accepted it.
@@ -363,6 +495,36 @@ class ComposeRepository {
       );
     } catch (e) {
       debugPrint('[ComposeRepo] Send failed: $e');
+      return ComposeSendResult.refused;
+    }
+  }
+
+  /// Sends a poll as its own post.
+  ///
+  /// Its own method rather than a field on the draft: a poll carries neither a
+  /// caption nor media, so there is nothing for it to be attached *to*. In the
+  /// composer it is a second thing the writer can post, and it posts on its own.
+  ///
+  /// Nothing uploads, so the result carries no file ids and the progress bar it
+  /// hands off to finishes immediately — which is correct, because a queued
+  /// poll really is done.
+  Future<ComposeSendResult> sendPoll({
+    required int chatId,
+    required PollDraft draft,
+  }) async {
+    if (!draft.canSend) return ComposeSendResult.refused;
+
+    try {
+      final res = await _tdlib.sendRequest(td.SendMessage(
+        chatId: chatId,
+        messageThreadId: 0,
+        options: _sendOptions,
+        inputMessageContent: ComposeMessages.pollContent(draft),
+      ));
+      if (res is! td.Message) return ComposeSendResult.refused;
+      return ComposeSendResult(accepted: true, messageIds: [res.id]);
+    } catch (e) {
+      debugPrint('[ComposeRepo] Poll send failed: $e');
       return ComposeSendResult.refused;
     }
   }

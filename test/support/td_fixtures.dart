@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:handy_tdlib/api.dart' as td;
 
 /// Builders for the TDLib objects tests need.
@@ -63,6 +65,9 @@ abstract class TdFixtures {
     int mainOrder = 0,
     int unreadCount = 0,
     bool canSendBasicMessages = false,
+    bool canSendPolls = false,
+    bool canSendVoiceNotes = false,
+    bool canSendDocuments = false,
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) {
@@ -74,6 +79,9 @@ abstract class TdFixtures {
         mainOrder: mainOrder,
         unreadCount: unreadCount,
         canSendBasicMessages: canSendBasicMessages,
+        canSendPolls: canSendPolls,
+        canSendVoiceNotes: canSendVoiceNotes,
+        canSendDocuments: canSendDocuments,
         lastMessage: lastMessage,
         positions: positions,
       ),
@@ -190,6 +198,9 @@ abstract class TdFixtures {
     int mainOrder = 0,
     int unreadCount = 0,
     bool canSendBasicMessages = false,
+    bool canSendPolls = false,
+    bool canSendVoiceNotes = false,
+    bool canSendDocuments = false,
     Map<String, dynamic>? lastMessage,
     List<Map<String, dynamic>>? positions,
   }) => <String, dynamic>{
@@ -208,6 +219,9 @@ abstract class TdFixtures {
     'permissions': {
       ..._permissions,
       'can_send_basic_messages': canSendBasicMessages,
+      'can_send_polls': canSendPolls,
+      'can_send_voice_notes': canSendVoiceNotes,
+      'can_send_documents': canSendDocuments,
     },
     'last_message': lastMessage,
     'positions':
@@ -379,6 +393,219 @@ abstract class TdFixtures {
       'show_caption_above_media': false,
       'has_spoiler': false,
       'is_secret': false,
+    };
+    return td.Message.fromJson(json);
+  }
+
+  /// A message carrying a poll.
+  ///
+  /// Every field TDLib requires, because a poll bubble is the case that used to
+  /// render empty — a fixture that skipped one would let that come back.
+  static td.Message pollMessage({
+    required int id,
+    required int chatId,
+    String question = 'Which one?',
+    List<String> options = const ['A', 'B'],
+    bool isQuiz = false,
+    bool allowMultipleAnswers = false,
+    bool isClosed = false,
+    int? chosenIndex,
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messagePoll',
+      'poll': {
+        '@type': 'poll',
+        'id': '$id',
+        'question': {
+          '@type': 'formattedText',
+          'text': question,
+          'entities': <Object>[],
+        },
+        'options': [
+          for (var i = 0; i < options.length; i++)
+            {
+              '@type': 'pollOption',
+              'text': {
+                '@type': 'formattedText',
+                'text': options[i],
+                'entities': <Object>[],
+              },
+              'voter_count': i == chosenIndex ? 1 : 0,
+              'vote_percentage': i == chosenIndex ? 100 : 0,
+              'is_chosen': i == chosenIndex,
+              'is_being_chosen': false,
+            },
+        ],
+        'total_voter_count': chosenIndex == null ? 0 : 1,
+        'recent_voter_ids': <Object>[],
+        'is_anonymous': true,
+        'type': isQuiz
+            ? {
+                '@type': 'pollTypeQuiz',
+                'correct_option_id': 0,
+                'explanation': {
+                  '@type': 'formattedText',
+                  'text': '',
+                  'entities': <Object>[],
+                },
+              }
+            : {
+                '@type': 'pollTypeRegular',
+                'allow_multiple_answers': allowMultipleAnswers,
+              },
+        'open_period': 0,
+        'close_date': 0,
+        'is_closed': isClosed,
+      },
+    };
+    return td.Message.fromJson(json);
+  }
+
+  /// A photo that disappears once it is opened.
+  ///
+  /// [viewOnce] chooses which of TDLib's two self-destruct shapes it carries;
+  /// [seconds] is the timer for the other one. `is_secret` is the flag that
+  /// says it has not been opened yet, and it is what the cover is drawn from.
+  static td.Message secretPhotoMessage({
+    required int id,
+    required int chatId,
+    bool viewOnce = true,
+    int seconds = 0,
+    bool isSecret = true,
+  }) {
+    final message = photoMessage(id: id, chatId: chatId, fileIds: const [7]);
+    final json = jsonDecode(jsonEncode(message.toJson()))
+        as Map<String, dynamic>;
+    (json['content'] as Map<String, dynamic>)['is_secret'] = isSecret;
+    json['self_destruct_type'] = viewOnce
+        ? {'@type': 'messageSelfDestructTypeImmediately'}
+        : {
+            '@type': 'messageSelfDestructTypeTimer',
+            'self_destruct_time': seconds,
+          };
+    return td.Message.fromJson(json);
+  }
+
+  /// A chat that is end-to-end encrypted.
+  ///
+  /// [secretChatId] is what the `SecretChat` record is keyed by — a different
+  /// number from the chat id, which is the distinction the cache exists to keep
+  /// straight.
+  static td.Chat secretChat({
+    required int id,
+    required int userId,
+    int secretChatId = 5,
+    String title = 'A Person',
+  }) {
+    final json = _chatJson(id: id, title: title, mainOrder: 100);
+    json['type'] = {
+      '@type': 'chatTypeSecret',
+      'secret_chat_id': secretChatId,
+      'user_id': userId,
+    };
+    return td.Chat.fromJson(json);
+  }
+
+  /// The end-to-end record behind a secret chat.
+  ///
+  /// [isReady] is the whole point of it: a secret chat is pending until the
+  /// other device finishes the key exchange, and Telegram refuses messages
+  /// sent into a pending one.
+  static td.UpdateSecretChat secretChatUpdate({
+    int secretChatId = 5,
+    required int userId,
+    bool isReady = true,
+  }) {
+    return td.UpdateSecretChat(
+      secretChat: td.SecretChat.fromJson({
+        '@type': 'secretChat',
+        'id': secretChatId,
+        'user_id': userId,
+        'state': isReady
+            ? {'@type': 'secretChatStateReady'}
+            : {'@type': 'secretChatStatePending'},
+        'is_outbound': true,
+        'key_hash': '',
+        'layer': 143,
+      }),
+    );
+  }
+
+  /// A message carrying a plain location.
+  static td.Message locationMessage({
+    required int id,
+    required int chatId,
+    double latitude = 51.5007,
+    double longitude = -0.1246,
+    int livePeriod = 0,
+    int expiresIn = 0,
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messageLocation',
+      'location': {
+        '@type': 'location',
+        'latitude': latitude,
+        'longitude': longitude,
+        'horizontal_accuracy': 0.0,
+      },
+      'live_period': livePeriod,
+      'expires_in': expiresIn,
+      'heading': 0,
+      'proximity_alert_radius': 0,
+    };
+    return td.Message.fromJson(json);
+  }
+
+  /// A message carrying a venue: a location with a name and an address.
+  static td.Message venueMessage({
+    required int id,
+    required int chatId,
+    String title = 'Big Ben',
+    String address = 'Westminster',
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messageVenue',
+      'venue': {
+        '@type': 'venue',
+        'location': {
+          '@type': 'location',
+          'latitude': 51.5007,
+          'longitude': -0.1246,
+          'horizontal_accuracy': 0.0,
+        },
+        'title': title,
+        'address': address,
+        'provider': 'foursquare',
+        'id': '1',
+        'type': '',
+      },
+    };
+    return td.Message.fromJson(json);
+  }
+
+  /// A message carrying a contact card.
+  static td.Message contactMessage({
+    required int id,
+    required int chatId,
+    String firstName = 'Ada',
+    String lastName = 'Lovelace',
+    String phoneNumber = '442071234567',
+    int userId = 77,
+  }) {
+    final json = textMessageJson(id: id, chatId: chatId);
+    json['content'] = {
+      '@type': 'messageContact',
+      'contact': {
+        '@type': 'contact',
+        'phone_number': phoneNumber,
+        'first_name': firstName,
+        'last_name': lastName,
+        'vcard': '',
+        'user_id': userId,
+      },
     };
     return td.Message.fromJson(json);
   }

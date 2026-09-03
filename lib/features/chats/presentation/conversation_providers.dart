@@ -8,8 +8,11 @@ import 'package:gramx/features/chats/data/chat_events.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/data/conversation_state.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
+import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/poll_draft.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 /// One open conversation: its messages, and everything that changes them.
@@ -196,6 +199,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     required String text,
     List<ComposeAttachment> attachments = const [],
     int? replyToMessageId,
+    MessageSchedule schedule = MessageSchedule.now,
   }) async {
     final current = state.value;
     if (current == null) return false;
@@ -207,17 +211,23 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     unawaited(repository.setTyping(chatId, isTyping: false));
     unawaited(repository.saveDraft(chatId, ''));
 
-    final placeholder = _optimisticMessage(
-      text: text,
-      replyTo: replyToMessageId,
-    );
-    state = AsyncData(current.withOptimistic(placeholder));
+    // No optimistic bubble for a scheduled message. It is not going into this
+    // conversation — Telegram holds the queue apart until it sends — so a
+    // bubble here would be a message the reader can see and the recipient
+    // cannot, sitting at the bottom of the chat until a refresh removed it.
+    final placeholder = schedule.isImmediate
+        ? _optimisticMessage(text: text, replyTo: replyToMessageId)
+        : null;
+    if (placeholder != null) {
+      state = AsyncData(current.withOptimistic(placeholder));
+    }
 
     final sent = await repository.send(
       chatId: chatId,
       text: text,
       attachments: attachments,
       replyToMessageId: replyToMessageId,
+      schedule: schedule,
     );
 
     final latest = state.value;
@@ -226,16 +236,22 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     if (sent == null) {
       // Never queued. Removing it is more honest than a failed bubble, which
       // would imply Telegram has it and could not deliver it.
-      state = AsyncData(
-        latest.copyWith(
-          messages: [
-            for (final message in latest.messages)
-              if (message.messageId != placeholder.messageId) message,
-          ],
-        ),
-      );
+      if (placeholder != null) {
+        state = AsyncData(
+          latest.copyWith(
+            messages: [
+              for (final message in latest.messages)
+                if (message.messageId != placeholder.messageId) message,
+            ],
+          ),
+        );
+      }
       return false;
     }
+
+    // A scheduled message has nothing on screen to reconcile: it was never
+    // drawn, and it will arrive as an ordinary new message whenever it goes.
+    if (placeholder == null) return true;
 
     // TDLib gave the queued message its own temporary id. Swapping now means
     // the bubble is keyed correctly before `updateMessageSendSucceeded` lands
@@ -249,6 +265,115 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
     return true;
   }
+
+  /// Sends a poll into this chat. Returns whether Telegram queued it.
+  ///
+  /// No optimistic bubble, unlike [send]. A poll placeholder would have to
+  /// invent vote counts and a poll id, and the real message lands on
+  /// `updateNewMessage` within the same beat — an empty poll that flickers into
+  /// a real one is worse than a poll that simply appears.
+  Future<bool> sendPoll(PollDraft draft, {int? replyToMessageId}) async {
+    if (!draft.canSend) return false;
+
+    final repository = ref.read(chatsRepositoryProvider);
+    unawaited(repository.setTyping(chatId, isTyping: false));
+
+    return _absorb(
+      await repository.sendPoll(
+        chatId: chatId,
+        draft: draft,
+        replyToMessageId: replyToMessageId,
+      ),
+    );
+  }
+
+  /// Answers a poll in this chat, optimistically.
+  ///
+  /// The same two-step every other write here uses: show it, then send it. The
+  /// authoritative counts arrive on `updateMessageContent` and replace what the
+  /// optimism guessed, so nothing here has to be undone if the guess was off.
+  Future<void> vote(int messageId, List<int> optionIds) async {
+    final current = state.value;
+    if (current == null) return;
+
+    final optimistic = current.withOptimisticVote(messageId, optionIds);
+    if (optimistic != null) state = AsyncData(optimistic);
+
+    await ref
+        .read(syncServiceProvider)
+        .voteInPoll(
+          chatId: chatId,
+          messageId: messageId,
+          optionIds: optionIds,
+        );
+  }
+
+  /// Sends where this device is. Returns whether Telegram queued it.
+  ///
+  /// No optimistic bubble, for the same reason [sendPoll] has none: a
+  /// placeholder would have to invent a map preview, and the real message lands
+  /// on `updateNewMessage` within the same beat.
+  Future<bool> sendLocation({
+    required double latitude,
+    required double longitude,
+    double accuracy = 0,
+    int? replyToMessageId,
+  }) async {
+    final sent = await ref
+        .read(chatsRepositoryProvider)
+        .sendLocation(
+          chatId: chatId,
+          latitude: latitude,
+          longitude: longitude,
+          accuracy: accuracy,
+          replyToMessageId: replyToMessageId,
+        );
+    return _absorb(sent);
+  }
+
+  /// Shares one of this account's Telegram contacts.
+  Future<bool> sendContact({
+    required int userId,
+    int? replyToMessageId,
+  }) async {
+    final sent = await ref
+        .read(chatsRepositoryProvider)
+        .sendContact(
+          chatId: chatId,
+          userId: userId,
+          replyToMessageId: replyToMessageId,
+        );
+    return _absorb(sent);
+  }
+
+  /// Folds a just-queued message into the conversation.
+  ///
+  /// The shared tail of every send that has no optimistic bubble: the message
+  /// TDLib answers with is real, and putting it in now means the bubble is on
+  /// screen before `updateNewMessage` arrives with the same one.
+  bool _absorb(td.Message? sent) {
+    if (sent == null) return false;
+    final latest = state.value;
+    if (latest != null) {
+      state = AsyncData(
+        latest.apply(
+              ChatMessageArrived(sent),
+              users: ref.read(chatCacheProvider).usersById,
+            ) ??
+            latest,
+      );
+    }
+    return true;
+  }
+
+  /// Opens self-destructing media, which starts its clock.
+  ///
+  /// Irreversible, and never called on the reader's behalf — see
+  /// [ChatsRepository.openSecretMedia]. The screen confirms first and this only
+  /// carries out the answer.
+  Future<bool> openSecretMedia(int messageId) => ref
+      .read(chatsRepositoryProvider)
+      .openSecretMedia(chatId: chatId, messageId: messageId);
 
   /// A bubble for a message that has not left the device yet.
   ///

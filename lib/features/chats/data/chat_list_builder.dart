@@ -37,6 +37,10 @@ abstract class ChatListBuilder {
     /// into a name and a picture without a lookup — and without a `GetChat`,
     /// which per row would be the fan-out this class exists to avoid.
     Map<int, td.Chat> chatsById = const {},
+
+    /// End-to-end chat records, keyed by secret chat id. Only a secret chat
+    /// reads them, and only for its state.
+    Map<int, td.SecretChat> secretChats = const {},
   }) {
     final rows = [
       for (final chat in chats)
@@ -48,6 +52,7 @@ abstract class ChatListBuilder {
             selfUserId: selfUserId,
             userFullInfos: userFullInfos,
             chatsById: chatsById,
+            secretChats: secretChats,
           ),
     ];
     rows.sort(compare);
@@ -88,9 +93,20 @@ abstract class ChatListBuilder {
     int? selfUserId,
     Map<int, td.UserFullInfo> userFullInfos = const {},
     Map<int, td.Chat> chatsById = const {},
+    Map<int, td.SecretChat> secretChats = const {},
   }) {
     final type = chat.type;
-    final user = type is td.ChatTypePrivate ? users[type.userId] : null;
+    // A secret chat is a one-to-one chat with a person, and TDLib carries the
+    // person's id on the type — so it resolves its user the same way a private
+    // chat does, and the row draws their name and face rather than a blank.
+    final user = switch (type) {
+      td.ChatTypePrivate() => users[type.userId],
+      td.ChatTypeSecret() => users[type.userId],
+      _ => null,
+    };
+    final secret = type is td.ChatTypeSecret
+        ? secretChats[type.secretChatId]
+        : null;
     final supergroup = type is td.ChatTypeSupergroup
         ? supergroups[type.supergroupId]
         : null;
@@ -155,6 +171,10 @@ abstract class ChatListBuilder {
       presence: presenceOf(user),
       mainListOrder: ChatCacheState.mainListOrder(chat),
       isPinned: isPinned(chat),
+      isSecret: type is td.ChatTypeSecret,
+      isSecretPending:
+          type is td.ChatTypeSecret &&
+          !ChatCacheState.isSecretChatReady(secret),
     );
   }
 
@@ -216,6 +236,10 @@ abstract class ChatListBuilder {
   /// reader gets "last seen recently" under a piece of software.
   static ChatKind kindOf(td.Chat chat, {td.User? user, int? selfUserId}) {
     final type = chat.type;
+    // A secret chat is a one-to-one chat. It reads as `direct` so everything
+    // that asks "is there one other person here" — the presence line, the
+    // profile the header opens, "when they come online" — keeps working.
+    if (type is td.ChatTypeSecret) return ChatKind.direct;
     if (type is td.ChatTypePrivate) {
       if (selfUserId != null && type.userId == selfUserId) {
         return ChatKind.savedMessages;

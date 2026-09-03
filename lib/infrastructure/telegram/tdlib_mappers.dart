@@ -1053,6 +1053,15 @@ class TdlibMappers {
         .toList();
   }
 
+  /// A TDLib poll as the app's own model.
+  ///
+  /// Public because a poll now reaches two surfaces — the feed card and the
+  /// chat bubble — and both must read it the same way. It routes through
+  /// [serializePoll] rather than constructing the model directly so that the
+  /// field names stay in one place; the round-trip is a handful of maps once
+  /// per poll, against a message the reader is looking at.
+  static Poll? mapPoll(td.Poll? poll) => _parsePoll(poll);
+
   static Poll? _parsePoll(td.Poll? poll) {
     final serialized = serializePoll(poll);
     if (serialized == null) return null;
@@ -1168,6 +1177,13 @@ class TdlibMappers {
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
+        // Regular polls only. A quiz has one right answer by definition, so
+        // TDLib does not carry the flag on one — and a card that offered
+        // several selections on a quiz would be offering a vote Telegram
+        // refuses.
+        'allowsMultipleAnswers':
+            poll.type is td.PollTypeRegular &&
+            (poll.type as td.PollTypeRegular).allowMultipleAnswers,
         'correctOptionId': correctOptionId,
         'chosenOptionIds': poll.options
             .asMap()

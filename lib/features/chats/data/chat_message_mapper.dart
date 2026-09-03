@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/chats/data/chat_list_builder.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
+import 'package:gramx/features/chats/domain/message_place.dart';
+import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
@@ -38,10 +42,11 @@ abstract class ChatMessageMapper {
         ? users[sender.userId]
         : null;
 
-    final body = _bodyOf(content);
+    final body = decodeContent(content);
     final mappedReactions = TdlibMappers.mapReactions(
       message.interactionInfo?.reactions,
     );
+    final destruct = message.selfDestructType;
 
     return ChatMessage(
       id: '${message.chatId}_${message.id}',
@@ -66,7 +71,15 @@ abstract class ChatMessageMapper {
           : null,
       text: body.text,
       entities: body.entities,
-      media: TdlibMappers.extractMediaItems(message),
+      media: body.media,
+      poll: body.poll,
+      place: body.place,
+      contact: body.contact,
+      isSecretMedia: body.isSecretMedia,
+      isViewOnce: destruct is td.MessageSelfDestructTypeImmediately,
+      selfDestructSeconds: destruct is td.MessageSelfDestructTypeTimer
+          ? destruct.selfDestructTime
+          : 0,
       sentAt: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
       editedAt: message.editDate > 0
           ? DateTime.fromMillisecondsSinceEpoch(message.editDate * 1000)
@@ -87,6 +100,7 @@ abstract class ChatMessageMapper {
       linkPreviewTitle: body.linkPreviewTitle,
       linkPreviewDescription: body.linkPreviewDescription,
       linkPreviewFileId: body.linkPreviewFileId,
+      isPinned: message.isPinned,
       isService: isService,
       unsupportedKind: support.handling == ContentHandling.unrepresentable
           ? content.currentObjectId
@@ -168,15 +182,118 @@ abstract class ChatMessageMapper {
     ];
   }
 
+  /// Rewrites a mapped message around a new content object.
+  ///
+  /// `updateMessageContent` hands over a bare content with no message around
+  /// it, and it is how three separate things reach a bubble that is already on
+  /// screen: a caption edit, a vote landing on a poll, and self-destructing
+  /// media expiring into `messageExpiredPhoto`. Folding it through the same
+  /// decoder the first mapping used is what stops those three from each needing
+  /// their own partial copy of it — the previous version updated text and media
+  /// and left the poll, the secret flag and the entities behind.
+  static ChatMessage withContent(ChatMessage message, td.MessageContent body) {
+    final decoded = decodeContent(body);
+    final support = MessageContentSupport.supportFor(body);
+
+    return message.copyWith(
+      text: decoded.text,
+      entities: decoded.entities,
+      media: decoded.media,
+      poll: decoded.poll,
+      place: decoded.place,
+      contact: decoded.contact,
+      isSecretMedia: decoded.isSecretMedia,
+      linkPreviewUrl: decoded.linkPreviewUrl,
+      linkPreviewTitle: decoded.linkPreviewTitle,
+      linkPreviewDescription: decoded.linkPreviewDescription,
+      linkPreviewFileId: decoded.linkPreviewFileId,
+      unsupportedKind: support.handling == ContentHandling.unrepresentable
+          ? body.currentObjectId
+          : null,
+    );
+  }
+
+  /// Everything a bubble draws, read out of one content object.
+  ///
+  /// Public because [withContent] and [map] must agree: the two entry points
+  /// into a bubble are the history page and the live update, and a decoder
+  /// each is how they drift apart.
+  @visibleForTesting
   static ({
     String? text,
     List<TextEntity> entities,
+    List<MediaItem> media,
+    Poll? poll,
+    MessagePlace? place,
+    MessageContactCard? contact,
+    bool isSecretMedia,
     String? linkPreviewUrl,
     String? linkPreviewTitle,
     String? linkPreviewDescription,
     int? linkPreviewFileId,
   })
-  _bodyOf(td.MessageContent content) {
+  decodeContent(td.MessageContent content) {
+    // A poll is the whole message. It has no caption to read and no media to
+    // extract, and it is the case the old decoder fell through — MessagePoll is
+    // content the feed renders in full, so it carried no fallback label either,
+    // and the bubble came out empty.
+    if (content is td.MessagePoll) {
+      return (
+        text: null,
+        entities: const <TextEntity>[],
+        media: const <MediaItem>[],
+        poll: TdlibMappers.mapPoll(content.poll),
+        place: null,
+        contact: null,
+        isSecretMedia: false,
+        linkPreviewUrl: null,
+        linkPreviewTitle: null,
+        linkPreviewDescription: null,
+        linkPreviewFileId: null,
+      );
+    }
+
+    // A place and a contact are cards, not captions. Both used to fall through
+    // to the feed's label — "📍 Location" with the coordinates discarded — so
+    // the one thing a location is for could not be done with one.
+    final place = _placeOf(content);
+    if (place != null) {
+      return (
+        text: null,
+        entities: const <TextEntity>[],
+        media: const <MediaItem>[],
+        poll: null,
+        place: place,
+        contact: null,
+        isSecretMedia: false,
+        linkPreviewUrl: null,
+        linkPreviewTitle: null,
+        linkPreviewDescription: null,
+        linkPreviewFileId: null,
+      );
+    }
+
+    if (content is td.MessageContact) {
+      return (
+        text: null,
+        entities: const <TextEntity>[],
+        media: const <MediaItem>[],
+        poll: null,
+        place: null,
+        contact: MessageContactCard(
+          firstName: content.contact.firstName,
+          lastName: content.contact.lastName,
+          phoneNumber: content.contact.phoneNumber,
+          userId: content.contact.userId,
+        ),
+        isSecretMedia: false,
+        linkPreviewUrl: null,
+        linkPreviewTitle: null,
+        linkPreviewDescription: null,
+        linkPreviewFileId: null,
+      );
+    }
+
     td.FormattedText? formatted;
     String? linkPreviewUrl;
     String? linkPreviewTitle;
@@ -216,6 +333,11 @@ abstract class ChatMessageMapper {
         return (
           text: MessageContentSupport.describe(content),
           entities: const <TextEntity>[],
+          media: TdlibMappers.extractMediaFromContent(content),
+          poll: null,
+          place: null,
+          contact: null,
+          isSecretMedia: _isSecret(content),
           linkPreviewUrl: null,
           linkPreviewTitle: null,
           linkPreviewDescription: null,
@@ -226,12 +348,52 @@ abstract class ChatMessageMapper {
     return (
       text: TdlibMappers.plainTextOf(formatted),
       entities: TdlibMappers.entitiesOf(formatted.entities) ?? const [],
+      media: TdlibMappers.extractMediaFromContent(content),
+      poll: null,
+      place: null,
+      contact: null,
+      isSecretMedia: _isSecret(content),
       linkPreviewUrl: linkPreviewUrl,
       linkPreviewTitle: linkPreviewTitle,
       linkPreviewDescription: linkPreviewDescription,
       linkPreviewFileId: linkPreviewFileId,
     );
   }
+
+  /// The place in a location or a venue message, or null for anything else.
+  ///
+  /// One function for both, because a venue is a location with a name on it and
+  /// everything downstream draws them the same way with a line more.
+  static MessagePlace? _placeOf(td.MessageContent content) => switch (content) {
+    td.MessageLocation() => MessagePlace(
+      latitude: content.location.latitude,
+      longitude: content.location.longitude,
+      livePeriod: content.livePeriod,
+      expiresIn: content.expiresIn,
+    ),
+    td.MessageVenue() => MessagePlace(
+      latitude: content.venue.location.latitude,
+      longitude: content.venue.location.longitude,
+      title: content.venue.title,
+      address: content.venue.address.isEmpty ? null : content.venue.address,
+    ),
+    _ => null,
+  };
+
+  /// Whether this content is Telegram's tap-to-view kind and still covered.
+  ///
+  /// TDLib puts the flag on the content, not the message, and clears it when
+  /// the media is opened — so this is "is it still hidden", not "was it ever
+  /// secret". Only the four content types that can carry it are named; every
+  /// other kind of message answers false without a `default` swallowing a type
+  /// that grows the flag later.
+  static bool _isSecret(td.MessageContent content) => switch (content) {
+    td.MessagePhoto() => content.isSecret,
+    td.MessageVideo() => content.isSecret,
+    td.MessageVideoNote() => content.isSecret,
+    td.MessageAnimation() => content.isSecret,
+    _ => false,
+  };
 
   static td.MessageReplyToMessage? _replyTarget(td.Message message) {
     final replyTo = message.replyTo;

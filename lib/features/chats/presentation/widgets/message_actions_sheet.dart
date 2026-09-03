@@ -8,6 +8,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
+import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 import 'package:gramx/features/chats/presentation/conversation_providers.dart';
 import 'package:gramx/features/chats/presentation/widgets/forward_message_sheet.dart';
 
@@ -23,11 +24,15 @@ class MessageActionsSheet extends ConsumerWidget {
   final ChatMessage message;
   final VoidCallback onReply;
 
+  /// Turns the conversation into selection mode with this message ticked.
+  final VoidCallback onSelect;
+
   const MessageActionsSheet({
     super.key,
     required this.chatId,
     required this.message,
     required this.onReply,
+    required this.onSelect,
   });
 
   static Future<void> show(
@@ -35,6 +40,7 @@ class MessageActionsSheet extends ConsumerWidget {
     required int chatId,
     required ChatMessage message,
     required VoidCallback onReply,
+    required VoidCallback onSelect,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -48,6 +54,7 @@ class MessageActionsSheet extends ConsumerWidget {
         chatId: chatId,
         message: message,
         onReply: onReply,
+        onSelect: onSelect,
       ),
     );
   }
@@ -99,6 +106,7 @@ class MessageActionsSheet extends ConsumerWidget {
               message: message,
               actions: allowed,
               onReply: onReply,
+              onSelect: onSelect,
             ),
           ),
         ],
@@ -112,12 +120,14 @@ class _ActionList extends ConsumerWidget {
   final ChatMessage message;
   final MessageActions actions;
   final VoidCallback onReply;
+  final VoidCallback onSelect;
 
   const _ActionList({
     required this.chatId,
     required this.message,
     required this.actions,
     required this.onReply,
+    required this.onSelect,
   });
 
   @override
@@ -173,6 +183,39 @@ class _ActionList extends ConsumerWidget {
               await _edit(context, ref);
             },
           ),
+        // A pinned message is already reachable from the header banner and was
+        // the one thing about it nobody could change from inside gramX. The row
+        // flips with the message rather than asserting one direction, the way
+        // every other toggle in this app does — and unpinning needs no
+        // confirmation, because it takes nothing away that cannot be put back.
+        if (actions.canPin)
+          ListTile(
+            leading: Icon(
+              message.isPinned
+                  ? Icons.push_pin_rounded
+                  : Icons.push_pin_outlined,
+            ),
+            title: Text(
+              message.isPinned
+                  ? AppStrings.chatActionUnpin
+                  : AppStrings.chatActionPin,
+            ),
+            onTap: () async {
+              Navigator.of(context).pop();
+              await _togglePin(context, ref);
+            },
+          ),
+        // The way into selection mode. Deliberately not a second gesture:
+        // long-press is already taken by this menu, and a chat with two
+        // long-press meanings is a chat where neither is discoverable.
+        ListTile(
+          leading: const Icon(Icons.checklist_rounded),
+          title: const Text(AppStrings.chatActionSelect),
+          onTap: () {
+            Navigator.of(context).pop();
+            onSelect();
+          },
+        ),
         if (actions.canDeleteForSelf || actions.canDeleteForAll)
           ListTile(
             leading: Icon(
@@ -189,6 +232,60 @@ class _ActionList extends ConsumerWidget {
             },
           ),
       ],
+    );
+  }
+
+  /// Pins or unpins, asking first only in the direction that is visible to
+  /// everybody else in the chat.
+  Future<void> _togglePin(BuildContext context, WidgetRef ref) async {
+    final pinning = !message.isPinned;
+
+    if (pinning) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text(AppStrings.chatPinTitle),
+          content: const Text(AppStrings.chatPinBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text(AppStrings.chatCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(AppStrings.chatPinConfirm),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+    }
+
+    final ok = await ref
+        .read(chatsRepositoryProvider)
+        .setMessagePinned(
+          chatId: chatId,
+          messageId: message.messageId,
+          isPinned: pinning,
+        );
+    if (!context.mounted) return;
+
+    // The banner reads its own provider, which has no update to listen to —
+    // `updateMessageIsPinned` moves the bubble's state, not the cached
+    // "what is pinned in this chat" answer — so it is refreshed by hand.
+    if (ok) ref.invalidate(pinnedMessageProvider(chatId));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (pinning ? AppStrings.chatPinned : AppStrings.chatUnpinned)
+              : (pinning
+                    ? AppStrings.chatPinFailed
+                    : AppStrings.chatUnpinFailed),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 

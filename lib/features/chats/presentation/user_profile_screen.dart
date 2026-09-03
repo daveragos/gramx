@@ -67,13 +67,56 @@ final userProfileProvider = FutureProvider.autoDispose
       return ref.watch(chatsRepositoryProvider).userProfile(userId);
     });
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   final UserProfile profile;
 
   const _Body({required this.profile});
 
+  /// Opens an end-to-end chat with this person, asking first.
+  ///
+  /// The confirmation is not ceremony: a secret chat is a *different chat* with
+  /// the same person, its messages never reach the Telegram cloud, and it dies
+  /// with the device. Somebody who lands in one by a mis-tap and writes there
+  /// has written somewhere they will not find it again.
+  Future<void> _startSecretChat(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.secretChatStart),
+        content: const Text(AppStrings.secretChatStartBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(AppStrings.chatCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(AppStrings.secretChatStartConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final chatId = await ref
+        .read(chatsRepositoryProvider)
+        .createSecretChat(profile.userId);
+    if (!context.mounted) return;
+
+    if (chatId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.secretChatFailed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    context.push(ChatsScreen.routeFor(chatId));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
@@ -208,6 +251,37 @@ class _Body extends StatelessWidget {
                 icon: const Icon(Icons.mail_outline_rounded, size: 18),
                 label: const Text(
                   AppStrings.profileMessageAction,
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+
+        // The second thing this screen lets you do, and the one Telegram has
+        // that nothing else does. Absent for a bot — Telegram has no
+        // end-to-end chat with one — and for a deleted account.
+        if (!profile.isDeleted && !profile.isBot)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.postPadding,
+              AppSpacing.sm,
+              AppSpacing.postPadding,
+              0,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                ),
+                onPressed: () => _startSecretChat(context, ref),
+                icon: const Icon(Icons.lock_outline_rounded, size: 18),
+                label: const Text(
+                  AppStrings.secretChatStart,
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),

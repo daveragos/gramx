@@ -352,7 +352,7 @@ class PostCard extends ConsumerWidget {
                         // Poll
                         if (post.poll != null) ...[
                           const SizedBox(height: AppSpacing.md),
-                          PollCard(
+                          FeedPollCard(
                             poll: post.poll!,
                             channelId: post.channelId,
                             messageId: post.messageId,
