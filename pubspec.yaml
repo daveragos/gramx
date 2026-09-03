@@ -103,6 +103,10 @@ flutter:
   uses-material-design: true
 
   assets:
-    # The launcher mark, shown on the sign-in screen so the app introduces
-    # itself with the icon someone just tapped.
-    - assets/icon/app_icon.png
+    # The brand delivery: the launcher icon in both grounds, shown on the
+    # sign-in screen so the app introduces itself with the artwork someone just
+    # tapped, and the mark's own animation, which is what the splash and the
+    # connecting screen wait on. The launcher icons the OS draws are not here —
+    # those are platform resources under `android/.../res` and
+    # `ios/Runner/Assets.xcassets`, built from the same delivery.
+    - assets/brand/

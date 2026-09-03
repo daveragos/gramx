@@ -19,30 +19,17 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends ConsumerState<AuthScreen>
-    with SingleTickerProviderStateMixin {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-
-  late final AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -107,7 +94,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     return switch (authState.step) {
       AuthStep.loading => AuthLoadingPage(
           authState: authState,
-          pulseController: _pulseController,
           controller: controller,
         ),
       AuthStep.loginMethodSelection => AuthSelectionPage(
@@ -142,7 +128,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         ),
       AuthStep.authenticated => AuthLoadingPage(
           authState: authState,
-          pulseController: _pulseController,
           controller: controller,
         ),
     };

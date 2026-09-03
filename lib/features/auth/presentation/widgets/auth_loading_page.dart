@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/brand_mark.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class AuthLoadingPage extends StatelessWidget {
   final AuthState authState;
-  final AnimationController pulseController;
   final AuthController controller;
 
   const AuthLoadingPage({
     super.key,
     required this.authState,
-    required this.pulseController,
     required this.controller,
   });
 
@@ -30,26 +29,13 @@ class AuthLoadingPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedBuilder(
-              animation: pulseController,
-              builder: (context, child) {
-                final scale = 1.0 + (pulseController.value * 0.08);
-                // The same mark the sign-in screen shows. A blue circle with
-                // a paper plane was a different-looking screen for the moment
-                // before connecting finished, which read as the app flashing
-                // an older design at you.
-                return Transform.scale(
-                  scale: scale,
-                  child: Image.asset(
-                    'assets/icon/app_icon.png',
-                    width: 88,
-                    height: 88,
-                    semanticLabel: AppStrings.appName,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 36),
+            // The same mark the splash screen draws, still animating. A blue
+            // circle with a paper plane was a different-looking screen for the
+            // moment before connecting finished, which read as the app flashing
+            // an older design at you; a mark that stops moving between the two
+            // screens reads as the app having hung.
+            const BrandMark(size: 112),
+            const SizedBox(height: 24),
             Text(
               AppStrings.authConnecting,
               style: AppTypography.heading(color: theme.colorScheme.onSurface).copyWith(

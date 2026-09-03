@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramx/app/theme/brand_assets.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_selection_page.dart';
@@ -9,7 +10,11 @@ import 'package:gramx/features/auth/presentation/widgets/auth_top_bar.dart';
 /// tap, which these tests don't do.
 final controller = AuthController();
 
-Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
+Widget host(Widget child, {Brightness brightness = Brightness.light}) =>
+    MaterialApp(
+      theme: ThemeData(brightness: brightness),
+      home: Scaffold(body: child),
+    );
 
 void main() {
   group('the sign-in screen', () {
@@ -21,7 +26,35 @@ void main() {
 
       final image = tester.widget<Image>(find.byType(Image));
       expect((image.image as AssetImage).assetName,
-          'assets/icon/app_icon.png');
+          BrandAssets.appIconFor(Brightness.light));
+    });
+
+    // The icon is drawn on its own ground, so the variant has to be picked
+    // for the surface: the dark-ground icon on a dark screen is a black square
+    // on black, which is the fault the two files exist to avoid. Each
+    // brightness gets its own pump — swapping the theme under a live tree
+    // makes MaterialApp lerp it, and drags the page's Riverpod consumers
+    // through a rebuild this host has no scope for.
+    for (final brightness in Brightness.values) {
+      testWidgets('picks the icon variant a ${brightness.name} screen can show',
+          (tester) async {
+        await tester.pumpWidget(host(
+          AuthSelectionPage(
+            authState: const AuthState(step: AuthStep.loginMethodSelection),
+            controller: controller,
+          ),
+          brightness: brightness,
+        ));
+
+        final image = tester.widget<Image>(find.byType(Image));
+        expect((image.image as AssetImage).assetName,
+            BrandAssets.appIconFor(brightness));
+      });
+    }
+
+    test('has a different icon for each ground', () {
+      expect(BrandAssets.appIconFor(Brightness.dark),
+          isNot(BrandAssets.appIconFor(Brightness.light)));
     });
 
     // The reported complaint: spacers pushed the welcome block and the buttons

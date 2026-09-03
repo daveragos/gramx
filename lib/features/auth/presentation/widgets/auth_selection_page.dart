@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/theme/brand_assets.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
@@ -45,10 +46,14 @@ class AuthSelectionPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // The launcher mark, unframed: it carries its own shape,
-                    // and a border around it never lined up with the artwork.
+                    // The launcher icon itself, so the screen introduces the
+                    // app with the artwork somebody just tapped. Unframed: it
+                    // carries its own shape, and a border around it never
+                    // lined up. The variant is picked for the surface — the
+                    // icon on its own ground would vanish into a screen of
+                    // the same colour.
                     Image.asset(
-                      'assets/icon/app_icon.png',
+                      BrandAssets.appIconFor(theme.brightness),
                       width: 88,
                       height: 88,
                       semanticLabel: AppStrings.appName,
