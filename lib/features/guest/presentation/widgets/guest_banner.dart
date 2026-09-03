@@ -75,7 +75,8 @@ class GuestBanner extends ConsumerWidget {
 ///
 /// Shown from the tap, rather than leaving the control inert. A button that
 /// responds to touch and changes nothing is the bug the hard rules in
-/// docs/CONVENTIONS.md name; a button that explains itself is a control that works.
+/// docs/CONVENTIONS.md name; a button that explains itself is a control that
+/// works.
 abstract class GuestSignInSheet {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet<void>(

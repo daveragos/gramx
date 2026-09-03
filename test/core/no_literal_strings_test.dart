@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The hard rule in `docs/CONVENTIONS.md`: no user-facing string as a literal in a
-/// widget. It belongs in `core/l10n/app_strings.dart`.
+/// The hard rule in `docs/CONVENTIONS.md`: no user-facing string as a literal
+/// in a widget. It belongs in `core/l10n/app_strings.dart`.
 ///
 /// The rule was written down and then broken twelve times, in some of the most
 /// visible places in the app — the sign-in screen, the QR page, three error

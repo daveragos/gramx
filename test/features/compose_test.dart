@@ -491,8 +491,9 @@ void main() {
     });
   });
 
-  // The hard rule in docs/CONVENTIONS.md: a control that renders and does nothing is a
-  // bug. The compose button has two ways to become one, and both are here.
+  // The hard rule in docs/CONVENTIONS.md: a control that renders and does
+  // nothing is a bug. The compose button has two ways to become one, and both
+  // are here.
 
   // Stickers and GIFs are not two flavours of one thing, and the difference is
   // the whole reason this group exists: `inputMessageSticker` has no caption

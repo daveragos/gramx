@@ -273,7 +273,8 @@ void main() {
   group('ReaderCapabilities', () {
     // One object rather than an `if (isGuest)` at twenty call sites — that is
     // how a guest ends up with a button that responds to touch and does
-    // nothing, which docs/CONVENTIONS.md names as a bug rather than a placeholder.
+    // nothing, which docs/CONVENTIONS.md names as a bug rather than a
+    // placeholder.
     test('a guest can do nothing that needs an account', () {
       const guest = ReaderCapabilities.guest;
       expect(guest.canReact, isFalse);

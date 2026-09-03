@@ -53,8 +53,9 @@ class LiveInteractionUpdate extends LivePostUpdate {
 /// Turns a counter-bearing TDLib update into the event the feed folds in.
 ///
 /// Pure and top-level so it can be tested without standing up a client, a
-/// database and a subscription — the seam the testing rules in docs/CONVENTIONS.md ask
-/// for. Returns null for updates that carry no counters.
+/// database and a subscription — the seam the testing rules in
+/// docs/CONVENTIONS.md ask for. Returns null for updates that carry no
+/// counters.
 ///
 /// The reaction path is the whole reason this exists. `updateMessageReactions`
 /// is documented **"for bots only"**, so on a user client it never fires — the

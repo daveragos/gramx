@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 /// One object, watched wherever a control could write to Telegram. The
 /// alternative — `if (isGuest)` at each of twenty call sites — is how a guest
 /// ends up with one button that quietly does nothing, which is exactly the
-/// class of bug the "every control does something" rule in docs/CONVENTIONS.md exists to
-/// prevent.
+/// class of bug the "every control does something" rule in
+/// docs/CONVENTIONS.md exists to prevent.
 ///
 /// A guest has no Telegram account. Not "an account with fewer permissions":
 /// there is nothing to write to, nothing to read state against, and no identity

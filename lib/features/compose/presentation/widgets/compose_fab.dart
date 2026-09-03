@@ -11,8 +11,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 /// Hidden rather than disabled when there is nowhere to post — a guest, or an
 /// account that runs no channel and shares no group. A round blue button that
 /// opens a screen saying "you can't do this" is the styled-but-inert control
-/// the hard rules in docs/CONVENTIONS.md exist to keep out. That check lives at the call
-/// site, because hiding it means handing `Scaffold` a null rather than
+/// the hard rules in docs/CONVENTIONS.md exist to keep out. That check lives at
+/// the call site, because hiding it means handing `Scaffold` a null rather than
 /// returning an empty box from here — see below.
 ///
 /// It belongs to the chrome, so it leaves with the chrome. It used to do that

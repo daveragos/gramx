@@ -140,9 +140,9 @@ class ChatActionChanged extends ChatEvent {
 /// Turns raw TDLib updates into [ChatEvent]s.
 ///
 /// Pure and top-level, so the whole translation is testable without a client, a
-/// database or a subscription — the seam the testing rules in `docs/CONVENTIONS.md` ask
-/// for. Returns null for every update a conversation does not care about, which
-/// is the vast majority of them.
+/// database or a subscription — the seam the testing rules in
+/// `docs/CONVENTIONS.md` ask for. Returns null for every update a conversation
+/// does not care about, which is the vast majority of them.
 abstract class ChatEvents {
   static ChatEvent? map(td.TdObject update) {
     switch (update) {
