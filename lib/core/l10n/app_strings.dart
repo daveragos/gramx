@@ -1231,6 +1231,80 @@ abstract class AppStrings {
   static String profileGroupsInCommon(int count) =>
       count == 1 ? '1 group in common' : '$count groups in common';
 
+  // ── Analytics ──────────────────────────────────────────────────────────────
+  static const statsTitle = 'Analytics';
+  static const statsTabOverview = 'Overview';
+  static const statsTabAudience = 'Audience';
+  static const statsTabContent = 'Content';
+  static const statsUnavailable =
+      "Telegram doesn't have analytics for this channel yet.";
+  static const statsLoadFailed = "Couldn't load analytics.";
+  static const statsGraphUnavailable = 'This chart is unavailable.';
+  static const statsGraphEmpty = 'Not enough data for this chart yet.';
+  static const statsAccountOverview = 'Account overview';
+
+  /// The window Telegram's figures describe, e.g. `Jun 7 – Sep 7`.
+  static String statsPeriod(String start, String end) => '$start – $end';
+
+  /// A figure that is itself a percentage, e.g. notifications enabled.
+  static String statsPercent(String value) => '$value%';
+
+  /// The change against the previous period, without its arrow — the arrow is
+  /// an icon, because a glyph in the string cannot be coloured or labelled.
+  static String statsGrowth(String percent) => '$percent%';
+
+  // Figure tiles.
+  static const statsFollowers = 'Followers';
+  static const statsNotifications = 'Notifications enabled';
+  static const statsViewsPerPost = 'Views per post';
+  static const statsSharesPerPost = 'Shares per post';
+  static const statsReactionsPerPost = 'Reactions per post';
+
+  // Chart titles.
+  static const statsGraphGrowth = 'Followers over time';
+  static const statsGraphJoins = 'Joined and left';
+  static const statsGraphNotifications = 'Notifications';
+  static const statsGraphViewsByHour = 'Active times';
+  static const statsGraphViewsBySource = 'Views by source';
+  static const statsGraphNewFollowersBySource = 'New followers by source';
+  static const statsGraphLanguages = 'Languages';
+  static const statsGraphInteractions = 'Views and shares per post';
+  static const statsGraphReactions = 'Reactions per post';
+  static const statsGraphInstantViews = 'Instant View opens';
+
+  // The Content tab, and one post's own screen.
+  static const statsRecentPosts = 'Recent posts';
+  static const statsContentEmpty = 'No posts in this period.';
+  static const statsPostFallback = 'Post';
+  static const statsPostTitle = 'Post analytics';
+  static const statsPostUnavailable =
+      "Telegram doesn't have analytics for this post.";
+  static const statsPostInteractions = 'Views and shares';
+  static const statsPostReactions = 'Reactions';
+  static const statsPublicShares = 'Shared by';
+  static const statsPublicSharesEmpty =
+      'Nobody has shared this to a public channel yet.';
+
+  /// Takes the already-abbreviated count, the way every other count-bearing
+  /// string here does — the formatting is `TimeUtils.formatCount`'s job.
+  static String statsSharedViews(String count) => '$count views';
+
+  // Spoken labels. Every figure on this screen is a number next to a word, and
+  // a screen reader needs them read as one thing rather than as two.
+  /// A count-bearing noun, said the way [a11yViews] is — "12 shares".
+  static const a11yShares = 'shares';
+  static const a11yChannelAnalytics = 'Channel analytics';
+  static const a11yPostAnalytics = 'Post analytics';
+  static const a11yStatsRising = 'up';
+  static const a11yStatsFalling = 'down';
+
+  static String a11yStatFigure(String label, String value) => '$label: $value';
+
+  static String a11yStatChange(String direction, String percent) =>
+      '$direction $percent% on the previous period';
+
+  static String a11yStatChart(String title) => '$title chart';
+
   static const chatStateSending = 'Sending';
   static const chatStateSent = 'Sent';
   static const chatStateRead = 'Read';

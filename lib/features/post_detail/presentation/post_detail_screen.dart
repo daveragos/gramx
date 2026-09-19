@@ -25,6 +25,8 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
+import 'package:gramx/features/stats/presentation/post_stats_screen.dart';
+import 'package:gramx/features/stats/presentation/stats_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
@@ -602,6 +604,27 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: PostActionBar(
                             post: post,
                             secondaryColor: secondaryColor,
+                            // figure under your own post opens its analytics.
+                            // Offered only where Telegram says there are any —
+                            // one offline `getMessageProperties` for the post
+                            // on screen, never one per card in a list.
+                            onViewsTap:
+                                ref
+                                        .watch(
+                                          canViewPostStatsProvider((
+                                            chatId: post.chatId,
+                                            messageId: post.messageId,
+                                          )),
+                                        )
+                                        .value ==
+                                    true
+                                ? () => context.push(
+                                    PostStatsScreen.routeFor(
+                                      post.chatId,
+                                      post.messageId,
+                                    ),
+                                  )
+                                : null,
                             onBookmarkTap: () {
                               ref
                                   .read(optimisticPostUpdatesProvider.notifier)

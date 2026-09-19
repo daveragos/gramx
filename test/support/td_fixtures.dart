@@ -1130,4 +1130,162 @@ abstract class TdFixtures {
     }
     return td.Message.fromJson(json);
   }
+
+  // ── Statistics ─────────────────────────────────────────────────────────────
+
+  /// A `statisticalValue`, the shape every headline figure arrives in.
+  static Map<String, dynamic> statisticalValueJson({
+    required double value,
+    double previousValue = 0,
+    double growthRatePercentage = 0,
+  }) => {
+    '@type': 'statisticalValue',
+    'value': value,
+    'previous_value': previousValue,
+    'growth_rate_percentage': growthRatePercentage,
+  };
+
+  /// A graph Telegram sent the data for.
+  static Map<String, dynamic> graphDataJson(
+    String jsonData, {
+    String zoomToken = '',
+  }) => {
+    '@type': 'statisticalGraphData',
+    'json_data': jsonData,
+    'zoom_token': zoomToken,
+  };
+
+  /// A graph Telegram sent a token for instead — the common case, and the one
+  /// the lazy loading in `StatSection` exists for.
+  static Map<String, dynamic> graphAsyncJson(String token) => {
+    '@type': 'statisticalGraphAsync',
+    'token': token,
+  };
+
+  static Map<String, dynamic> graphErrorJson(String message) => {
+    '@type': 'statisticalGraphError',
+    'error_message': message,
+  };
+
+  /// The chart payload itself, as the string TDLib nests it as.
+  static String chartJson({
+    List<int> timestamps = const [1719792000000, 1719878400000],
+    Map<String, List<num>> series = const {
+      'y0': [10, 20],
+    },
+    Map<String, String> types = const {'y0': 'line'},
+    Map<String, String> names = const {'y0': 'Members'},
+    Map<String, String> colors = const {'y0': '#4BC7C1'},
+    bool percentage = false,
+    bool stacked = false,
+  }) {
+    return jsonEncode({
+      'columns': [
+        ['x', ...timestamps],
+        for (final entry in series.entries) [entry.key, ...entry.value],
+      ],
+      'types': {'x': 'x', ...types},
+      'names': names,
+      'colors': colors,
+      'percentage': percentage,
+      'stacked': stacked,
+    });
+  }
+
+  /// One row of `recent_interactions`.
+  static Map<String, dynamic> interactionJson({
+    required int messageId,
+    int viewCount = 0,
+    int forwardCount = 0,
+    int reactionCount = 0,
+    bool isStory = false,
+  }) => {
+    '@type': 'chatStatisticsInteractionInfo',
+    'object_type': isStory
+        ? {'@type': 'chatStatisticsObjectTypeStory', 'story_id': messageId}
+        : {'@type': 'chatStatisticsObjectTypeMessage', 'message_id': messageId},
+    'view_count': viewCount,
+    'forward_count': forwardCount,
+    'reaction_count': reactionCount,
+  };
+
+  /// A channel's statistics.
+  ///
+  /// Every graph defaults to an async token, because that is what TDLib
+  /// actually sends; pass one in to test the resolved path.
+  static td.ChatStatisticsChannel channelStatistics({
+    int startDate = 1719792000,
+    int endDate = 1727654400,
+    Map<String, dynamic>? memberCount,
+    Map<String, dynamic>? meanViewCount,
+    Map<String, dynamic>? meanShareCount,
+    Map<String, dynamic>? meanReactionCount,
+    double enabledNotificationsPercentage = 42.5,
+    Map<String, dynamic>? memberCountGraph,
+    Map<String, dynamic>? messageInteractionGraph,
+    List<Map<String, dynamic>> recentInteractions = const [],
+  }) {
+    final async = graphAsyncJson('token');
+    final value = statisticalValueJson(value: 0);
+
+    return td.ChatStatisticsChannel.fromJson({
+      '@type': 'chatStatisticsChannel',
+      'period': {
+        '@type': 'dateRange',
+        'start_date': startDate,
+        'end_date': endDate,
+      },
+      'member_count': memberCount ?? value,
+      'mean_message_view_count': meanViewCount ?? value,
+      'mean_message_share_count': meanShareCount ?? value,
+      'mean_message_reaction_count': meanReactionCount ?? value,
+      'mean_story_view_count': value,
+      'mean_story_share_count': value,
+      'mean_story_reaction_count': value,
+      'enabled_notifications_percentage': enabledNotificationsPercentage,
+      'member_count_graph': memberCountGraph ?? async,
+      'join_graph': async,
+      'mute_graph': async,
+      'view_count_by_hour_graph': async,
+      'view_count_by_source_graph': async,
+      'join_by_source_graph': async,
+      'language_graph': async,
+      'message_interaction_graph': messageInteractionGraph ?? async,
+      'message_reaction_graph': async,
+      'story_interaction_graph': async,
+      'story_reaction_graph': async,
+      'instant_view_interaction_graph': async,
+      'recent_interactions': recentInteractions,
+    });
+  }
+
+  /// A supergroup's statistics — the variant the channel screen must refuse.
+  static td.ChatStatisticsSupergroup supergroupStatistics() {
+    final async = graphAsyncJson('token');
+    final value = statisticalValueJson(value: 0);
+
+    return td.ChatStatisticsSupergroup.fromJson({
+      '@type': 'chatStatisticsSupergroup',
+      'period': {
+        '@type': 'dateRange',
+        'start_date': 0,
+        'end_date': 1,
+      },
+      'member_count': value,
+      'message_count': value,
+      'viewer_count': value,
+      'sender_count': value,
+      'member_count_graph': async,
+      'join_graph': async,
+      'join_by_source_graph': async,
+      'language_graph': async,
+      'message_content_graph': async,
+      'action_graph': async,
+      'day_graph': async,
+      'week_graph': async,
+      'top_senders': const [],
+      'top_administrators': const [],
+      'top_inviters': const [],
+    });
+  }
 }

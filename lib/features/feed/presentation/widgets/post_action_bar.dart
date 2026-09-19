@@ -25,6 +25,14 @@ class PostActionBar extends ConsumerWidget {
   /// between a control that is available and one that is in the way.
   final Widget? trailing;
 
+  /// Opens this post's analytics, on the one surface where there are any.
+  ///
+  /// Null everywhere else, and that is the whole point: the view count went
+  /// from a button to a plain figure in T3-6 precisely because it looked
+  /// pressable and did nothing. It becomes a control again only where Telegram
+  /// says the numbers exist — see `StatsRepository.canViewPostStats` — which is
+  final VoidCallback? onViewsTap;
+
   const PostActionBar({
     super.key,
     required this.post,
@@ -34,6 +42,7 @@ class PostActionBar extends ConsumerWidget {
     required this.onReplyTap,
     required this.onShareTap,
     this.trailing,
+    this.onViewsTap,
   });
 
   Future<void> _forward(BuildContext context) async {
@@ -112,14 +121,24 @@ class PostActionBar extends ConsumerWidget {
                 semanticLabel: AppStrings.a11yReactionsReadOnly,
               ),
 
-        // View count — also a statistic. It was rendered as a button with no
-        // onTap, so it looked pressable and wasn't.
-        PostStat(
-          icon: Icons.bar_chart,
-          count: post.viewCount,
-          color: secondaryColor,
-          semanticLabel: AppStrings.a11yViews,
-        ),
+        // View count. A plain figure by default — it was rendered as a button
+        // with no onTap once, so it looked pressable and wasn't. Where the
+        // post's analytics genuinely open, it is a button again.
+        onViewsTap != null
+            ? PostActionButton(
+                icon: Icons.bar_chart,
+                count: post.viewCount,
+                color: secondaryColor,
+                activeColor: AppColors.accent,
+                semanticLabel: AppStrings.a11yPostAnalytics,
+                onTap: onViewsTap,
+              )
+            : PostStat(
+                icon: Icons.bar_chart,
+                count: post.viewCount,
+                color: secondaryColor,
+                semanticLabel: AppStrings.a11yViews,
+              ),
 
         // Bookmark & Share Row
         Row(

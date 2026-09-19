@@ -24,6 +24,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
+import 'package:gramx/features/stats/presentation/channel_stats_screen.dart';
 
 /// the pinned post, then tabs over the channel's own content.
 ///
@@ -304,6 +305,18 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
           style: AppTypography.heading(color: primaryColor),
         ),
         actions: [
+          // Analytics, for the person who runs this channel and nobody else.
+          // `canViewStatistics` is Telegram's own answer — it is false for a
+          // reader, for a guest channel, and for a channel too small for
+          // Telegram to produce statistics on — so this control is absent
+          // rather than present and refused.
+          if (channel?.canViewStatistics == true)
+            IconButton(
+              tooltip: AppStrings.a11yChannelAnalytics,
+              onPressed: () =>
+                  context.push(ChannelStatsScreen.routeFor(channel!.chatId)),
+              icon: Icon(Icons.bar_chart_rounded, color: primaryColor),
+            ),
           IconButton(
             tooltip: isMuted
                 ? (mutedUntil != null

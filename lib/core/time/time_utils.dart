@@ -54,6 +54,32 @@ abstract class TimeUtils {
     return DateFormat('MMM d').format(deadline);
   }
 
+  /// A calendar date, said the short way: `Jun 7`, and `Jun 7, 2024` once it
+  /// is not this year.
+  ///
+  /// Unlike [relativeTime] this never collapses into `2h` — a statistics
+  /// period and a chart axis are about *when*, and "now" is not a position on
+  /// an axis.
+  static String shortDate(DateTime dateTime, {DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    if (dateTime.year == reference.year) {
+      return DateFormat('MMM d').format(dateTime);
+    }
+    return DateFormat('MMM d, yyyy').format(dateTime);
+  }
+
+  /// One label on a chart's x axis.
+  ///
+  /// The unit is chosen from how much time the whole axis covers, because the
+  /// graph itself never says: Telegram sends every statistics axis as
+  /// millisecond timestamps, including the one that means "hour of the day".
+  /// Labelling that one `Jun 7` twenty-four times is the failure this avoids.
+  static String axisLabel(DateTime dateTime, Duration span, {DateTime? now}) {
+    if (span.inHours <= 48) return DateFormat('HH:mm').format(dateTime);
+    if (span.inDays > 365) return DateFormat('MMM yyyy').format(dateTime);
+    return shortDate(dateTime, now: now);
+  }
+
   /// Formats a count: 1000 -> '1K', 1000000 -> '1M'
   static String formatCount(int count) {
     if (count < 1000) return count.toString();

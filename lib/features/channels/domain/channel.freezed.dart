@@ -15,7 +15,17 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Channel {
 
- String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; bool get isJoined; DateTime? get lastPostAt;
+ String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; bool get isJoined;/// Whether Telegram will produce statistics for this channel.
+///
+/// `SupergroupFullInfo.canGetStatistics`, which is true only for somebody
+/// who administers the channel and only once it is past a member threshold
+/// Telegram sets. It decides whether the Analytics entry exists at all —
+/// the alternative was a menu item that opens onto an error, which is the
+/// inert control the hard rules forbid.
+///
+/// False whenever full info was not fetched, and always false for a guest
+/// channel: it costs no request to answer "no".
+ bool get canViewStatistics; DateTime? get lastPostAt;
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +38,16 @@ $ChannelCopyWith<Channel> get copyWith => _$ChannelCopyWithImpl<Channel>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.canViewStatistics, canViewStatistics) || other.canViewStatistics == canViewStatistics)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,lastPostAt);
+int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,canViewStatistics,lastPostAt);
 
 @override
 String toString() {
-  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, lastPostAt: $lastPostAt)';
+  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, canViewStatistics: $canViewStatistics, lastPostAt: $lastPostAt)';
 }
 
 
@@ -48,7 +58,7 @@ abstract mixin class $ChannelCopyWith<$Res>  {
   factory $ChannelCopyWith(Channel value, $Res Function(Channel) _then) = _$ChannelCopyWithImpl;
 @useResult
 $Res call({
- String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, DateTime? lastPostAt
+ String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, bool canViewStatistics, DateTime? lastPostAt
 });
 
 
@@ -65,7 +75,7 @@ class _$ChannelCopyWithImpl<$Res>
 
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? lastPostAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? canViewStatistics = null,Object? lastPostAt = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -81,6 +91,7 @@ as bool,isFavorite: null == isFavorite ? _self.isFavorite : isFavorite // ignore
 as bool,isMuted: null == isMuted ? _self.isMuted : isMuted // ignore: cast_nullable_to_non_nullable
 as bool,isHidden: null == isHidden ? _self.isHidden : isHidden // ignore: cast_nullable_to_non_nullable
 as bool,isJoined: null == isJoined ? _self.isJoined : isJoined // ignore: cast_nullable_to_non_nullable
+as bool,canViewStatistics: null == canViewStatistics ? _self.canViewStatistics : canViewStatistics // ignore: cast_nullable_to_non_nullable
 as bool,lastPostAt: freezed == lastPostAt ? _self.lastPostAt : lastPostAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));
@@ -167,10 +178,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  bool canViewStatistics,  DateTime? lastPostAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Channel() when $default != null:
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.canViewStatistics,_that.lastPostAt);case _:
   return orElse();
 
 }
@@ -188,10 +199,10 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  bool canViewStatistics,  DateTime? lastPostAt)  $default,) {final _that = this;
 switch (_that) {
 case _Channel():
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.canViewStatistics,_that.lastPostAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -208,10 +219,10 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  DateTime? lastPostAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int chatId,  String title,  String? username,  String? description,  String? avatarUrl,  int? avatarFileId,  String? avatarColor,  int subscriberCount,  bool isVerified,  bool isFavorite,  bool isMuted,  bool isHidden,  bool isJoined,  bool canViewStatistics,  DateTime? lastPostAt)?  $default,) {final _that = this;
 switch (_that) {
 case _Channel() when $default != null:
-return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.lastPostAt);case _:
+return $default(_that.id,_that.chatId,_that.title,_that.username,_that.description,_that.avatarUrl,_that.avatarFileId,_that.avatarColor,_that.subscriberCount,_that.isVerified,_that.isFavorite,_that.isMuted,_that.isHidden,_that.isJoined,_that.canViewStatistics,_that.lastPostAt);case _:
   return null;
 
 }
@@ -223,7 +234,7 @@ return $default(_that.id,_that.chatId,_that.title,_that.username,_that.descripti
 @JsonSerializable()
 
 class _Channel implements Channel {
-  const _Channel({required this.id, required this.chatId, required this.title, this.username, this.description, this.avatarUrl, this.avatarFileId, this.avatarColor, this.subscriberCount = 0, this.isVerified = false, this.isFavorite = false, this.isMuted = false, this.isHidden = false, this.isJoined = true, this.lastPostAt});
+  const _Channel({required this.id, required this.chatId, required this.title, this.username, this.description, this.avatarUrl, this.avatarFileId, this.avatarColor, this.subscriberCount = 0, this.isVerified = false, this.isFavorite = false, this.isMuted = false, this.isHidden = false, this.isJoined = true, this.canViewStatistics = false, this.lastPostAt});
   factory _Channel.fromJson(Map<String, dynamic> json) => _$ChannelFromJson(json);
 
 @override final  String id;
@@ -240,6 +251,17 @@ class _Channel implements Channel {
 @override@JsonKey() final  bool isMuted;
 @override@JsonKey() final  bool isHidden;
 @override@JsonKey() final  bool isJoined;
+/// Whether Telegram will produce statistics for this channel.
+///
+/// `SupergroupFullInfo.canGetStatistics`, which is true only for somebody
+/// who administers the channel and only once it is past a member threshold
+/// Telegram sets. It decides whether the Analytics entry exists at all —
+/// the alternative was a menu item that opens onto an error, which is the
+/// inert control the hard rules forbid.
+///
+/// False whenever full info was not fetched, and always false for a guest
+/// channel: it costs no request to answer "no".
+@override@JsonKey() final  bool canViewStatistics;
 @override final  DateTime? lastPostAt;
 
 /// Create a copy of Channel
@@ -255,16 +277,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Channel&&(identical(other.id, id) || other.id == id)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.title, title) || other.title == title)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description)&&(identical(other.avatarUrl, avatarUrl) || other.avatarUrl == avatarUrl)&&(identical(other.avatarFileId, avatarFileId) || other.avatarFileId == avatarFileId)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.subscriberCount, subscriberCount) || other.subscriberCount == subscriberCount)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.isFavorite, isFavorite) || other.isFavorite == isFavorite)&&(identical(other.isMuted, isMuted) || other.isMuted == isMuted)&&(identical(other.isHidden, isHidden) || other.isHidden == isHidden)&&(identical(other.isJoined, isJoined) || other.isJoined == isJoined)&&(identical(other.canViewStatistics, canViewStatistics) || other.canViewStatistics == canViewStatistics)&&(identical(other.lastPostAt, lastPostAt) || other.lastPostAt == lastPostAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,lastPostAt);
+int get hashCode => Object.hash(runtimeType,id,chatId,title,username,description,avatarUrl,avatarFileId,avatarColor,subscriberCount,isVerified,isFavorite,isMuted,isHidden,isJoined,canViewStatistics,lastPostAt);
 
 @override
 String toString() {
-  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, lastPostAt: $lastPostAt)';
+  return 'Channel(id: $id, chatId: $chatId, title: $title, username: $username, description: $description, avatarUrl: $avatarUrl, avatarFileId: $avatarFileId, avatarColor: $avatarColor, subscriberCount: $subscriberCount, isVerified: $isVerified, isFavorite: $isFavorite, isMuted: $isMuted, isHidden: $isHidden, isJoined: $isJoined, canViewStatistics: $canViewStatistics, lastPostAt: $lastPostAt)';
 }
 
 
@@ -275,7 +297,7 @@ abstract mixin class _$ChannelCopyWith<$Res> implements $ChannelCopyWith<$Res> {
   factory _$ChannelCopyWith(_Channel value, $Res Function(_Channel) _then) = __$ChannelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, DateTime? lastPostAt
+ String id, int chatId, String title, String? username, String? description, String? avatarUrl, int? avatarFileId, String? avatarColor, int subscriberCount, bool isVerified, bool isFavorite, bool isMuted, bool isHidden, bool isJoined, bool canViewStatistics, DateTime? lastPostAt
 });
 
 
@@ -292,7 +314,7 @@ class __$ChannelCopyWithImpl<$Res>
 
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? lastPostAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? chatId = null,Object? title = null,Object? username = freezed,Object? description = freezed,Object? avatarUrl = freezed,Object? avatarFileId = freezed,Object? avatarColor = freezed,Object? subscriberCount = null,Object? isVerified = null,Object? isFavorite = null,Object? isMuted = null,Object? isHidden = null,Object? isJoined = null,Object? canViewStatistics = null,Object? lastPostAt = freezed,}) {
   return _then(_Channel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -308,6 +330,7 @@ as bool,isFavorite: null == isFavorite ? _self.isFavorite : isFavorite // ignore
 as bool,isMuted: null == isMuted ? _self.isMuted : isMuted // ignore: cast_nullable_to_non_nullable
 as bool,isHidden: null == isHidden ? _self.isHidden : isHidden // ignore: cast_nullable_to_non_nullable
 as bool,isJoined: null == isJoined ? _self.isJoined : isJoined // ignore: cast_nullable_to_non_nullable
+as bool,canViewStatistics: null == canViewStatistics ? _self.canViewStatistics : canViewStatistics // ignore: cast_nullable_to_non_nullable
 as bool,lastPostAt: freezed == lastPostAt ? _self.lastPostAt : lastPostAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,
   ));

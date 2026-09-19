@@ -13,6 +13,8 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/channels/presentation/channel_profile_screen.dart';
+import 'package:gramx/features/stats/presentation/channel_stats_screen.dart';
+import 'package:gramx/features/stats/presentation/post_stats_screen.dart';
 import 'package:gramx/features/channels/presentation/channels_list_screen.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/conversation_screen.dart';
@@ -194,6 +196,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           final focusReply = state.uri.queryParameters['focusReply'] == 'true';
           return PostDetailScreen(postId: postId, autoFocusReply: focusReply);
         },
+      ),
+      // A channel's own numbers, for whoever runs it. Under the channel route
+      // rather than beside it: it is a view *of* that channel, and the path
+      // says so — see `ChannelStatsScreen`.
+      GoRoute(
+        path: ChannelStatsScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => ChannelStatsScreen(
+          channelId: state.pathParameters['channelId']!,
+        ),
+      ),
+      // under a post of your own.
+      GoRoute(
+        path: PostStatsScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) =>
+            PostStatsScreen(postId: state.pathParameters['postId']!),
       ),
       GoRoute(
         path: '/channel/:channelId',

@@ -127,6 +127,11 @@ class TdlibMappers {
       isMuted: false,
       isHidden: false,
       isJoined: isJoined,
+      // Only ever true when full info was fetched — the list of channels
+      // deliberately does not fetch it (see `ChannelRepository`), so a row
+      // there answers "no" and the profile, which does fetch it, answers for
+      // real.
+      canViewStatistics: fullInfo?.canGetStatistics ?? false,
     );
   }
 

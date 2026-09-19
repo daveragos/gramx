@@ -21,6 +21,7 @@ _Channel _$ChannelFromJson(Map<String, dynamic> json) => _Channel(
   isMuted: json['isMuted'] as bool? ?? false,
   isHidden: json['isHidden'] as bool? ?? false,
   isJoined: json['isJoined'] as bool? ?? true,
+  canViewStatistics: json['canViewStatistics'] as bool? ?? false,
   lastPostAt: json['lastPostAt'] == null
       ? null
       : DateTime.parse(json['lastPostAt'] as String),
@@ -41,5 +42,6 @@ Map<String, dynamic> _$ChannelToJson(_Channel instance) => <String, dynamic>{
   'isMuted': instance.isMuted,
   'isHidden': instance.isHidden,
   'isJoined': instance.isJoined,
+  'canViewStatistics': instance.canViewStatistics,
   'lastPostAt': instance.lastPostAt?.toIso8601String(),
 };
