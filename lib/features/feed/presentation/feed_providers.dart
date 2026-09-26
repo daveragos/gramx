@@ -540,6 +540,23 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(updated);
   }
 
+  /// Puts an edit the reader just made on the card, without re-fetching.
+  ///
+  /// Telegram has taken the new words by the time this is called, so the feed
+  /// simply says what Telegram now says. Formatting is dropped along with the
+  /// old text: the edit box shows plain text, so plain text is what was saved.
+  void updateTextLive(String postId, String text) {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.map((p) {
+      if (p.id == postId) {
+        return p.copyWith(text: text.isEmpty ? null : text, entities: const []);
+      }
+      return p;
+    }).toList();
+    state = AsyncData(updated);
+  }
+
   /// Optimistically mark a post as read without re-fetching the feed.
   void markReadOptimistic(String postId) {
     final current = state.value;
@@ -1021,6 +1038,23 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
       },
     };
   }
+
+  /// Records an edit the reader made, so the post screen and the thread show
+  /// the new words at once.
+  ///
+  /// An override rather than an invalidation, for the same reason reactions
+  /// are: refetching the post or the thread drops the screen back to a spinner
+  /// and loses the reader's place, for words Telegram has already accepted.
+  void setText(String postId, String text) {
+    final currentData = state[postId] ?? {};
+    state = {
+      ...state,
+      postId: {
+        ...currentData,
+        'text': text,
+      },
+    };
+  }
 }
 
 final optimisticPostUpdatesProvider =
@@ -1031,7 +1065,13 @@ final optimisticPostUpdatesProvider =
 Post applyPostOverrides(Post post, Map<String, Map<String, dynamic>> overrides) {
   final data = overrides[post.id];
   if (data == null) return post;
-  return post.copyWith(
+  final text = data['text'] as String?;
+  final edited = text == null
+      ? post
+      // Plain words replace formatted ones: the entities described the old
+      // text and would point at the wrong characters in the new.
+      : post.copyWith(text: text.isEmpty ? null : text, entities: const []);
+  return edited.copyWith(
     reactions: data['reactions'] as Map<String, int>? ?? post.reactions,
     chosenReactions: data['chosenReactions'] as Set<String>? ?? post.chosenReactions,
     isBookmarked: data['isBookmarked'] as bool? ?? post.isBookmarked,

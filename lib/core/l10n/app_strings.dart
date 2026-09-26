@@ -105,6 +105,11 @@ abstract class AppStrings {
       "This post is in a channel you're not in, or it has been deleted. "
       'It may still open in Telegram.';
   static const postOpenInTelegram = 'Open in Telegram';
+  static const postMenuCopyLink = 'Copy link';
+  static const postMenuTooltip = 'More';
+  static String postMenuMute(String channel) => 'Mute $channel';
+  static String postMenuUnmute(String channel) => 'Unmute $channel';
+  static String postMenuLeave(String channel) => 'Leave $channel';
 
   /// Content nothing here can draw, whichever way the reader got to it.
   ///
@@ -316,6 +321,7 @@ abstract class AppStrings {
       'device signed in to your Telegram. A private channel needs a fresh '
       'invite to get back into.';
   static const channelLeaveConfirmAction = 'Leave';
+  static const channelLeaveFailed = 'Could not leave the channel.';
   static const channelLeaveCancelAction = 'Stay';
 
   // ── Muting ─────────────────────────────────────────────────────────────────
@@ -643,6 +649,7 @@ abstract class AppStrings {
   static const videoUnmute = 'Unmute';
 
   // ── Spoilers ───────────────────────────────────────────────────────────────
+  static const spoilerLabel = 'Spoiler';
   static const spoilerHidden = 'Hidden by a spoiler';
   static const spoilerTapToReveal = 'Tap to reveal';
 

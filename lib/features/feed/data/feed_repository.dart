@@ -1347,8 +1347,23 @@ class FeedRepository {
       );
 
       if (res is td.Messages && res.messages.isNotEmpty) {
-        final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
-        if (chatObj is! td.Chat) return [];
+        // The chat the comments are *in* — the channel's discussion group —
+        // not the channel they hang off. Mapped against the channel, every
+        // comment carried the channel's chat id with the group's message id:
+        // a reaction on one went to a message the channel does not have, a
+        // reply to another comment read as a reply into a different chat,
+        // and the live refresh compared the group's updates against the
+        // channel's id and never matched. TDLib has already told the cache
+        // about the group by the time its history has been fetched.
+        final threadChatId = res.messages.first.chatId;
+        var chatObj = _chatCache.chat(threadChatId);
+        if (chatObj == null) {
+          final fetched = await _tdlib.sendRequest(
+            td.GetChat(chatId: threadChatId),
+          );
+          if (fetched is td.Chat) chatObj = fetched;
+        }
+        if (chatObj == null) return [];
 
         // Collect all unique userIds and senderChatIds
         final userIds = <int>{};

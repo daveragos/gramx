@@ -216,14 +216,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isSearching = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
-  }
-
+  // No focus on arrival. The tab used to raise the keyboard every time it was
+  // opened, which put it over the Explore page the reader had come to look at;
+  // still lands in the field through searchFocusTriggerProvider.
   @override
   void dispose() {
     _controller.dispose();
@@ -340,7 +335,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              autofocus: true,
               onChanged: _onQueryChanged,
               style: AppTypography.body(color: primaryColor),
               decoration: InputDecoration(

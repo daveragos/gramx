@@ -190,11 +190,19 @@ class PostVisibilityReporter extends ConsumerStatefulWidget {
 
 class _PostVisibilityReporterState
     extends ConsumerState<PostVisibilityReporter> {
+  // `ref` is unusable by the time dispose() runs, so the notifier is captured
+  // while the widget is still mounted.
+  late final FeedFocusController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ref.read(feedFocusControllerProvider.notifier);
+  }
+
   @override
   void dispose() {
-    ref
-        .read(feedFocusControllerProvider.notifier)
-        .reportDisposed(widget.postId);
+    _controller.reportDisposed(widget.postId);
     super.dispose();
   }
 

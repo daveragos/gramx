@@ -25,6 +25,8 @@ import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
+import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 
 class PostCard extends ConsumerWidget {
   final Post post;
@@ -216,8 +218,11 @@ class PostCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title + Username + Timestamp Header Row
+                        // "…" pinned to the far edge.
                         Row(
+                          children: [
+                            Expanded(
+                              child: Row(
                           children: [
                             Flexible(
                               child: GestureDetector(
@@ -280,6 +285,14 @@ class PostCard extends ConsumerWidget {
                                  ),
                                ),
                              ],
+                          ],
+                              ),
+                            ),
+                            _MoreButton(
+                              color: secondaryColor,
+                              onTap: () =>
+                                  PostMenuSheet.show(context, ref, post),
+                            ),
                           ],
                         ),
 
@@ -374,70 +387,16 @@ class PostCard extends ConsumerWidget {
                               context, post.channelId),
                         ),
 
-                        // Horizontal Reactions Scroll Bar
+                        // Reactions. Telegram's, drawn quietly — see
+                        // ReactionChipsRow for why they are not a second
+                        // action bar.
                         if (post.reactions.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          // Swallows taps so scrolling the reaction strip, or
-                          // missing a chip, doesn't open the post. Not a
-                          // control: it has no affordance of its own.
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {},
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              child: Row(
-                                children: post.reactions.entries.map((entry) {
-                                  final emoji = entry.key;
-                                  final count = entry.value;
-                                  final isChosen = post.chosenReactions.contains(emoji);
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: InkWell(
-                                      onTap: () => defaultReactionHandler(emoji),
-                                      borderRadius: BorderRadius.circular(16),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 150),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: isChosen
-                                              ? AppColors.accent.withValues(alpha: 0.18)
-                                              : (isDark
-                                                  ? AppColors.darkSurfaceVariant
-                                                  : Colors.grey.shade100),
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(
-                                            color: isChosen
-                                                ? AppColors.accent
-                                                : (isDark
-                                                    ? AppColors.darkBorder
-                                                    : AppColors.lightBorder),
-                                            width: isChosen ? 1.2 : 0.5,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(emoji,
-                                                style: const TextStyle(
-                                                    fontSize: 14)),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              TimeUtils.formatCount(count),
-                                              style: AppTypography.actionCount(
-                                                  color: isChosen ? AppColors.accent : secondaryColor).copyWith(
-                                                fontWeight: isChosen ? FontWeight.bold : FontWeight.normal,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
+                          ReactionChipsRow(
+                            reactions: post.reactions,
+                            chosen: post.chosenReactions,
+                            onTap: defaultReactionHandler,
+                            compact: true,
                           ),
                         ],
 
@@ -550,6 +509,34 @@ class _OpenInTelegramButton extends ConsumerWidget {
             );
           }
         },
+      ),
+    );
+  }
+}
+
+/// The "…" at the top right of every card.
+///
+/// Drawn small and in secondary grey so it reads as furniture, not as one of
+/// the post's actions; the hit target is the full row height so it can still
+/// be found with a thumb.
+class _MoreButton extends StatelessWidget {
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MoreButton({required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: AppStrings.postMenuTooltip,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, 0, AppSpacing.xs),
+          child: Icon(Icons.more_horiz_rounded, size: 18, color: color),
+        ),
       ),
     );
   }

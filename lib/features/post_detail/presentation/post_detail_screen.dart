@@ -13,6 +13,7 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
@@ -20,6 +21,7 @@ import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_attachment_strip.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_media_kind_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
+import 'package:gramx/features/compose/presentation/widgets/composer_tools.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -36,6 +38,10 @@ import 'package:gramx/features/feed/presentation/widgets/reaction_control.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
+import 'package:gramx/app/widgets/app_sheet.dart';
+import 'package:gramx/app/widgets/edit_text_dialog.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   final String postId;
@@ -63,6 +69,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final List<ComposeAttachment> _attachments = [];
 
   bool _isSending = false;
+
+  /// Whether the reader unfolded the attach and sticker buttons while typing.
+  /// See [CollapsibleComposerTools].
+  bool _commentToolsExpanded = false;
 
   StreamSubscription<LivePostUpdate>? _liveSub;
   Timer? _refreshDebounce;
@@ -257,6 +267,101 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     }
   }
 
+  /// The long-press menu on a comment: reply, copy, and — for the reader's
+  /// own — edit.
+  ///
+  /// Gated the way the conversation's is, on what Telegram says may be done
+  /// to this message, so Edit appears only where the edit will be taken. The
+  /// sheet chooses and this method acts, with the screen's own context.
+  Future<void> _openCommentActions(Post comment) async {
+    HapticFeedback.mediumImpact();
+    final rights = await ref
+        .read(chatsRepositoryProvider)
+        .messageActions(chatId: comment.chatId, messageId: comment.messageId);
+    if (!mounted) return;
+
+    final text = comment.text;
+    final choice = await showAppSheet<_CommentAction>(
+      context,
+      haptic: false,
+      children: [
+        if (rights.canReply)
+          const AppSheetRow<_CommentAction>(
+            icon: Icons.reply_rounded,
+            label: AppStrings.chatActionReply,
+            value: _CommentAction.reply,
+          ),
+        if (text != null && text.isNotEmpty)
+          const AppSheetRow<_CommentAction>(
+            icon: Icons.copy_rounded,
+            label: AppStrings.chatActionCopy,
+            value: _CommentAction.copy,
+          ),
+        if (rights.canEdit)
+          const AppSheetRow<_CommentAction>(
+            icon: Icons.edit_outlined,
+            label: AppStrings.chatActionEdit,
+            value: _CommentAction.edit,
+          ),
+      ],
+    );
+    if (choice == null || !mounted) return;
+
+    switch (choice) {
+      case _CommentAction.reply:
+        setState(() => _replyTargetPost = comment);
+        _commentFocusNode.requestFocus();
+      case _CommentAction.copy:
+        await Clipboard.setData(ClipboardData(text: text ?? ''));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(AppStrings.chatCopied),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      case _CommentAction.edit:
+        await _editComment(comment);
+    }
+  }
+
+  /// Rewrites a comment's words. The thread shows the new words at once from
+  /// the same override reactions use; nothing is refetched.
+  Future<void> _editComment(Post comment) async {
+    final isCaption = comment.media.isNotEmpty;
+    final updated = await EditTextDialog.show(
+      context,
+      initialText: comment.text ?? '',
+      title: AppStrings.commentEditTitle,
+      allowsEmpty: isCaption,
+    );
+    if (updated == null || !mounted) return;
+
+    final ok = await ref
+        .read(chatsRepositoryProvider)
+        .editText(
+          chatId: comment.chatId,
+          messageId: comment.messageId,
+          text: updated,
+          isCaption: isCaption,
+        );
+    if (!mounted) return;
+
+    if (ok) {
+      ref
+          .read(optimisticPostUpdatesProvider.notifier)
+          .setText(comment.id, updated);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? AppStrings.chatEditSaved : AppStrings.chatEditFailed,
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final postAsync = ref.watch(postDetailProvider(widget.postId));
@@ -375,6 +480,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                         ],
                                       ),
                                     ),
+                                    // The same "…" the card in the feed has,
+                                    // so a post can be edited, muted or
+                                    // linked from the screen that shows it
+                                    // whole — not only from the feed.
+                                    IconButton(
+                                      tooltip: AppStrings.postMenuTooltip,
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () =>
+                                          PostMenuSheet.show(context, ref, post),
+                                      icon: Icon(
+                                        Icons.more_horiz_rounded,
+                                        color: secondaryColor,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -436,89 +555,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 onOpenAuthor: () =>
                                     context.push('/channel/${post.channelId}'),
                               ),
-                              // Horizontal Reactions Scroll Bar
                               if (post.reactions.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.sm),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    children: post.reactions.entries.map((
-                                      entry,
-                                    ) {
-                                      final emoji = entry.key;
-                                      final count = entry.value;
-                                      final isChosen = post.chosenReactions
-                                          .contains(emoji);
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 6,
-                                        ),
-                                        child: InkWell(
-                                          onTap: () =>
-                                              _toggleReaction(post, emoji),
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          child: AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 150,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isChosen
-                                                  ? AppColors.accent.withValues(
-                                                      alpha: 0.18,
-                                                    )
-                                                  : (isDark
-                                                        ? AppColors
-                                                              .darkSurfaceVariant
-                                                        : Colors.grey.shade100),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: isChosen
-                                                    ? AppColors.accent
-                                                    : (isDark
-                                                          ? AppColors.darkBorder
-                                                          : AppColors
-                                                                .lightBorder),
-                                                width: isChosen ? 1.2 : 0.5,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  emoji,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  TimeUtils.formatCount(count),
-                                                  style:
-                                                      AppTypography.actionCount(
-                                                        color: isChosen
-                                                            ? AppColors.accent
-                                                            : secondaryColor,
-                                                      ).copyWith(
-                                                        fontWeight: isChosen
-                                                            ? FontWeight.bold
-                                                            : FontWeight.normal,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
+                                ReactionChipsRow(
+                                  reactions: post.reactions,
+                                  chosen: post.chosenReactions,
+                                  onTap: (emoji) =>
+                                      _toggleReaction(post, emoji),
                                 ),
                               ],
                               const SizedBox(height: AppSpacing.lg),
@@ -873,6 +916,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                 child: _buildXCommentItem(
                                                   context: context,
                                                   comment: sub,
+                                                  replyingTo: commentMap[sub.replyToMessageId],
                                                   isLast:
                                                       isLastSub &&
                                                       isLastTopComment,
@@ -982,6 +1026,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     required bool isDark,
     required Color primaryColor,
     required Color secondaryColor,
+
+    /// The comment this one answers, when it answers another *comment*.
+    ///
+    /// Every comment in a discussion thread replies to something: the ones
+    /// under the post reply to the post itself, which Telegram records as a
+    /// reply like any other. Drawn as one, every comment in the thread said
+    /// "Replying to" — to the post they were plainly under, or worse, to the
+    /// commenter's own name, since the target's author is never sent for a
+    /// reply inside one chat. So the line is drawn only for a reply to a
+    /// comment, and it names the comment's author, who is known here.
+    Post? replyingTo,
   }) {
     // A commenter is a person, and gramX has somewhere to put one now. The
     // channel screen is still where a comment posted *by a channel* leads,
@@ -995,7 +1050,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       }
     }
 
-    return IntrinsicHeight(
+    return GestureDetector(
+      // The long-press menu — reply, copy, edit. Translucent, so the taps
+      // inside (author, media, the action bar) keep working as they did.
+      behavior: HitTestBehavior.translucent,
+      onLongPress: () => _openCommentActions(comment),
+      child: IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1080,13 +1140,18 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
                   // A comment is already inside a thread, under a
                   // connector, inside this screen. The card form would be a
-                  // fourth box, so it stays the line whatever it has.
-                  ReplyTarget(
-                    post: comment,
-                    compact: true,
-                    onOpenPost: () => _openReplyTarget(context, comment),
-                    onOpenAuthor: openAuthor,
-                  ),
+                  // fourth box, so it stays the line whatever it has — and
+                  // it is drawn only for a reply to another comment, naming
+                  // that comment's author. See [replyingTo].
+                  if (replyingTo != null)
+                    ReplyTarget(
+                      post: comment.copyWith(
+                        replyToAuthorTitle: replyingTo.channelTitle,
+                      ),
+                      compact: true,
+                      onOpenPost: () => _openReplyTarget(context, comment),
+                      onOpenAuthor: openAuthor,
+                    ),
 
                   // Text Content
                   if (comment.text != null && comment.text!.isNotEmpty) ...[
@@ -1190,6 +1255,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -1271,28 +1337,45 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   // channel was about to answer itself.
                   _CommenterAvatar(),
                   const SizedBox(width: 6),
-                  IconButton(
-                    tooltip: AppStrings.chatAttach,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _isSending ? null : _attachToComment,
-                    icon: const Icon(
-                      Icons.add_circle_outline_rounded,
-                      color: AppColors.accent,
-                      size: 22,
+                  // Attach and stickers, folded into one chevron while there
+                  // are words in the field. With both out beside the avatar
+                  // the field was a slot two words wide — see
+                  // CollapsibleComposerTools.
+                  CollapsibleComposerTools(
+                    collapsed: composerToolsFolded(
+                      hasText: _commentController.text.isNotEmpty,
+                      expandedByHand: _commentToolsExpanded,
+                      toolCount: 2,
                     ),
-                  ),
-                  IconButton(
-                    tooltip: AppStrings.composeStickersTab,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _isSending
-                        ? null
-                        : () =>
-                              _sendStickerComment(post.chatId, post.messageId),
-                    icon: const Icon(
-                      Icons.emoji_emotions_outlined,
-                      color: AppColors.accent,
-                      size: 22,
-                    ),
+                    onExpand: () =>
+                        setState(() => _commentToolsExpanded = true),
+                    tools: [
+                      IconButton(
+                        tooltip: AppStrings.chatAttach,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _isSending ? null : _attachToComment,
+                        icon: const Icon(
+                          Icons.add_circle_outline_rounded,
+                          color: AppColors.accent,
+                          size: 22,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: AppStrings.chatStickers,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _isSending
+                            ? null
+                            : () => _sendStickerComment(
+                                post.chatId,
+                                post.messageId,
+                              ),
+                        icon: const Icon(
+                          Icons.emoji_emotions_outlined,
+                          color: AppColors.accent,
+                          size: 22,
+                        ),
+                      ),
+                    ],
                   ),
                   Expanded(
                     child: TextField(
@@ -1304,8 +1387,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       style: AppTypography.body(color: primaryColor),
                       // Rebuilds the send button's enabled state; the field
                       // itself stays uncontrolled, so this costs one setState
-                      // per keystroke and no request at all.
-                      onChanged: (_) => setState(() {}),
+                      // per keystroke and no request at all. An emptied field
+                      // unfolds the tools again for the next comment.
+                      onChanged: (value) => setState(() {
+                        if (value.isEmpty) _commentToolsExpanded = false;
+                      }),
                       decoration: InputDecoration(
                         hintText: _replyTargetPost != null
                             ? AppStrings.commentReplyHint
@@ -1490,3 +1576,7 @@ class _UnreachablePost extends StatelessWidget {
     );
   }
 }
+
+/// What the long-press menu on a comment offers. See
+/// `_PostDetailScreenState._openCommentActions`.
+enum _CommentAction { reply, copy, edit }

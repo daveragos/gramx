@@ -176,8 +176,11 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   }
 
   void _setPointers(int count) {
-    if (count == _pointers) return;
-    setState(() => _pointers = count);
+    // Never below zero: a cancel that arrives for a pointer already counted
+    // out would otherwise leave the gallery locked against swiping for good.
+    final next = count < 0 ? 0 : count;
+    if (next == _pointers) return;
+    setState(() => _pointers = next);
   }
 
   /// Snaps a picture back into place once the fingers leave.
@@ -187,8 +190,18 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   /// no obvious way back. At rest and unzoomed there is only one right
   /// position, so it takes it.
   void _onInteractionEnd(int index) {
+    final controller = _getController(index);
     if (_scaleOf(index) <= 1.01) {
-      _getController(index).value = Matrix4.identity();
+      controller.value = Matrix4.identity();
+    } else {
+      // Zoomed, the pan is unbounded while the finger is down — see the
+      // boundary margin below — so at rest the picture is brought back to
+      // where it still fills the screen. Without this a zoomed picture could
+      // be pushed off the edge and left there, black where it had been.
+      controller.value = keepCoveringViewport(
+        controller.value,
+        MediaQuery.sizeOf(context),
+      );
     }
     _syncZoomState(index);
   }
@@ -273,6 +286,14 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                 child: InteractiveViewer(
                   transformationController: _getController(index),
                   clipBehavior: Clip.none,
+                  // A picture at 1:1 has nowhere to pan to, so a drag is not
+                  // a pan — it is a swipe to the next picture, or the
+                  // pull-down that closes the viewer. Left enabled, any drag
+                  // that reached this recogniser first — a diagonal one, or
+                  // any drag at all on a single picture with no page to go
+                  // to — slid the picture sideways into the black. Zoomed,
+                  // panning is what a drag means and it comes back on.
+                  panEnabled: _isZoomed,
                   // Unbounded, so a zoomed picture can be dragged right to its
                   // own corner. The default pins the child's edges to the
                   // viewport, which is what made panning feel stuck halfway.
@@ -309,6 +330,27 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
       ),
     );
   }
+}
+
+/// A zoomed picture's transform, moved just enough that the picture still
+/// covers the screen.
+///
+/// The viewer pans without bounds while a finger is down, so a zoomed picture
+/// can be dragged anywhere; this is where it settles once the finger lifts.
+/// The picture's box is the viewport scaled by the zoom, and the rule is that
+/// no edge of that box may come inside the viewport's — so the translation is
+/// clamped to `[viewport × (1 − scale), 0]` on each axis. At 1:1 that is
+/// exactly no translation at all. Pure, so it can be checked without a
+/// gesture.
+Matrix4 keepCoveringViewport(Matrix4 transform, Size viewport) {
+  final scale = transform.getMaxScaleOnAxis();
+  final translation = transform.getTranslation();
+  final minX = viewport.width * (1 - scale);
+  final minY = viewport.height * (1 - scale);
+  final x = translation.x.clamp(minX > 0 ? 0.0 : minX, 0.0);
+  final y = translation.y.clamp(minY > 0 ? 0.0 : minY, 0.0);
+  if (x == translation.x && y == translation.y) return transform;
+  return transform.clone()..setTranslationRaw(x, y, translation.z);
 }
 
 /// One full-screen picture, from either source and at any stage of arriving.

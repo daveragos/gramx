@@ -342,6 +342,14 @@ class TextEntityRenderer extends StatelessWidget {
   }
 }
 
+/// Hidden text, until it is tapped.
+///
+/// Telegram's spoiler: the words are there, covered. The cover used to be a
+/// flat grey bar with nothing on it, which on a card read as a picture that
+/// had failed to load — a channel that hides a line of metadata behind one
+/// looked broken in every post. The cover now says what it is, with an eye
+/// and, where there is room, a word, and it takes the surface colour the rest
+/// of the card's boxes use rather than a grey from nowhere.
 class SpoilerWidget extends StatefulWidget {
   final String text;
   final TextStyle style;
@@ -358,26 +366,66 @@ class _SpoilerWidgetState extends State<SpoilerWidget> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final coverColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final coverColor = isDark
+        ? AppColors.darkSurfaceVariant
+        : AppColors.lightSurfaceVariant;
+    final hintColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    // A word fits on a cover that spans most of a line; a short spoiler gets
+    // the eye alone, which is still a sign that something is under it.
+    final showsWord = widget.text.length > 24;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _revealed = !_revealed;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: _revealed ? Colors.transparent : coverColor,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          widget.text,
-          style: widget.style.copyWith(
-            color: _revealed ? widget.style.color : Colors.transparent,
-            backgroundColor: _revealed ? Colors.transparent : coverColor,
+    return Semantics(
+      button: true,
+      label: _revealed
+          ? widget.text
+          : AppStrings.spoilerTapToReveal,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: () => setState(() => _revealed = !_revealed),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: _revealed ? Colors.transparent : coverColor,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
+                widget.text,
+                style: widget.style.copyWith(
+                  color: _revealed ? widget.style.color : Colors.transparent,
+                ),
+              ),
+              if (!_revealed)
+                Positioned.fill(
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.visibility_off_outlined,
+                          size: 14,
+                          color: hintColor,
+                        ),
+                        if (showsWord) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            AppStrings.spoilerLabel,
+                            style: widget.style.copyWith(
+                              color: hintColor,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

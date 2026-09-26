@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -311,6 +312,89 @@ class _BottomSheetChrome extends ConsumerWidget {
   }
 }
 
+/// A vertical drag that is only recognised when it is *mostly* vertical.
+///
+/// Flutter's own vertical recogniser accepts as soon as the pointer has moved
+/// past the touch slop along its axis, regardless of how far it moved along
+/// the other. In a gallery that is a race it wins too often: a page swipe
+/// that drifts eighteen points downward before it has gone eighteen sideways
+/// is a vertical drag as far as the arena is concerned. This one keeps its
+/// own account of the whole movement since the finger landed, and accepts
+/// only when the vertical part is clearly the larger — [dominance] times the
+/// horizontal. Anything more sideways than that is left for the page view.
+///
+/// [onlyAcceptDragOnThreshold] is on for the same reason: when nothing else
+/// wants a drag the arena hands it to its last member when the finger lifts,
+/// and without this that handover started a dismiss for a drag that never
+/// met the rule.
+class MostlyVerticalDragGestureRecognizer extends VerticalDragGestureRecognizer {
+  /// How much larger than the sideways movement the vertical movement has to
+  /// be. A touch more than equal, so a true diagonal goes to the page.
+  static const double dominance = 1.25;
+
+  MostlyVerticalDragGestureRecognizer({super.debugOwner, super.supportedDevices})
+    : super() {
+    onlyAcceptDragOnThreshold = true;
+  }
+
+  final Map<int, Offset> _downAt = <int, Offset>{};
+  final Map<int, Offset> _lastAt = <int, Offset>{};
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _downAt[event.pointer] = event.position;
+    _lastAt[event.pointer] = event.position;
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) _lastAt[event.pointer] = event.position;
+    super.handleEvent(event);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _downAt.clear();
+    _lastAt.clear();
+    super.didStopTrackingLastPointer(pointer);
+  }
+
+  /// The movement since the finger landed, across every tracked pointer.
+  Offset get _travelled {
+    var total = Offset.zero;
+    for (final entry in _lastAt.entries) {
+      total += entry.value - (_downAt[entry.key] ?? entry.value);
+    }
+    return total;
+  }
+
+  /// Pure, so the rule has a test of its own.
+  static bool isMostlyVertical(Offset travelled, double slop) =>
+      travelled.dy.abs() > slop &&
+      travelled.dy.abs() > travelled.dx.abs() * dominance;
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) {
+    if (!super.hasSufficientGlobalDistanceToAccept(
+      pointerDeviceKind,
+      deviceTouchSlop,
+    )) {
+      return false;
+    }
+    return isMostlyVertical(
+      _travelled,
+      computeHitSlop(pointerDeviceKind, gestureSettings),
+    );
+  }
+
+  @override
+  String get debugDescription => 'mostly vertical drag';
+}
+
 /// Lets a downward (or upward) drag close the viewer, the way every gallery
 /// does. The media follows the finger and fades, so a half-committed pull
 /// shows what letting go would do.
@@ -343,21 +427,35 @@ class _DragToDismissState extends State<DragToDismiss> {
     final height = MediaQuery.of(context).size.height;
     final progress = (_offset.abs() / height).clamp(0.0, 1.0);
 
-    return GestureDetector(
-      onVerticalDragStart: (_) => setState(() => _dragging = true),
-      onVerticalDragUpdate: (details) =>
-          setState(() => _offset += details.delta.dy),
-      onVerticalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (_offset.abs() > _dismissDistance ||
-            velocity.abs() > _dismissVelocity) {
-          Navigator.of(context).maybePop();
-          return;
-        }
-        setState(() {
-          _offset = 0;
-          _dragging = false;
-        });
+    // Not a plain vertical-drag detector. That one claims a drag the moment
+    // it has moved eighteen points up or down — before a swipe to the next
+    // picture has moved eighteen points sideways, if the thumb is at all
+    // diagonal — and then the picture slid down and faded instead of paging,
+    // and past the distance below the viewer closed on a swipe that was never
+    // meant for it. This recogniser only takes a drag that is clearly
+    // vertical, and leaves the rest to the gallery.
+    return RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory>{
+        MostlyVerticalDragGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<
+              MostlyVerticalDragGestureRecognizer
+            >(MostlyVerticalDragGestureRecognizer.new, (recognizer) {
+              recognizer.onStart = (_) => setState(() => _dragging = true);
+              recognizer.onUpdate = (details) =>
+                  setState(() => _offset += details.delta.dy);
+              recognizer.onEnd = (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (_offset.abs() > _dismissDistance ||
+                    velocity.abs() > _dismissVelocity) {
+                  Navigator.of(context).maybePop();
+                  return;
+                }
+                setState(() {
+                  _offset = 0;
+                  _dragging = false;
+                });
+              };
+            }),
       },
       child: AnimatedContainer(
         duration: _dragging ? Duration.zero : const Duration(milliseconds: 180),
