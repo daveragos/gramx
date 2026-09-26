@@ -14,7 +14,8 @@ class AuthTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool showBack = authState.step != AuthStep.loginMethodSelection &&
+    final bool showBack =
+        authState.step != AuthStep.loginMethodSelection &&
         authState.step != AuthStep.loading;
 
     return Padding(

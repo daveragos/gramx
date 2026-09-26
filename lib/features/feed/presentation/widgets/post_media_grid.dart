@@ -36,39 +36,50 @@ class PostMediaGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (media.isEmpty) return const SizedBox.shrink();
 
-    final docOrAudioItems = media.where((m) =>
-      m.type == MediaType.document ||
-      m.type == MediaType.audio ||
-      m.type == MediaType.voice
-    ).toList();
+    final docOrAudioItems = media
+        .where(
+          (m) =>
+              m.type == MediaType.document ||
+              m.type == MediaType.audio ||
+              m.type == MediaType.voice,
+        )
+        .toList();
 
-    final visualItems = media.where((m) =>
-      m.type == MediaType.photo ||
-      m.type == MediaType.video ||
-      m.type == MediaType.gif ||
-      m.type == MediaType.sticker
-    ).toList();
+    final visualItems = media
+        .where(
+          (m) =>
+              m.type == MediaType.photo ||
+              m.type == MediaType.video ||
+              m.type == MediaType.gif ||
+              m.type == MediaType.sticker,
+        )
+        .toList();
 
     final children = <Widget>[];
 
     // Build document or audio widgets
     for (final item in docOrAudioItems) {
       if (item.type == MediaType.document) {
-        children.add(Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: PostDocumentCard(item: item),
-        ));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: PostDocumentCard(item: item),
+          ),
+        );
       } else if (item.type == MediaType.audio || item.type == MediaType.voice) {
-        children.add(Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: PostAudioPlayer(item: item),
-        ));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: PostAudioPlayer(item: item),
+          ),
+        );
       }
     }
 
     // Build visual media grid if present
     if (visualItems.isNotEmpty) {
-      final borderColor = Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
+      final borderColor =
+          Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
       final items = visualItems.take(4).toList();
 
       children.add(
@@ -76,7 +87,10 @@ class PostMediaGrid extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: borderColor, width: AppSpacing.mediaBorderWidth),
+              border: Border.all(
+                color: borderColor,
+                width: AppSpacing.mediaBorderWidth,
+              ),
               borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
             ),
             child: ClipRRect(
@@ -99,7 +113,11 @@ class PostMediaGrid extends StatelessWidget {
   }
 
   Widget _buildGrid(
-      BuildContext context, List<MediaItem> items, List<MediaItem> allVisual, Color borderColor) {
+    BuildContext context,
+    List<MediaItem> items,
+    List<MediaItem> allVisual,
+    Color borderColor,
+  ) {
     switch (items.length) {
       case 1:
         return _buildSingleMedia(context, items[0], allVisual);
@@ -112,7 +130,11 @@ class PostMediaGrid extends StatelessWidget {
     }
   }
 
-  Widget _buildSingleMedia(BuildContext context, MediaItem item, List<MediaItem> allVisual) {
+  Widget _buildSingleMedia(
+    BuildContext context,
+    MediaItem item,
+    List<MediaItem> allVisual,
+  ) {
     return AspectRatio(
       aspectRatio: item.width > 0 && item.height > 0
           ? (item.width / item.height).clamp(0.5, 2.0)
@@ -121,32 +143,75 @@ class PostMediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildTwoMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
+  Widget _buildTwoMedia(
+    BuildContext context,
+    List<MediaItem> items,
+    List<MediaItem> allVisual,
+  ) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
+          Expanded(
+            child: _MediaTile(
+              item: items[0],
+              index: 0,
+              allMedia: allVisual,
+              post: post,
+            ),
+          ),
           const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
+          Expanded(
+            child: _MediaTile(
+              item: items[1],
+              index: 1,
+              allMedia: allVisual,
+              post: post,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildThreeMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
+  Widget _buildThreeMedia(
+    BuildContext context,
+    List<MediaItem> items,
+    List<MediaItem> allVisual,
+  ) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Row(
         children: [
-          Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
+          Expanded(
+            child: _MediaTile(
+              item: items[0],
+              index: 0,
+              allMedia: allVisual,
+              post: post,
+            ),
+          ),
           const SizedBox(width: AppSpacing.mediaGap),
           Expanded(
             child: Column(
               children: [
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[1],
+                    index: 1,
+                    allMedia: allVisual,
+                    post: post,
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual, post: post)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[2],
+                    index: 2,
+                    allMedia: allVisual,
+                    post: post,
+                  ),
+                ),
               ],
             ),
           ),
@@ -155,7 +220,11 @@ class PostMediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildFourMedia(BuildContext context, List<MediaItem> items, List<MediaItem> allVisual) {
+  Widget _buildFourMedia(
+    BuildContext context,
+    List<MediaItem> items,
+    List<MediaItem> allVisual,
+  ) {
     final hasMore = allVisual.length > 4;
     final extraCount = hasMore ? (allVisual.length - 3) : null;
 
@@ -166,9 +235,23 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[0], index: 0, allMedia: allVisual, post: post)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[0],
+                    index: 0,
+                    allMedia: allVisual,
+                    post: post,
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(child: _MediaTile(item: items[1], index: 1, allMedia: allVisual, post: post)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[1],
+                    index: 1,
+                    allMedia: allVisual,
+                    post: post,
+                  ),
+                ),
               ],
             ),
           ),
@@ -176,7 +259,14 @@ class PostMediaGrid extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(child: _MediaTile(item: items[2], index: 2, allMedia: allVisual, post: post)),
+                Expanded(
+                  child: _MediaTile(
+                    item: items[2],
+                    index: 2,
+                    allMedia: allVisual,
+                    post: post,
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.mediaGap),
                 Expanded(
                   child: _MediaTile(
@@ -208,9 +298,7 @@ String describeMedia(MediaItem item, int index, int total) {
     MediaType.audio => item.fileName ?? AppStrings.mediaAudio,
     MediaType.voice => AppStrings.mediaVoice,
   };
-  return total > 1
-      ? AppStrings.mediaPosition(kind, index + 1, total)
-      : kind;
+  return total > 1 ? AppStrings.mediaPosition(kind, index + 1, total) : kind;
 }
 
 class _MediaTile extends ConsumerWidget {
@@ -231,8 +319,12 @@ class _MediaTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
-    final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final bgColor = isDark
+        ? AppColors.darkSurface
+        : AppColors.lightSurfaceVariant;
+    final iconColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final heroTag = 'media_${item.id}_$index';
 
     final int? trackFileId = item.type == MediaType.video
@@ -242,7 +334,8 @@ class _MediaTile extends ConsumerWidget {
     // A photo obeys the auto-download preference; a video or GIF thumbnail is
     // a few kilobytes and is what makes the tile legible at all, so it always
     // loads. The setting is about photos, not about leaving grey boxes.
-    final autoDownload = item.type != MediaType.photo ||
+    final autoDownload =
+        item.type != MediaType.photo ||
         ref.watch(settingsProvider.select((s) => s.autoDownloadImagesEnabled));
 
     FileDownloadProgressState? downloadState;
@@ -257,12 +350,16 @@ class _MediaTile extends ConsumerWidget {
 
     // Guest media has no TDLib file id — it is an https URL that
     // resolveMediaPath caches to disk, so the tile below still loads a file.
-    final String? resolvedPath = downloadState?.localPath ??
+    final String? resolvedPath =
+        downloadState?.localPath ??
         _tryResolvePath(item) ??
         (trackFileId == null || trackFileId == 0
             ? resolveMediaPath(ref, rawPath: item.thumbnailUrl ?? item.url)
             : null);
-    final isDownloaded = resolvedPath != null && resolvedPath.isNotEmpty && File(resolvedPath).existsSync();
+    final isDownloaded =
+        resolvedPath != null &&
+        resolvedPath.isNotEmpty &&
+        File(resolvedPath).existsSync();
 
     Widget contentWidget;
 
@@ -278,7 +375,8 @@ class _MediaTile extends ConsumerWidget {
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
-          errorBuilder: (context, error, stackTrace) => _buildPlaceholder(bgColor, iconColor),
+          errorBuilder: (context, error, stackTrace) =>
+              _buildPlaceholder(bgColor, iconColor),
         ),
       );
 
@@ -421,7 +519,8 @@ class _MediaTile extends ConsumerWidget {
           switchOutCurve: Curves.easeOut,
           child: KeyedSubtree(
             key: ValueKey(
-                isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}'),
+              isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}',
+            ),
             child: contentWidget,
           ),
         ),
@@ -437,8 +536,8 @@ class _MediaTile extends ConsumerWidget {
           item.type == MediaType.video || item.type == MediaType.gif
               ? Icons.play_circle_outline_rounded
               : item.type == MediaType.document
-                  ? Icons.insert_drive_file_outlined
-                  : Icons.image_outlined,
+              ? Icons.insert_drive_file_outlined
+              : Icons.image_outlined,
           color: iconColor,
           size: 32,
         ),
@@ -453,11 +552,17 @@ class _MediaTile extends ConsumerWidget {
     return null;
   }
 
-  void _handleTap(BuildContext context, WidgetRef ref, String? resolvedPath, String heroTag) {
+  void _handleTap(
+    BuildContext context,
+    WidgetRef ref,
+    String? resolvedPath,
+    String heroTag,
+  ) {
     // With auto-download off, the first tap is the request for the photo. The
     // viewer would otherwise open on nothing, which looks like a broken image
     // rather than a preference the reader set.
-    final needsFetch = item.type == MediaType.photo &&
+    final needsFetch =
+        item.type == MediaType.photo &&
         (resolvedPath == null || resolvedPath.isEmpty) &&
         !ref.read(settingsProvider).autoDownloadImagesEnabled;
     if (needsFetch) {
@@ -645,7 +750,11 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
               ),
               child: const Text(
                 'GIF',
-                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -658,7 +767,10 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
         child: SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.accent,
+          ),
         ),
       ),
     );
@@ -686,8 +798,9 @@ class _TapToLoadBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             AppStrings.mediaTapToLoad,
-            style: AppTypography.actionCount(color: Colors.white)
-                .copyWith(fontWeight: FontWeight.w600),
+            style: AppTypography.actionCount(
+              color: Colors.white,
+            ).copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),

@@ -72,7 +72,10 @@ void main() {
       await gesture.moveBy(const Offset(2, 30));
       await tester.pump();
 
-      expect(tester.getTopLeft(find.byType(PageView)).dy, greaterThan(before.dy));
+      expect(
+        tester.getTopLeft(find.byType(PageView)).dy,
+        greaterThan(before.dy),
+      );
       expect(pages.page, 0);
 
       await gesture.up();

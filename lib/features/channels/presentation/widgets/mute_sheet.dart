@@ -67,11 +67,11 @@ abstract class MuteSheet {
 }
 
 String muteDurationLabel(MuteDuration duration) => switch (duration) {
-      MuteDuration.oneHour => AppStrings.muteOneHour,
-      MuteDuration.eightHours => AppStrings.muteEightHours,
-      MuteDuration.twoDays => AppStrings.muteTwoDays,
-      MuteDuration.forever => AppStrings.muteForever,
-    };
+  MuteDuration.oneHour => AppStrings.muteOneHour,
+  MuteDuration.eightHours => AppStrings.muteEightHours,
+  MuteDuration.twoDays => AppStrings.muteTwoDays,
+  MuteDuration.forever => AppStrings.muteForever,
+};
 
 class _MuteDurationSheet extends StatelessWidget {
   const _MuteDurationSheet();
@@ -81,8 +81,9 @@ class _MuteDurationSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return SafeArea(
       child: Column(

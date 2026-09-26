@@ -329,9 +329,7 @@ class _PollCardState extends State<PollCard> {
             ),
             Positioned.fill(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Row(
                   children: [
                     if (optionIcon != null) ...[
@@ -395,10 +393,9 @@ class FeedPollCard extends ConsumerWidget {
 
         // Instant, then persisted. The real counts arrive back on
         // `updateMessageContent` and replace these.
-        ref.read(feedPostsProvider.notifier).votePollOptimistic(
-          postId,
-          optionIds,
-        );
+        ref
+            .read(feedPostsProvider.notifier)
+            .votePollOptimistic(postId, optionIds);
 
         if (chatId != null && chatId != 0) {
           await ref

@@ -44,10 +44,14 @@ typedef ContentSupport = ({ContentHandling handling, String? label});
 /// layer than the TDLib this build links against, so there is no content to
 /// draw at any price short of upgrading `handy_tdlib`.
 abstract class MessageContentSupport {
-  static const ContentSupport _rendered =
-      (handling: ContentHandling.rendered, label: null);
-  static const ContentSupport _service =
-      (handling: ContentHandling.service, label: null);
+  static const ContentSupport _rendered = (
+    handling: ContentHandling.rendered,
+    label: null,
+  );
+  static const ContentSupport _service = (
+    handling: ContentHandling.service,
+    label: null,
+  );
 
   static ContentSupport _labelled(String label) =>
       (handling: ContentHandling.labelled, label: label);
@@ -82,8 +86,9 @@ abstract class MessageContentSupport {
       td.MessageCall() => _labelled('📞 Call'),
       // It carries the emoji it animates, so the card can show the thing
       // itself rather than the words "animated emoji".
-      td.MessageAnimatedEmoji(:final emoji) =>
-        _labelled(emoji.isNotEmpty ? emoji : '😀 Animated emoji'),
+      td.MessageAnimatedEmoji(:final emoji) => _labelled(
+        emoji.isNotEmpty ? emoji : '😀 Animated emoji',
+      ),
 
       // Self-destructing media. The content is genuinely gone, so saying so is
       // the whole of what can be said.
@@ -152,9 +157,9 @@ abstract class MessageContentSupport {
 
       // — TDLib cannot represent it ————————————————————————————————————
       td.MessageUnsupported() => (
-          handling: ContentHandling.unrepresentable,
-          label: unsupportedLabel,
-        ),
+        handling: ContentHandling.unrepresentable,
+        label: unsupportedLabel,
+      ),
     };
   }
 
@@ -171,7 +176,8 @@ abstract class MessageContentSupport {
   /// Returns null for content that is rendered properly, or that should be
   /// dropped. The label is deliberately plain — it tells the reader something
   /// is there and what kind of thing it is, which beats an empty card.
-  static String? describe(td.MessageContent content) => supportFor(content).label;
+  static String? describe(td.MessageContent content) =>
+      supportFor(content).label;
 
   /// Content we have no card for at all.
   ///

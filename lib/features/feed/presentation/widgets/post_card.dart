@@ -79,9 +79,11 @@ class PostCard extends ConsumerWidget {
     final title = post.forwardedFromTitle;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(title != null
-            ? AppStrings.feedPrivateChannel(title)
-            : AppStrings.feedOriginalChannelUnavailable),
+        content: Text(
+          title != null
+              ? AppStrings.feedPrivateChannel(title)
+              : AppStrings.feedOriginalChannelUnavailable,
+        ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -102,27 +104,41 @@ class PostCard extends ConsumerWidget {
     // ViewMessages propagates that to every Telegram client they own.
     // FeedFocusController handles it, after a real on-screen dwell.
 
-    final defaultBookmarkHandler = onBookmarkTap ?? () {
-      ref.read(optimisticPostUpdatesProvider.notifier).toggleBookmark(post.id, post);
-      ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(post.id);
-      ref.read(feedRepositoryProvider).toggleBookmark(post.chatId, post.messageId);
-      ref.invalidate(bookmarkedPostsProvider);
-    };
+    final defaultBookmarkHandler =
+        onBookmarkTap ??
+        () {
+          ref
+              .read(optimisticPostUpdatesProvider.notifier)
+              .toggleBookmark(post.id, post);
+          ref
+              .read(feedPostsProvider.notifier)
+              .toggleBookmarkOptimistic(post.id);
+          ref
+              .read(feedRepositoryProvider)
+              .toggleBookmark(post.chatId, post.messageId);
+          ref.invalidate(bookmarkedPostsProvider);
+        };
 
     void defaultReactionHandler(String emoji) {
       if (onLikeEmojiTap != null) {
         onLikeEmojiTap!(emoji);
         return;
       }
-      ref.read(optimisticPostUpdatesProvider.notifier).toggleReaction(post.id, emoji, post);
-      ref.read(feedPostsProvider.notifier).toggleReactionOptimistic(post.id, emoji);
+      ref
+          .read(optimisticPostUpdatesProvider.notifier)
+          .toggleReaction(post.id, emoji, post);
+      ref
+          .read(feedPostsProvider.notifier)
+          .toggleReactionOptimistic(post.id, emoji);
 
-      ref.read(syncServiceProvider).togglePostReaction(
-        chatId: post.chatId,
-        messageId: post.messageId,
-        reactionEmoji: emoji,
-        isCurrentlyLiked: post.chosenReactions.contains(emoji),
-      );
+      ref
+          .read(syncServiceProvider)
+          .togglePostReaction(
+            chatId: post.chatId,
+            messageId: post.messageId,
+            reactionEmoji: emoji,
+            isCurrentlyLiked: post.chosenReactions.contains(emoji),
+          );
     }
 
     void defaultReplyHandler() {
@@ -140,30 +156,35 @@ class PostCard extends ConsumerWidget {
       }
     }
 
-    final defaultShareHandler = onShareTap ?? () async {
-      final messenger = ScaffoldMessenger.of(context);
-      final link = await ref.read(feedRepositoryProvider).postLink(post);
-      if (link == null) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.postNotLinkable),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-      await Clipboard.setData(ClipboardData(text: link));
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(AppStrings.postLinkCopied),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    };
+    final defaultShareHandler =
+        onShareTap ??
+        () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final link = await ref.read(feedRepositoryProvider).postLink(post);
+          if (link == null) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text(AppStrings.postNotLinkable),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+          await Clipboard.setData(ClipboardData(text: link));
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(AppStrings.postLinkCopied),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        };
 
-    final forwardedText = post.forwardedFromTitle ?? post.forwardedFromUsername ?? (post.forwardedFromChatId != null ? 'Original Channel' : null);
+    final forwardedText =
+        post.forwardedFromTitle ??
+        post.forwardedFromUsername ??
+        (post.forwardedFromChatId != null ? 'Original Channel' : null);
 
     return InkWell(
       onTap: onTap ?? defaultReplyHandler,
@@ -211,7 +232,12 @@ class PostCard extends ConsumerWidget {
                     avatarPath: post.channelAvatarUrl,
                     avatarFileId: post.channelAvatarFileId,
                     avatarColorHex: post.channelAvatarColor,
-                    onTap: onChannelTap ?? () => NavigationUtils.openChannel(context, post.channelId),
+                    onTap:
+                        onChannelTap ??
+                        () => NavigationUtils.openChannel(
+                          context,
+                          post.channelId,
+                        ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -223,69 +249,88 @@ class PostCard extends ConsumerWidget {
                           children: [
                             Expanded(
                               child: Row(
-                          children: [
-                            Flexible(
-                              child: GestureDetector(
-                                onTap: onChannelTap ?? () => NavigationUtils.openChannel(context, post.channelId),
-                                child: Text(
-                                  post.channelTitle,
-                                  style: AppTypography.displayName(color: primaryTextColor),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            if (post.isChannelVerified) ...[
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.verified,
-                                color: AppColors.verified,
-                                size: 16,
-                              ),
-                            ],
-                            const SizedBox(width: 4),
-                            if (post.channelUsername != null) ...[
-                              Flexible(
-                                child: Text(
-                                  '@${post.channelUsername}',
-                                  style: AppTypography.username(color: secondaryColor),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                             if (post.authorSignature != null && post.authorSignature!.isNotEmpty) ...[
-                               Text(
-                                 '@${post.authorSignature}',
-                                 style: AppTypography.actionCount(color: AppColors.accent)
-                                     .copyWith(fontSize: 11.5, fontWeight: FontWeight.w600),
-                               ),
-                               const SizedBox(width: 4),
-                             ],
-                             Text(
-                               '·',
-                               style: AppTypography.username(color: secondaryColor),
-                             ),
-                             const SizedBox(width: 4),
-                             Text(
-                               TimeUtils.relativeTime(post.publishedAt),
-                               style: AppTypography.timestamp(color: secondaryColor),
-                             ),
-                             if (!post.isRead) ...[
-                               const SizedBox(width: 6),
-                               // State carried by colour alone needs a label.
-                               Semantics(
-                                 label: AppStrings.a11yUnread,
-                                 child: Container(
-                                   width: 7,
-                                   height: 7,
-                                   decoration: const BoxDecoration(
-                                     color: AppColors.accent,
-                                     shape: BoxShape.circle,
-                                   ),
-                                 ),
-                               ),
-                             ],
-                          ],
+                                children: [
+                                  Flexible(
+                                    child: GestureDetector(
+                                      onTap:
+                                          onChannelTap ??
+                                          () => NavigationUtils.openChannel(
+                                            context,
+                                            post.channelId,
+                                          ),
+                                      child: Text(
+                                        post.channelTitle,
+                                        style: AppTypography.displayName(
+                                          color: primaryTextColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  if (post.isChannelVerified) ...[
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.verified,
+                                      color: AppColors.verified,
+                                      size: 16,
+                                    ),
+                                  ],
+                                  const SizedBox(width: 4),
+                                  if (post.channelUsername != null) ...[
+                                    Flexible(
+                                      child: Text(
+                                        '@${post.channelUsername}',
+                                        style: AppTypography.username(
+                                          color: secondaryColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  if (post.authorSignature != null &&
+                                      post.authorSignature!.isNotEmpty) ...[
+                                    Text(
+                                      '@${post.authorSignature}',
+                                      style:
+                                          AppTypography.actionCount(
+                                            color: AppColors.accent,
+                                          ).copyWith(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                  Text(
+                                    '·',
+                                    style: AppTypography.username(
+                                      color: secondaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    TimeUtils.relativeTime(post.publishedAt),
+                                    style: AppTypography.timestamp(
+                                      color: secondaryColor,
+                                    ),
+                                  ),
+                                  if (!post.isRead) ...[
+                                    const SizedBox(width: 6),
+                                    // State carried by colour alone needs a label.
+                                    Semantics(
+                                      label: AppStrings.a11yUnread,
+                                      child: Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: const BoxDecoration(
+                                          color: AppColors.accent,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                             _MoreButton(
@@ -297,20 +342,25 @@ class PostCard extends ConsumerWidget {
                         ),
 
                         // Clickable Forwarded Banner Header
-                        if (forwardedText != null && forwardedText.isNotEmpty) ...[
+                        if (forwardedText != null &&
+                            forwardedText.isNotEmpty) ...[
                           const SizedBox(height: 3),
                           GestureDetector(
                             onTap: () => _handleForwardedTap(context, ref),
                             child: Row(
                               children: [
-                                Icon(Icons.repeat, size: 13, color: AppColors.repost),
+                                Icon(
+                                  Icons.repeat,
+                                  size: 13,
+                                  color: AppColors.repost,
+                                ),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
                                     'Forwarded from $forwardedText',
-                                    style: AppTypography.actionCount(color: AppColors.accent).copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: AppTypography.actionCount(
+                                      color: AppColors.accent,
+                                    ).copyWith(fontWeight: FontWeight.w600),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -326,7 +376,9 @@ class PostCard extends ConsumerWidget {
                           post: post,
                           onOpenPost: () => _openReplyTarget(context),
                           onOpenAuthor: () => NavigationUtils.openChannel(
-                              context, post.channelId),
+                            context,
+                            post.channelId,
+                          ),
                         ),
 
                         // Text content with link launcher. Long posts clamp
@@ -351,7 +403,8 @@ class PostCard extends ConsumerWidget {
                         ],
 
                         // Link preview
-                        if (post.linkPreviewUrl != null && post.linkPreviewUrl!.isNotEmpty) ...[
+                        if (post.linkPreviewUrl != null &&
+                            post.linkPreviewUrl!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           LinkPreviewCard(
                             url: post.linkPreviewUrl!,
@@ -384,7 +437,9 @@ class PostCard extends ConsumerWidget {
                           slot: ReplySlot.belowBody,
                           onOpenPost: () => _openReplyTarget(context),
                           onOpenAuthor: () => NavigationUtils.openChannel(
-                              context, post.channelId),
+                            context,
+                            post.channelId,
+                          ),
                         ),
 
                         // Reactions. Telegram's, drawn quietly — see
@@ -467,7 +522,9 @@ class PostCard extends ConsumerWidget {
       return;
     }
     NavigationUtils.openPost(
-        context, '${post.replyToChatId ?? post.chatId}_$messageId');
+      context,
+      '${post.replyToChatId ?? post.chatId}_$messageId',
+    );
   }
 }
 
@@ -493,11 +550,11 @@ class _OpenInTelegramButton extends ConsumerWidget {
           final link = GuestPostMapper.isSynthetic(post.chatId)
               ? GuestPostMapper.postLink(post)
               : await ref.read(feedRepositoryProvider).postLink(post) ??
-                  TelegramIds.postLink(
-                    chatId: post.chatId,
-                    messageId: post.messageId,
-                    username: post.channelUsername,
-                  );
+                    TelegramIds.postLink(
+                      chatId: post.chatId,
+                      messageId: post.messageId,
+                      username: post.channelUsername,
+                    );
           final opened =
               link != null && await openExternalUrl(normalizeUrl(link));
           if (!opened) {
@@ -534,7 +591,12 @@ class _MoreButton extends StatelessWidget {
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 0, 0, AppSpacing.xs),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            0,
+            0,
+            AppSpacing.xs,
+          ),
           child: Icon(Icons.more_horiz_rounded, size: 18, color: color),
         ),
       ),

@@ -261,7 +261,9 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
                         contentPadding: EdgeInsets.zero,
                         value: _draft.allowsMultipleAnswers,
                         title: const Text(AppStrings.pollComposeMultiple),
-                        subtitle: const Text(AppStrings.pollComposeMultipleBody),
+                        subtitle: const Text(
+                          AppStrings.pollComposeMultipleBody,
+                        ),
                         onChanged: (value) => setState(
                           () => _draft = _draft.withMultipleAnswers(value),
                         ),

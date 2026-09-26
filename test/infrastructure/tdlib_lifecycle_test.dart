@@ -102,9 +102,7 @@ void main() {
     // it arrives alone. It is still a usable link, so it must not be reported
     // as no network at all — that would stop TDLib trying.
     test('a lone VPN is a usable network, not an absent one', () {
-      final type = TdlibLifecycleRules.networkTypeFor([
-        ConnectivityResult.vpn,
-      ]);
+      final type = TdlibLifecycleRules.networkTypeFor([ConnectivityResult.vpn]);
 
       expect(type, isA<td.NetworkTypeOther>());
       expect(type, isNot(isA<td.NetworkTypeNone>()));

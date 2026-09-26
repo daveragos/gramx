@@ -24,10 +24,7 @@ abstract class AutoDeleteSheet {
   ];
 
   /// Returns the chosen number of seconds, or null if the sheet was dismissed.
-  static Future<int?> show(
-    BuildContext context, {
-    required int current,
-  }) {
+  static Future<int?> show(BuildContext context, {required int current}) {
     return showModalBottomSheet<int>(
       context: context,
       // See mute_sheet.dart: the shell's bottom tab bar paints over each

@@ -20,9 +20,7 @@ void main() {
     // still image loads perfectly well and would sit there.
     testWidgets('is a moving image that loops by itself', (tester) async {
       final bytes = await rootBundle.load(BrandAssets.markAnimation);
-      final codec = await ui.instantiateImageCodec(
-        bytes.buffer.asUint8List(),
-      );
+      final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
 
       expect(codec.frameCount, greaterThan(1));
       expect(codec.repetitionCount, -1, reason: 'infinite');
@@ -30,9 +28,9 @@ void main() {
 
     testWidgets('names the app for a screen reader', (tester) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: BrandMark()),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: BrandMark())),
+      );
       // Not pumpAndSettle: the mark loops, so it never settles.
       await tester.pump();
 
@@ -43,11 +41,14 @@ void main() {
     // It draws nothing until the first frame is decoded, which is the moment
     // the splash exists to fill. Laying out a zero-sized box there would move
     // the wordmark once the mark arrived.
-    testWidgets('holds its size before the first frame arrives',
-        (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(body: Center(child: BrandMark(size: 120))),
-      ));
+    testWidgets('holds its size before the first frame arrives', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: BrandMark(size: 120))),
+        ),
+      );
 
       expect(tester.getSize(find.byType(BrandMark)), const Size(120, 120));
     });
@@ -79,10 +80,12 @@ void main() {
 void _glyphTests() {
   group('the header glyph', () {
     Future<String> assetShown(WidgetTester tester, ThemeData theme) async {
-      await tester.pumpWidget(MaterialApp(
-        theme: theme,
-        home: const Scaffold(body: BrandGlyph()),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: const Scaffold(body: BrandGlyph()),
+        ),
+      );
       final image = tester.widget<Image>(find.byType(Image));
       return (image.image as AssetImage).assetName;
     }

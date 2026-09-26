@@ -45,8 +45,11 @@ void main() {
 
     test('is never empty for any media type', () {
       for (final type in MediaType.values) {
-        expect(describeMedia(item(type), 0, 1), isNotEmpty,
-            reason: '$type needs a description');
+        expect(
+          describeMedia(item(type), 0, 1),
+          isNotEmpty,
+          reason: '$type needs a description',
+        );
       }
     });
   });

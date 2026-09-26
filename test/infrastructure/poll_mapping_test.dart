@@ -8,56 +8,55 @@ import '../support/td_fixtures.dart';
 Map<String, dynamic> pollContent({
   required bool isClosed,
   bool isQuiz = false,
-}) =>
-    {
-      '@type': 'messagePoll',
-      'poll': {
-        '@type': 'poll',
-        'id': '55',
-        'question': {
-          '@type': 'formattedText',
-          'text': 'Which one?',
-          'entities': [],
-        },
-        'options': [
-          {
-            '@type': 'pollOption',
-            'text': {'@type': 'formattedText', 'text': 'A', 'entities': []},
-            'voter_count': 3,
-            'vote_percentage': 75,
-            'is_chosen': true,
-            'is_being_chosen': false,
-          },
-          {
-            '@type': 'pollOption',
-            'text': {'@type': 'formattedText', 'text': 'B', 'entities': []},
-            'voter_count': 1,
-            'vote_percentage': 25,
-            'is_chosen': false,
-            'is_being_chosen': false,
-          },
-        ],
-        'total_voter_count': 4,
-        'recent_voter_ids': [
-          {'@type': 'messageSenderUser', 'user_id': 9}
-        ],
-        'is_anonymous': false,
-        'type': isQuiz
-            ? {
-                '@type': 'pollTypeQuiz',
-                'correct_option_id': 0,
-                'explanation': {
-                  '@type': 'formattedText',
-                  'text': 'because',
-                  'entities': [],
-                },
-              }
-            : {'@type': 'pollTypeRegular', 'allow_multiple_answers': false},
-        'open_period': 60,
-        'close_date': 1700000060,
-        'is_closed': isClosed,
+}) => {
+  '@type': 'messagePoll',
+  'poll': {
+    '@type': 'poll',
+    'id': '55',
+    'question': {
+      '@type': 'formattedText',
+      'text': 'Which one?',
+      'entities': [],
+    },
+    'options': [
+      {
+        '@type': 'pollOption',
+        'text': {'@type': 'formattedText', 'text': 'A', 'entities': []},
+        'voter_count': 3,
+        'vote_percentage': 75,
+        'is_chosen': true,
+        'is_being_chosen': false,
       },
-    };
+      {
+        '@type': 'pollOption',
+        'text': {'@type': 'formattedText', 'text': 'B', 'entities': []},
+        'voter_count': 1,
+        'vote_percentage': 25,
+        'is_chosen': false,
+        'is_being_chosen': false,
+      },
+    ],
+    'total_voter_count': 4,
+    'recent_voter_ids': [
+      {'@type': 'messageSenderUser', 'user_id': 9},
+    ],
+    'is_anonymous': false,
+    'type': isQuiz
+        ? {
+            '@type': 'pollTypeQuiz',
+            'correct_option_id': 0,
+            'explanation': {
+              '@type': 'formattedText',
+              'text': 'because',
+              'entities': [],
+            },
+          }
+        : {'@type': 'pollTypeRegular', 'allow_multiple_answers': false},
+    'open_period': 60,
+    'close_date': 1700000060,
+    'is_closed': isClosed,
+  },
+};
 
 td.Message pollMessage({required bool isClosed, bool isQuiz = false}) {
   final json = TdFixtures.textMessageJson(id: 100, chatId: -1001);

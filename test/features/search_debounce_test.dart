@@ -23,8 +23,11 @@ void main() {
   group('debouncedSearchQueryProvider', () {
     test('holds the query back until typing pauses', () async {
       type('t');
-      expect(container.read(debouncedSearchQueryProvider), '',
-          reason: 'must not reach Telegram mid-keystroke');
+      expect(
+        container.read(debouncedSearchQueryProvider),
+        '',
+        reason: 'must not reach Telegram mid-keystroke',
+      );
 
       await settle();
       expect(container.read(debouncedSearchQueryProvider), 't');
@@ -51,23 +54,31 @@ void main() {
       expect(container.read(debouncedSearchQueryProvider), 'flutter');
 
       type('');
-      expect(container.read(debouncedSearchQueryProvider), '',
-          reason: 'clearing costs nothing, so it should not wait');
+      expect(
+        container.read(debouncedSearchQueryProvider),
+        '',
+        reason: 'clearing costs nothing, so it should not wait',
+      );
     });
 
-    test('keeps the last settled query visible while typing continues',
-        () async {
-      type('dart');
-      await settle();
-      expect(container.read(debouncedSearchQueryProvider), 'dart');
+    test(
+      'keeps the last settled query visible while typing continues',
+      () async {
+        type('dart');
+        await settle();
+        expect(container.read(debouncedSearchQueryProvider), 'dart');
 
-      type('dartlang');
-      expect(container.read(debouncedSearchQueryProvider), 'dart',
-          reason: 'results stay put rather than blanking mid-edit');
+        type('dartlang');
+        expect(
+          container.read(debouncedSearchQueryProvider),
+          'dart',
+          reason: 'results stay put rather than blanking mid-edit',
+        );
 
-      await settle();
-      expect(container.read(debouncedSearchQueryProvider), 'dartlang');
-    });
+        await settle();
+        expect(container.read(debouncedSearchQueryProvider), 'dartlang');
+      },
+    );
 
     test('surrounding whitespace does not re-trigger a search', () async {
       type('news');

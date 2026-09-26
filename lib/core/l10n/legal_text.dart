@@ -222,16 +222,14 @@ abstract class LegalTexts {
             'under Settings → Devices. Uninstalling removes everything the app '
             'kept on your phone.',
       ]),
-      LegalSection('Questions', [
-        'Write to $contactEmail.',
-      ]),
+      LegalSection('Questions', ['Write to $contactEmail.']),
     ],
   );
 
   /// The document behind a route parameter, or null if it isn't one of them.
   static LegalDocument? byId(String id) => switch (id) {
-        'privacy' => privacy,
-        'terms' => terms,
-        _ => null,
-      };
+    'privacy' => privacy,
+    'terms' => terms,
+    _ => null,
+  };
 }

@@ -207,10 +207,9 @@ class _Body extends ConsumerWidget {
                   Flexible(
                     child: Text(
                       profile.displayName,
-                      style: AppTypography.heading(color: primary).copyWith(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: AppTypography.heading(
+                        color: primary,
+                      ).copyWith(fontSize: 21, fontWeight: FontWeight.w800),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

@@ -17,8 +17,10 @@ void main() {
     });
 
     test('plain prose has no links', () {
-      expect(linkifyPlainText('Daily reading, in Amharic and English.'),
-          isEmpty);
+      expect(
+        linkifyPlainText('Daily reading, in Amharic and English.'),
+        isEmpty,
+      );
     });
 
     test('finds a URL and slices it exactly', () {

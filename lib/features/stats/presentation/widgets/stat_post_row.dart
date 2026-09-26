@@ -57,7 +57,9 @@ class StatPostRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              text == null || text.isEmpty ? AppStrings.statsPostFallback : text,
+              text == null || text.isEmpty
+                  ? AppStrings.statsPostFallback
+                  : text,
               style: AppTypography.body(color: theme.colorScheme.onSurface),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

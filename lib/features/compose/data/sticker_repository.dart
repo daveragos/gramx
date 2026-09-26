@@ -71,9 +71,9 @@ class StickerRepository {
   /// `isAttached: false` is the meaningful half — true would return stickers
   /// stuck onto photos, which is a different feature entirely.
   Future<List<ComposeRemoteMedia>> recentStickers() => _stickers(
-        const td.GetRecentStickers(isAttached: false),
-        'GetRecentStickers',
-      );
+    const td.GetRecentStickers(isAttached: false),
+    'GetRecentStickers',
+  );
 
   /// The sets the account has installed — titles and icons only.
   ///
@@ -91,7 +91,8 @@ class StickerRepository {
           ComposeStickerSet(
             id: set.id,
             title: set.title,
-            iconFileId: set.thumbnail?.file.id ??
+            iconFileId:
+                set.thumbnail?.file.id ??
                 (set.covers.isNotEmpty ? set.covers.first.sticker.id : null),
           ),
       ];

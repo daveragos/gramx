@@ -49,10 +49,10 @@ class StickerTile extends ConsumerWidget {
       child: switch (item.stickerFormat) {
         StickerFormat.tgs => _TgsSticker(path: path, fallbackSize: size),
         StickerFormat.webp => Image.file(
-            File(path),
-            fit: BoxFit.contain,
-            errorBuilder: (context, _, _) => _fallback(context, size),
-          ),
+          File(path),
+          fit: BoxFit.contain,
+          errorBuilder: (context, _, _) => _fallback(context, size),
+        ),
         // WebM and anything unrecognised: show the still preview.
         _ => _thumbnailOr(context, size),
       },

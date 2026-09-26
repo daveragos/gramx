@@ -143,9 +143,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     // layout being measured is still the one the reader is looking at.
     ref.listenManual(
       conversationProvider(widget.chatId),
-      (previous, _) => _holdPosition(
-        wasWindowed: previous?.value?.hasMoreNewer ?? false,
-      ),
+      (previous, _) =>
+          _holdPosition(wasWindowed: previous?.value?.hasMoreNewer ?? false),
     );
     // Read state is written to every client the account owns, so the notifier
     // acknowledges nothing until a screen says it is actually showing.
@@ -539,10 +538,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
     final sent = await ref
         .read(conversationProvider(widget.chatId).notifier)
-        .sendContact(
-          userId: userId,
-          replyToMessageId: _replyTo?.messageId,
-        );
+        .sendContact(userId: userId, replyToMessageId: _replyTo?.messageId);
     if (sent && mounted) {
       setState(() => _replyTo = null);
       _jumpToLatest();
@@ -751,8 +747,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       final position = _scroll.position;
       if (position.pixels >= position.maxScrollExtent) break;
       _scroll.jumpTo(
-        (position.pixels + position.viewportDimension * 0.8)
-            .clamp(0.0, position.maxScrollExtent),
+        (position.pixels + position.viewportDimension * 0.8).clamp(
+          0.0,
+          position.maxScrollExtent,
+        ),
       );
     }
 
@@ -1123,18 +1121,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 _searchController.clear();
               },
               onAutoDelete:
-                  ref.read(chatsRepositoryProvider).canSetAutoDelete(
-                    widget.chatId,
-                  )
+                  ref
+                      .read(chatsRepositoryProvider)
+                      .canSetAutoDelete(widget.chatId)
                   ? _setAutoDelete
                   : null,
               // Only when there is something on it. TDLib keeps
               // `hasScheduledMessages` current, so this costs nothing to ask
               // and there is no way into an empty screen.
               onScheduled:
-                  ref.read(chatsRepositoryProvider).hasScheduledMessages(
-                    widget.chatId,
-                  )
+                  ref
+                      .read(chatsRepositoryProvider)
+                      .hasScheduledMessages(widget.chatId)
                   ? () => ScheduledMessagesScreen.show(context, widget.chatId)
                   : null,
               onCloseSecretChat:
@@ -1172,10 +1170,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           // the chat's furniture, and one that floated would sit on top of
           // whatever the reader had scrolled to.
           if (searchQuery == null)
-            _PinnedBar(
-              chatId: widget.chatId,
-              onTap: _jumpToPinned,
-            ),
+            _PinnedBar(chatId: widget.chatId, onTap: _jumpToPinned),
           // Somebody the reader does not know started this chat. Telegram's
           // own clients put the choice right here, above what they said, and
           // without it the only way to block a stranger was to find their
@@ -1201,139 +1196,142 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               ),
             )
           else
-          Expanded(
-            child: conversation.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.accent),
-              ),
-              error: (error, _) => _ErrorState(
-                onRetry: () => ref
-                    .read(conversationProvider(widget.chatId).notifier)
-                    .refresh(),
-              ),
-              data: (state) {
-                if (state.messages.isEmpty) return const _EmptyState();
-                _markReadOnce();
-                if (state.firstUnreadMessageId != null) _anchorToUnreadOnce();
-                _fillViewportOnce();
-                // The jump button floats over the list rather than over the
-                // whole screen. As the Scaffold's floating button it sat on
-                // the composer's right edge — on top of the send and
-                // microphone buttons.
-                return Stack(
-                  children: [
-                    _MessageList(
-                      listKey: _listKey,
-                      registry: _rows,
-                      state: state,
-                      controller: _scroll,
-                      unreadBandKey: _unreadBandKey,
-                      onTap: _handleTap,
-                      onLongPress: _openActions,
-                      selected: _selected,
-                      onReplyTap: _jumpToReply,
-                      onMentionTap: _openMention,
-                      onSenderTap: (userId) =>
-                          context.push(UserProfileScreen.routeFor(userId)),
-                      jumpKey: _jumpKey,
-                      jumpTargetId: _jumpTargetId,
-                      onReact: (message, emoji) => ref
-                          .read(conversationProvider(widget.chatId).notifier)
-                          .toggleReaction(message.messageId, emoji),
-                      onVote: (message, optionIds) => ref
-                          .read(conversationProvider(widget.chatId).notifier)
-                          .vote(message.messageId, optionIds),
-                      onOpenSecretMedia: _openSecretMedia,
-                      onOpenPlace: _openPlace,
-                    ),
-                    if (_showJumpButton || state.hasMoreNewer)
-                      Positioned(
-                        right: AppSpacing.lg,
-                        bottom: AppSpacing.lg,
-                        child: FloatingActionButton.small(
-                          heroTag: null,
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: Colors.white,
-                          tooltip: AppStrings.chatScrollToBottom,
-                          onPressed: _jumpToLatest,
-                          child: const Icon(Icons.arrow_downward_rounded),
-                        ),
+            Expanded(
+              child: conversation.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.accent),
+                ),
+                error: (error, _) => _ErrorState(
+                  onRetry: () => ref
+                      .read(conversationProvider(widget.chatId).notifier)
+                      .refresh(),
+                ),
+                data: (state) {
+                  if (state.messages.isEmpty) return const _EmptyState();
+                  _markReadOnce();
+                  if (state.firstUnreadMessageId != null) _anchorToUnreadOnce();
+                  _fillViewportOnce();
+                  // The jump button floats over the list rather than over the
+                  // whole screen. As the Scaffold's floating button it sat on
+                  // the composer's right edge — on top of the send and
+                  // microphone buttons.
+                  return Stack(
+                    children: [
+                      _MessageList(
+                        listKey: _listKey,
+                        registry: _rows,
+                        state: state,
+                        controller: _scroll,
+                        unreadBandKey: _unreadBandKey,
+                        onTap: _handleTap,
+                        onLongPress: _openActions,
+                        selected: _selected,
+                        onReplyTap: _jumpToReply,
+                        onMentionTap: _openMention,
+                        onSenderTap: (userId) =>
+                            context.push(UserProfileScreen.routeFor(userId)),
+                        jumpKey: _jumpKey,
+                        jumpTargetId: _jumpTargetId,
+                        onReact: (message, emoji) => ref
+                            .read(conversationProvider(widget.chatId).notifier)
+                            .toggleReaction(message.messageId, emoji),
+                        onVote: (message, optionIds) => ref
+                            .read(conversationProvider(widget.chatId).notifier)
+                            .vote(message.messageId, optionIds),
+                        onOpenSecretMedia: _openSecretMedia,
+                        onOpenPlace: _openPlace,
                       ),
-                  ],
-                );
-              },
+                      if (_showJumpButton || state.hasMoreNewer)
+                        Positioned(
+                          right: AppSpacing.lg,
+                          bottom: AppSpacing.lg,
+                          child: FloatingActionButton.small(
+                            heroTag: null,
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.white,
+                            tooltip: AppStrings.chatScrollToBottom,
+                            onPressed: _jumpToLatest,
+                            child: const Icon(Icons.arrow_downward_rounded),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
           // A secret chat that has not finished its key exchange takes nothing.
           // Telegram refuses the send outright, so the composer goes and a line
           // says what is being waited for — a composer that swallowed messages
           // until the other person happened to open Telegram is the worst
           // possible reading of "sent".
-          if (ref.read(chatsRepositoryProvider).isSecretChatPending(
-            widget.chatId,
-          ))
+          if (ref
+              .read(chatsRepositoryProvider)
+              .isSecretChatPending(widget.chatId))
             const _SecretChatPendingNotice()
           else
-          MessageComposer(
-            // TDLib holds the draft, so one typed on a laptop is here and one
-            // typed here is there. Read once, when the composer is built.
-            initialText: ref
-                .read(chatsRepositoryProvider)
-                .draftText(widget.chatId),
-            onDraftChanged: (text) =>
-                _repository.saveDraft(widget.chatId, text),
-            replyTo: _replyTo,
-            onCancelReply: () => setState(() => _replyTo = null),
-            onSend: _send,
-            // Both are the chat's own answer, read from the cache rather than
-            // guessed: Telegram takes a poll only where polls are permitted and
-            // disappearing media only in a one-to-one chat, and a control that
-            // is offered and then refused is worse than one that is not there.
-            onSendPoll: ref.read(chatsRepositoryProvider).canSendPollsIn(widget.chatId)
-                ? _sendPoll
-                : null,
-            allowsSelfDestruct: ref
-                .read(chatsRepositoryProvider)
-                .isPrivateChat(widget.chatId),
-            // Telegram permissions media by kind, so each control asks its own
-            // question. A group that allows photos and forbids voice messages
-            // is a common setting, and a microphone that fails when held is
-            // exactly the inert control the hard rules forbid.
-            allowsVoiceNotes: ref
-                .read(chatsRepositoryProvider)
-                .canSendIn(widget.chatId, ChatSendRight.voiceNotes),
-            allowsVideoNotes: ref
-                .read(chatsRepositoryProvider)
-                .canSendIn(widget.chatId, ChatSendRight.videoNotes),
-            allowsDocuments: ref
-                .read(chatsRepositoryProvider)
-                .canSendIn(widget.chatId, ChatSendRight.documents),
-            onRecordVideoNote: _recordVideoNote,
-            onSendLocation: _sendLocation,
-            onSendContact: _sendContact,
-            // Stickers and GIFs are one permission in Telegram's model, and
-            // a group can withhold it; the button goes rather than failing.
-            onSendRemote: ref
-                .read(chatsRepositoryProvider)
-                .canSendIn(widget.chatId, ChatSendRight.stickers)
-                ? _sendRemote
-                : null,
-            onPickSchedule: _pickSchedule,
-            onChanged: (value) {
-              final signal = ref.read(typingSignalProvider(widget.chatId));
-              if (value.isEmpty) {
-                signal.stop();
-              } else {
-                signal.onTyping();
-              }
-            },
-          ),
+            MessageComposer(
+              // TDLib holds the draft, so one typed on a laptop is here and one
+              // typed here is there. Read once, when the composer is built.
+              initialText: ref
+                  .read(chatsRepositoryProvider)
+                  .draftText(widget.chatId),
+              onDraftChanged: (text) =>
+                  _repository.saveDraft(widget.chatId, text),
+              replyTo: _replyTo,
+              onCancelReply: () => setState(() => _replyTo = null),
+              onSend: _send,
+              // Both are the chat's own answer, read from the cache rather than
+              // guessed: Telegram takes a poll only where polls are permitted and
+              // disappearing media only in a one-to-one chat, and a control that
+              // is offered and then refused is worse than one that is not there.
+              onSendPoll:
+                  ref
+                      .read(chatsRepositoryProvider)
+                      .canSendPollsIn(widget.chatId)
+                  ? _sendPoll
+                  : null,
+              allowsSelfDestruct: ref
+                  .read(chatsRepositoryProvider)
+                  .isPrivateChat(widget.chatId),
+              // Telegram permissions media by kind, so each control asks its own
+              // question. A group that allows photos and forbids voice messages
+              // is a common setting, and a microphone that fails when held is
+              // exactly the inert control the hard rules forbid.
+              allowsVoiceNotes: ref
+                  .read(chatsRepositoryProvider)
+                  .canSendIn(widget.chatId, ChatSendRight.voiceNotes),
+              allowsVideoNotes: ref
+                  .read(chatsRepositoryProvider)
+                  .canSendIn(widget.chatId, ChatSendRight.videoNotes),
+              allowsDocuments: ref
+                  .read(chatsRepositoryProvider)
+                  .canSendIn(widget.chatId, ChatSendRight.documents),
+              onRecordVideoNote: _recordVideoNote,
+              onSendLocation: _sendLocation,
+              onSendContact: _sendContact,
+              // Stickers and GIFs are one permission in Telegram's model, and
+              // a group can withhold it; the button goes rather than failing.
+              onSendRemote:
+                  ref
+                      .read(chatsRepositoryProvider)
+                      .canSendIn(widget.chatId, ChatSendRight.stickers)
+                  ? _sendRemote
+                  : null,
+              onPickSchedule: _pickSchedule,
+              onChanged: (value) {
+                final signal = ref.read(typingSignalProvider(widget.chatId));
+                if (value.isEmpty) {
+                  signal.stop();
+                } else {
+                  signal.onTyping();
+                }
+              },
+            ),
         ],
       ),
     );
   }
 }
-
 
 /// What sits where the composer would, in a secret chat that is not ready yet.
 class _SecretChatPendingNotice extends StatelessWidget {
@@ -1663,9 +1661,7 @@ class _PinnedBar extends ConsumerWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: borderColor, width: 0.5),
-          ),
+          border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -1792,9 +1788,7 @@ class _ConversationAppBar extends StatelessWidget
           ),
         if (onRemove != null)
           AppSheetRow<void>(
-            icon: isGroup
-                ? Icons.logout_rounded
-                : Icons.delete_outline_rounded,
+            icon: isGroup ? Icons.logout_rounded : Icons.delete_outline_rounded,
             label: isGroup
                 ? AppStrings.messagesLeaveGroup
                 : AppStrings.messagesDeleteChat,
@@ -2155,7 +2149,8 @@ class _RowRegistry {
     final list = _box(listKey.currentContext);
     final row = _box(_contexts[key]);
     if (list == null || row == null) return null;
-    return row.localToGlobal(Offset.zero).dy - list.localToGlobal(Offset.zero).dy;
+    return row.localToGlobal(Offset.zero).dy -
+        list.localToGlobal(Offset.zero).dy;
   }
 
   /// The highest row that is at least partly on screen.

@@ -75,10 +75,8 @@ class ScheduledMessagesScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             itemCount: messages.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) => _ScheduledRow(
-              chatId: chatId,
-              message: messages[index],
-            ),
+            itemBuilder: (context, index) =>
+                _ScheduledRow(chatId: chatId, message: messages[index]),
           );
         },
       ),

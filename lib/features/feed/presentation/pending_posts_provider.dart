@@ -53,17 +53,15 @@ class PendingPostsNotifier extends Notifier<List<Post>> {
     _buffer.clear();
 
     try {
-      final posts =
-          await ref.read(feedRepositoryProvider).mapIncomingMessages(batch);
+      final posts = await ref
+          .read(feedRepositoryProvider)
+          .mapIncomingMessages(batch);
       if (posts.isEmpty) return;
 
       // A post already in the feed is not an arrival — this happens when the
       // update races a refresh that already picked it up.
       final live = ref.read(feedPostsProvider).value ?? const <Post>[];
-      final known = {
-        ...live.map((p) => p.id),
-        ...state.map((p) => p.id),
-      };
+      final known = {...live.map((p) => p.id), ...state.map((p) => p.id)};
 
       final additions = posts.where((p) => !known.contains(p.id)).toList();
       if (additions.isEmpty) return;
@@ -115,13 +113,15 @@ List<Post> pillAvatarPosts(List<Post> pending, {int max = 3}) {
   return faces;
 }
 
-final pendingPostsProvider =
-    NotifierProvider<PendingPostsNotifier, List<Post>>(
-        PendingPostsNotifier.new);
+final pendingPostsProvider = NotifierProvider<PendingPostsNotifier, List<Post>>(
+  PendingPostsNotifier.new,
+);
 
 /// Pending arrivals for one folder tab, so each tab's pill counts only its own.
-final pendingPostsForFolderProvider =
-    Provider.family<List<Post>, String>((ref, folderId) {
+final pendingPostsForFolderProvider = Provider.family<List<Post>, String>((
+  ref,
+  folderId,
+) {
   final pending = ref.watch(pendingPostsProvider);
   if (pending.isEmpty) return const [];
   return filterPostsForFolder(ref, pending, folderId);

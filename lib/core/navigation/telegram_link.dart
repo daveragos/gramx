@@ -99,8 +99,7 @@ class TelegramPrivateChannelLink extends TelegramLink {
 
   @override
   bool operator ==(Object other) =>
-      other is TelegramPrivateChannelLink &&
-      other.supergroupId == supergroupId;
+      other is TelegramPrivateChannelLink && other.supergroupId == supergroupId;
 
   @override
   int get hashCode => supergroupId.hashCode;

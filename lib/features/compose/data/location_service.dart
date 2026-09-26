@@ -44,7 +44,8 @@ class LocationService {
   /// The permission is asked for here, at the moment it is needed and after
   /// the reader has chosen to send a location — never at launch, where a
   /// location prompt with no context is the one every reader declines.
-  Future<({DeviceLocation? location, LocationFailure? failure})> current() async {
+  Future<({DeviceLocation? location, LocationFailure? failure})>
+  current() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         return (location: null, failure: LocationFailure.unavailable);

@@ -24,10 +24,7 @@ void main() {
     });
 
     test('one hidden post is one the reply already shows', () {
-      final thread = FeedThread(
-        root: post(1),
-        replies: [post(2, replyTo: 1)],
-      );
+      final thread = FeedThread(root: post(1), replies: [post(2, replyTo: 1)]);
 
       expect(thread.earlier.length, 1);
       expect(thread.hasEarlierToBeShown, isFalse);

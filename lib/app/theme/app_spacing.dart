@@ -7,7 +7,7 @@ abstract class AppSpacing {
   static const double xl = 20.0;
   static const double xxl = 24.0;
   static const double xxxl = 32.0;
-  
+
   static const double postPadding = 12.0;
   static const double avatarSize = 40.0;
   static const double avatarSizeLarge = 48.0;

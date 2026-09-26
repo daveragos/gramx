@@ -9,7 +9,11 @@ void main() {
   group('composerToolsFolded', () {
     test('an empty field shows every tool', () {
       expect(
-        composerToolsFolded(hasText: false, expandedByHand: false, toolCount: 2),
+        composerToolsFolded(
+          hasText: false,
+          expandedByHand: false,
+          toolCount: 2,
+        ),
         isFalse,
       );
     });

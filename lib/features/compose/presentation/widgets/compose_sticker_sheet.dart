@@ -58,8 +58,7 @@ class _ComposeStickerSheetState extends ConsumerState<ComposeStickerSheet>
     _tabs = TabController(
       length: 2,
       vsync: this,
-      initialIndex:
-          widget.initialKind == ComposeRemoteKind.animation ? 1 : 0,
+      initialIndex: widget.initialKind == ComposeRemoteKind.animation ? 1 : 0,
     );
   }
 
@@ -76,8 +75,9 @@ class _ComposeStickerSheetState extends ConsumerState<ComposeStickerSheet>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return SafeArea(
       child: SizedBox(

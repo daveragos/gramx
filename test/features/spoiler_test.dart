@@ -6,25 +6,27 @@ import 'package:gramx/features/feed/presentation/widgets/spoiler_cover.dart';
 void main() {
   group('MediaItem.hasSpoiler', () {
     test('defaults to false', () {
-      expect(const MediaItem(id: 'a', type: MediaType.photo).hasSpoiler, isFalse);
+      expect(
+        const MediaItem(id: 'a', type: MediaType.photo).hasSpoiler,
+        isFalse,
+      );
     });
 
     test('survives a JSON round-trip', () {
-      const item =
-          MediaItem(id: 'a', type: MediaType.photo, hasSpoiler: true);
+      const item = MediaItem(id: 'a', type: MediaType.photo, hasSpoiler: true);
       expect(MediaItem.fromJson(item.toJson()).hasSpoiler, isTrue);
     });
   });
 
   group('SpoilerCover', () {
     Widget host() => MaterialApp(
-          home: Scaffold(
-            body: SpoilerCover(
-              label: 'Photo',
-              child: Container(key: const Key('media')),
-            ),
-          ),
-        );
+      home: Scaffold(
+        body: SpoilerCover(
+          label: 'Photo',
+          child: Container(key: const Key('media')),
+        ),
+      ),
+    );
 
     testWidgets('covers the media until tapped', (tester) async {
       await tester.pumpWidget(host());
@@ -56,8 +58,9 @@ void main() {
       expect(find.text('Tap to reveal'), findsNothing);
     });
 
-    testWidgets('announces itself as hidden to a screen reader',
-        (tester) async {
+    testWidgets('announces itself as hidden to a screen reader', (
+      tester,
+    ) async {
       await tester.pumpWidget(host());
 
       final semantics = tester.getSemantics(find.byType(SpoilerCover));

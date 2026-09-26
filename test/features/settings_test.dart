@@ -21,8 +21,9 @@ void main() {
 
     test('every theme mode round-trips', () {
       for (final mode in AppThemeMode.values) {
-        final restored =
-            AppSettings.decode(AppSettings(themeMode: mode).encode());
+        final restored = AppSettings.decode(
+          AppSettings(themeMode: mode).encode(),
+        );
         expect(restored.themeMode, mode);
       }
     });
@@ -47,8 +48,9 @@ void main() {
     });
 
     test('unrecognised extra keys are ignored', () {
-      final restored =
-          AppSettings.decode('{"themeMode":"light","somethingNew":42}');
+      final restored = AppSettings.decode(
+        '{"themeMode":"light","somethingNew":42}',
+      );
       expect(restored.themeMode, AppThemeMode.light);
     });
   });
@@ -69,23 +71,29 @@ void main() {
 
   group('autoPlayEnabled', () {
     test('reflects the policy', () {
-      expect(const AppSettings(autoPlay: AutoPlayPolicy.always).autoPlayEnabled,
-          isTrue);
-      expect(const AppSettings(autoPlay: AutoPlayPolicy.never).autoPlayEnabled,
-          isFalse);
+      expect(
+        const AppSettings(autoPlay: AutoPlayPolicy.always).autoPlayEnabled,
+        isTrue,
+      );
+      expect(
+        const AppSettings(autoPlay: AutoPlayPolicy.never).autoPlayEnabled,
+        isFalse,
+      );
     });
   });
 
   group('autoDownloadImages', () {
     test('reflects the policy', () {
       expect(
-        const AppSettings(autoDownloadImages: AutoDownloadPolicy.always)
-            .autoDownloadImagesEnabled,
+        const AppSettings(
+          autoDownloadImages: AutoDownloadPolicy.always,
+        ).autoDownloadImagesEnabled,
         isTrue,
       );
       expect(
-        const AppSettings(autoDownloadImages: AutoDownloadPolicy.never)
-            .autoDownloadImagesEnabled,
+        const AppSettings(
+          autoDownloadImages: AutoDownloadPolicy.never,
+        ).autoDownloadImagesEnabled,
         isFalse,
       );
     });

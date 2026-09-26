@@ -227,7 +227,10 @@ class _PostFigures extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reactions = post.reactions.values.fold(0, (sum, count) => sum + count);
+    final reactions = post.reactions.values.fold(
+      0,
+      (sum, count) => sum + count,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(

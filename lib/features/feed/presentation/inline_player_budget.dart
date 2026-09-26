@@ -36,5 +36,6 @@ class InlinePlayerBudget {
   void reset() => _active = 0;
 }
 
-final inlinePlayerBudgetProvider =
-    Provider<InlinePlayerBudget>((ref) => InlinePlayerBudget());
+final inlinePlayerBudgetProvider = Provider<InlinePlayerBudget>(
+  (ref) => InlinePlayerBudget(),
+);

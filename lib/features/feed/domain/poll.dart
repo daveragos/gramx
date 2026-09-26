@@ -13,7 +13,8 @@ abstract class PollOption with _$PollOption {
     @Default(false) bool isCorrect,
   }) = _PollOption;
 
-  factory PollOption.fromJson(Map<String, dynamic> json) => _$PollOptionFromJson(json);
+  factory PollOption.fromJson(Map<String, dynamic> json) =>
+      _$PollOptionFromJson(json);
 }
 
 @freezed

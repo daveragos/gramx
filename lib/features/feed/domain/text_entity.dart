@@ -45,10 +45,11 @@ abstract class TextEntity with _$TextEntity {
     required int offset,
     required int length,
     required TextEntityType type,
-    String? url,            // for textUrl
-    String? customEmojiId,  // for customEmoji
-    String? language,       // for a fenced code block
+    String? url, // for textUrl
+    String? customEmojiId, // for customEmoji
+    String? language, // for a fenced code block
   }) = _TextEntity;
 
-  factory TextEntity.fromJson(Map<String, dynamic> json) => _$TextEntityFromJson(json);
+  factory TextEntity.fromJson(Map<String, dynamic> json) =>
+      _$TextEntityFromJson(json);
 }

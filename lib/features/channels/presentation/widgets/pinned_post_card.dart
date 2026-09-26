@@ -29,8 +29,9 @@ class PinnedPostCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,8 +50,9 @@ class PinnedPostCard extends ConsumerWidget {
                 const SizedBox(width: 5),
                 Text(
                   AppStrings.channelPinnedLabel,
-                  style: AppTypography.actionCount(color: secondary)
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppTypography.actionCount(
+                    color: secondary,
+                  ).copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
             ),

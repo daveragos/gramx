@@ -9,7 +9,16 @@ class ReactionPickerOverlay extends StatelessWidget {
   final ValueChanged<String> onEmojiSelected;
 
   static const List<String> defaultEmojis = [
-    '👍', '❤️', '🔥', '🎉', '👏', '😂', '😮', '😢', '💩', '🙏'
+    '👍',
+    '❤️',
+    '🔥',
+    '🎉',
+    '👏',
+    '😂',
+    '😮',
+    '😢',
+    '💩',
+    '🙏',
   ];
 
   const ReactionPickerOverlay({
@@ -31,7 +40,9 @@ class ReactionPickerOverlay extends StatelessWidget {
       barrierColor: Colors.black26,
       builder: (context) {
         final screenSize = MediaQuery.of(context).size;
-        final double top = (targetRect.top - 60) < 40 ? (targetRect.bottom + 8) : (targetRect.top - 60);
+        final double top = (targetRect.top - 60) < 40
+            ? (targetRect.bottom + 8)
+            : (targetRect.top - 60);
 
         return Stack(
           children: [
@@ -66,7 +77,10 @@ class ReactionPickerOverlay extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(maxWidth: screenWidth - 32),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(28),
@@ -96,14 +110,14 @@ class ReactionPickerOverlay extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.accent.withValues(alpha: 0.2) : Colors.transparent,
+                  color: isSelected
+                      ? AppColors.accent.withValues(alpha: 0.2)
+                      : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   emoji,
-                  style: TextStyle(
-                    fontSize: isSelected ? 24 : 20,
-                  ),
+                  style: TextStyle(fontSize: isSelected ? 24 : 20),
                 ),
               ),
             );

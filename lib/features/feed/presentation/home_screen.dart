@@ -148,9 +148,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               final isRetap = ref.read(activeFolderProvider) == folderId;
               ref.read(activeFolderProvider.notifier).set(folderId);
               if (isRetap) {
-                ref
-                    .read(feedScrollToTopProvider.notifier)
-                    .request(folderId);
+                ref.read(feedScrollToTopProvider.notifier).request(folderId);
               }
             },
           ),
@@ -184,11 +182,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               header: header,
               headerBottom: const FolderTabsSkeleton(),
               body: (context, topPadding, bottomPadding) => FeedSkeleton(
-                padding:
-                    EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+                padding: EdgeInsets.only(
+                  top: topPadding,
+                  bottom: bottomPadding,
+                ),
               ),
             ),
-      error: (err, _) => Scaffold(body: Center(child: Text(AppStrings.feedError(err)))),
+      error: (err, _) =>
+          Scaffold(body: Center(child: Text(AppStrings.feedError(err)))),
       data: (channels) {
         final isEmpty = channels.isEmpty;
         final isLoggedIn = accountAsync.value != null;

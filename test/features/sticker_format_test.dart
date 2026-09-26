@@ -12,8 +12,10 @@ void main() {
     });
 
     test('falls back to unknown for anything else', () {
-      expect(StickerFormat.fromTdName('stickerFormatFuture'),
-          StickerFormat.unknown);
+      expect(
+        StickerFormat.fromTdName('stickerFormatFuture'),
+        StickerFormat.unknown,
+      );
       expect(StickerFormat.fromTdName(null), StickerFormat.unknown);
       expect(StickerFormat.fromTdName(''), StickerFormat.unknown);
     });

@@ -6,30 +6,30 @@ td.MessageContent content(Map<String, dynamic> json) =>
     td.MessageContent.fromJson(json);
 
 Map<String, dynamic> _file({int id = 1}) => {
-      '@type': 'file',
-      'id': id,
-      'size': 0,
-      'expected_size': 0,
-      'local': {
-        '@type': 'localFile',
-        'path': '',
-        'can_be_downloaded': true,
-        'can_be_deleted': false,
-        'is_downloading_active': false,
-        'is_downloading_completed': false,
-        'download_offset': 0,
-        'downloaded_prefix_size': 0,
-        'downloaded_size': 0,
-      },
-      'remote': {
-        '@type': 'remoteFile',
-        'id': '',
-        'unique_id': '',
-        'is_uploading_active': false,
-        'is_uploading_completed': true,
-        'uploaded_size': 0,
-      },
-    };
+  '@type': 'file',
+  'id': id,
+  'size': 0,
+  'expected_size': 0,
+  'local': {
+    '@type': 'localFile',
+    'path': '',
+    'can_be_downloaded': true,
+    'can_be_deleted': false,
+    'is_downloading_active': false,
+    'is_downloading_completed': false,
+    'download_offset': 0,
+    'downloaded_prefix_size': 0,
+    'downloaded_size': 0,
+  },
+  'remote': {
+    '@type': 'remoteFile',
+    'id': '',
+    'unique_id': '',
+    'is_uploading_active': false,
+    'is_uploading_completed': true,
+    'uploaded_size': 0,
+  },
+};
 
 void main() {
   final text = content({
@@ -66,15 +66,19 @@ void main() {
   });
 
   final pinned = content({'@type': 'messagePinMessage', 'message_id': 42});
-  final titleChanged =
-      content({'@type': 'messageChatChangeTitle', 'title': 'New name'});
+  final titleChanged = content({
+    '@type': 'messageChatChangeTitle',
+    'title': 'New name',
+  });
   final unsupported = content({'@type': 'messageUnsupported'});
 
   // The types that produced the bug: real things a channel posts, swept into
   // "Unsupported message — open in Telegram to view" by the old `_ =>` default.
   final chatBoost = content({'@type': 'messageChatBoost', 'boost_count': 3});
-  final giveawayCreated =
-      content({'@type': 'messageGiveawayCreated', 'star_count': 0});
+  final giveawayCreated = content({
+    '@type': 'messageGiveawayCreated',
+    'star_count': 0,
+  });
   final expiredPhoto = content({'@type': 'messageExpiredPhoto'});
   final giftedStars = content({
     '@type': 'messageGiftedStars',
@@ -159,14 +163,16 @@ void main() {
 
     // The regression: these named things reached the
     // reader as "Unsupported message — open in Telegram to view".
-    test('names expired media and gifts rather than calling them unsupported',
-        () {
-      for (final c in [expiredPhoto, giftedStars]) {
-        final label = MessageContentSupport.describe(c);
-        expect(label, isNotNull);
-        expect(label, isNot(MessageContentSupport.unsupportedLabel));
-      }
-    });
+    test(
+      'names expired media and gifts rather than calling them unsupported',
+      () {
+        for (final c in [expiredPhoto, giftedStars]) {
+          final label = MessageContentSupport.describe(c);
+          expect(label, isNotNull);
+          expect(label, isNot(MessageContentSupport.unsupportedLabel));
+        }
+      },
+    );
 
     test('every label is non-empty', () {
       for (final c in [location, expiredPhoto, giftedStars, unsupported]) {
@@ -192,14 +198,19 @@ void main() {
         expiredPhoto,
         giftedStars,
       ]) {
-        expect(MessageContentSupport.isUnsupported(c), isFalse,
-            reason: '${c.currentObjectId} should not be a dead end');
+        expect(
+          MessageContentSupport.isUnsupported(c),
+          isFalse,
+          reason: '${c.currentObjectId} should not be a dead end',
+        );
       }
     });
 
     test('the dead-end label points at Telegram', () {
-      expect(MessageContentSupport.describe(unsupported),
-          MessageContentSupport.unsupportedLabel);
+      expect(
+        MessageContentSupport.describe(unsupported),
+        MessageContentSupport.unsupportedLabel,
+      );
       expect(MessageContentSupport.unsupportedLabel, contains('Telegram'));
     });
   });

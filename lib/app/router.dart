@@ -219,9 +219,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: ChannelStatsScreen.route,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ChannelStatsScreen(
-          channelId: state.pathParameters['channelId']!,
-        ),
+        builder: (context, state) =>
+            ChannelStatsScreen(channelId: state.pathParameters['channelId']!),
       ),
       // under a post of your own.
       GoRoute(

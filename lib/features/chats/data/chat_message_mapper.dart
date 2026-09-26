@@ -205,7 +205,8 @@ abstract class ChatMessageMapper {
         else if (byId[message.replyToMessageId!] case final target?)
           message.copyWith(
             replyToText: replyPreviewOf(target),
-            replyToAuthorName: message.replyToAuthorName ?? replyAuthorOf(target),
+            replyToAuthorName:
+                message.replyToAuthorName ?? replyAuthorOf(target),
             replyToThumbnailFileId:
                 message.replyToThumbnailFileId ?? _thumbnailOf(target),
           )
@@ -600,22 +601,29 @@ abstract class ChatMessageMapper {
           when memberUserIds.length == 1 &&
               memberUserIds.first == senderUserId =>
         AppStrings.serviceJoined(who),
-      td.MessageChatAddMembers(:final memberUserIds) =>
-        AppStrings.serviceAdded(who, memberUserIds.map(nameOf).join(', ')),
+      td.MessageChatAddMembers(:final memberUserIds) => AppStrings.serviceAdded(
+        who,
+        memberUserIds.map(nameOf).join(', '),
+      ),
       td.MessageChatJoinByLink() => AppStrings.serviceJoinedByLink(who),
       td.MessageChatJoinByRequest() => AppStrings.serviceAccepted(who),
       td.MessageChatDeleteMember(:final userId) when userId == senderUserId =>
         AppStrings.serviceLeft(who),
-      td.MessageChatDeleteMember(:final userId) =>
-        AppStrings.serviceRemoved(who, nameOf(userId)),
+      td.MessageChatDeleteMember(:final userId) => AppStrings.serviceRemoved(
+        who,
+        nameOf(userId),
+      ),
       td.MessagePinMessage() => AppStrings.servicePinned(who),
-      td.MessageChatChangeTitle(:final title) =>
-        AppStrings.serviceRenamed(who, title),
+      td.MessageChatChangeTitle(:final title) => AppStrings.serviceRenamed(
+        who,
+        title,
+      ),
       td.MessageChatChangePhoto() => AppStrings.servicePhotoChanged(who),
       td.MessageChatDeletePhoto() => AppStrings.servicePhotoRemoved(who),
       td.MessageBasicGroupChatCreate(:final title) ||
-      td.MessageSupergroupChatCreate(:final title) =>
-        AppStrings.serviceCreated(who, title),
+      td.MessageSupergroupChatCreate(
+        :final title,
+      ) => AppStrings.serviceCreated(who, title),
       td.MessageChatUpgradeTo() ||
       td.MessageChatUpgradeFrom() => AppStrings.serviceUpgraded,
       td.MessageScreenshotTaken() => AppStrings.serviceScreenshot(who),

@@ -17,8 +17,10 @@ void main() {
     test('the routes match the ids the router parses', () {
       expect(LegalTexts.privacyRoute, '/legal/privacy');
       expect(LegalTexts.termsRoute, '/legal/terms');
-      expect(LegalTexts.byId(LegalTexts.privacyRoute.split('/').last),
-          isNotNull);
+      expect(
+        LegalTexts.byId(LegalTexts.privacyRoute.split('/').last),
+        isNotNull,
+      );
       expect(LegalTexts.byId(LegalTexts.termsRoute.split('/').last), isNotNull);
     });
 
@@ -27,8 +29,11 @@ void main() {
         expect(document.sections, isNotEmpty);
         for (final section in document.sections) {
           expect(section.heading, isNotEmpty);
-          expect(section.paragraphs, isNotEmpty,
-              reason: '"${section.heading}" has a heading and nothing under it');
+          expect(
+            section.paragraphs,
+            isNotEmpty,
+            reason: '"${section.heading}" has a heading and nothing under it',
+          );
           for (final paragraph in section.paragraphs) {
             expect(paragraph.trim(), isNotEmpty);
           }
@@ -53,8 +58,11 @@ void main() {
         'logging out', // how someone gets their data off the device
         'source code', // the links Settings offers on its own
       ]) {
-        expect(text, contains(claim),
-            reason: 'the policy no longer mentions $claim');
+        expect(
+          text,
+          contains(claim),
+          reason: 'the policy no longer mentions $claim',
+        );
       }
     });
 
@@ -78,9 +86,10 @@ void main() {
     // version the build is actually stamped with.
     test('matches pubspec.yaml', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      final declared = RegExp(r'^version:\s*(\S+)', multiLine: true)
-          .firstMatch(pubspec)!
-          .group(1)!;
+      final declared = RegExp(
+        r'^version:\s*(\S+)',
+        multiLine: true,
+      ).firstMatch(pubspec)!.group(1)!;
 
       expect(declared.split('+').first, AppStrings.appVersion);
     });
@@ -92,9 +101,9 @@ void main() {
 
   group('LegalScreen', () {
     testWidgets('renders a document, headings and all', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: LegalScreen(documentId: 'privacy'),
-      ));
+      await tester.pumpWidget(
+        const MaterialApp(home: LegalScreen(documentId: 'privacy')),
+      );
 
       expect(find.text(LegalTexts.privacy.title), findsOneWidget);
       expect(
@@ -107,11 +116,12 @@ void main() {
       );
     });
 
-    testWidgets('an unknown document says so instead of crashing',
-        (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: LegalScreen(documentId: 'nope'),
-      ));
+    testWidgets('an unknown document says so instead of crashing', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: LegalScreen(documentId: 'nope')),
+      );
 
       expect(find.text(AppStrings.legalNotFoundBody), findsOneWidget);
     });

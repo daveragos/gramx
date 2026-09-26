@@ -65,21 +65,27 @@ void main() {
     // common case, not the edge one.
     test('a reply with nothing to show gets the line', () {
       expect(
-        replyPresentationFor(post(replyToMessageId: 4, replyToAuthorTitle: 'Ada')),
+        replyPresentationFor(
+          post(replyToMessageId: 4, replyToAuthorTitle: 'Ada'),
+        ),
         ReplyPresentation.line,
       );
     });
 
     test('quoted words earn the card', () {
       expect(
-        replyPresentationFor(post(replyToMessageId: 4, replyToText: 'the words')),
+        replyPresentationFor(
+          post(replyToMessageId: 4, replyToText: 'the words'),
+        ),
         ReplyPresentation.card,
       );
     });
 
     test('a picture alone earns the card', () {
       expect(
-        replyPresentationFor(post(replyToMessageId: 4, replyToThumbnailFileId: 12)),
+        replyPresentationFor(
+          post(replyToMessageId: 4, replyToThumbnailFileId: 12),
+        ),
         ReplyPresentation.card,
       );
       expect(
@@ -102,23 +108,27 @@ void main() {
     // the post they came out of.
     test('a selected passage beats the card', () {
       expect(
-        replyPresentationFor(post(
-          replyToMessageId: 4,
-          replyToText: 'the part they picked',
-          replyToIsQuote: true,
-        )),
+        replyPresentationFor(
+          post(
+            replyToMessageId: 4,
+            replyToText: 'the part they picked',
+            replyToIsQuote: true,
+          ),
+        ),
         ReplyPresentation.passage,
       );
     });
 
     test('a passage outranks a picture too', () {
       expect(
-        replyPresentationFor(post(
-          replyToMessageId: 4,
-          replyToText: 'the part they picked',
-          replyToIsQuote: true,
-          replyToThumbnailFileId: 12,
-        )),
+        replyPresentationFor(
+          post(
+            replyToMessageId: 4,
+            replyToText: 'the part they picked',
+            replyToIsQuote: true,
+            replyToThumbnailFileId: 12,
+          ),
+        ),
         ReplyPresentation.passage,
       );
     });
@@ -127,11 +137,13 @@ void main() {
     // stand above the reply, so it falls back rather than drawing an empty one.
     test('the quote flag without words is not a passage', () {
       expect(
-        replyPresentationFor(post(
-          replyToMessageId: 4,
-          replyToIsQuote: true,
-          replyToThumbnailFileId: 12,
-        )),
+        replyPresentationFor(
+          post(
+            replyToMessageId: 4,
+            replyToIsQuote: true,
+            replyToThumbnailFileId: 12,
+          ),
+        ),
         ReplyPresentation.card,
       );
       expect(
@@ -142,11 +154,15 @@ void main() {
 
     test('a zero file id is no file, not a file', () {
       expect(
-        replyPresentationFor(post(replyToMessageId: 4, replyToThumbnailFileId: 0)),
+        replyPresentationFor(
+          post(replyToMessageId: 4, replyToThumbnailFileId: 0),
+        ),
         ReplyPresentation.line,
       );
       expect(
-        replyPresentationFor(post(replyToMessageId: 4, replyToThumbnailUrl: '')),
+        replyPresentationFor(
+          post(replyToMessageId: 4, replyToThumbnailUrl: ''),
+        ),
         ReplyPresentation.line,
       );
     });
@@ -158,26 +174,25 @@ void main() {
       bool compact = false,
       VoidCallback? onOpenPost,
       ReplySlot slot = ReplySlot.belowBody,
-    }) =>
-        ProviderScope(
-          // An avatar or a thumbnail asks TDLib for the file behind it. There
-          // is no TDLib here, so every id resolves to "not downloaded" — which
-          // is also what the widget sees on a real first frame.
-          overrides: [
-            fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: ReplyTarget(
-                post: p,
-                slot: slot,
-                compact: compact,
-                onOpenPost: onOpenPost ?? () {},
-                onOpenAuthor: () {},
-              ),
-            ),
+    }) => ProviderScope(
+      // An avatar or a thumbnail asks TDLib for the file behind it. There
+      // is no TDLib here, so every id resolves to "not downloaded" — which
+      // is also what the widget sees on a real first frame.
+      overrides: [
+        fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: ReplyTarget(
+            post: p,
+            slot: slot,
+            compact: compact,
+            onOpenPost: onOpenPost ?? () {},
+            onOpenAuthor: () {},
           ),
-        );
+        ),
+      ),
+    );
 
     testWidgets('draws nothing when the post answers nothing', (tester) async {
       await tester.pumpWidget(host(post()));
@@ -201,11 +216,13 @@ void main() {
 
     testWidgets('the card carries the quoted byline and words', (tester) async {
       await tester.pumpWidget(
-        host(post(
-          replyToMessageId: 4,
-          replyToAuthorTitle: 'Ada Lovelace',
-          replyToText: 'the analytical engine',
-        )),
+        host(
+          post(
+            replyToMessageId: 4,
+            replyToAuthorTitle: 'Ada Lovelace',
+            replyToText: 'the analytical engine',
+          ),
+        ),
       );
       expect(find.byType(QuotedPostCard), findsOneWidget);
       expect(find.text('Ada Lovelace'), findsOneWidget);
@@ -214,8 +231,9 @@ void main() {
 
     // Telegram's block was drawn inside a comment, which is inside a thread,
     // which is inside the post screen. The card there would be a fourth box.
-    testWidgets('compact keeps the line even with words to quote',
-        (tester) async {
+    testWidgets('compact keeps the line even with words to quote', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         host(
           post(
@@ -236,8 +254,9 @@ void main() {
       expect(find.text('the analytical engine'), findsOneWidget);
     });
 
-    testWidgets('a reply with no named author falls back to this channel',
-        (tester) async {
+    testWidgets('a reply with no named author falls back to this channel', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         host(post(replyToMessageId: 4), slot: ReplySlot.aboveBody),
       );
@@ -263,12 +282,14 @@ void main() {
     // in, so the host draws it. PostCard has its own test that it does.
     testWidgets('ReplyTarget leaves a passage to the host', (tester) async {
       await tester.pumpWidget(
-        host(post(
-          replyToMessageId: 4,
-          replyToAuthorTitle: 'Ada Lovelace',
-          replyToText: 'the part they picked',
-          replyToIsQuote: true,
-        )),
+        host(
+          post(
+            replyToMessageId: 4,
+            replyToAuthorTitle: 'Ada Lovelace',
+            replyToText: 'the part they picked',
+            replyToIsQuote: true,
+          ),
+        ),
       );
       expect(find.byType(QuotedPostCard), findsNothing);
       expect(find.byType(QuotedPassage), findsNothing);
@@ -277,8 +298,9 @@ void main() {
 
     // A comment is already on a connector inside a thread. A second connector
     // inside it would be the nested shape already removed, in a new form.
-    testWidgets('a comment shows a passage as the line, not a connector',
-        (tester) async {
+    testWidgets('a comment shows a passage as the line, not a connector', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         host(
           post(
@@ -301,16 +323,19 @@ void main() {
 
     // The same fault PostSender was built to prevent, one level down: a quote
     // of another channel must not wear this channel's picture and tick.
-    testWidgets('a cross-chat quote borrows no identity from this post',
-        (tester) async {
+    testWidgets('a cross-chat quote borrows no identity from this post', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        host(post(
-          replyToMessageId: 4,
-          replyToChatId: -200,
-          replyToAuthorTitle: 'Ada Lovelace',
-          replyToText: 'the analytical engine',
-          isChannelVerified: true,
-        )),
+        host(
+          post(
+            replyToMessageId: 4,
+            replyToChatId: -200,
+            replyToAuthorTitle: 'Ada Lovelace',
+            replyToText: 'the analytical engine',
+            isChannelVerified: true,
+          ),
+        ),
       );
 
       final card = tester.widget<QuotedPostCard>(find.byType(QuotedPostCard));
@@ -320,14 +345,17 @@ void main() {
       expect(card.isAuthorVerified, isFalse);
     });
 
-    testWidgets('a reply within this channel keeps its face and tick',
-        (tester) async {
+    testWidgets('a reply within this channel keeps its face and tick', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        host(post(
-          replyToMessageId: 4,
-          replyToText: 'the analytical engine',
-          isChannelVerified: true,
-        )),
+        host(
+          post(
+            replyToMessageId: 4,
+            replyToText: 'the analytical engine',
+            isChannelVerified: true,
+          ),
+        ),
       );
 
       final card = tester.widget<QuotedPostCard>(find.byType(QuotedPostCard));
@@ -346,8 +374,9 @@ void main() {
       );
       final bare = post(replyToMessageId: 4, replyToAuthorTitle: 'Ada');
 
-      testWidgets('the card is below the body and nowhere else',
-          (tester) async {
+      testWidgets('the card is below the body and nowhere else', (
+        tester,
+      ) async {
         await tester.pumpWidget(host(replied, slot: ReplySlot.belowBody));
         expect(find.byType(QuotedPostCard), findsOneWidget);
 
@@ -355,13 +384,11 @@ void main() {
         expect(find.byType(QuotedPostCard), findsNothing);
       });
 
-      testWidgets('the line is above the body and nowhere else',
-          (tester) async {
+      testWidgets('the line is above the body and nowhere else', (
+        tester,
+      ) async {
         await tester.pumpWidget(host(bare, slot: ReplySlot.aboveBody));
-        expect(
-          find.text(AppStrings.chatReplyingToName('Ada')),
-          findsOneWidget,
-        );
+        expect(find.text(AppStrings.chatReplyingToName('Ada')), findsOneWidget);
 
         await tester.pumpWidget(host(bare, slot: ReplySlot.belowBody));
         expect(find.text(AppStrings.chatReplyingToName('Ada')), findsNothing);
@@ -371,18 +398,22 @@ void main() {
 
   group('QuotedPassage', () {
     Widget host(Widget child) => ProviderScope(
-          overrides: [
-            fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
-          ],
-          child: MaterialApp(home: Scaffold(body: child)),
-        );
+      overrides: [
+        fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+      ],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
     testWidgets('draws the selected words under their author', (tester) async {
-      await tester.pumpWidget(host(const QuotedPassage(
-        authorTitle: 'Ada Lovelace',
-        authorUsername: 'ada',
-        passage: 'the part they picked',
-      )));
+      await tester.pumpWidget(
+        host(
+          const QuotedPassage(
+            authorTitle: 'Ada Lovelace',
+            authorUsername: 'ada',
+            passage: 'the part they picked',
+          ),
+        ),
+      );
 
       expect(find.text('Ada Lovelace'), findsOneWidget);
       expect(find.text('@ada'), findsOneWidget);
@@ -393,10 +424,14 @@ void main() {
     // bookmarked. Drawing the controls under one would be the inert
     // affordance the hard rules forbid.
     testWidgets('carries no action bar', (tester) async {
-      await tester.pumpWidget(host(const QuotedPassage(
-        authorTitle: 'Ada Lovelace',
-        passage: 'the part they picked',
-      )));
+      await tester.pumpWidget(
+        host(
+          const QuotedPassage(
+            authorTitle: 'Ada Lovelace',
+            passage: 'the part they picked',
+          ),
+        ),
+      );
 
       expect(find.byType(PostActionBar), findsNothing);
       expect(find.byIcon(Icons.bookmark_border), findsNothing);
@@ -405,11 +440,15 @@ void main() {
 
     testWidgets('the whole block opens what it came out of', (tester) async {
       var opened = 0;
-      await tester.pumpWidget(host(QuotedPassage(
-        authorTitle: 'Ada Lovelace',
-        passage: 'the part they picked',
-        onTap: () => opened++,
-      )));
+      await tester.pumpWidget(
+        host(
+          QuotedPassage(
+            authorTitle: 'Ada Lovelace',
+            passage: 'the part they picked',
+            onTap: () => opened++,
+          ),
+        ),
+      );
 
       await tester.tap(find.text('the part they picked'));
       expect(opened, 1);
@@ -419,10 +458,9 @@ void main() {
     // these words, so hiding some of them behind an ellipsis hides the point.
     testWidgets('a long passage is not truncated', (tester) async {
       final long = List.filled(40, 'word').join(' ');
-      await tester.pumpWidget(host(QuotedPassage(
-        authorTitle: 'Ada Lovelace',
-        passage: long,
-      )));
+      await tester.pumpWidget(
+        host(QuotedPassage(authorTitle: 'Ada Lovelace', passage: long)),
+      );
 
       final text = tester.widget<Text>(find.text(long));
       expect(text.maxLines, isNull);
@@ -433,9 +471,9 @@ void main() {
     // or one nothing has cached. The byline is omitted rather than borrowed
     // from the post doing the quoting, which is always the wrong name.
     testWidgets('an unattributed passage draws no byline', (tester) async {
-      await tester.pumpWidget(host(const QuotedPassage(
-        passage: 'the part they picked',
-      )));
+      await tester.pumpWidget(
+        host(const QuotedPassage(passage: 'the part they picked')),
+      );
 
       expect(find.text('the part they picked'), findsOneWidget);
       expect(find.byType(ChannelAvatar), findsNothing);
@@ -443,10 +481,11 @@ void main() {
 
     testWidgets('and still leads to where it came from', (tester) async {
       var opened = 0;
-      await tester.pumpWidget(host(QuotedPassage(
-        passage: 'the part they picked',
-        onTap: () => opened++,
-      )));
+      await tester.pumpWidget(
+        host(
+          QuotedPassage(passage: 'the part they picked', onTap: () => opened++),
+        ),
+      );
 
       await tester.tap(find.text('the part they picked'));
       expect(opened, 1);
@@ -455,12 +494,12 @@ void main() {
     // The block's height comes from its content, so a one-line passage under a
     // one-line byline left the avatar almost touching the reply's — a stub of
     // a few pixels rather than a line joining two posts.
-    testWidgets('a short passage still gets a connector you can see',
-        (tester) async {
-      await tester.pumpWidget(host(const QuotedPassage(
-        authorTitle: 'Ada',
-        passage: 'short',
-      )));
+    testWidgets('a short passage still gets a connector you can see', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(const QuotedPassage(authorTitle: 'Ada', passage: 'short')),
+      );
 
       final height = tester.getSize(find.byType(QuotedPassage)).height;
       expect(
@@ -471,18 +510,22 @@ void main() {
       );
     });
 
-    testWidgets('a long passage is given more, not clamped to the floor',
-        (tester) async {
-      await tester.pumpWidget(host(const QuotedPassage(
-        authorTitle: 'Ada',
-        passage: 'short',
-      )));
+    testWidgets('a long passage is given more, not clamped to the floor', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(const QuotedPassage(authorTitle: 'Ada', passage: 'short')),
+      );
       final short = tester.getSize(find.byType(QuotedPassage)).height;
 
-      await tester.pumpWidget(host(QuotedPassage(
-        authorTitle: 'Ada',
-        passage: List.filled(40, 'word').join(' '),
-      )));
+      await tester.pumpWidget(
+        host(
+          QuotedPassage(
+            authorTitle: 'Ada',
+            passage: List.filled(40, 'word').join(' '),
+          ),
+        ),
+      );
       final long = tester.getSize(find.byType(QuotedPassage)).height;
 
       expect(long, greaterThan(short));

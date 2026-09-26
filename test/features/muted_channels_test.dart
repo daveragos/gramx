@@ -10,8 +10,7 @@ Channel channel({
   required int chatId,
   String title = 'Channel',
   String? username,
-}) =>
-    Channel(id: id, chatId: chatId, title: title, username: username);
+}) => Channel(id: id, chatId: chatId, title: title, username: username);
 
 void main() {
   // The mute set persists to a JSON file. There is no platform channel here,
@@ -27,9 +26,9 @@ void main() {
         channel(id: '-100111', chatId: -100111, title: 'Kept'),
         channel(id: '-100222', chatId: -100222, title: 'Muted', username: 'm'),
       ];
-      final container = ProviderContainer(overrides: [
-        channelsProvider.overrideWith((ref) async => channels),
-      ]);
+      final container = ProviderContainer(
+        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+      );
       addTearDown(container.dispose);
 
       container.listen(channelsProvider, (_, _) {});
@@ -41,19 +40,18 @@ void main() {
           .read(mutedChannelsProvider.notifier)
           .toggleMute('-100222', chatId: -100222, username: 'm');
 
-      expect(
-        container.read(mutedChannelsListProvider).map((c) => c.title),
-        ['Muted'],
-      );
+      expect(container.read(mutedChannelsListProvider).map((c) => c.title), [
+        'Muted',
+      ]);
     });
 
     test('unmuting takes the channel back out of the list', () async {
       final channels = [
         channel(id: '-100222', chatId: -100222, title: 'Muted'),
       ];
-      final container = ProviderContainer(overrides: [
-        channelsProvider.overrideWith((ref) async => channels),
-      ]);
+      final container = ProviderContainer(
+        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+      );
       addTearDown(container.dispose);
 
       container.listen(channelsProvider, (_, _) {});
@@ -73,11 +71,15 @@ void main() {
     test('recognises a channel muted under any of its ids', () async {
       final channels = [
         channel(
-            id: '-100222', chatId: -100222, title: 'Muted', username: 'somech'),
+          id: '-100222',
+          chatId: -100222,
+          title: 'Muted',
+          username: 'somech',
+        ),
       ];
-      final container = ProviderContainer(overrides: [
-        channelsProvider.overrideWith((ref) async => channels),
-      ]);
+      final container = ProviderContainer(
+        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+      );
       addTearDown(container.dispose);
 
       container.listen(channelsProvider, (_, _) {});

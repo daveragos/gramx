@@ -44,8 +44,9 @@ void main() {
     });
 
     test('the cursor is the oldest post on the page', () {
-      final lowest =
-          page.posts.map((p) => p.seq).reduce((a, b) => a < b ? a : b);
+      final lowest = page.posts
+          .map((p) => p.seq)
+          .reduce((a, b) => a < b ? a : b);
       expect(page.olderCursor, lowest);
     });
 
@@ -59,31 +60,37 @@ void main() {
 
     // The whole reason reactions are worth parsing here: the preview page has
     // them, so a guest sees the same chips a signed-in reader does.
-    test('reactions come through, counts expanded from Telegram\'s shorthand',
-        () {
-      final withReactions =
-          page.posts.where((p) => p.reactions.isNotEmpty).toList();
-      expect(withReactions, isNotEmpty);
+    test(
+      'reactions come through, counts expanded from Telegram\'s shorthand',
+      () {
+        final withReactions = page.posts
+            .where((p) => p.reactions.isNotEmpty)
+            .toList();
+        expect(withReactions, isNotEmpty);
 
-      for (final reaction in withReactions.expand((p) => p.reactions)) {
-        expect(reaction.count, greaterThan(0));
-        expect(reaction.emoji, isNotEmpty);
-      }
-      // "55.2K" on the page is 55200 here — Post.reactions is a number, and
-      // TimeUtils.formatCount re-abbreviates it in the app's own style.
-      expect(
-        withReactions.expand((p) => p.reactions).map((r) => r.count),
-        contains(greaterThan(1000)),
-      );
-    });
+        for (final reaction in withReactions.expand((p) => p.reactions)) {
+          expect(reaction.count, greaterThan(0));
+          expect(reaction.emoji, isNotEmpty);
+        }
+        // "55.2K" on the page is 55200 here — Post.reactions is a number, and
+        // TimeUtils.formatCount re-abbreviates it in the app's own style.
+        expect(
+          withReactions.expand((p) => p.reactions).map((r) => r.count),
+          contains(greaterThan(1000)),
+        );
+      },
+    );
 
     test('paid reactions are recognised and drawn as the star', () {
       final paid = page.posts
           .expand((p) => p.reactions)
           .where((r) => r.isPaid)
           .toList();
-      expect(paid, isNotEmpty,
-          reason: 'the capture contains a tgme_reaction_paid chip');
+      expect(
+        paid,
+        isNotEmpty,
+        reason: 'the capture contains a tgme_reaction_paid chip',
+      );
       expect(paid.first.emoji, TmePageParser.paidReactionEmoji);
     });
 
@@ -111,7 +118,10 @@ void main() {
     // Returning an empty page instead of null would look like a channel that
     // has posted nothing, which is a much worse answer than "couldn't read it".
     test('returns null rather than an empty channel', () {
-      expect(TmePageParser.parse('<html><body>Nope</body></html>', 'x'), isNull);
+      expect(
+        TmePageParser.parse('<html><body>Nope</body></html>', 'x'),
+        isNull,
+      );
       expect(TmePageParser.parse('', 'x'), isNull);
     });
   });
@@ -194,8 +204,10 @@ void main() {
              style="width:100px;background-image:url('https://cdn.telegram.org/pic.jpg')"></a>
         </div>
       ''');
-      expect(page.posts.single.media.single.url,
-          'https://cdn.telegram.org/pic.jpg');
+      expect(
+        page.posts.single.media.single.url,
+        'https://cdn.telegram.org/pic.jpg',
+      );
     });
 
     // The page is untrusted network input. A relative path, a data: blob or a

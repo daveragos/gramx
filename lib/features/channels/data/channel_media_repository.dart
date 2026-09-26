@@ -47,13 +47,13 @@ class ChannelMediaRepository {
   /// `channelPostsProvider`, and running it through a search would spend a
   /// request to get back what is already loaded.
   static td.SearchMessagesFilter? filterFor(ChannelTab tab) => switch (tab) {
-        ChannelTab.posts => null,
-        ChannelTab.media => const td.SearchMessagesFilterPhotoAndVideo(),
-        ChannelTab.files => const td.SearchMessagesFilterDocument(),
-        ChannelTab.links => const td.SearchMessagesFilterUrl(),
-        // Voice notes and round videos together, the way Telegram groups them.
-        ChannelTab.voice => const td.SearchMessagesFilterVoiceAndVideoNote(),
-      };
+    ChannelTab.posts => null,
+    ChannelTab.media => const td.SearchMessagesFilterPhotoAndVideo(),
+    ChannelTab.files => const td.SearchMessagesFilterDocument(),
+    ChannelTab.links => const td.SearchMessagesFilterUrl(),
+    // Voice notes and round videos together, the way Telegram groups them.
+    ChannelTab.voice => const td.SearchMessagesFilterVoiceAndVideoNote(),
+  };
 
   /// One page of a tab. [fromMessageId] is 0 for the first page, then whatever
   /// the previous page reported.
@@ -66,16 +66,18 @@ class ChannelMediaRepository {
     if (filter == null) return ChannelTabPage.empty;
 
     try {
-      final res = await _tdlib.sendRequest(td.SearchChatMessages(
-        chatId: chatId,
-        query: '',
-        fromMessageId: fromMessageId,
-        offset: 0,
-        limit: pageSize,
-        filter: filter,
-        messageThreadId: 0,
-        savedMessagesTopicId: 0,
-      ));
+      final res = await _tdlib.sendRequest(
+        td.SearchChatMessages(
+          chatId: chatId,
+          query: '',
+          fromMessageId: fromMessageId,
+          offset: 0,
+          limit: pageSize,
+          filter: filter,
+          messageThreadId: 0,
+          savedMessagesTopicId: 0,
+        ),
+      );
 
       if (res is! td.FoundChatMessages) return ChannelTabPage.empty;
 
@@ -96,8 +98,9 @@ class ChannelMediaRepository {
   /// which is an answer rather than a failure — the card simply doesn't draw.
   Future<Post?> fetchPinnedPost(int chatId) async {
     try {
-      final res =
-          await _tdlib.sendRequest(td.GetChatPinnedMessage(chatId: chatId));
+      final res = await _tdlib.sendRequest(
+        td.GetChatPinnedMessage(chatId: chatId),
+      );
       if (res is! td.Message) return null;
 
       final posts = await _feed.mapChannelMessages(chatId, [res]);

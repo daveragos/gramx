@@ -30,71 +30,80 @@ class FileDownloadProgressState {
 /// Reactive stream provider tracking real-time TDLib download progress for a fileId.
 final fileDownloadProgressProvider =
     StreamProvider.family<FileDownloadProgressState, int>((ref, fileId) async* {
-  if (fileId == 0) {
-    yield const FileDownloadProgressState(fileId: 0);
-    return;
-  }
-
-  final tdlib = ref.watch(tdlibServiceProvider);
-
-  // 1. Query initial file state
-  try {
-    final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
-    if (result is td.File) {
-      final isDone = result.local.isDownloadingCompleted && result.local.path.isNotEmpty;
-      final total = result.expectedSize > 0 ? result.expectedSize : result.size;
-
-      yield FileDownloadProgressState(
-        fileId: fileId,
-        downloadedSize: result.local.downloadedSize,
-        totalSize: total,
-        isCompleted: isDone,
-        localPath: isDone ? result.local.path : null,
-      );
-
-      if (isDone) return;
-
-      if (!result.local.isDownloadingActive) {
-        await tdlib.sendRequest(td.DownloadFile(
-          fileId: fileId,
-          priority: 32,
-          offset: 0,
-          limit: 0,
-          synchronous: false,
-        ));
+      if (fileId == 0) {
+        yield const FileDownloadProgressState(fileId: 0);
+        return;
       }
-    }
-  } catch (_) {
-    try {
-      await tdlib.sendRequest(td.DownloadFile(
-        fileId: fileId,
-        priority: 32,
-        offset: 0,
-        limit: 0,
-        synchronous: false,
-      ));
-    } catch (_) {}
-  }
 
-  // 2. Stream real-time progress updates from TDLib update stream
-  await for (final update in tdlib.fileUpdates) {
-    if (update.file.id == fileId) {
-      final file = update.file;
-      final isDone = file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
-      final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+      final tdlib = ref.watch(tdlibServiceProvider);
 
-      yield FileDownloadProgressState(
-        fileId: fileId,
-        downloadedSize: file.local.downloadedSize,
-        totalSize: total,
-        isCompleted: isDone,
-        localPath: isDone ? file.local.path : null,
-      );
+      // 1. Query initial file state
+      try {
+        final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
+        if (result is td.File) {
+          final isDone =
+              result.local.isDownloadingCompleted &&
+              result.local.path.isNotEmpty;
+          final total = result.expectedSize > 0
+              ? result.expectedSize
+              : result.size;
 
-      if (isDone) return;
-    }
-  }
-});
+          yield FileDownloadProgressState(
+            fileId: fileId,
+            downloadedSize: result.local.downloadedSize,
+            totalSize: total,
+            isCompleted: isDone,
+            localPath: isDone ? result.local.path : null,
+          );
+
+          if (isDone) return;
+
+          if (!result.local.isDownloadingActive) {
+            await tdlib.sendRequest(
+              td.DownloadFile(
+                fileId: fileId,
+                priority: 32,
+                offset: 0,
+                limit: 0,
+                synchronous: false,
+              ),
+            );
+          }
+        }
+      } catch (_) {
+        try {
+          await tdlib.sendRequest(
+            td.DownloadFile(
+              fileId: fileId,
+              priority: 32,
+              offset: 0,
+              limit: 0,
+              synchronous: false,
+            ),
+          );
+        } catch (_) {}
+      }
+
+      // 2. Stream real-time progress updates from TDLib update stream
+      await for (final update in tdlib.fileUpdates) {
+        if (update.file.id == fileId) {
+          final file = update.file;
+          final isDone =
+              file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
+          final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+
+          yield FileDownloadProgressState(
+            fileId: fileId,
+            downloadedSize: file.local.downloadedSize,
+            totalSize: total,
+            isCompleted: isDone,
+            localPath: isDone ? file.local.path : null,
+          );
+
+          if (isDone) return;
+        }
+      }
+    });
 
 /// Reactive stream of TDLib download progress for a fileId that never starts
 /// or resumes a download itself — unlike [fileDownloadProgressProvider], which
@@ -104,61 +113,70 @@ final fileDownloadProgressProvider =
 /// `UpdateFile` events that download produces.
 final fileDownloadStatusProvider =
     StreamProvider.family<FileDownloadProgressState, int>((ref, fileId) async* {
-  if (fileId == 0) {
-    yield const FileDownloadProgressState(fileId: 0);
-    return;
-  }
+      if (fileId == 0) {
+        yield const FileDownloadProgressState(fileId: 0);
+        return;
+      }
 
-  final tdlib = ref.watch(tdlibServiceProvider);
+      final tdlib = ref.watch(tdlibServiceProvider);
 
-  try {
-    final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
-    if (result is td.File) {
-      final isDone = result.local.isDownloadingCompleted && result.local.path.isNotEmpty;
-      final total = result.expectedSize > 0 ? result.expectedSize : result.size;
+      try {
+        final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
+        if (result is td.File) {
+          final isDone =
+              result.local.isDownloadingCompleted &&
+              result.local.path.isNotEmpty;
+          final total = result.expectedSize > 0
+              ? result.expectedSize
+              : result.size;
 
-      yield FileDownloadProgressState(
-        fileId: fileId,
-        downloadedSize: result.local.downloadedSize,
-        totalSize: total,
-        isCompleted: isDone,
-        localPath: isDone ? result.local.path : null,
-      );
+          yield FileDownloadProgressState(
+            fileId: fileId,
+            downloadedSize: result.local.downloadedSize,
+            totalSize: total,
+            isCompleted: isDone,
+            localPath: isDone ? result.local.path : null,
+          );
 
-      if (isDone) return;
-    }
-  } catch (_) {}
+          if (isDone) return;
+        }
+      } catch (_) {}
 
-  await for (final update in tdlib.fileUpdates) {
-    if (update.file.id == fileId) {
-      final file = update.file;
-      final isDone = file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
-      final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+      await for (final update in tdlib.fileUpdates) {
+        if (update.file.id == fileId) {
+          final file = update.file;
+          final isDone =
+              file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
+          final total = file.expectedSize > 0 ? file.expectedSize : file.size;
 
-      yield FileDownloadProgressState(
-        fileId: fileId,
-        downloadedSize: file.local.downloadedSize,
-        totalSize: total,
-        isCompleted: isDone,
-        localPath: isDone ? file.local.path : null,
-      );
+          yield FileDownloadProgressState(
+            fileId: fileId,
+            downloadedSize: file.local.downloadedSize,
+            totalSize: total,
+            isCompleted: isDone,
+            localPath: isDone ? file.local.path : null,
+          );
 
-      if (isDone) return;
-    }
-  }
-});
+          if (isDone) return;
+        }
+      }
+    });
 
 /// Reactive provider that tracks a TDLib file download by its fileId and returns the completed local path.
-final fileDownloadProvider =
-    StreamProvider.family<String?, int>((ref, fileId) async* {
+final fileDownloadProvider = StreamProvider.family<String?, int>((
+  ref,
+  fileId,
+) async* {
   final stateAsync = ref.watch(fileDownloadProgressProvider(fileId));
   yield stateAsync.value?.localPath;
 });
 
 /// Async file existence check that doesn't block the UI thread.
 /// Use this instead of File.existsSync() in build methods.
-final fileExistsProvider =
-    FutureProvider.family<bool, String>((ref, path) async {
+final fileExistsProvider = FutureProvider.family<bool, String>((
+  ref,
+  path,
+) async {
   if (path.isEmpty) return false;
   return File(path).exists();
 });

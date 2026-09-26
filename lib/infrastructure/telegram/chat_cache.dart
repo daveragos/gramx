@@ -303,11 +303,15 @@ class ChatCacheState {
           pendingLastMessages[update.chatId] = update;
           return false;
         }
-        chats[update.chatId] = withCleared(
-          existing,
-          'last_message',
-          when: update.lastMessage == null,
-        ).copyWith(lastMessage: update.lastMessage, positions: update.positions);
+        chats[update.chatId] =
+            withCleared(
+              existing,
+              'last_message',
+              when: update.lastMessage == null,
+            ).copyWith(
+              lastMessage: update.lastMessage,
+              positions: update.positions,
+            );
         return true;
 
       case td.UpdateChatPosition():
@@ -483,14 +487,15 @@ class ChatCacheState {
         // Sending clears the draft with a null. Kept, it came back into the
         // composer the next time the chat was opened — the message the reader
         // had already sent, waiting to be sent again. See [withCleared].
-        chats[update.chatId] = withCleared(
-          existing,
-          'draft_message',
-          when: update.draftMessage == null,
-        ).copyWith(
-          draftMessage: update.draftMessage,
-          positions: update.positions,
-        );
+        chats[update.chatId] =
+            withCleared(
+              existing,
+              'draft_message',
+              when: update.draftMessage == null,
+            ).copyWith(
+              draftMessage: update.draftMessage,
+              positions: update.positions,
+            );
         return true;
 
       default:

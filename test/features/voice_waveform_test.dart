@@ -80,10 +80,10 @@ void main() {
 
   group('decibels', () {
     test('silence is zero and full scale is the ceiling', () {
-      expect(
-        VoiceWaveform.fromDecibels(const [-60, 0]),
-        const [0, VoiceWaveform.maxAmplitude],
-      );
+      expect(VoiceWaveform.fromDecibels(const [-60, 0]), const [
+        0,
+        VoiceWaveform.maxAmplitude,
+      ]);
     });
 
     test('anything at or below the floor is silence', () {

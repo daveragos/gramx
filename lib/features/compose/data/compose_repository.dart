@@ -156,7 +156,6 @@ abstract class ComposeMessages {
     };
   }
 
-
   /// Builds one content object per message to send.
   ///
   /// Length is not checked here — [ComposeDraft.canPost] is what stands between
@@ -416,11 +415,13 @@ class ComposeRepository {
   /// writer some room, while one that over-promises invites them past a limit
   /// the server will bounce them off.
   Future<ComposeLengthLimits> lengthLimits() async => ComposeLengthLimits(
-        text: await _intOption('message_text_length_max') ??
-            ComposeLengthLimits.free.text,
-        caption: await _intOption('message_caption_length_max') ??
-            ComposeLengthLimits.free.caption,
-      );
+    text:
+        await _intOption('message_text_length_max') ??
+        ComposeLengthLimits.free.text,
+    caption:
+        await _intOption('message_caption_length_max') ??
+        ComposeLengthLimits.free.caption,
+  );
 
   Future<int?> _intOption(String name) async {
     try {
@@ -439,10 +440,10 @@ class ComposeRepository {
   /// Read straight from [ChatCache], so opening the compose screen costs no
   /// requests at all.
   List<ComposeTarget> targets({int? selfUserId}) => ComposeTargets.fromChats(
-        _chatCache.forwardTargets,
-        selfUserId: selfUserId,
-        supergroupOf: _chatCache.supergroupForChat,
-      );
+    _chatCache.forwardTargets,
+    selfUserId: selfUserId,
+    supergroupOf: _chatCache.supergroupForChat,
+  );
 
   /// Sends the draft. Returns true when TDLib accepted it.
   ///
@@ -464,12 +465,14 @@ class ComposeRepository {
 
     try {
       if (ComposeMessages.isAlbum(contents)) {
-        final res = await _tdlib.sendRequest(td.SendMessageAlbum(
-          chatId: chatId,
-          messageThreadId: 0,
-          options: _sendOptions,
-          inputMessageContents: contents,
-        ));
+        final res = await _tdlib.sendRequest(
+          td.SendMessageAlbum(
+            chatId: chatId,
+            messageThreadId: 0,
+            options: _sendOptions,
+            inputMessageContents: contents,
+          ),
+        );
         if (res is! td.Messages) return ComposeSendResult.refused;
         final sent = res.messages;
         return ComposeSendResult(
@@ -481,12 +484,14 @@ class ComposeRepository {
         );
       }
 
-      final res = await _tdlib.sendRequest(td.SendMessage(
-        chatId: chatId,
-        messageThreadId: 0,
-        options: _sendOptions,
-        inputMessageContent: contents.first,
-      ));
+      final res = await _tdlib.sendRequest(
+        td.SendMessage(
+          chatId: chatId,
+          messageThreadId: 0,
+          options: _sendOptions,
+          inputMessageContent: contents.first,
+        ),
+      );
       if (res is! td.Message) return ComposeSendResult.refused;
       return ComposeSendResult(
         accepted: true,
@@ -515,12 +520,14 @@ class ComposeRepository {
     if (!draft.canSend) return ComposeSendResult.refused;
 
     try {
-      final res = await _tdlib.sendRequest(td.SendMessage(
-        chatId: chatId,
-        messageThreadId: 0,
-        options: _sendOptions,
-        inputMessageContent: ComposeMessages.pollContent(draft),
-      ));
+      final res = await _tdlib.sendRequest(
+        td.SendMessage(
+          chatId: chatId,
+          messageThreadId: 0,
+          options: _sendOptions,
+          inputMessageContent: ComposeMessages.pollContent(draft),
+        ),
+      );
       if (res is! td.Message) return ComposeSendResult.refused;
       return ComposeSendResult(accepted: true, messageIds: [res.id]);
     } catch (e) {
@@ -535,8 +542,9 @@ class ComposeRepository {
 /// A future rather than a constant because it is read from TDLib. While it is
 /// in flight the composer uses [ComposeLengthLimits.free], so the counter is
 /// right for most accounts immediately and right for all of them a frame later.
-final composeLengthLimitsProvider =
-    FutureProvider<ComposeLengthLimits>((ref) async {
+final composeLengthLimitsProvider = FutureProvider<ComposeLengthLimits>((
+  ref,
+) async {
   return ref.watch(composeRepositoryProvider).lengthLimits();
 });
 

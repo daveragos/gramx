@@ -74,10 +74,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           backgroundColor: theme.scaffoldBackgroundColor,
           // The way back. `AppBar` draws it because this route was pushed;
           // the tooltip is the framework's own, so a screen reader says "Back".
-          leading: BackButton(
-            color: primary,
-            onPressed: () => context.pop(),
-          ),
+          leading: BackButton(color: primary, onPressed: () => context.pop()),
           title: Text(
             AppStrings.activityTitle,
             style: AppTypography.heading(color: primary),
@@ -88,9 +85,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             unselectedLabelColor: secondary,
             dividerColor: borderColor,
             dividerHeight: 0.5,
-            tabs: [
-              for (final tab in _ActivityTab.values) Tab(text: tab.label),
-            ],
+            tabs: [for (final tab in _ActivityTab.values) Tab(text: tab.label)],
           ),
         ),
         body: TabBarView(

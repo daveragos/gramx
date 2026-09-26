@@ -53,19 +53,19 @@ void main() {
     });
 
     test('a forward from a person is not', () {
-      final message = _saved(1, origin: {
-        '@type': 'messageOriginUser',
-        'sender_user_id': 42,
-      });
+      final message = _saved(
+        1,
+        origin: {'@type': 'messageOriginUser', 'sender_user_id': 42},
+      );
 
       expect(FeedRepository.bookmarkOriginOf(message), isNull);
     });
 
     test('a forward from a hidden sender is not', () {
-      final message = _saved(1, origin: {
-        '@type': 'messageOriginHiddenUser',
-        'sender_name': 'Someone',
-      });
+      final message = _saved(
+        1,
+        origin: {'@type': 'messageOriginHiddenUser', 'sender_name': 'Someone'},
+      );
 
       expect(FeedRepository.bookmarkOriginOf(message), isNull);
     });

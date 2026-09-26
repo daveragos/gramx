@@ -7,16 +7,15 @@ Post post({
   required int messageId,
   required int minutesAgo,
   int? replyTo,
-}) =>
-    Post(
-      id: '${chatId}_$messageId',
-      chatId: chatId,
-      channelId: '$chatId',
-      messageId: messageId,
-      channelTitle: 'Channel $chatId',
-      replyToMessageId: replyTo,
-      publishedAt: DateTime(2026, 1, 1, 12).subtract(Duration(minutes: minutesAgo)),
-    );
+}) => Post(
+  id: '${chatId}_$messageId',
+  chatId: chatId,
+  channelId: '$chatId',
+  messageId: messageId,
+  channelTitle: 'Channel $chatId',
+  replyToMessageId: replyTo,
+  publishedAt: DateTime(2026, 1, 1, 12).subtract(Duration(minutes: minutesAgo)),
+);
 
 void main() {
   group('groupIntoThreads', () {
@@ -93,8 +92,11 @@ void main() {
         post(chatId: -2, messageId: 9, minutesAgo: 50),
       ]);
 
-      expect(threads.first.root.messageId, 1,
-          reason: 'a follow-up should surface the thread');
+      expect(
+        threads.first.root.messageId,
+        1,
+        reason: 'a follow-up should surface the thread',
+      );
       expect(threads.last.root.messageId, 9);
     });
 
@@ -104,8 +106,10 @@ void main() {
         post(messageId: 2, minutesAgo: 4, replyTo: 1),
       ]);
 
-      expect(threads.single.lastActivity,
-          threads.single.replies.single.publishedAt);
+      expect(
+        threads.single.lastActivity,
+        threads.single.replies.single.publishedAt,
+      );
     });
 
     // A thread surfaces because of its newest post, so that is what the
@@ -123,7 +127,9 @@ void main() {
     });
 
     test('a thread with no replies is its own latest, with no earlier', () {
-      final thread = groupIntoThreads([post(messageId: 1, minutesAgo: 5)]).single;
+      final thread = groupIntoThreads([
+        post(messageId: 1, minutesAgo: 5),
+      ]).single;
 
       expect(thread.latest.messageId, 1);
       expect(thread.earlier, isEmpty);
@@ -173,10 +179,9 @@ void main() {
         post(messageId: 2, minutesAgo: 4, replyTo: 1),
       ];
 
-      final seen = groupIntoThreads(posts)
-          .expand((t) => t.allPosts)
-          .map((p) => p.id)
-          .toSet();
+      final seen = groupIntoThreads(
+        posts,
+      ).expand((t) => t.allPosts).map((p) => p.id).toSet();
 
       expect(seen, posts.map((p) => p.id).toSet());
     });
@@ -189,10 +194,9 @@ void main() {
         post(chatId: -2, messageId: 4, minutesAgo: 5),
       ];
 
-      final seen = groupIntoThreads(posts)
-          .expand((t) => t.allPosts)
-          .map((p) => p.id)
-          .toSet();
+      final seen = groupIntoThreads(
+        posts,
+      ).expand((t) => t.allPosts).map((p) => p.id).toSet();
 
       expect(seen, posts.map((p) => p.id).toSet());
     });
@@ -203,11 +207,13 @@ void main() {
   // other, so groupIntoThreads has nothing to collapse — they are simply
   // different posts that happened to land together.
   group('scatterChannelBursts', () {
-    List<String> idsOf(List<FeedThread> threads) =>
-        [for (final t in threads) t.root.id];
+    List<String> idsOf(List<FeedThread> threads) => [
+      for (final t in threads) t.root.id,
+    ];
 
-    List<FeedThread> threadsOf(List<Post> posts) =>
-        [for (final p in posts) FeedThread(root: p)];
+    List<FeedThread> threadsOf(List<Post> posts) => [
+      for (final p in posts) FeedThread(root: p),
+    ];
 
     test('a burst is broken up by whatever else is in the feed', () {
       final scattered = scatterChannelBursts(

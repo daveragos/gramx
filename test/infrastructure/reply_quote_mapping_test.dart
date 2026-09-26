@@ -129,7 +129,10 @@ void main() {
         channel,
       );
 
-      expect(post.replyToText, 'the sounds differ basing on the amount you sent');
+      expect(
+        post.replyToText,
+        'the sounds differ basing on the amount you sent',
+      );
       expect(post.replyToIsQuote, isTrue);
       expect(replyPresentationFor(post), ReplyPresentation.passage);
     });

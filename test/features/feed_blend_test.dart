@@ -3,23 +3,33 @@ import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 
 /// [minutesAgo] doubles as the ordering: bigger is older.
-Post post(String id, int minutesAgo, {bool isRead = false, int chatId = -100}) =>
-    Post(
-      id: id,
-      chatId: chatId,
-      channelId: '$chatId',
-      messageId: int.parse(id.split('_').last),
-      channelTitle: 'Channel $chatId',
-      publishedAt:
-          DateTime(2026, 8, 23, 12).subtract(Duration(minutes: minutesAgo)),
-      isRead: isRead,
-    );
+Post post(
+  String id,
+  int minutesAgo, {
+  bool isRead = false,
+  int chatId = -100,
+}) => Post(
+  id: id,
+  chatId: chatId,
+  channelId: '$chatId',
+  messageId: int.parse(id.split('_').last),
+  channelTitle: 'Channel $chatId',
+  publishedAt: DateTime(
+    2026,
+    8,
+    23,
+    12,
+  ).subtract(Duration(minutes: minutesAgo)),
+  isRead: isRead,
+);
 
-List<String> idsOf(List<FeedEntry> entries) =>
-    [for (final e in entries) e.thread.root.id];
+List<String> idsOf(List<FeedEntry> entries) => [
+  for (final e in entries) e.thread.root.id,
+];
 
-List<bool> backlogFlags(List<FeedEntry> entries) =>
-    [for (final e in entries) e.isBacklog];
+List<bool> backlogFlags(List<FeedEntry> entries) => [
+  for (final e in entries) e.isBacklog,
+];
 
 void main() {
   group('orderBacklogIds', () {
@@ -58,8 +68,10 @@ void main() {
       ]);
 
       for (var i = 0; i < ordered.length - 1; i++) {
-        expect(ordered[i].split('_').first,
-            isNot(ordered[i + 1].split('_').first));
+        expect(
+          ordered[i].split('_').first,
+          isNot(ordered[i + 1].split('_').first),
+        );
       }
     });
   });
@@ -101,7 +113,6 @@ void main() {
     });
   });
 
-
   group('buildFeedEntries', () {
     test('with no backlog it is the feed it always was: newest first', () {
       final entries = buildFeedEntries([
@@ -136,8 +147,7 @@ void main() {
       final entries = buildFeedEntries(
         [
           for (var i = 1; i <= 9; i++) post('-100_$i', i),
-          for (var i = 1; i <= 3; i++)
-            post('-200_$i', 5000 + i, chatId: -200),
+          for (var i = 1; i <= 3; i++) post('-200_$i', 5000 + i, chatId: -200),
         ],
         backlogOrder: const ['-200_1', '-200_2', '-200_3'],
       );
@@ -164,8 +174,10 @@ void main() {
         for (final e in entries)
           if (e.isBacklog) e.thread.root.id,
       ];
-      expect(backlogOrder, ['-200_2', '-200_1'],
-          reason: '-200_2 is the older of the two');
+      expect(backlogOrder, [
+        '-200_2',
+        '-200_1',
+      ], reason: '-200_2 is the older of the two');
     });
 
     test('a backlog post appears once, not twice', () {
@@ -236,21 +248,18 @@ void main() {
     test('loading older posts does not move the rows already on screen', () {
       final firstPage = [for (var i = 1; i <= 8; i++) post('-100_$i', i * 60)];
       const backlog = ['-200_1'];
-      final before = buildFeedEntries(
-        [...firstPage, post('-200_1', 5000, chatId: -200)],
-        backlogOrder: backlog,
-      );
+      final before = buildFeedEntries([
+        ...firstPage,
+        post('-200_1', 5000, chatId: -200),
+      ], backlogOrder: backlog);
 
-      final after = buildFeedEntries(
-        [
-          ...firstPage,
-          post('-200_1', 5000, chatId: -200),
-          // A page of older posts arrives, unread ones among them.
-          for (var i = 20; i <= 30; i++)
-            post('-300_$i', 1000 + i * 60, chatId: -300),
-        ],
-        backlogOrder: backlog,
-      );
+      final after = buildFeedEntries([
+        ...firstPage,
+        post('-200_1', 5000, chatId: -200),
+        // A page of older posts arrives, unread ones among them.
+        for (var i = 20; i <= 30; i++)
+          post('-300_$i', 1000 + i * 60, chatId: -300),
+      ], backlogOrder: backlog);
 
       expect(idsOf(after).take(before.length), idsOf(before));
     });
@@ -259,12 +268,12 @@ void main() {
     // back to its chronological place under the reader's thumb.
     test('reading a backlog post leaves it where it is', () {
       List<FeedEntry> build({required bool read}) => buildFeedEntries(
-            [
-              for (var i = 1; i <= 8; i++) post('-100_$i', i),
-              post('-200_1', 5000, chatId: -200, isRead: read),
-            ],
-            backlogOrder: const ['-200_1'],
-          );
+        [
+          for (var i = 1; i <= 8; i++) post('-100_$i', i),
+          post('-200_1', 5000, chatId: -200, isRead: read),
+        ],
+        backlogOrder: const ['-200_1'],
+      );
 
       expect(idsOf(build(read: true)), idsOf(build(read: false)));
     });

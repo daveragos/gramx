@@ -57,15 +57,13 @@ void main() {
     });
 
     test('an empty cursor map yields an empty page', () {
-      expect(
-        FeedRepository.selectPaginationFrontier({}, limit: 10),
-        isEmpty,
-      );
+      expect(FeedRepository.selectPaginationFrontier({}, limit: 10), isEmpty);
     });
 
     test('carries the cursor value through with its chat id', () {
-      final page =
-          FeedRepository.selectPaginationFrontier({-7: 4242}, limit: 5);
+      final page = FeedRepository.selectPaginationFrontier({
+        -7: 4242,
+      }, limit: 5);
 
       expect(page.single.key, -7);
       expect(page.single.value, 4242);
@@ -74,8 +72,11 @@ void main() {
 
   group('pagination is bounded', () {
     test('one page never exceeds the documented channel cap', () {
-      expect(FeedRepository.paginationChannelsPerPage, lessThanOrEqualTo(15),
-          reason: 'a scroll to the bottom repeats; it must stay small');
+      expect(
+        FeedRepository.paginationChannelsPerPage,
+        lessThanOrEqualTo(15),
+        reason: 'a scroll to the bottom repeats; it must stay small',
+      );
     });
   });
 }

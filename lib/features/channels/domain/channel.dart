@@ -35,5 +35,6 @@ abstract class Channel with _$Channel {
     DateTime? lastPostAt,
   }) = _Channel;
 
-  factory Channel.fromJson(Map<String, dynamic> json) => _$ChannelFromJson(json);
+  factory Channel.fromJson(Map<String, dynamic> json) =>
+      _$ChannelFromJson(json);
 }

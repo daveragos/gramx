@@ -26,7 +26,9 @@ class FoldersScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final foldersAsync = ref.watch(foldersProvider);
 
@@ -41,9 +43,7 @@ class FoldersScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
-        error: (err, _) => Center(
-          child: Text(AppStrings.foldersError(err)),
-        ),
+        error: (err, _) => Center(child: Text(AppStrings.foldersError(err))),
         data: (folders) {
           if (folders.isEmpty) {
             return Center(
@@ -60,7 +60,9 @@ class FoldersScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.lg),
                     Text(
                       AppStrings.foldersEmptyTitle,
-                      style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
+                      style: AppTypography.heading(
+                        color: primaryColor,
+                      ).copyWith(fontSize: 22),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: AppSpacing.sm),

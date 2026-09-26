@@ -75,7 +75,9 @@ class _ReactionOverlayState extends ConsumerState<ReactionOverlay> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: (_availableReactions ?? []).take(8).map((emoji) {
+                          children: (_availableReactions ?? []).take(8).map((
+                            emoji,
+                          ) {
                             return InkWell(
                               onTap: () {
                                 widget.onEmojiSelected(emoji);

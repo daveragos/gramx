@@ -29,9 +29,9 @@ class AppDialogAction<T> {
 
   /// The way out. Always last, always outlined, always answers null.
   const AppDialogAction.cancel(this.label)
-      : value = null,
-        isPrimary = false,
-        isDestructive = false;
+    : value = null,
+      isPrimary = false,
+      isDestructive = false;
 
   PillStyle get _style => switch ((isPrimary, isDestructive)) {
     (true, true) => PillStyle.danger,
@@ -129,8 +129,9 @@ class AppDialog<T> extends StatelessWidget {
           children: [
             Text(
               title,
-              style: AppTypography.heading(color: primaryColor)
-                  .copyWith(fontWeight: FontWeight.w800),
+              style: AppTypography.heading(
+                color: primaryColor,
+              ).copyWith(fontWeight: FontWeight.w800),
             ),
             if (body != null) ...[
               const SizedBox(height: AppSpacing.sm),

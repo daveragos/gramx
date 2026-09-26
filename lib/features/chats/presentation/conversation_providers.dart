@@ -406,7 +406,10 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   /// Telegram's own clients send a sticker on the tap, with nothing staged,
   /// and so does this — [ComposeRemoteMedia] explains why a sticker and a
   /// caption cannot share a message anyway.
-  Future<bool> sendRemote(ComposeRemoteMedia media, {int? replyToMessageId}) async {
+  Future<bool> sendRemote(
+    ComposeRemoteMedia media, {
+    int? replyToMessageId,
+  }) async {
     await returnToLatest();
     final repository = ref.read(chatsRepositoryProvider);
     unawaited(repository.setTyping(chatId, isTyping: false));
@@ -455,11 +458,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
 
     await ref
         .read(syncServiceProvider)
-        .voteInPoll(
-          chatId: chatId,
-          messageId: messageId,
-          optionIds: optionIds,
-        );
+        .voteInPoll(chatId: chatId, messageId: messageId, optionIds: optionIds);
   }
 
   /// Sends where this device is. Returns whether Telegram queued it.
@@ -486,10 +485,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   }
 
   /// Shares one of this account's Telegram contacts.
-  Future<bool> sendContact({
-    required int userId,
-    int? replyToMessageId,
-  }) async {
+  Future<bool> sendContact({required int userId, int? replyToMessageId}) async {
     final sent = await ref
         .read(chatsRepositoryProvider)
         .sendContact(

@@ -27,8 +27,10 @@ enum ErrorSource {
 
   final String tag;
 
-  static ErrorSource fromTag(String tag) =>
-      ErrorSource.values.firstWhere((s) => s.tag == tag, orElse: () => reported);
+  static ErrorSource fromTag(String tag) => ErrorSource.values.firstWhere(
+    (s) => s.tag == tag,
+    orElse: () => reported,
+  );
 }
 
 /// One thing that went wrong.
@@ -168,9 +170,7 @@ class ErrorLogState {
     }
     final next = [...records, record];
     if (next.length <= capacity) return ErrorLogState(records: next);
-    return ErrorLogState(
-      records: next.sublist(next.length - capacity),
-    );
+    return ErrorLogState(records: next.sublist(next.length - capacity));
   }
 
   bool get isEmpty => records.isEmpty;
@@ -323,8 +323,7 @@ class ErrorLog extends Notifier<ErrorLogState> {
   }
 
   /// The whole log as one block of text, for the copy button.
-  String asText() =>
-      state.records.map(ErrorLogFormatter.encode).join('\n\n');
+  String asText() => state.records.map(ErrorLogFormatter.encode).join('\n\n');
 }
 
 final errorLogProvider = NotifierProvider<ErrorLog, ErrorLogState>(

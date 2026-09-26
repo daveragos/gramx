@@ -111,7 +111,10 @@ void main() {
     });
 
     test('one file is never an album', () {
-      expect(ComposeMessages.isAlbum(contentsFor([ComposeMediaKind.photo])), isFalse);
+      expect(
+        ComposeMessages.isAlbum(contentsFor([ComposeMediaKind.photo])),
+        isFalse,
+      );
     });
   });
 
@@ -120,8 +123,8 @@ void main() {
         ComposeMessages.build(text: '', attachments: [attachment]).single;
 
     test('a document lets Telegram work its own type out', () {
-      final content = build(of(ComposeMediaKind.document))
-          as td.InputMessageDocument;
+      final content =
+          build(of(ComposeMediaKind.document)) as td.InputMessageDocument;
       expect(content.disableContentTypeDetection, isFalse);
     });
 
@@ -139,8 +142,8 @@ void main() {
     // to. Taking the *shorter* side is what a centre crop actually leaves —
     // the longer one would declare a size the file does not have.
     test('a round note declares its shorter side as its length', () {
-      final content = build(of(ComposeMediaKind.videoNote))
-          as td.InputMessageVideoNote;
+      final content =
+          build(of(ComposeMediaKind.videoNote)) as td.InputMessageVideoNote;
       expect(content.length, 60);
     });
   });

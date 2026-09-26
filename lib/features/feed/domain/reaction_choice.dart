@@ -25,9 +25,11 @@ class ReactionState {
 
   @override
   int get hashCode => Object.hash(
-        Object.hashAllUnordered(reactions.entries.map((e) => Object.hash(e.key, e.value))),
-        Object.hashAllUnordered(chosen),
-      );
+    Object.hashAllUnordered(
+      reactions.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    Object.hashAllUnordered(chosen),
+  );
 
   @override
   String toString() => 'ReactionState($reactions, chosen: $chosen)';

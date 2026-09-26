@@ -240,7 +240,8 @@ class PollDraft {
       options: options ?? this.options,
       kind: kind,
       isAnonymous: isAnonymous ?? this.isAnonymous,
-      allowsMultipleAnswers: allowsMultipleAnswers ?? this.allowsMultipleAnswers,
+      allowsMultipleAnswers:
+          allowsMultipleAnswers ?? this.allowsMultipleAnswers,
       correctOptionIndex: correctOptionIndex,
     );
   }

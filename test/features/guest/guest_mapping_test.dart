@@ -340,8 +340,10 @@ void main() {
     });
 
     test('is null when there is no handle to build it from', () {
-      final post = GuestPostMapper.mapPost(_post(), _channel())
-          .copyWith(channelUsername: null);
+      final post = GuestPostMapper.mapPost(
+        _post(),
+        _channel(),
+      ).copyWith(channelUsername: null);
 
       expect(GuestPostMapper.postLink(post), isNull);
     });

@@ -7,22 +7,24 @@ Post post({
   String? text,
   String channelTitle = 'Channel',
   String? username,
-}) =>
-    Post(
-      id: id,
-      chatId: -1,
-      channelId: '-1',
-      messageId: 1,
-      channelTitle: channelTitle,
-      channelUsername: username,
-      text: text,
-      publishedAt: DateTime(2026, 1, 1),
-    );
+}) => Post(
+  id: id,
+  chatId: -1,
+  channelId: '-1',
+  messageId: 1,
+  channelTitle: channelTitle,
+  channelUsername: username,
+  text: text,
+  publishedAt: DateTime(2026, 1, 1),
+);
 
 void main() {
   group('matchLoadedPosts', () {
     test('matches post body text', () {
-      final posts = [post(text: 'Flutter 4 is out'), post(id: '-1_2', text: 'unrelated')];
+      final posts = [
+        post(text: 'Flutter 4 is out'),
+        post(id: '-1_2', text: 'unrelated'),
+      ];
       expect(matchLoadedPosts(posts, 'flutter'), hasLength(1));
     });
 
@@ -33,7 +35,10 @@ void main() {
         post(id: '-1_3', text: 'nothing here'),
       ];
 
-      expect(matchLoadedPosts(posts, 'dart').map((p) => p.id), ['-1_1', '-1_2']);
+      expect(matchLoadedPosts(posts, 'dart').map((p) => p.id), [
+        '-1_1',
+        '-1_2',
+      ]);
     });
 
     test('is case insensitive', () {

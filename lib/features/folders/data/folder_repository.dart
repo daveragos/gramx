@@ -79,8 +79,9 @@ class FolderRepository {
   /// empty folder, and its tab must not disappear along with it.
   Future<bool> folderExcludesRead(int folderId) async {
     try {
-      final res =
-          await _tdlib.sendRequest(td.GetChatFolder(chatFolderId: folderId));
+      final res = await _tdlib.sendRequest(
+        td.GetChatFolder(chatFolderId: folderId),
+      );
       return res is td.ChatFolder && res.excludeRead;
     } catch (e) {
       debugPrint('[Folders] Could not read folder filter $folderId: $e');

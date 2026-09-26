@@ -149,7 +149,10 @@ class NotificationService {
   Future<void> _setIntOption(String name, int value) async {
     try {
       await _tdlib.sendRequest(
-        td.SetOption(name: name, value: td.OptionValueInteger(value: value)),
+        td.SetOption(
+          name: name,
+          value: td.OptionValueInteger(value: value),
+        ),
       );
     } catch (e) {
       debugPrint('[Notify] could not set $name: $e');

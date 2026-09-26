@@ -135,8 +135,7 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
           .fetchTabPage(chatId, key.tab, fromMessageId: fromMessageId);
 
       final known = before.posts.map((p) => p.id).toSet();
-      final additions =
-          page.posts.where((p) => !known.contains(p.id)).toList();
+      final additions = page.posts.where((p) => !known.contains(p.id)).toList();
 
       _put(
         key,
@@ -146,14 +145,12 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
           hasFetched: true,
           // TDLib's own end-of-results signal, plus the case where a page
           // added nothing new — which is how a duplicate-only page ends.
-          isExhausted: page.isExhausted || (fromMessageId != 0 && additions.isEmpty),
+          isExhausted:
+              page.isExhausted || (fromMessageId != 0 && additions.isEmpty),
         ),
       );
     } catch (e) {
-      _put(
-        key,
-        before.copyWith(isLoading: false, hasFetched: true, error: e),
-      );
+      _put(key, before.copyWith(isLoading: false, hasFetched: true, error: e));
     }
   }
 
@@ -164,28 +161,29 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
 
 final channelTabNotifierProvider =
     NotifierProvider<ChannelTabNotifier, Map<ChannelTabKey, ChannelTabState>>(
-  ChannelTabNotifier.new,
-);
+      ChannelTabNotifier.new,
+    );
 
 /// One tab's rows, with optimistic reaction and bookmark state layered on.
 ///
 /// Synchronous, like `channelPostsProvider` — watching the overrides inside a
 /// future would re-run the search on every reaction tap, which is a TDLib
 /// request and a spinner per tap.
-final channelTabPostsProvider =
-    Provider.family<ChannelTabState, ChannelTabKey>((ref, key) {
-  final tabs = ref.watch(channelTabNotifierProvider);
-  final base = tabs[key] ?? const ChannelTabState();
-  if (base.posts.isEmpty) return base;
+final channelTabPostsProvider = Provider.family<ChannelTabState, ChannelTabKey>(
+  (ref, key) {
+    final tabs = ref.watch(channelTabNotifierProvider);
+    final base = tabs[key] ?? const ChannelTabState();
+    if (base.posts.isEmpty) return base;
 
-  final overrides = ref.watch(optimisticPostUpdatesProvider);
-  final feedPosts = ref.watch(feedPostsProvider).value ?? [];
-  final feedMap = {for (final p in feedPosts) p.id: p};
+    final overrides = ref.watch(optimisticPostUpdatesProvider);
+    final feedPosts = ref.watch(feedPostsProvider).value ?? [];
+    final feedMap = {for (final p in feedPosts) p.id: p};
 
-  return base.copyWith(
-    posts: [
-      for (final post in base.posts)
-        applyPostOverrides(feedMap[post.id] ?? post, overrides),
-    ],
-  );
-});
+    return base.copyWith(
+      posts: [
+        for (final post in base.posts)
+          applyPostOverrides(feedMap[post.id] ?? post, overrides),
+      ],
+    );
+  },
+);

@@ -56,8 +56,11 @@ List<Post> dropAlreadyRead(
 }) {
   if (seenBefore.isEmpty) return posts;
   return posts
-      .where((p) =>
-          !((p.isRead || readHere.contains(p.id)) && seenBefore.contains(p.id)))
+      .where(
+        (p) =>
+            !((p.isRead || readHere.contains(p.id)) &&
+                seenBefore.contains(p.id)),
+      )
       .toList();
 }
 
@@ -140,8 +143,9 @@ class BacklogIdsNotifier extends Notifier<List<String>> {
   }
 }
 
-final backlogIdsProvider =
-    NotifierProvider<BacklogIdsNotifier, List<String>>(BacklogIdsNotifier.new);
+final backlogIdsProvider = NotifierProvider<BacklogIdsNotifier, List<String>>(
+  BacklogIdsNotifier.new,
+);
 
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
@@ -180,9 +184,17 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
     final sub = syncService.livePostUpdates.listen((update) {
       if (update is LiveReactionsUpdate) {
-        updateReactionsLive(update.postId, update.reactions, update.chosenReactions);
+        updateReactionsLive(
+          update.postId,
+          update.reactions,
+          update.chosenReactions,
+        );
       } else if (update is LiveInteractionUpdate) {
-        updateMetadataLive(update.postId, viewCount: update.viewCount, forwardCount: update.forwardCount);
+        updateMetadataLive(
+          update.postId,
+          viewCount: update.viewCount,
+          forwardCount: update.forwardCount,
+        );
         // Interaction info is the only place a user client hears about
         // reactions — updateMessageReactions is bots-only. Applied separately
         // so a view-count-only update never touches the reaction row.
@@ -319,9 +331,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   void _mergeBackfilled(List<Post> incoming) {
     final current = state.value ?? [];
     final existingIds = current.map((p) => p.id).toSet();
-    final additions = _admit(incoming)
-        .where((p) => !existingIds.contains(p.id))
-        .toList();
+    final additions = _admit(
+      incoming,
+    ).where((p) => !existingIds.contains(p.id)).toList();
     if (additions.isEmpty) return;
 
     _updateOldestIds(additions);
@@ -340,9 +352,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     // Takes the list explicitly during `build`, where `state` is not set yet.
     final posts = loaded ?? state.value;
     if (posts == null || posts.isEmpty) return;
-    ref
-        .read(backlogIdsProvider.notifier)
-        .add(selectBacklogCandidates(posts));
+    ref.read(backlogIdsProvider.notifier).add(selectBacklogCandidates(posts));
   }
 
   /// Splices freshly arrived posts into the feed.
@@ -416,7 +426,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _oldestMessageIds.clear();
     state = const AsyncLoading();
     final repo = ref.read(feedRepositoryProvider);
-    final readHere = ref.read(optimisticPostUpdatesProvider.notifier).readPostIds;
+    final readHere = ref
+        .read(optimisticPostUpdatesProvider.notifier)
+        .readPostIds;
     // Named before the fetch so a failed refresh cannot leave half a rule in
     // place: either the whole pull happened or none of it did.
     final retiring = retiredPostIds(previous, readHere: readHere);
@@ -473,7 +485,11 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   }
 
   /// Live update reactions from TDLib's interaction-info stream.
-  void updateReactionsLive(String postId, Map<String, int> reactions, Set<String> chosenReactions) {
+  void updateReactionsLive(
+    String postId,
+    Map<String, int> reactions,
+    Set<String> chosenReactions,
+  ) {
     // The server has spoken, so the optimistic guess must step aside or it
     // keeps overriding every future update for this post.
     ref.read(optimisticPostUpdatesProvider.notifier).clearReactions(postId);
@@ -482,7 +498,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     if (current == null) return;
     final updated = current.map((p) {
       if (p.id == postId) {
-        return p.copyWith(reactions: reactions, chosenReactions: chosenReactions);
+        return p.copyWith(
+          reactions: reactions,
+          chosenReactions: chosenReactions,
+        );
       }
       return p;
     }).toList();
@@ -519,7 +538,9 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
           final opt = entry.value;
           final isNewlyChosen = optionIds.contains(idx);
           final newCount = isNewlyChosen ? opt.voterCount + 1 : opt.voterCount;
-          final pct = newTotalVoters > 0 ? (newCount / newTotalVoters) * 100 : 0.0;
+          final pct = newTotalVoters > 0
+              ? (newCount / newTotalVoters) * 100
+              : 0.0;
           return opt.copyWith(
             voterCount: newCount,
             votePercentage: pct,
@@ -530,7 +551,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
         final updatedPoll = currentPoll.copyWith(
           options: updatedOptions,
           totalVoterCount: newTotalVoters,
-          chosenOptionIds: {...currentPoll.chosenOptionIds, ...optionIds}.toList(),
+          chosenOptionIds: {
+            ...currentPoll.chosenOptionIds,
+            ...optionIds,
+          }.toList(),
         );
 
         return p.copyWith(poll: updatedPoll);
@@ -591,12 +615,14 @@ class FeedWarmupNotifier extends Notifier<bool> {
   }
 }
 
-final feedWarmupProvider =
-    NotifierProvider<FeedWarmupNotifier, bool>(FeedWarmupNotifier.new);
+final feedWarmupProvider = NotifierProvider<FeedWarmupNotifier, bool>(
+  FeedWarmupNotifier.new,
+);
 
 /// Main feed posts provider — uses AsyncNotifier for stateful pagination.
-final feedPostsProvider =
-    AsyncNotifierProvider<FeedNotifier, List<Post>>(FeedNotifier.new);
+final feedPostsProvider = AsyncNotifierProvider<FeedNotifier, List<Post>>(
+  FeedNotifier.new,
+);
 
 /// Fetches a single post by its composite ID (chatId_messageId).
 ///
@@ -604,8 +630,10 @@ final feedPostsProvider =
 /// reaction tap re-run this future, which is a TDLib request and a full
 /// loading state for the screen. Read [postDetailProvider] instead, which
 /// layers the overrides on synchronously.
-final postDetailFetchProvider =
-    FutureProvider.family<Post?, String>((ref, postId) async {
+final postDetailFetchProvider = FutureProvider.family<Post?, String>((
+  ref,
+  postId,
+) async {
   final parts = postId.split('_');
   if (parts.length != 2) return null;
   final chatId = int.tryParse(parts[0]);
@@ -627,17 +655,23 @@ final postDetailFetchProvider =
 /// A single post with optimistic state applied.
 ///
 /// Synchronous, so a reaction or a bookmark shows instantly and costs nothing.
-final postDetailProvider =
-    Provider.family<AsyncValue<Post?>, String>((ref, postId) {
+final postDetailProvider = Provider.family<AsyncValue<Post?>, String>((
+  ref,
+  postId,
+) {
   final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return ref.watch(postDetailFetchProvider(postId)).whenData(
+  return ref
+      .watch(postDetailFetchProvider(postId))
+      .whenData(
         (post) => post == null ? null : applyPostOverrides(post, overrides),
       );
 });
 
 /// Toggle bookmark action — call this to flip bookmark state.
-final bookmarkToggleProvider =
-    FutureProvider.family<void, String>((ref, postId) async {
+final bookmarkToggleProvider = FutureProvider.family<void, String>((
+  ref,
+  postId,
+) async {
   final repo = ref.read(feedRepositoryProvider);
   final parts = postId.split('_');
   if (parts.length != 2) return;
@@ -779,7 +813,8 @@ class MutedChannelsNotifier extends Notifier<Set<String>> {
 
 final mutedChannelsProvider =
     NotifierProvider<MutedChannelsNotifier, Set<String>>(
-        MutedChannelsNotifier.new);
+      MutedChannelsNotifier.new,
+    );
 
 /// The folder tab currently on screen.
 ///
@@ -794,8 +829,9 @@ class ActiveFolderNotifier extends Notifier<String> {
   }
 }
 
-final activeFolderProvider =
-    NotifierProvider<ActiveFolderNotifier, String>(ActiveFolderNotifier.new);
+final activeFolderProvider = NotifierProvider<ActiveFolderNotifier, String>(
+  ActiveFolderNotifier.new,
+);
 
 /// A request for one folder's feed to return to the top.
 ///
@@ -818,7 +854,8 @@ class FeedScrollToTopNotifier extends Notifier<ScrollToTopRequest?> {
 
 final feedScrollToTopProvider =
     NotifierProvider<FeedScrollToTopNotifier, ScrollToTopRequest?>(
-        FeedScrollToTopNotifier.new);
+      FeedScrollToTopNotifier.new,
+    );
 
 /// Fetches a post's comment thread from its linked discussion group.
 ///
@@ -826,8 +863,10 @@ final feedScrollToTopProvider =
 /// them inside the future meant reacting to one comment refetched the entire
 /// thread — the whole screen dropped to a spinner and scrolled back to the top
 /// on every tap.
-final postCommentsFetchProvider =
-    FutureProvider.family<List<Post>, String>((ref, postId) async {
+final postCommentsFetchProvider = FutureProvider.family<List<Post>, String>((
+  ref,
+  postId,
+) async {
   final parts = postId.split('_');
   if (parts.length != 2) return [];
   final chatId = int.tryParse(parts[0]);
@@ -842,10 +881,14 @@ final postCommentsFetchProvider =
 ///
 /// Comments aren't in the feed list, so without this layer a reaction tapped
 /// here showed nothing at all until the thread was refetched.
-final postCommentsProvider =
-    Provider.family<AsyncValue<List<Post>>, String>((ref, postId) {
+final postCommentsProvider = Provider.family<AsyncValue<List<Post>>, String>((
+  ref,
+  postId,
+) {
   final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return ref.watch(postCommentsFetchProvider(postId)).whenData(
+  return ref
+      .watch(postCommentsFetchProvider(postId))
+      .whenData(
         (comments) =>
             comments.map((c) => applyPostOverrides(c, overrides)).toList(),
       );
@@ -856,8 +899,10 @@ final postCommentsProvider =
 /// Passive reading is handled by `FeedFocusController`, which waits for a real
 /// dwell. This provider is for the deliberate act of tapping a post, where
 /// forcing the read state through is what the user asked for.
-final markPostAsReadProvider =
-    FutureProvider.family<void, String>((ref, postId) async {
+final markPostAsReadProvider = FutureProvider.family<void, String>((
+  ref,
+  postId,
+) async {
   ref.read(optimisticPostUpdatesProvider.notifier).markRead(postId);
   ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
 
@@ -908,7 +953,8 @@ class RequestedFolderNotifier extends Notifier<String?> {
 
 final requestedFolderProvider =
     NotifierProvider<RequestedFolderNotifier, String?>(
-        RequestedFolderNotifier.new);
+      RequestedFolderNotifier.new,
+    );
 
 /// Provides user's dynamic folders synced from Telegram (StreamProvider for real-time reactivity)
 final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
@@ -924,8 +970,10 @@ final foldersProvider = StreamProvider<List<td.ChatFolderInfo>>((ref) async* {
 });
 
 /// Cached folder channel IDs per folder (fetched once via TDLib and cached in Riverpod)
-final folderChannelIdsProvider =
-    FutureProvider.family<Set<String>, int>((ref, folderId) async {
+final folderChannelIdsProvider = FutureProvider.family<Set<String>, int>((
+  ref,
+  folderId,
+) async {
   // Same reason as the feed: asked before the cache filled, this answers with
   // an empty set — and an empty folder is a folder whose tab disappears.
   ref.watch(channelsKnownProvider);
@@ -938,8 +986,10 @@ final folderChannelIdsProvider =
 /// Whether folder [folderId] is an "unread" style filter rather than a fixed
 /// list of chats — see `folderHasChannels` in `home_screen.dart`, which keeps
 /// such a folder's tab visible even when its resolved chat list is empty.
-final folderExcludesReadProvider =
-    FutureProvider.family<bool, int>((ref, folderId) async {
+final folderExcludesReadProvider = FutureProvider.family<bool, int>((
+  ref,
+  folderId,
+) async {
   final folderRepo = ref.watch(folderRepositoryProvider);
   return folderRepo.folderExcludesRead(folderId);
 });
@@ -954,16 +1004,19 @@ bool _isPostMuted(Post post, Set<String> mutedIds) {
   ).any(mutedIds.contains);
 }
 
-class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dynamic>>> {
+class OptimisticPostUpdatesNotifier
+    extends Notifier<Map<String, Map<String, dynamic>>> {
   @override
   Map<String, Map<String, dynamic>> build() => {};
 
   void toggleReaction(String postId, String emoji, Post currentPost) {
     final currentData = state[postId] ?? {};
     final next = applyReactionChoice(
-      reactions: (currentData['reactions'] as Map<String, int>?) ??
+      reactions:
+          (currentData['reactions'] as Map<String, int>?) ??
           currentPost.reactions,
-      chosen: (currentData['chosenReactions'] as Set<String>?) ??
+      chosen:
+          (currentData['chosenReactions'] as Set<String>?) ??
           currentPost.chosenReactions,
       emoji: emoji,
     );
@@ -1008,14 +1061,12 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
 
   void toggleBookmark(String postId, Post currentPost) {
     final currentData = state[postId] ?? {};
-    final currentIsBookmarked = currentData['isBookmarked'] as bool? ?? currentPost.isBookmarked;
+    final currentIsBookmarked =
+        currentData['isBookmarked'] as bool? ?? currentPost.isBookmarked;
 
     state = {
       ...state,
-      postId: {
-        ...currentData,
-        'isBookmarked': !currentIsBookmarked,
-      },
+      postId: {...currentData, 'isBookmarked': !currentIsBookmarked},
     };
   }
 
@@ -1024,18 +1075,15 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
   /// A refresh uses this so a post finished seconds ago doesn't come back
   /// while its acknowledgement is still queued.
   Set<String> get readPostIds => {
-        for (final entry in state.entries)
-          if (entry.value['isRead'] == true) entry.key,
-      };
+    for (final entry in state.entries)
+      if (entry.value['isRead'] == true) entry.key,
+  };
 
   void markRead(String postId) {
     final currentData = state[postId] ?? {};
     state = {
       ...state,
-      postId: {
-        ...currentData,
-        'isRead': true,
-      },
+      postId: {...currentData, 'isRead': true},
     };
   }
 
@@ -1049,20 +1097,21 @@ class OptimisticPostUpdatesNotifier extends Notifier<Map<String, Map<String, dyn
     final currentData = state[postId] ?? {};
     state = {
       ...state,
-      postId: {
-        ...currentData,
-        'text': text,
-      },
+      postId: {...currentData, 'text': text},
     };
   }
 }
 
 final optimisticPostUpdatesProvider =
-    NotifierProvider<OptimisticPostUpdatesNotifier, Map<String, Map<String, dynamic>>>(
-  OptimisticPostUpdatesNotifier.new,
-);
+    NotifierProvider<
+      OptimisticPostUpdatesNotifier,
+      Map<String, Map<String, dynamic>>
+    >(OptimisticPostUpdatesNotifier.new);
 
-Post applyPostOverrides(Post post, Map<String, Map<String, dynamic>> overrides) {
+Post applyPostOverrides(
+  Post post,
+  Map<String, Map<String, dynamic>> overrides,
+) {
   final data = overrides[post.id];
   if (data == null) return post;
   final text = data['text'] as String?;
@@ -1073,7 +1122,8 @@ Post applyPostOverrides(Post post, Map<String, Map<String, dynamic>> overrides) 
       : post.copyWith(text: text.isEmpty ? null : text, entities: const []);
   return edited.copyWith(
     reactions: data['reactions'] as Map<String, int>? ?? post.reactions,
-    chosenReactions: data['chosenReactions'] as Set<String>? ?? post.chosenReactions,
+    chosenReactions:
+        data['chosenReactions'] as Set<String>? ?? post.chosenReactions,
     isBookmarked: data['isBookmarked'] as bool? ?? post.isBookmarked,
     isRead: data['isRead'] as bool? ?? post.isRead,
   );
@@ -1099,9 +1149,11 @@ List<Post> filterPostsForFolder(Ref ref, List<Post> posts, String folderIdStr) {
   if (allowed.isEmpty) return const [];
 
   return list
-      .where((post) =>
-          allowed.contains(post.channelId) ||
-          allowed.contains(post.chatId.toString()))
+      .where(
+        (post) =>
+            allowed.contains(post.channelId) ||
+            allowed.contains(post.chatId.toString()),
+      )
       .toList();
 }
 
@@ -1111,22 +1163,30 @@ List<Post> filterPostsForFolder(Ref ref, List<Post> posts, String folderIdStr) {
 /// state updates when post actions (reactions, bookmarks) occur.
 final filteredFeedPostsProvider =
     Provider.family<AsyncValue<List<Post>>, String>((ref, folderIdStr) {
-  final postsAsync = ref.watch(feedPostsProvider);
-  final overrides = ref.watch(optimisticPostUpdatesProvider);
+      final postsAsync = ref.watch(feedPostsProvider);
+      final overrides = ref.watch(optimisticPostUpdatesProvider);
 
-  final folderId = int.tryParse(folderIdStr);
-  if (folderIdStr != 'All' && folderId != null) {
-    final folderChannelsAsync = ref.watch(folderChannelIdsProvider(folderId));
-    if (folderChannelsAsync.isLoading && !folderChannelsAsync.hasValue) {
-      return const AsyncValue.loading();
-    }
-    if (folderChannelsAsync.hasError && !folderChannelsAsync.hasValue) {
-      return AsyncValue.error(
-          folderChannelsAsync.error!, folderChannelsAsync.stackTrace!);
-    }
-  }
+      final folderId = int.tryParse(folderIdStr);
+      if (folderIdStr != 'All' && folderId != null) {
+        final folderChannelsAsync = ref.watch(
+          folderChannelIdsProvider(folderId),
+        );
+        if (folderChannelsAsync.isLoading && !folderChannelsAsync.hasValue) {
+          return const AsyncValue.loading();
+        }
+        if (folderChannelsAsync.hasError && !folderChannelsAsync.hasValue) {
+          return AsyncValue.error(
+            folderChannelsAsync.error!,
+            folderChannelsAsync.stackTrace!,
+          );
+        }
+      }
 
-  return postsAsync.whenData((posts) => filterPostsForFolder(ref, posts, folderIdStr)
-      .map((p) => applyPostOverrides(p, overrides))
-      .toList());
-});
+      return postsAsync.whenData(
+        (posts) => filterPostsForFolder(
+          ref,
+          posts,
+          folderIdStr,
+        ).map((p) => applyPostOverrides(p, overrides)).toList(),
+      );
+    });

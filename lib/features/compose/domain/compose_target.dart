@@ -73,14 +73,14 @@ class ComposeTarget {
 
   @override
   int get hashCode => Object.hash(
-        chatId,
-        title,
-        kind,
-        avatarPath,
-        avatarFileId,
-        mainListOrder,
-        allowsPolls,
-      );
+    chatId,
+    title,
+    kind,
+    avatarPath,
+    avatarFileId,
+    mainListOrder,
+    allowsPolls,
+  );
 
   @override
   String toString() => 'ComposeTarget($title, ${kind.name})';

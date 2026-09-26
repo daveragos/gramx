@@ -94,8 +94,7 @@ bool tabIsMoving({
   required double position,
   required int index,
   required bool indexIsChanging,
-}) =>
-    indexIsChanging || (position - index).abs() > 0.01;
+}) => indexIsChanging || (position - index).abs() > 0.01;
 
 class ChromeOffsetNotifier extends Notifier<ChromeOffset> {
   @override
@@ -130,14 +129,16 @@ class ChromeOffsetNotifier extends Notifier<ChromeOffset> {
 
 final chromeOffsetProvider =
     NotifierProvider<ChromeOffsetNotifier, ChromeOffset>(
-        ChromeOffsetNotifier.new);
+      ChromeOffsetNotifier.new,
+    );
 
 /// Whether the chrome is mostly on screen.
 ///
 /// For the callers that only need a yes/no — the pill, and anything that has to
 /// stop offering a control the user can't see.
-final chromeVisibleProvider =
-    Provider<bool>((ref) => !ref.watch(chromeOffsetProvider).isHidden);
+final chromeVisibleProvider = Provider<bool>(
+  (ref) => !ref.watch(chromeOffsetProvider).isHidden,
+);
 
 /// Feeds a scrollable's deltas into the chrome offset.
 ///
@@ -189,7 +190,7 @@ class ChromeScrollObserver extends ConsumerWidget {
 /// value rather than on four animations that drift apart.
 class ChromeMotion extends ConsumerWidget {
   final Widget Function(BuildContext context, double hidden, Widget? child)
-      builder;
+  builder;
   final Widget? child;
 
   const ChromeMotion({super.key, required this.builder, this.child});
@@ -240,10 +241,8 @@ class StatusBarScrim extends StatelessWidget {
 
     return IgnorePointer(
       child: ChromeMotion(
-        builder: (context, hidden, child) => Opacity(
-          opacity: hidden.clamp(0.0, 1.0),
-          child: child,
-        ),
+        builder: (context, hidden, child) =>
+            Opacity(opacity: hidden.clamp(0.0, 1.0), child: child),
         child: BlurredChrome(
           child: SizedBox(height: height, width: double.infinity),
         ),
@@ -284,7 +283,8 @@ class ChromeScaffold extends StatelessWidget {
     BuildContext context,
     double topPadding,
     double bottomPadding,
-  ) body;
+  )
+  body;
 
   /// Whether this scaffold watches its own body for scrolling. False when the
   /// body owns several scrollables and reports for itself — the feed's tabs.
@@ -384,8 +384,9 @@ class ChromeScaffold extends StatelessWidget {
 
     return Consumer(
       builder: (context, ref, _) => Scaffold(
-        floatingActionButton:
-            ref.watch(chromeVisibleProvider) ? floatingActionButton : null,
+        floatingActionButton: ref.watch(chromeVisibleProvider)
+            ? floatingActionButton
+            : null,
         body: stack,
       ),
     );
@@ -424,7 +425,8 @@ class ChromeHeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.onSurface;
-    final titleText = titleWidget ??
+    final titleText =
+        titleWidget ??
         Text(
           title!,
           style: AppTypography.heading(color: primary),
@@ -434,9 +436,7 @@ class ChromeHeaderRow extends StatelessWidget {
     final row = Row(
       children: [
         if (leading != null) leading! else const SizedBox(width: AppSpacing.lg),
-        Expanded(
-          child: centerTitle ? const SizedBox.shrink() : titleText,
-        ),
+        Expanded(child: centerTitle ? const SizedBox.shrink() : titleText),
         ...actions,
         const SizedBox(width: AppSpacing.xs),
       ],

@@ -64,39 +64,39 @@ final channelStatsExcerptsProvider =
     }, isAutoDispose: true);
 
 /// One post's statistics.
-final postStatsProvider =
-    FutureProvider.family<PostStats?, PostStatsRequest>((ref, request) async {
-      final repo = ref.watch(statsRepositoryProvider);
-      return repo.postStats(
-        chatId: request.chatId,
-        messageId: request.messageId,
-        isDark: request.isDark,
-      );
-    }, isAutoDispose: true);
+final postStatsProvider = FutureProvider.family<PostStats?, PostStatsRequest>((
+  ref,
+  request,
+) async {
+  final repo = ref.watch(statsRepositoryProvider);
+  return repo.postStats(
+    chatId: request.chatId,
+    messageId: request.messageId,
+    isDark: request.isDark,
+  );
+}, isAutoDispose: true);
 
 /// The public channels that forwarded a post.
-final publicSharesProvider =
-    FutureProvider.family<List<PublicShare>, PostRef>((ref, post) async {
-      final repo = ref.watch(statsRepositoryProvider);
-      return repo.publicShares(
-        chatId: post.chatId,
-        messageId: post.messageId,
-      );
-    }, isAutoDispose: true);
+final publicSharesProvider = FutureProvider.family<List<PublicShare>, PostRef>((
+  ref,
+  post,
+) async {
+  final repo = ref.watch(statsRepositoryProvider);
+  return repo.publicShares(chatId: post.chatId, messageId: post.messageId);
+}, isAutoDispose: true);
 
 /// Whether this post has statistics to open.
 ///
 /// One offline `getMessageProperties`, asked by the screen showing the post —
 /// the same shape as the message long-press menu, and never per card in a
 /// list. See `StatsRepository.canViewPostStats`.
-final canViewPostStatsProvider =
-    FutureProvider.family<bool, PostRef>((ref, post) async {
-      final repo = ref.watch(statsRepositoryProvider);
-      return repo.canViewPostStats(
-        chatId: post.chatId,
-        messageId: post.messageId,
-      );
-    }, isAutoDispose: true);
+final canViewPostStatsProvider = FutureProvider.family<bool, PostRef>((
+  ref,
+  post,
+) async {
+  final repo = ref.watch(statsRepositoryProvider);
+  return repo.canViewPostStats(chatId: post.chatId, messageId: post.messageId);
+}, isAutoDispose: true);
 
 /// The graphs resolved so far for one chat.
 ///

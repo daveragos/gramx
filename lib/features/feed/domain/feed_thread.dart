@@ -414,8 +414,11 @@ List<FeedEntry> buildFeedEntries(
     for (var i = 0; i < backlogOrder.length; i++) backlogOrder[i]: i,
   };
   final backlog = groupIntoThreads(backlogPosts)
-    ..sort((a, b) =>
-        (position[a.root.id] ?? 1 << 30).compareTo(position[b.root.id] ?? 1 << 30));
+    ..sort(
+      (a, b) => (position[a.root.id] ?? 1 << 30).compareTo(
+        position[b.root.id] ?? 1 << 30,
+      ),
+    );
 
   final entries = <FeedEntry>[];
   final remaining = List<FeedThread>.from(backlog);

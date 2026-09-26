@@ -29,10 +29,7 @@ void main() {
     );
 
     runApp(
-      UncontrolledProviderScope(
-        container: container,
-        child: const GramXApp(),
-      ),
+      UncontrolledProviderScope(container: container, child: const GramXApp()),
     );
   }, ErrorHandlers.onZoneError);
 }

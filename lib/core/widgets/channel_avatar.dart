@@ -31,8 +31,11 @@ class ChannelAvatar extends ConsumerWidget {
 
     // Resolves a TDLib file id or a guest-mode https URL to the same thing:
     // a path on disk. See resolveMediaPath.
-    final resolvedPath =
-        resolveMediaPath(ref, fileId: avatarFileId, rawPath: avatarPath);
+    final resolvedPath = resolveMediaPath(
+      ref,
+      fileId: avatarFileId,
+      rawPath: avatarPath,
+    );
 
     if (resolvedPath != null && resolvedPath.isNotEmpty) {
       // Use async file existence check instead of blocking existsSync()
@@ -55,10 +58,7 @@ class ChannelAvatar extends ConsumerWidget {
     }
 
     if (onTap != null) {
-      return GestureDetector(
-        onTap: onTap,
-        child: avatar,
-      );
+      return GestureDetector(onTap: onTap, child: avatar);
     }
 
     return avatar;

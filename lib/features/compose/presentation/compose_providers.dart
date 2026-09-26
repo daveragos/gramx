@@ -9,8 +9,9 @@ import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
-final composeMediaPickerProvider =
-    Provider<ComposeMediaPicker>((ref) => ComposeMediaPicker());
+final composeMediaPickerProvider = Provider<ComposeMediaPicker>(
+  (ref) => ComposeMediaPicker(),
+);
 
 /// This account's own Telegram user id, or null while the record is loading.
 ///
@@ -27,15 +28,17 @@ final selfUserIdProvider = Provider<int?>((ref) {
 /// Split out from [chatCacheProvider] so the coalescing below can be tested
 /// without a TDLib client — the notifier's job is deciding *when* to rebuild,
 /// and that decision is the part that was wrong.
-final chatCacheChangesProvider =
-    Provider<Stream<void>>((ref) => ref.watch(chatCacheProvider).changes);
+final chatCacheChangesProvider = Provider<Stream<void>>(
+  (ref) => ref.watch(chatCacheProvider).changes,
+);
 
 /// The destination list as it stands right now.
 ///
 /// A function rather than a value: calling it is the expensive part, and the
 /// point of [ComposeTargetsNotifier] is to call it rarely.
-final composeTargetsSourceProvider =
-    Provider<List<ComposeTarget> Function()>((ref) {
+final composeTargetsSourceProvider = Provider<List<ComposeTarget> Function()>((
+  ref,
+) {
   final repository = ref.watch(composeRepositoryProvider);
   final selfUserId = ref.watch(selfUserIdProvider);
   return () => repository.targets(selfUserId: selfUserId);
@@ -105,7 +108,8 @@ class ComposeTargetsNotifier extends Notifier<List<ComposeTarget>> {
 
 final composeTargetsProvider =
     NotifierProvider<ComposeTargetsNotifier, List<ComposeTarget>>(
-        ComposeTargetsNotifier.new);
+      ComposeTargetsNotifier.new,
+    );
 
 /// Whether the compose button should exist at all.
 ///

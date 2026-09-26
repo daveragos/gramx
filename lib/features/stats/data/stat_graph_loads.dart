@@ -18,10 +18,7 @@ class StatGraphLoads {
   final Map<String, StatGraphSource> resolved;
   final Set<String> inFlight;
 
-  const StatGraphLoads({
-    this.resolved = const {},
-    this.inFlight = const {},
-  });
+  const StatGraphLoads({this.resolved = const {}, this.inFlight = const {}});
 
   /// True when this token needs a `getStatisticalGraph` and does not have one
   /// on the way.
@@ -32,10 +29,8 @@ class StatGraphLoads {
 
   StatGraphSource? operator [](String token) => resolved[token];
 
-  StatGraphLoads starting(String token) => StatGraphLoads(
-    resolved: resolved,
-    inFlight: {...inFlight, token},
-  );
+  StatGraphLoads starting(String token) =>
+      StatGraphLoads(resolved: resolved, inFlight: {...inFlight, token});
 
   StatGraphLoads completed(String token, StatGraphSource source) =>
       StatGraphLoads(

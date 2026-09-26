@@ -84,8 +84,7 @@ class _AccountProfile extends ConsumerWidget {
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final displayName =
-        account.displayName ?? AppStrings.drawerAccountFallback;
+    final displayName = account.displayName ?? AppStrings.drawerAccountFallback;
 
     // The bio comes from the same lookup the person screen makes for anybody
     // else — one request, cached by the chat cache — because the accounts
@@ -127,9 +126,7 @@ class _AccountProfile extends ConsumerWidget {
               ),
             ),
           ],
-          body: const TabBarView(
-            children: [_BookmarksTab(), _ChannelsTab()],
-          ),
+          body: const TabBarView(children: [_BookmarksTab(), _ChannelsTab()]),
         ),
       ),
     );
@@ -207,14 +204,17 @@ class _ProfileHeader extends StatelessWidget {
         // than carrying a button that would have to say no.
         const SizedBox(height: _avatarRadius + AppSpacing.md),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.postPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.postPadding,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 displayName,
-                style: AppTypography.heading(color: primary)
-                    .copyWith(fontSize: 21, fontWeight: FontWeight.w800),
+                style: AppTypography.heading(
+                  color: primary,
+                ).copyWith(fontSize: 21, fontWeight: FontWeight.w800),
                 overflow: TextOverflow.ellipsis,
               ),
               if (username != null) ...[
@@ -332,8 +332,9 @@ class _Count extends StatelessWidget {
           children: [
             Text(
               TimeUtils.formatCount(count),
-              style: AppTypography.body(color: primary)
-                  .copyWith(fontWeight: FontWeight.w700),
+              style: AppTypography.body(
+                color: primary,
+              ).copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(width: AppSpacing.xs),
             Text(label, style: AppTypography.body(color: secondary)),
@@ -412,10 +413,8 @@ class _BookmarksTab extends ConsumerWidget {
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.accent),
       ),
-      error: (err, _) => _TabNotice(
-        text: AppStrings.bookmarksError(err),
-        color: secondary,
-      ),
+      error: (err, _) =>
+          _TabNotice(text: AppStrings.bookmarksError(err), color: secondary),
       data: (posts) {
         if (posts.isEmpty) {
           return _TabNotice(
@@ -463,10 +462,8 @@ class _ChannelsTab extends ConsumerWidget {
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.accent),
       ),
-      error: (err, _) => _TabNotice(
-        text: AppStrings.channelsError(err),
-        color: secondary,
-      ),
+      error: (err, _) =>
+          _TabNotice(text: AppStrings.channelsError(err), color: secondary),
       data: (list) {
         if (list.isEmpty) {
           return _TabNotice(
@@ -508,7 +505,10 @@ class _ChannelRow extends StatelessWidget {
             TimeUtils.formatCount(channel.subscriberCount),
           )
         : null;
-    final line = [handle, subscribers].nonNulls.join(AppStrings.inlineSeparator);
+    final line = [
+      handle,
+      subscribers,
+    ].nonNulls.join(AppStrings.inlineSeparator);
 
     return InkWell(
       onTap: () => NavigationUtils.openChannel(context, channel.id),
@@ -611,8 +611,11 @@ class _GuestProfile extends StatelessWidget {
               const CircleAvatar(
                 radius: 40,
                 backgroundColor: AppColors.accent,
-                child: Icon(Icons.person_outline_rounded,
-                    color: Colors.white, size: 40),
+                child: Icon(
+                  Icons.person_outline_rounded,
+                  color: Colors.white,
+                  size: 40,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(

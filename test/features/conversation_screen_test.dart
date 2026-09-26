@@ -183,9 +183,11 @@ void main() {
     final band = find.byType(ChatUnreadBand);
     final landed = tester.getRect(band).top;
 
-    final notifier = ProviderScope.containerOf(
-      tester.element(find.byType(ConversationScreen)),
-    ).read(conversationProvider(_chatId).notifier) as _FixedConversation;
+    final notifier =
+        ProviderScope.containerOf(
+              tester.element(find.byType(ConversationScreen)),
+            ).read(conversationProvider(_chatId).notifier)
+            as _FixedConversation;
     notifier.replace(
       initial.copyWith(
         messages: [
@@ -238,19 +240,18 @@ void main() {
     await _settle(tester);
     // Whichever message is near the top of the screen now.
     final list = tester.getRect(find.byType(ListView));
-    final reading = [
-      for (var id = 1; id <= 80; id++) find.text('message $id'),
-    ].firstWhere(
-      (finder) =>
-          finder.evaluate().isNotEmpty &&
-          tester.getRect(finder).top > list.top + 40 &&
-          tester.getRect(finder).bottom < list.bottom,
-    );
+    final reading = [for (var id = 1; id <= 80; id++) find.text('message $id')]
+        .firstWhere(
+          (finder) =>
+              finder.evaluate().isNotEmpty &&
+              tester.getRect(finder).top > list.top + 40 &&
+              tester.getRect(finder).bottom < list.bottom,
+        );
     final before = tester.getRect(reading).top;
 
-    notifierOf(tester).replace(
-      initial.copyWith(messages: [...initial.messages, arrival(81)]),
-    );
+    notifierOf(
+      tester,
+    ).replace(initial.copyWith(messages: [...initial.messages, arrival(81)]));
     await _settle(tester);
 
     expect(tester.getRect(reading).top, closeTo(before, 2));
@@ -267,9 +268,9 @@ void main() {
     await tester.pumpWidget(_host(initial, _QuietTdlib()));
     await _settle(tester);
 
-    notifierOf(tester).replace(
-      initial.copyWith(messages: [...initial.messages, arrival(81)]),
-    );
+    notifierOf(
+      tester,
+    ).replace(initial.copyWith(messages: [...initial.messages, arrival(81)]));
     await _settle(tester);
 
     final list = tester.getRect(find.byType(ListView));
@@ -281,9 +282,7 @@ void main() {
   // Holding the words of a message opened the system's Copy/Share bar, because
   // the text was a selectable field — and the long press never reached the
   // bubble, which is the only way into reply, edit, forward and delete.
-  testWidgets("a message's words do not take the long press", (
-    tester,
-  ) async {
+  testWidgets("a message's words do not take the long press", (tester) async {
     _phoneSized(tester);
     await tester.pumpWidget(
       _host(
@@ -364,10 +363,7 @@ void main() {
     _phoneSized(tester);
     final tdlib = _QuietTdlib();
     await tester.pumpWidget(
-      _host(
-        ConversationState(chatId: _chatId, messages: _messages(3)),
-        tdlib,
-      ),
+      _host(ConversationState(chatId: _chatId, messages: _messages(3)), tdlib),
     );
     await _settle(tester);
 

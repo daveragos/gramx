@@ -149,7 +149,10 @@ class ChatsRepository {
   bool canSendPollsIn(int chatId) {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return false;
-    return ChatCacheState.canSendPollsIn(chat, _chatCache.supergroupForChat(chat));
+    return ChatCacheState.canSendPollsIn(
+      chat,
+      _chatCache.supergroupForChat(chat),
+    );
   }
 
   /// Whether one kind of thing may be sent into this chat.
@@ -355,10 +358,7 @@ class ChatsRepository {
         isGroup: isGroupChat(chatId),
       );
 
-      return (
-        messages: mapped,
-        nextFromMessageId: res.nextFromMessageId,
-      );
+      return (messages: mapped, nextFromMessageId: res.nextFromMessageId);
     } catch (e) {
       debugPrint('[ChatsRepo] search in $chatId failed: $e');
       return (messages: const <ChatMessage>[], nextFromMessageId: 0);
@@ -506,7 +506,10 @@ class ChatsRepository {
       if (res is! td.Messages) return filled;
       final targets = ChatMessageMapper.mapHistory(
         // GetMessages answers with an id of 0 for anything it doesn't have.
-        [for (final message in res.messages) if (message.id != 0) message],
+        [
+          for (final message in res.messages)
+            if (message.id != 0) message,
+        ],
         users: _chatCache.usersById,
         chats: _chatCache.chatsById,
         lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
@@ -941,9 +944,8 @@ class ChatsRepository {
         profiles.add(UserProfileMapper.from(user));
       }
       profiles.sort(
-        (a, b) => a.displayName.toLowerCase().compareTo(
-          b.displayName.toLowerCase(),
-        ),
+        (a, b) =>
+            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
       );
       return profiles;
     } catch (e) {

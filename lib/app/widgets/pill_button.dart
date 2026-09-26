@@ -58,22 +58,25 @@ class PillButton extends StatelessWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    final (Color background, Color foreground, BorderSide? side) =
-        switch (style) {
-          PillStyle.filled => (AppColors.accent, Colors.white, null),
-          PillStyle.outlined => (
-            Colors.transparent,
-            primary,
-            BorderSide(color: secondary.withValues(alpha: 0.6)),
-          ),
-          PillStyle.danger => (AppColors.error, Colors.white, null),
-          PillStyle.dangerOutlined => (
-            Colors.transparent,
-            AppColors.error,
-            BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
-          ),
-          PillStyle.ghost => (Colors.transparent, primary, null),
-        };
+    final (
+      Color background,
+      Color foreground,
+      BorderSide? side,
+    ) = switch (style) {
+      PillStyle.filled => (AppColors.accent, Colors.white, null),
+      PillStyle.outlined => (
+        Colors.transparent,
+        primary,
+        BorderSide(color: secondary.withValues(alpha: 0.6)),
+      ),
+      PillStyle.danger => (AppColors.error, Colors.white, null),
+      PillStyle.dangerOutlined => (
+        Colors.transparent,
+        AppColors.error,
+        BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
+      ),
+      PillStyle.ghost => (Colors.transparent, primary, null),
+    };
 
     final padding = compact
         ? const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 6)
@@ -83,10 +86,7 @@ class PillButton extends StatelessWidget {
         ? SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: foreground,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
@@ -99,8 +99,9 @@ class PillButton extends StatelessWidget {
               Flexible(
                 child: Text(
                   label,
-                  style: AppTypography.button(color: foreground)
-                      .copyWith(fontSize: compact ? 14 : 15),
+                  style: AppTypography.button(
+                    color: foreground,
+                  ).copyWith(fontSize: compact ? 14 : 15),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

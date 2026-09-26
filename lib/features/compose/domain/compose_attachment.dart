@@ -25,8 +25,7 @@ enum ComposeMediaKind {
   /// TDLib's rule, quoted: only audio, document, photo and video may be
   /// grouped, and documents may only be grouped with documents. A voice note
   /// or a round video note is always its own message.
-  bool get canGroup =>
-      this == photo || this == video || this == document;
+  bool get canGroup => this == photo || this == video || this == document;
 
   /// Which pile this may be grouped with. Null for anything ungroupable.
   ///
@@ -203,8 +202,7 @@ class ComposeAttachment {
   /// Media that destroys itself is already hidden behind a tap, and Telegram
   /// rejects the pair. The composer hides the toggle rather than offering one
   /// that would take the message down with it.
-  bool get canSpoiler =>
-      !selfDestruct.isEnabled && (isPhoto || isVideo);
+  bool get canSpoiler => !selfDestruct.isEnabled && (isPhoto || isVideo);
 
   /// True when the probe could not read the file's dimensions.
   ///
@@ -212,10 +210,7 @@ class ComposeAttachment {
   /// it is why the tile falls back to a square rather than the real aspect.
   bool get hasUnknownSize => width <= 0 || height <= 0;
 
-  ComposeAttachment copyWith({
-    SelfDestruct? selfDestruct,
-    bool? hasSpoiler,
-  }) {
+  ComposeAttachment copyWith({SelfDestruct? selfDestruct, bool? hasSpoiler}) {
     final destruct = selfDestruct ?? this.selfDestruct;
     return ComposeAttachment(
       path: path,

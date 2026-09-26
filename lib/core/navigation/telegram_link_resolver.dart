@@ -114,9 +114,7 @@ class TelegramLinkResolver {
       // reads the same two numbers out of the URL for free.
       case td.InternalLinkTypeMessage():
         final parsed = TelegramLinks.parse(uri);
-        return parsed == null
-            ? const LinkForTelegram()
-            : LinkHandled(parsed);
+        return parsed == null ? const LinkForTelegram() : LinkHandled(parsed);
 
       case td.InternalLinkTypeChatInvite():
         final hash = _inviteHash(type.inviteLink);

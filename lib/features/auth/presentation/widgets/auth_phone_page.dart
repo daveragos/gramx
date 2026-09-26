@@ -92,9 +92,7 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
           labelText: AppStrings.authCountrySearchLabel,
           hintText: AppStrings.authCountrySearchHint,
           prefixIcon: const Icon(Icons.search_rounded),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
       onSelect: (Country country) {
@@ -117,8 +115,9 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Padding(
@@ -129,10 +128,9 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
           const Spacer(),
           Text(
             'Enter your phone number',
-            style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
+            style: AppTypography.heading(
+              color: primaryColor,
+            ).copyWith(fontSize: 26, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -145,7 +143,9 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant,
+                color: isDark
+                    ? AppColors.darkSurface
+                    : AppColors.lightSurfaceVariant,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: borderColor, width: 1),
               ),
@@ -154,7 +154,10 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
                 children: [
                   Row(
                     children: [
-                      Text(_selectedCountryFlag, style: const TextStyle(fontSize: 20)),
+                      Text(
+                        _selectedCountryFlag,
+                        style: const TextStyle(fontSize: 20),
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         _selectedCountryName,
@@ -177,7 +180,10 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down_rounded, color: secondaryColor),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: secondaryColor,
+                      ),
                     ],
                   ),
                 ],
@@ -199,10 +205,16 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
             ],
             decoration: InputDecoration(
               hintText: AppStrings.authPhoneHint(_selectedCountryCode),
-              hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.4)),
+              hintStyle: TextStyle(
+                color: secondaryColor.withValues(alpha: 0.4),
+              ),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),
-                child: Icon(Icons.phone_rounded, color: AppColors.accent, size: 22),
+                child: Icon(
+                  Icons.phone_rounded,
+                  color: AppColors.accent,
+                  size: 22,
+                ),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0),
               contentPadding: const EdgeInsets.symmetric(
@@ -239,7 +251,9 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(
+                  alpha: 0.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(26),
                 ),
@@ -251,7 +265,10 @@ class _AuthPhonePageState extends State<AuthPhonePage> {
                       var phone = widget.phoneController.text.trim();
                       if (phone.isNotEmpty) {
                         if (!phone.startsWith('+')) {
-                          final rawCc = _selectedCountryCode.replaceAll('+', '');
+                          final rawCc = _selectedCountryCode.replaceAll(
+                            '+',
+                            '',
+                          );
                           if (phone.startsWith(rawCc)) {
                             phone = '+$phone';
                           } else {

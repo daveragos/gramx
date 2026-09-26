@@ -89,7 +89,8 @@ class AppShell extends ConsumerStatefulWidget {
   ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   /// How long a second back press still counts as "I meant it".
   static const Duration _exitWindow = Duration(seconds: 2);
 
@@ -109,28 +110,19 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     // A notification tapped from the lock screen wakes the app from cold, so
     // the route it asks for is parked the same way a link is and collected
     // here, where a navigator exists.
-    ref.listenManual<String?>(
-      pendingNotificationRouteProvider,
-      (_, next) {
-        if (next == null) return;
-        final route =
-            ref.read(pendingNotificationRouteProvider.notifier).take();
-        if (route != null && mounted) GoRouter.of(context).push(route);
-      },
-      fireImmediately: true,
-    );
+    ref.listenManual<String?>(pendingNotificationRouteProvider, (_, next) {
+      if (next == null) return;
+      final route = ref.read(pendingNotificationRouteProvider.notifier).take();
+      if (route != null && mounted) GoRouter.of(context).push(route);
+    }, fireImmediately: true);
 
     // A link can arrive before there is anywhere to send it: a cold start from
     // a tapped `t.me` link runs before the first frame, so the link is parked
     // in a provider and collected here, where a navigator exists. Listened to
     // rather than watched — opening one is an action, not a rebuild.
-    ref.listenManual<Uri?>(
-      pendingDeepLinkProvider,
-      (_, next) {
-        if (next != null) unawaited(_openDeepLink());
-      },
-      fireImmediately: true,
-    );
+    ref.listenManual<Uri?>(pendingDeepLinkProvider, (_, next) {
+      if (next != null) unawaited(_openDeepLink());
+    }, fireImmediately: true);
   }
 
   @override

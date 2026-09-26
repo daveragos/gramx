@@ -82,8 +82,9 @@ class _AttachmentTile extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    final kindLabel =
-        attachment.isPhoto ? AppStrings.mediaPhoto : AppStrings.mediaVideo;
+    final kindLabel = attachment.isPhoto
+        ? AppStrings.mediaPhoto
+        : AppStrings.mediaVideo;
 
     return Semantics(
       label: AppStrings.mediaPosition(kindLabel, index + 1, total),
@@ -131,10 +132,7 @@ class _AttachmentTile extends StatelessWidget {
               child: _MediaButton(
                 onTap: onRemove,
                 tooltip: AppStrings.composeRemoveAttachment,
-                child: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.close_rounded, color: Colors.white),
               ),
             ),
           ],

@@ -36,9 +36,7 @@ class ReactionChipsRow extends StatelessWidget {
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final fill = isDark
-        ? AppColors.darkSurface
-        : AppColors.lightSurfaceVariant;
+    final fill = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
 
     // Swallows taps so scrolling the strip, or missing a chip, does not open
     // the post underneath.
@@ -121,12 +119,13 @@ class _Chip extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 TimeUtils.formatCount(count),
-                style: AppTypography.actionCount(
-                  color: isChosen ? AppColors.accent : textColor,
-                ).copyWith(
-                  fontSize: compact ? 12 : 13,
-                  fontWeight: isChosen ? FontWeight.w700 : FontWeight.w400,
-                ),
+                style:
+                    AppTypography.actionCount(
+                      color: isChosen ? AppColors.accent : textColor,
+                    ).copyWith(
+                      fontSize: compact ? 12 : 13,
+                      fontWeight: isChosen ? FontWeight.w700 : FontWeight.w400,
+                    ),
               ),
             ],
           ),

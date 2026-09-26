@@ -8,7 +8,10 @@ TelegramLink? parse(String url) => TelegramLinks.parse(Uri.parse(url));
 void main() {
   group('a channel link', () {
     test('is a bare username', () {
-      expect(parse('https://t.me/ragoose_dumps'), TelegramChannelLink('ragoose_dumps'));
+      expect(
+        parse('https://t.me/ragoose_dumps'),
+        TelegramChannelLink('ragoose_dumps'),
+      );
     });
 
     test('is the same on every host Telegram serves', () {
@@ -24,18 +27,26 @@ void main() {
     // `t.me/s/name` is the web preview page — the one guest mode reads. It
     // names the same channel, so it opens the same screen.
     test('a preview link names the same channel', () {
-      expect(parse('https://t.me/s/ragoose_dumps'), TelegramChannelLink('ragoose_dumps'));
+      expect(
+        parse('https://t.me/s/ragoose_dumps'),
+        TelegramChannelLink('ragoose_dumps'),
+      );
     });
 
     test('a trailing slash changes nothing', () {
-      expect(parse('https://t.me/ragoose_dumps/'), TelegramChannelLink('ragoose_dumps'));
+      expect(
+        parse('https://t.me/ragoose_dumps/'),
+        TelegramChannelLink('ragoose_dumps'),
+      );
     });
   });
 
   group('a post link', () {
     test('carries the number in the link', () {
-      expect(parse('https://t.me/ragoose_dumps/11123'),
-          TelegramPostLink('ragoose_dumps', 11123));
+      expect(
+        parse('https://t.me/ragoose_dumps/11123'),
+        TelegramPostLink('ragoose_dumps', 11123),
+      );
     });
 
     // TDLib shifts a server id left by 20 bits so it can address parts of a
@@ -49,8 +60,10 @@ void main() {
     // A forum link carries the topic first. gramX has no topics, and
     // the post still opens — which beats refusing the link.
     test('a forum link opens the post and ignores the topic', () {
-      expect(parse('https://t.me/ragoose_dumps/7/11123'),
-          TelegramPostLink('ragoose_dumps', 11123));
+      expect(
+        parse('https://t.me/ragoose_dumps/7/11123'),
+        TelegramPostLink('ragoose_dumps', 11123),
+      );
     });
   });
 
@@ -109,15 +122,21 @@ void main() {
 
   group('the tg:// scheme', () {
     test('resolve names a channel, or a post in it', () {
-      expect(parse('tg://resolve?domain=ragoose_dumps'),
-          TelegramChannelLink('ragoose_dumps'));
-      expect(parse('tg://resolve?domain=ragoose_dumps&post=42'),
-          TelegramPostLink('ragoose_dumps', 42));
+      expect(
+        parse('tg://resolve?domain=ragoose_dumps'),
+        TelegramChannelLink('ragoose_dumps'),
+      );
+      expect(
+        parse('tg://resolve?domain=ragoose_dumps&post=42'),
+        TelegramPostLink('ragoose_dumps', 42),
+      );
     });
 
     test('privatepost carries both numbers', () {
-      expect(parse('tg://privatepost?channel=123&post=42'),
-          TelegramPrivatePostLink(123, 42));
+      expect(
+        parse('tg://privatepost?channel=123&post=42'),
+        TelegramPrivatePostLink(123, 42),
+      );
     });
 
     test('join carries the invite', () {
@@ -245,7 +264,8 @@ void main() {
   // and "Copy link" produces something gramX itself would hand to Telegram.
   group('round trip with the links this app writes', () {
     test('a public post link parses back to the same post', () {
-      final link = parse('https://t.me/ragoose_dumps/11123') as TelegramPostLink;
+      final link =
+          parse('https://t.me/ragoose_dumps/11123') as TelegramPostLink;
       expect(link.username, 'ragoose_dumps');
       expect(link.serverMessageId, 11123);
     });
@@ -420,8 +440,10 @@ void main() {
 
     // It is a query and a tab switch, not a screen — the shell handles it.
     test('it is deliberately not a route', () {
-      expect(DeepLinkRoutes.routeFor(const TelegramHashtagLink('#flutter')),
-          isNull);
+      expect(
+        DeepLinkRoutes.routeFor(const TelegramHashtagLink('#flutter')),
+        isNull,
+      );
     });
   });
 }

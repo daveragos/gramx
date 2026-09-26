@@ -32,8 +32,11 @@ void main() {
       tracker.onVisibilityChanged('a', 0.1, at(400));
       tracker.onVisibilityChanged('a', 1.0, at(500));
 
-      expect(tracker.takeNewlyRead(at(900)), isEmpty,
-          reason: 'only 400ms since it returned');
+      expect(
+        tracker.takeNewlyRead(at(900)),
+        isEmpty,
+        reason: 'only 400ms since it returned',
+      );
       expect(tracker.takeNewlyRead(at(1000)), ['a']);
     });
 
@@ -97,8 +100,11 @@ void main() {
       tracker.onVisibilityChanged('b', 0.1, at(400));
       tracker.onVisibilityChanged('c', 0.9, at(400));
 
-      expect(tracker.settleFocus(at(700)), isFalse,
-          reason: 'c has only dominated for 300ms');
+      expect(
+        tracker.settleFocus(at(700)),
+        isFalse,
+        reason: 'c has only dominated for 300ms',
+      );
       expect(tracker.focusedPostId, isNull);
 
       expect(tracker.settleFocus(at(1000)), isTrue);
@@ -109,8 +115,11 @@ void main() {
       tracker.onVisibilityChanged('a', 0.9, at(0));
 
       expect(tracker.settleFocus(at(600)), isTrue);
-      expect(tracker.settleFocus(at(1200)), isFalse,
-          reason: 'no chat swap needed when focus is unchanged');
+      expect(
+        tracker.settleFocus(at(1200)),
+        isFalse,
+        reason: 'no chat swap needed when focus is unchanged',
+      );
     });
 
     test('nothing sufficiently visible means no focus', () {
@@ -160,8 +169,11 @@ void main() {
       tracker.takeNewlyRead(at(600));
       tracker.settleFocus(at(700));
 
-      expect(tracker.hasPendingWork, isFalse,
-          reason: 'the ticker should be allowed to stop');
+      expect(
+        tracker.hasPendingWork,
+        isFalse,
+        reason: 'the ticker should be allowed to stop',
+      );
     });
 
     test('is true while a post still owes a read ack', () {

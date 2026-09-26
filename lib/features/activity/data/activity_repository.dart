@@ -176,7 +176,8 @@ class ActivityRepository {
           itemFor(
             message,
             chatTitle: chat?.title ?? '',
-            isChannelPost: chat?.type is td.ChatTypeSupergroup &&
+            isChannelPost:
+                chat?.type is td.ChatTypeSupergroup &&
                 (chat?.type as td.ChatTypeSupergroup?)?.isChannel == true,
             sender: _senderOf(message),
             isReaction: filter is td.SearchMessagesFilterUnreadReaction,

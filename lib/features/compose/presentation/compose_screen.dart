@@ -90,22 +90,21 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   ComposeDraft _draft(
     List<ComposeTarget> targets, {
     ComposeLengthLimits limits = ComposeLengthLimits.free,
-  }) =>
-      ComposeDraft(
-        target: _chosenTarget ?? (targets.isEmpty ? null : targets.first),
-        text: _controller.text,
-        attachments: _attachments,
-        remote: _remote,
-        isSending: _isSending,
-        limits: limits,
-      );
+  }) => ComposeDraft(
+    target: _chosenTarget ?? (targets.isEmpty ? null : targets.first),
+    text: _controller.text,
+    attachments: _attachments,
+    remote: _remote,
+    isSending: _isSending,
+    limits: limits,
+  );
 
   /// The draft as the rest of the screen sees it, limits included.
   ComposeDraft _currentDraft() => _draft(
-        ref.read(composeTargetsProvider),
-        limits: ref.read(composeLengthLimitsProvider).value ??
-            ComposeLengthLimits.free,
-      );
+    ref.read(composeTargetsProvider),
+    limits:
+        ref.read(composeLengthLimitsProvider).value ?? ComposeLengthLimits.free,
+  );
 
   Future<void> _pickTarget(ComposeTarget? current) async {
     // Let the keyboard go first — the sheet is 70% of the screen and would
@@ -157,15 +156,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   static String _rejectionMessage(ComposePhotoRejection rejection) =>
       switch (rejection) {
         ComposePhotoRejection.tooLarge => AppStrings.composePhotoTooLarge(
-            ComposeLimits.maxPhotoBytes ~/ (1024 * 1024),
-          ),
+          ComposeLimits.maxPhotoBytes ~/ (1024 * 1024),
+        ),
         ComposePhotoRejection.tooManyPixels =>
           AppStrings.composePhotoTooManyPixels(
             ComposeLimits.maxPhotoDimensionTotal,
           ),
         ComposePhotoRejection.tooWide => AppStrings.composePhotoTooWide(
-            ComposeLimits.maxPhotoAspectRatio,
-          ),
+          ComposeLimits.maxPhotoAspectRatio,
+        ),
       };
 
   Future<void> _pickRemote(ComposeRemoteKind kind) async {
@@ -231,7 +230,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final label = composeTargetLabel(target);
 
     setState(() => _isSending = true);
-    final result = await ref.read(composeRepositoryProvider).send(
+    final result = await ref
+        .read(composeRepositoryProvider)
+        .send(
           chatId: target.chatId,
           text: draft.trimmedText,
           attachments: draft.attachments,
@@ -286,8 +287,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   }
 
   void _say(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -295,8 +297,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final targets = ref.watch(composeTargetsProvider);
@@ -304,7 +307,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     // composeLengthLimitsProvider. Premium quadruples the caption allowance,
     // so this is the difference between a correct counter and one that tells a
     // subscriber they are out of room at a quarter of their real limit.
-    final limits = ref.watch(composeLengthLimitsProvider).value ??
+    final limits =
+        ref.watch(composeLengthLimitsProvider).value ??
         ComposeLengthLimits.free;
     final draft = _draft(targets, limits: limits);
     final account = ref.watch(activeAccountProvider).value;
@@ -399,8 +403,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   onChangeTarget: () => _pickTarget(draft.target),
                   onAddPhoto: () => _attach(ComposeMediaKind.photo),
                   onAddVideo: () => _attach(ComposeMediaKind.video),
-                  onAddSticker: () =>
-                      _pickRemote(ComposeRemoteKind.sticker),
+                  onAddSticker: () => _pickRemote(ComposeRemoteKind.sticker),
                   onAddGif: () => _pickRemote(ComposeRemoteKind.animation),
                   // Telegram takes a poll in a channel or a group and nowhere
                   // else, so the button is absent for Saved Messages and for a
@@ -590,7 +593,8 @@ class _ComposeFooter extends StatelessWidget {
     final canAttach = draft.canAttachMore && !busy;
     // One sticker or GIF per post, and never alongside uploaded files — so the
     // buttons close once either kind of media is chosen.
-    final canPickRemote = draft.remote == null && !draft.hasAttachments && !busy;
+    final canPickRemote =
+        draft.remote == null && !draft.hasAttachments && !busy;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -608,9 +612,7 @@ class _ComposeFooter extends StatelessWidget {
         // The second: `inputMessageSticker` has no caption field at all, so
         // the two things on screen genuinely cannot go out together.
         if (draft.stickerBlocksText)
-          const _FooterNote(
-            message: AppStrings.composeStickerTakesNoCaption,
-          ),
+          const _FooterNote(message: AppStrings.composeStickerTakesNoCaption),
         Container(
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: borderColor, width: 0.5)),
@@ -739,7 +741,9 @@ class _CharacterCounter extends StatelessWidget {
 
     final color = draft.isOverLimit
         ? AppColors.error
-        : (remaining <= _showNumberWithin ? AppColors.warning : AppColors.accent);
+        : (remaining <= _showNumberWithin
+              ? AppColors.warning
+              : AppColors.accent);
 
     final showNumber = remaining <= _showNumberWithin;
 
@@ -753,7 +757,7 @@ class _CharacterCounter extends StatelessWidget {
         children: [
           if (showNumber) ...[
             Text(
-              '$remaining',
+              remaining.toString(),
               style: AppTypography.actionCount(color: color),
             ),
             const SizedBox(width: AppSpacing.sm),

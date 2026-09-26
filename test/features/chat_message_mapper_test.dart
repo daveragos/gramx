@@ -63,7 +63,12 @@ void main() {
       isOutgoing: outgoing,
       sentAt: DateTime(2026),
       media: const [
-        MediaItem(id: 'p', type: MediaType.photo, fileId: 40, thumbnailFileId: 41),
+        MediaItem(
+          id: 'p',
+          type: MediaType.photo,
+          fileId: 40,
+          thumbnailFileId: 41,
+        ),
       ],
     );
     ChatMessage replyTo(int id) => ChatMessage(
@@ -286,7 +291,10 @@ void main() {
         chatId: _chatId,
         date: date,
       );
-      json['sender_id'] = {'@type': 'messageSenderUser', 'user_id': senderUserId};
+      json['sender_id'] = {
+        '@type': 'messageSenderUser',
+        'user_id': senderUserId,
+      };
       json['is_channel_post'] = false;
       json['content'] = content;
       return td.Message.fromJson(json);

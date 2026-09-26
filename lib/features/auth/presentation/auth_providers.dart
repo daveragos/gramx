@@ -198,20 +198,14 @@ class AuthController extends Notifier<AuthState> {
     if (tdState is td.AuthorizationStateWaitPhoneNumber) {
       return const AuthState(step: AuthStep.loginMethodSelection);
     } else if (tdState is td.AuthorizationStateWaitCode) {
-      return AuthState(
-        step: AuthStep.waitCode,
-        phoneNumber: state.phoneNumber,
-      );
+      return AuthState(step: AuthStep.waitCode, phoneNumber: state.phoneNumber);
     } else if (tdState is td.AuthorizationStateWaitPassword) {
       return AuthState(
         step: AuthStep.waitPassword,
         phoneNumber: state.phoneNumber,
       );
     } else if (tdState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
-      return AuthState(
-        step: AuthStep.waitQrCode,
-        qrCodeLink: tdState.link,
-      );
+      return AuthState(step: AuthStep.waitQrCode, qrCodeLink: tdState.link);
     } else if (tdState is td.AuthorizationStateReady) {
       return const AuthState(step: AuthStep.loading);
     }
@@ -273,53 +267,60 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> _handleAuthReady() async {
     StartupTrace.mark('Telegram session ready');
-    state = state.copyWith(step: AuthStep.loading, isSubmitting: false, statusMessage: 'Loading account profile...');
+    state = state.copyWith(
+      step: AuthStep.loading,
+      isSubmitting: false,
+      statusMessage: 'Loading account profile...',
+    );
     try {
       final me = await _tdlib.sendRequest(const td.GetMe());
       if (me is td.User) {
         final db = ref.read(databaseProvider);
 
-        await (db.update(db.accounts)).write(
-          const AccountsCompanion(isActive: Value(false)),
-        );
+        await (db.update(
+          db.accounts,
+        )).write(const AccountsCompanion(isActive: Value(false)));
 
         final String? username =
             (me.usernames?.activeUsernames != null &&
-                    me.usernames!.activeUsernames.isNotEmpty)
-                ? me.usernames!.activeUsernames.first
-                : me.usernames?.editableUsername;
+                me.usernames!.activeUsernames.isNotEmpty)
+            ? me.usernames!.activeUsernames.first
+            : me.usernames?.editableUsername;
 
         if (me.profilePhoto != null) {
           try {
-            await _tdlib.sendRequest(td.DownloadFile(
-              fileId: me.profilePhoto!.small.id,
-              priority: 1,
-              offset: 0,
-              limit: 0,
-              synchronous: false,
-            ));
+            await _tdlib.sendRequest(
+              td.DownloadFile(
+                fileId: me.profilePhoto!.small.id,
+                priority: 1,
+                offset: 0,
+                limit: 0,
+                synchronous: false,
+              ),
+            );
           } catch (e) {
             debugPrint('[Auth] Failed to request user avatar download: $e');
           }
         }
 
-        final avatarPathValue = me.profilePhoto?.small.local.path.isNotEmpty == true
+        final avatarPathValue =
+            me.profilePhoto?.small.local.path.isNotEmpty == true
             ? me.profilePhoto?.small.local.path
             : (me.profilePhoto?.small.remote.id.isNotEmpty == true
-                ? me.profilePhoto?.small.remote.id
-                : me.profilePhoto?.small.id.toString());
+                  ? me.profilePhoto?.small.remote.id
+                  : me.profilePhoto?.small.id.toString());
 
-        final existingAccount = await (db.select(db.accounts)
-              ..where((a) => a.telegramUserId.equals(me.id.toString())))
-            .getSingleOrNull();
+        final existingAccount =
+            await (db.select(db.accounts)
+                  ..where((a) => a.telegramUserId.equals(me.id.toString())))
+                .getSingleOrNull();
 
         if (existingAccount != null) {
-          await (db.update(db.accounts)
-                ..where((a) => a.id.equals(existingAccount.id)))
-              .write(
+          await (db.update(
+            db.accounts,
+          )..where((a) => a.id.equals(existingAccount.id))).write(
             AccountsCompanion(
-              displayName:
-                  Value('${me.firstName} ${me.lastName}'.trim()),
+              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
               username: Value(username),
               phoneNumber: Value(me.phoneNumber),
               avatarPath: Value(avatarPathValue),
@@ -328,11 +329,12 @@ class AuthController extends Notifier<AuthState> {
             ),
           );
         } else {
-          await db.into(db.accounts).insert(
+          await db
+              .into(db.accounts)
+              .insert(
                 AccountsCompanion.insert(
                   telegramUserId: me.id.toString(),
-                  displayName:
-                      Value('${me.firstName} ${me.lastName}'.trim()),
+                  displayName: Value('${me.firstName} ${me.lastName}'.trim()),
                   username: Value(username),
                   phoneNumber: Value(me.phoneNumber),
                   avatarPath: Value(avatarPathValue),
@@ -406,12 +408,12 @@ class AuthController extends Notifier<AuthState> {
         ),
       );
       if (res is td.TdError) {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: res.message,
-        );
+        state = state.copyWith(isSubmitting: false, errorMessage: res.message);
       } else {
-        state = state.copyWith(phoneNumber: formattedPhone, isSubmitting: false);
+        state = state.copyWith(
+          phoneNumber: formattedPhone,
+          isSubmitting: false,
+        );
       }
     } catch (e) {
       state = state.copyWith(
@@ -448,10 +450,7 @@ class AuthController extends Notifier<AuthState> {
         td.RequestQrCodeAuthentication(otherUserIds: []),
       );
       if (res is td.TdError) {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: res.message,
-        );
+        state = state.copyWith(isSubmitting: false, errorMessage: res.message);
       } else {
         state = state.copyWith(isSubmitting: false);
       }
@@ -466,12 +465,11 @@ class AuthController extends Notifier<AuthState> {
   Future<void> submitCode(String code) async {
     state = state.clearError().copyWith(isSubmitting: true);
     try {
-      final res = await _tdlib.sendRequest(td.CheckAuthenticationCode(code: code));
+      final res = await _tdlib.sendRequest(
+        td.CheckAuthenticationCode(code: code),
+      );
       if (res is td.TdError) {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: res.message,
-        );
+        state = state.copyWith(isSubmitting: false, errorMessage: res.message);
       } else {
         state = state.copyWith(isSubmitting: false);
       }
@@ -490,10 +488,7 @@ class AuthController extends Notifier<AuthState> {
         td.CheckAuthenticationPassword(password: password),
       );
       if (res is td.TdError) {
-        state = state.copyWith(
-          isSubmitting: false,
-          errorMessage: res.message,
-        );
+        state = state.copyWith(isSubmitting: false, errorMessage: res.message);
       } else {
         state = state.copyWith(isSubmitting: false);
       }
@@ -506,7 +501,10 @@ class AuthController extends Notifier<AuthState> {
   }
 
   void retryConnection() {
-    state = const AuthState(step: AuthStep.loading, statusMessage: 'Retrying connection...');
+    state = const AuthState(
+      step: AuthStep.loading,
+      statusMessage: 'Retrying connection...',
+    );
     _startConnectionTimeout();
     _tdlib.initialize().catchError((e) {
       state = state.copyWith(
@@ -517,7 +515,10 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> resetSession() async {
-    state = const AuthState(step: AuthStep.loading, statusMessage: 'Resetting session...');
+    state = const AuthState(
+      step: AuthStep.loading,
+      statusMessage: 'Resetting session...',
+    );
     _startConnectionTimeout();
     await _tdlib.resetSession();
   }
@@ -557,5 +558,6 @@ class AuthController extends Notifier<AuthState> {
   }
 }
 
-final authControllerProvider =
-    NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);

@@ -37,7 +37,8 @@ class InstalledSet extends StickerSource {
   const InstalledSet(this.setId);
 
   @override
-  bool operator ==(Object other) => other is InstalledSet && other.setId == setId;
+  bool operator ==(Object other) =>
+      other is InstalledSet && other.setId == setId;
 
   @override
   int get hashCode => setId.hashCode;
@@ -51,8 +52,9 @@ final savedGifsProvider = FutureProvider<List<ComposeRemoteMedia>>((ref) {
 
 /// The installed sets, titles and icons only — one request for the whole strip.
 /// Deliberately not the stickers inside them; see [StickerRepository].
-final installedStickerSetsProvider =
-    FutureProvider<List<ComposeStickerSet>>((ref) {
+final installedStickerSetsProvider = FutureProvider<List<ComposeStickerSet>>((
+  ref,
+) {
   return ref.watch(stickerRepositoryProvider).installedSets();
 });
 
@@ -65,12 +67,14 @@ final installedStickerSetsProvider =
 /// — not one request per installed set, which is the fan-out shape the channel
 /// tabs already had to be taught to avoid.
 final stickersProvider =
-    FutureProvider.family<List<ComposeRemoteMedia>, StickerSource>(
-        (ref, source) {
-  final repository = ref.watch(stickerRepositoryProvider);
-  return switch (source) {
-    FavouriteStickers() => repository.favoriteStickers(),
-    RecentStickers() => repository.recentStickers(),
-    InstalledSet(setId: final id) => repository.stickerSet(id),
-  };
-});
+    FutureProvider.family<List<ComposeRemoteMedia>, StickerSource>((
+      ref,
+      source,
+    ) {
+      final repository = ref.watch(stickerRepositoryProvider);
+      return switch (source) {
+        FavouriteStickers() => repository.favoriteStickers(),
+        RecentStickers() => repository.recentStickers(),
+        InstalledSet(setId: final id) => repository.stickerSet(id),
+      };
+    });

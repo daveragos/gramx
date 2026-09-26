@@ -61,11 +61,12 @@ class AuthSelectionPage extends StatelessWidget {
                     const SizedBox(height: 20),
                     Text(
                       AppStrings.onboardingWelcome,
-                      style: AppTypography.heading(color: primaryColor).copyWith(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                      ),
+                      style: AppTypography.heading(color: primaryColor)
+                          .copyWith(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -132,7 +133,10 @@ class AuthSelectionPage extends StatelessWidget {
                                   color: AppColors.accent,
                                 ),
                               )
-                            : const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                            : const Icon(
+                                Icons.qr_code_scanner_rounded,
+                                size: 20,
+                              ),
                         label: Text(
                           isSubmitting
                               ? AppStrings.authGeneratingQr
@@ -176,8 +180,9 @@ class _BrowseAsGuestButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Column(
       children: [

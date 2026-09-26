@@ -43,7 +43,10 @@ class ActivityBell extends ConsumerWidget {
                 top: -3,
                 right: -5,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   constraints: const BoxConstraints(minWidth: 16),
                   decoration: BoxDecoration(
                     color: AppColors.accent,
@@ -58,11 +61,12 @@ class ActivityBell extends ConsumerWidget {
                   child: Text(
                     AppStrings.activityBadge(count),
                     textAlign: TextAlign.center,
-                    style: AppTypography.timestamp(color: Colors.white).copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                    ),
+                    style: AppTypography.timestamp(color: Colors.white)
+                        .copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
                   ),
                 ),
               ),

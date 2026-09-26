@@ -22,12 +22,12 @@ enum ChannelTab {
   /// Media is a grid and files are rows because that is the point of having
   /// the tab at all — a column of post cards is what the Posts tab already is.
   ChannelTabLayout get layout => switch (this) {
-        ChannelTab.posts => ChannelTabLayout.cards,
-        ChannelTab.media => ChannelTabLayout.grid,
-        ChannelTab.files => ChannelTabLayout.fileRows,
-        ChannelTab.links => ChannelTabLayout.cards,
-        ChannelTab.voice => ChannelTabLayout.cards,
-      };
+    ChannelTab.posts => ChannelTabLayout.cards,
+    ChannelTab.media => ChannelTabLayout.grid,
+    ChannelTab.files => ChannelTabLayout.fileRows,
+    ChannelTab.links => ChannelTabLayout.cards,
+    ChannelTab.voice => ChannelTabLayout.cards,
+  };
 }
 
 enum ChannelTabLayout { cards, grid, fileRows }

@@ -24,8 +24,9 @@ class AuthCodePage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Padding(
@@ -50,10 +51,9 @@ class AuthCodePage extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             'Check your Telegram app',
-            style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
+            style: AppTypography.heading(
+              color: primaryColor,
+            ).copyWith(fontSize: 26, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -117,7 +117,9 @@ class AuthCodePage extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(
+                  alpha: 0.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(26),
                 ),

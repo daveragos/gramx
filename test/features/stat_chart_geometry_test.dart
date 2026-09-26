@@ -15,15 +15,11 @@ StatGraph _graph({
   final length = series.first.length;
   return StatGraph(
     timestamps:
-        timestamps ?? [for (var i = 0; i < length; i++) 1719792000000 + i * 86400000],
+        timestamps ??
+        [for (var i = 0; i < length; i++) 1719792000000 + i * 86400000],
     lines: [
       for (var i = 0; i < series.length; i++)
-        StatGraphLine(
-          key: 'y$i',
-          name: 'y$i',
-          shape: shape,
-          values: series[i],
-        ),
+        StatGraphLine(key: 'y$i', name: 'y$i', shape: shape, values: series[i]),
     ],
     isStacked: stacked,
     isPercentage: percentage,
@@ -39,9 +35,11 @@ void main() {
   group('StatChartGeometry', () {
     test('scales a series between zero and its highest value', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [0, 50, 100],
-        ]),
+        _graph(
+          series: [
+            [0, 50, 100],
+          ],
+        ),
         _size,
       );
 
@@ -56,9 +54,11 @@ void main() {
     // started at zero this month, which is a chart about nothing.
     test('the axis starts at zero even when no value is near it', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [900, 950, 1000],
-        ]),
+        _graph(
+          series: [
+            [900, 950, 1000],
+          ],
+        ),
         _size,
       );
 
@@ -68,9 +68,11 @@ void main() {
 
     test('opens downwards for a series that goes negative', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [-20, 0, 40],
-        ]),
+        _graph(
+          series: [
+            [-20, 0, 40],
+          ],
+        ),
         _size,
       );
 
@@ -82,9 +84,11 @@ void main() {
     // A channel whose member count did not move all month.
     test('a flat series does not divide by a zero range', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [7, 7, 7],
-        ]),
+        _graph(
+          series: [
+            [7, 7, 7],
+          ],
+        ),
         _size,
       );
 
@@ -97,9 +101,11 @@ void main() {
     // at one point, and a channel one day old is a real thing to open.
     test('a single-sample graph is centred rather than infinite', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [5],
-        ]),
+        _graph(
+          series: [
+            [5],
+          ],
+        ),
         _size,
       );
 
@@ -109,9 +115,11 @@ void main() {
 
     test('the first and last points sit on the edges of the box', () {
       final geometry = StatChartGeometry.of(
-        _graph(series: [
-          [1, 2, 3],
-        ]),
+        _graph(
+          series: [
+            [1, 2, 3],
+          ],
+        ),
         _size,
       );
 
@@ -120,22 +128,25 @@ void main() {
     });
 
     group('stacking', () {
-      test('plots running totals and scales the axis to the tallest column', () {
-        final geometry = StatChartGeometry.of(
-          _graph(
-            series: [
-              [10, 10],
-              [30, 5],
-            ],
-            stacked: true,
-          ),
-          _size,
-        );
+      test(
+        'plots running totals and scales the axis to the tallest column',
+        () {
+          final geometry = StatChartGeometry.of(
+            _graph(
+              series: [
+                [10, 10],
+                [30, 5],
+              ],
+              stacked: true,
+            ),
+            _size,
+          );
 
-        expect(geometry.plotted[0], [10, 10]);
-        expect(geometry.plotted[1], [40, 15]);
-        expect(geometry.maxY, 40);
-      });
+          expect(geometry.plotted[0], [10, 10]);
+          expect(geometry.plotted[1], [40, 15]);
+          expect(geometry.maxY, 40);
+        },
+      );
 
       test('each segment starts where the one below it ended', () {
         final geometry = StatChartGeometry.of(
@@ -160,10 +171,12 @@ void main() {
 
       test('an unstacked graph has no baselines', () {
         final geometry = StatChartGeometry.of(
-          _graph(series: [
-            [10, 10],
-            [30, 5],
-          ]),
+          _graph(
+            series: [
+              [10, 10],
+              [30, 5],
+            ],
+          ),
           _size,
         );
 
@@ -258,9 +271,11 @@ void main() {
 
       test('a short axis is labelled in full', () {
         final geometry = StatChartGeometry.of(
-          _graph(series: [
-            [1, 2],
-          ]),
+          _graph(
+            series: [
+              [1, 2],
+            ],
+          ),
           _size,
         );
 
@@ -269,9 +284,11 @@ void main() {
 
       test('gridlines span the axis from bottom to top', () {
         final geometry = StatChartGeometry.of(
-          _graph(series: [
-            [0, 100],
-          ]),
+          _graph(
+            series: [
+              [0, 100],
+            ],
+          ),
           _size,
         );
 
@@ -296,14 +313,22 @@ void main() {
 
     test('names the date on an axis that covers months', () {
       expect(
-        TimeUtils.axisLabel(at, const Duration(days: 90), now: DateTime(2026, 9, 7)),
+        TimeUtils.axisLabel(
+          at,
+          const Duration(days: 90),
+          now: DateTime(2026, 9, 7),
+        ),
         'Jun 7',
       );
     });
 
     test('carries the year once the axis leaves this one', () {
       expect(
-        TimeUtils.axisLabel(at, const Duration(days: 400), now: DateTime(2026, 9, 7)),
+        TimeUtils.axisLabel(
+          at,
+          const Duration(days: 400),
+          now: DateTime(2026, 9, 7),
+        ),
         'Jun 2026',
       );
     });

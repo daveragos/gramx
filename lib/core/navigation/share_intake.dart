@@ -14,9 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// arrives before Dart has a handler registered, so a push would need a parked
 /// copy anyway — and then two paths would have to agree on which delivered it.
 class ShareIntake {
-  static const MethodChannel channel = MethodChannel(
-    'dev.ragoose.gramx/share',
-  );
+  static const MethodChannel channel = MethodChannel('dev.ragoose.gramx/share');
 
   const ShareIntake();
 

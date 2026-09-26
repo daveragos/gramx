@@ -15,8 +15,8 @@ class Accounts extends Table {
 class BookmarkEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get accountId => integer().references(Accounts, #id)();
-  IntColumn get chatId => integer()();  // TDLib chat ID
-  IntColumn get messageId => integer()();  // TDLib message ID
+  IntColumn get chatId => integer()(); // TDLib chat ID
+  IntColumn get messageId => integer()(); // TDLib message ID
 
   /// The id of this post's copy in Saved Messages, when there is one.
   ///
@@ -32,5 +32,7 @@ class BookmarkEntries extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
-  List<Set<Column>> get uniqueKeys => [{accountId, chatId, messageId}];
+  List<Set<Column>> get uniqueKeys => [
+    {accountId, chatId, messageId},
+  ];
 }

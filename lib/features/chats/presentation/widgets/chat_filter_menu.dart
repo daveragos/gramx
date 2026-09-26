@@ -94,11 +94,7 @@ class ChatFilterMenu extends ConsumerWidget {
             children: [
               Text(active.label, style: AppTypography.button(color: primary)),
               const SizedBox(width: AppSpacing.xxs),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: primary,
-                size: 18,
-              ),
+              Icon(Icons.keyboard_arrow_down_rounded, color: primary, size: 18),
             ],
           ),
         ),

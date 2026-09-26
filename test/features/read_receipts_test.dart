@@ -57,7 +57,9 @@ void main() {
     // Losing one malformed receipt beats losing the batch it was in.
     test('ids that are not chatId_messageId are dropped, not thrown', () {
       final batch = groupReadReceipts(['nonsense', '', '_5', '-100111_10']);
-      expect(batch, {-100111: [10]});
+      expect(batch, {
+        -100111: [10],
+      });
     });
   });
 
@@ -67,9 +69,9 @@ void main() {
 
     setUp(() {
       repo = _RecordingRepository();
-      container = ProviderContainer(overrides: [
-        feedRepositoryProvider.overrideWithValue(repo),
-      ]);
+      container = ProviderContainer(
+        overrides: [feedRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(container.dispose);
     });
 
@@ -147,8 +149,9 @@ void main() {
       await queue.flush();
       expect(repo.calls, hasLength(1));
 
-      await Future<void>.delayed(ReadReceiptQueue.retryDelay +
-          const Duration(milliseconds: 50));
+      await Future<void>.delayed(
+        ReadReceiptQueue.retryDelay + const Duration(milliseconds: 50),
+      );
 
       expect(repo.calls, hasLength(2));
       expect(repo.calls.last.messageIds, [10]);

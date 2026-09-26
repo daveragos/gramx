@@ -89,10 +89,7 @@ void main() {
           startParameter: 'x',
           autostart: false,
         ),
-        td.InternalLinkTypeStory(
-          storySenderUsername: 'someone',
-          storyId: 7,
-        ),
+        td.InternalLinkTypeStory(storySenderUsername: 'someone', storyId: 7),
         td.InternalLinkTypeStickerSet(
           stickerSetName: 'somepack',
           expectCustomEmoji: false,

@@ -44,8 +44,7 @@ abstract class ScheduleSheet {
                 leading: const Icon(Icons.person_outline_rounded),
                 title: const Text(AppStrings.scheduleWhenOnline),
                 subtitle: const Text(AppStrings.scheduleWhenOnlineBody),
-                onTap: () =>
-                    Navigator.pop(context, MessageSchedule.whenOnline),
+                onTap: () => Navigator.pop(context, MessageSchedule.whenOnline),
               ),
             for (final offset in quickChoices)
               ListTile(

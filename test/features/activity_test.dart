@@ -87,10 +87,7 @@ void main() {
           _chat(i, mentions: 1),
       ];
 
-      expect(
-        ActivityPlan.queriesFor(chats),
-        hasLength(ActivityPlan.maxChats),
-      );
+      expect(ActivityPlan.queriesFor(chats), hasLength(ActivityPlan.maxChats));
     });
 
     // When the cap bites it should keep the chats the reader most likely
@@ -98,7 +95,11 @@ void main() {
     test('the cap keeps the most recent chats', () {
       final chats = [
         for (var i = 0; i < ActivityPlan.maxChats + 5; i++)
-          _chat(i, mentions: 1, at: DateTime(2026, 8, 1).add(Duration(days: i))),
+          _chat(
+            i,
+            mentions: 1,
+            at: DateTime(2026, 8, 1).add(Duration(days: i)),
+          ),
       ];
 
       final kept = ActivityPlan.queriesFor(chats).map((q) => q.chatId).toSet();
@@ -225,10 +226,7 @@ void main() {
         text: 'first line\n\n  second line ',
       );
 
-      expect(
-        ActivityRepository.previewOf(message),
-        'first line second line',
-      );
+      expect(ActivityRepository.previewOf(message), 'first line second line');
     });
 
     // A photo somebody tagged you under still happened. An empty row would

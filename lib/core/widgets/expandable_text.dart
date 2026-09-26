@@ -49,8 +49,7 @@ class _ExpandableTextState extends State<ExpandableText> {
 
   @override
   Widget build(BuildContext context) {
-    final clampable =
-        shouldClampText(widget.text, maxLines: widget.maxLines);
+    final clampable = shouldClampText(widget.text, maxLines: widget.maxLines);
     final collapsed = clampable && !_expanded;
 
     final body = TextEntityRenderer(
@@ -63,8 +62,7 @@ class _ExpandableTextState extends State<ExpandableText> {
 
     if (!clampable) return body;
 
-    final label =
-        _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
+    final label = _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

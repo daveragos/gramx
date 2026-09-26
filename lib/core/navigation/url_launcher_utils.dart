@@ -30,7 +30,8 @@ Future<bool> openExternalUrl(Uri uri) async {
 /// declares one — including `tg:`, `mailto:` and `tel:` — is left alone.
 Uri normalizeUrl(String rawUrl) {
   final trimmed = rawUrl.trim();
-  final hasScheme = trimmed.contains('://') ||
+  final hasScheme =
+      trimmed.contains('://') ||
       trimmed.startsWith('mailto:') ||
       trimmed.startsWith('tel:');
   return Uri.parse(hasScheme ? trimmed : 'https://$trimmed');

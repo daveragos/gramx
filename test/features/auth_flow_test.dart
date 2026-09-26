@@ -57,8 +57,11 @@ void main() {
 
       expect(transition.state!.step, AuthStep.loginMethodSelection);
       expect(transition.stayAtChooser, isTrue);
-      expect(transition.state!.qrCodeLink, 'tg://login?token=def',
-          reason: 'kept current for when they come back to it');
+      expect(
+        transition.state!.qrCodeLink,
+        'tg://login?token=def',
+        reason: 'kept current for when they come back to it',
+      );
     });
 
     test('a re-announced code state does not reopen the code page', () {

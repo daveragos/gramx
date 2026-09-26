@@ -59,16 +59,18 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
     if (renderBox == null) return;
 
     final rect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
-    final availableEmojis =
-        await ref.read(feedRepositoryProvider).getAvailableReactions(post.chatId);
+    final availableEmojis = await ref
+        .read(feedRepositoryProvider)
+        .getAvailableReactions(post.chatId);
     if (!mounted) return;
 
     ReactionPickerOverlay.show(
       context: context,
       targetRect: rect,
       availableEmojis: availableEmojis,
-      selectedEmoji:
-          post.chosenReactions.isNotEmpty ? post.chosenReactions.first : null,
+      selectedEmoji: post.chosenReactions.isNotEmpty
+          ? post.chosenReactions.first
+          : null,
       onEmojiSelected: widget.onSelectReaction,
     );
   }

@@ -64,21 +64,19 @@ void main() {
     // caption and the media off the new content, so a vote arriving from
     // another client changed nothing on screen.
     test('a vote arriving as a content update reaches the bubble', () {
-      final state = ConversationState(
-        chatId: -1001,
-        messages: [mapPoll()],
-      ).apply(
-        ChatMessageContentChanged(
-          -1001,
-          100,
-          TdFixtures.pollMessage(
-            id: 100,
-            chatId: -1001,
-            chosenIndex: 1,
-          ).content,
-        ),
-        users: const {},
-      );
+      final state = ConversationState(chatId: -1001, messages: [mapPoll()])
+          .apply(
+            ChatMessageContentChanged(
+              -1001,
+              100,
+              TdFixtures.pollMessage(
+                id: 100,
+                chatId: -1001,
+                chosenIndex: 1,
+              ).content,
+            ),
+            users: const {},
+          );
 
       expect(state, isNotNull);
       expect(state!.messages.single.poll!.chosenOptionIds, [1]);

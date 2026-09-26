@@ -94,8 +94,7 @@ abstract class AppStrings {
 
   /// A counted action, read out as one phrase — "12 replies" rather than a
   /// number and a word arriving as two separate labels.
-  static String a11yCountedAction(int count, String action) =>
-      '$count $action';
+  static String a11yCountedAction(int count, String action) => '$count $action';
   static const postLinkCopied = 'Post link copied to clipboard.';
   static const postNotLinkable = "This post can't be linked to.";
   static const postNotFound = 'Post not found';
@@ -408,9 +407,8 @@ abstract class AppStrings {
   /// The bell's badge, capped the way every unread count is.
   static String activityBadge(int count) => count > 99 ? '99+' : '$count';
 
-  static String a11yActivity(int count) => count == 0
-      ? 'Activity'
-      : 'Activity, $count new';
+  static String a11yActivity(int count) =>
+      count == 0 ? 'Activity' : 'Activity, $count new';
 
   // ── Bookmarks ──────────────────────────────────────────────────────────────
   static const bookmarksTitle = 'Bookmarks';
@@ -548,8 +546,7 @@ abstract class AppStrings {
   static const authPressBackAgain = pressBackAgainToExit;
   static const authUsePhoneInstead = 'Use a phone number instead';
   static const authCountrySearchLabel = 'Search Country';
-  static const authCountrySearchHint =
-      'Start typing country name or code...';
+  static const authCountrySearchHint = 'Start typing country name or code...';
   static const authPasswordHint = 'Cloud password';
 
   /// The dots standing in for the login code, one per digit Telegram sends.
@@ -1215,7 +1212,8 @@ abstract class AppStrings {
   static const chatSearchHint = 'Search messages';
   static const chatSearchPrompt = 'Type to search this conversation.';
   static const chatSearchFailed = 'Could not search this conversation.';
-  static String chatSearchNoResults(String query) => 'No messages match "$query".';
+  static String chatSearchNoResults(String query) =>
+      'No messages match "$query".';
 
   static const chatPinnedMessage = 'Pinned message';
   static const chatPinnedNoText = 'Pinned';

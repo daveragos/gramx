@@ -715,7 +715,10 @@ class TdlibService {
     _isOnline = online;
     try {
       await sendRequest(
-        td.SetOption(name: 'online', value: td.OptionValueBoolean(value: online)),
+        td.SetOption(
+          name: 'online',
+          value: td.OptionValueBoolean(value: online),
+        ),
         timeout: const Duration(seconds: 5),
       );
     } catch (e) {
@@ -755,10 +758,7 @@ class TdlibService {
     if (_isClosing || _clientId == null) return;
     _isClosing = true;
     try {
-      await sendRequest(
-        const td.Close(),
-        timeout: const Duration(seconds: 3),
-      );
+      await sendRequest(const td.Close(), timeout: const Duration(seconds: 3));
     } catch (e) {
       debugPrint('[TDLib] close failed: $e');
     }

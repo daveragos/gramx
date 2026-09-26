@@ -203,10 +203,9 @@ class ConversationState {
         // TDLib sends a same-chat reply with no preview of what it answers,
         // and a page is only filled once, when it loads — so a reply arriving
         // live drew a bare "Replying to" even with its target right above it.
-        final arrived = ChatMessageMapper.fillReplyExcerpts(
-          [_map(event.message, users: users, chats: chats)],
-          from: messages,
-        ).single;
+        final arrived = ChatMessageMapper.fillReplyExcerpts([
+          _map(event.message, users: users, chats: chats),
+        ], from: messages).single;
         return _upsert(arrived);
 
       case ChatMessageSent():

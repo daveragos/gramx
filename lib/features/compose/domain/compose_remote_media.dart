@@ -71,14 +71,14 @@ class ComposeRemoteMedia {
 
   @override
   int get hashCode => Object.hash(
-        fileId,
-        kind,
-        width,
-        height,
-        durationSeconds,
-        emoji,
-        thumbnailFileId,
-      );
+    fileId,
+    kind,
+    width,
+    height,
+    durationSeconds,
+    emoji,
+    thumbnailFileId,
+  );
 
   @override
   String toString() => 'ComposeRemoteMedia(${kind.name}, $fileId)';

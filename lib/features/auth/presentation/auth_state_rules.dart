@@ -43,10 +43,7 @@ AuthTransition resolveAuthState({
       // Keep the link current — the reader may come back to it — without
       // moving them onto the page.
       return AuthTransition(
-        state: current.copyWith(
-          qrCodeLink: tdState.link,
-          isSubmitting: false,
-        ),
+        state: current.copyWith(qrCodeLink: tdState.link, isSubmitting: false),
         stayAtChooser: true,
       );
     }
@@ -90,5 +87,4 @@ AuthTransition resolveAuthState({
 bool shouldRequestQrCode({
   required bool tdlibIsShowingQr,
   required String? knownLink,
-}) =>
-    !(tdlibIsShowingQr && knownLink != null);
+}) => !(tdlibIsShowingQr && knownLink != null);

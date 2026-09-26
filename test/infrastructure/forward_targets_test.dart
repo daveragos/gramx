@@ -16,8 +16,10 @@ void main() {
     // one of them could only ever fail.
     test('a channel you only read is not a destination', () {
       final chat = TdFixtures.chat(id: -100123, mainOrder: 10);
-      final supergroup =
-          TdFixtures.supergroup(id: 123, isChannel: true).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 123,
+        isChannel: true,
+      ).supergroup;
 
       expect(ChatCacheState.canPostIn(chat, supergroup), isFalse);
     });
@@ -62,8 +64,10 @@ void main() {
         canSendBasicMessages: true,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(ChatCacheState.canPostIn(chat, supergroup), isTrue);
     });
@@ -75,8 +79,10 @@ void main() {
         canSendBasicMessages: false,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(ChatCacheState.canPostIn(chat, supergroup), isFalse);
     });
@@ -108,8 +114,10 @@ void main() {
         canSendPolls: true,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(ChatCacheState.canSendPollsIn(chat, supergroup), isTrue);
     });
@@ -123,16 +131,20 @@ void main() {
         canSendBasicMessages: true,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(ChatCacheState.canSendPollsIn(chat, supergroup), isFalse);
     });
 
     test('a channel you only read does not', () {
       final chat = TdFixtures.chat(id: -100123, mainOrder: 10);
-      final supergroup =
-          TdFixtures.supergroup(id: 123, isChannel: true).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 123,
+        isChannel: true,
+      ).supergroup;
 
       expect(ChatCacheState.canSendPollsIn(chat, supergroup), isFalse);
     });
@@ -165,7 +177,10 @@ void main() {
         ChatCacheState.canSendIn(chat, null, ChatSendRight.voiceNotes),
         isTrue,
       );
-      expect(ChatCacheState.canSendIn(chat, null, ChatSendRight.polls), isFalse);
+      expect(
+        ChatCacheState.canSendIn(chat, null, ChatSendRight.polls),
+        isFalse,
+      );
     });
 
     test('a group permits each kind separately', () {
@@ -176,8 +191,10 @@ void main() {
         canSendVoiceNotes: true,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(
         ChatCacheState.canSendIn(chat, supergroup, ChatSendRight.voiceNotes),
@@ -211,8 +228,10 @@ void main() {
 
     test('a channel is an admin question, kind by kind', () {
       final chat = TdFixtures.chat(id: -100123, mainOrder: 10);
-      final readOnly =
-          TdFixtures.supergroup(id: 123, isChannel: true).supergroup;
+      final readOnly = TdFixtures.supergroup(
+        id: 123,
+        isChannel: true,
+      ).supergroup;
       final mine = TdFixtures.supergroup(
         id: 123,
         isChannel: true,
@@ -247,8 +266,10 @@ void main() {
         canSendBasicMessages: true,
         mainOrder: 10,
       );
-      final supergroup =
-          TdFixtures.supergroup(id: 456, isChannel: false).supergroup;
+      final supergroup = TdFixtures.supergroup(
+        id: 456,
+        isChannel: false,
+      ).supergroup;
 
       expect(ChatCacheState.canSetAutoDeleteIn(chat, supergroup), isFalse);
     });
@@ -274,30 +295,38 @@ void main() {
       final state = ChatCacheState();
 
       state.apply(TdFixtures.newChat(TdFixtures.privateChat(id: 7)));
-      state.apply(TdFixtures.newChat(
-          TdFixtures.chat(id: -100123, title: 'Read-only', mainOrder: 50)));
-      state.apply(TdFixtures.newChat(TdFixtures.chat(
-        id: -100456,
-        title: 'My group',
-        isChannel: false,
-        canSendBasicMessages: true,
-        mainOrder: 200,
-      )));
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(id: -100123, title: 'Read-only', mainOrder: 50),
+        ),
+      );
+      state.apply(
+        TdFixtures.newChat(
+          TdFixtures.chat(
+            id: -100456,
+            title: 'My group',
+            isChannel: false,
+            canSendBasicMessages: true,
+            mainOrder: 200,
+          ),
+        ),
+      );
       state.apply(TdFixtures.supergroup(id: 123, isChannel: true));
       state.apply(TdFixtures.supergroup(id: 456, isChannel: false));
 
-      expect(
-        state.forwardTargets.map((c) => c.title),
-        ['My group', 'A Person'],
-      );
+      expect(state.forwardTargets.map((c) => c.title), [
+        'My group',
+        'A Person',
+      ]);
     });
 
     // A chat only in the cache because a forward origin was resolved by id has
     // no chat-list position, and is not somewhere the user can send anything.
     test('a chat the user is not in is excluded', () {
       final state = ChatCacheState();
-      state.apply(TdFixtures.newChat(
-          TdFixtures.privateChat(id: 7)..positions.clear()));
+      state.apply(
+        TdFixtures.newChat(TdFixtures.privateChat(id: 7)..positions.clear()),
+      );
 
       expect(state.forwardTargets, isEmpty);
     });

@@ -100,8 +100,9 @@ class AppSheetRow<T> extends StatelessWidget {
       leading: Icon(icon, color: color, size: 22),
       title: Text(
         label,
-        style: AppTypography.body(color: color)
-            .copyWith(fontWeight: FontWeight.w600),
+        style: AppTypography.body(
+          color: color,
+        ).copyWith(fontWeight: FontWeight.w600),
       ),
       subtitle: subtitle == null
           ? null
@@ -123,9 +124,8 @@ class AppSheetDivider extends StatelessWidget {
   const AppSheetDivider({super.key});
 
   @override
-  Widget build(BuildContext context) =>
-      const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        child: Divider(),
-      );
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+    child: Divider(),
+  );
 }

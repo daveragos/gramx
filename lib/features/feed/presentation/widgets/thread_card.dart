@@ -41,8 +41,9 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
     final thread = widget.thread;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     Widget cardFor(Post post, {bool showDivider = true}) =>
         PostVisibilityReporter(
@@ -58,16 +59,16 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
     // Indented under a rail, so earlier posts read as context for the one
     // below rather than as new top-level cards.
     Widget contextCardFor(Post post) => Padding(
-          padding: const EdgeInsets.only(left: AppSpacing.xl),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(color: secondary.withValues(alpha: 0.3)),
-              ),
-            ),
-            child: cardFor(post, showDivider: false),
+      padding: const EdgeInsets.only(left: AppSpacing.xl),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: secondary.withValues(alpha: 0.3)),
           ),
-        );
+        ),
+        child: cardFor(post, showDivider: false),
+      ),
+    );
 
     // A thread hiding one post is hiding a post the reply already shows, so
     // the newest card stands on its own with no control under it. See
@@ -134,8 +135,9 @@ class _ThreadToggle extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: AppTypography.actionCount(color: AppColors.accent)
-                    .copyWith(fontWeight: FontWeight.w600),
+                style: AppTypography.actionCount(
+                  color: AppColors.accent,
+                ).copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 4),
               Icon(

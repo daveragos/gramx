@@ -642,7 +642,6 @@ class _ChannelResultTile extends StatelessWidget {
   }
 }
 
-
 ///
 /// A sliver rather than a widget, so it scrolls with the posts under it rather
 /// than pinning a block to the top of a list somebody is reading.

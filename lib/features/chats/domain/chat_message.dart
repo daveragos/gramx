@@ -82,7 +82,8 @@ abstract class ChatMessage with _$ChatMessage {
     /// is what a conversation showed for one — a label with the coordinates
     /// thrown away, so the one thing a location is for could not be done with
     /// it.
-    @JsonKey(fromJson: _placeFromJson, toJson: _placeToJson) MessagePlace? place,
+    @JsonKey(fromJson: _placeFromJson, toJson: _placeToJson)
+    MessagePlace? place,
 
     /// A contact card somebody sent.
     @JsonKey(fromJson: _contactFromJson, toJson: _contactToJson)

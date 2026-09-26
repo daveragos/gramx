@@ -130,8 +130,7 @@ abstract class ComposeLimits {
       return ComposePhotoRejection.tooManyPixels;
     }
 
-    final longest =
-        math.max(attachment.width, attachment.height).toDouble();
+    final longest = math.max(attachment.width, attachment.height).toDouble();
     final shortest = math.min(attachment.width, attachment.height).toDouble();
     if (longest / shortest > maxPhotoAspectRatio) {
       return ComposePhotoRejection.tooWide;
@@ -186,15 +185,14 @@ class ComposeDraft {
     List<ComposeAttachment>? attachments,
     bool? isSending,
     ComposeLengthLimits? limits,
-  }) =>
-      ComposeDraft(
-        target: target ?? this.target,
-        text: text ?? this.text,
-        attachments: attachments ?? this.attachments,
-        remote: remote,
-        isSending: isSending ?? this.isSending,
-        limits: limits ?? this.limits,
-      );
+  }) => ComposeDraft(
+    target: target ?? this.target,
+    text: text ?? this.text,
+    attachments: attachments ?? this.attachments,
+    remote: remote,
+    isSending: isSending ?? this.isSending,
+    limits: limits ?? this.limits,
+  );
 
   /// Replaces the whole media selection with a sticker or GIF, or clears it.
   ///
@@ -202,23 +200,23 @@ class ComposeDraft {
   /// media are exclusive: setting one must drop the other, and a caller that
   /// has to remember that will eventually forget.
   ComposeDraft withRemote(ComposeRemoteMedia? next) => ComposeDraft(
-        target: target,
-        text: text,
-        attachments: const [],
-        remote: next,
-        isSending: isSending,
-        limits: limits,
-      );
+    target: target,
+    text: text,
+    attachments: const [],
+    remote: next,
+    isSending: isSending,
+    limits: limits,
+  );
 
   /// Replaces the uploaded files, dropping any sticker or GIF.
   ComposeDraft withAttachments(List<ComposeAttachment> next) => ComposeDraft(
-        target: target,
-        text: text,
-        attachments: next,
-        remote: null,
-        isSending: isSending,
-        limits: limits,
-      );
+    target: target,
+    text: text,
+    attachments: next,
+    remote: null,
+    isSending: isSending,
+    limits: limits,
+  );
 
   /// Files picked off the device and waiting to upload.
   bool get hasAttachments => attachments.isNotEmpty;
@@ -287,11 +285,11 @@ class ComposeDraft {
 
   @override
   int get hashCode => Object.hash(
-        target,
-        text,
-        isSending,
-        limits,
-        remote,
-        Object.hashAll(attachments),
-      );
+    target,
+    text,
+    isSending,
+    limits,
+    remote,
+    Object.hashAll(attachments),
+  );
 }

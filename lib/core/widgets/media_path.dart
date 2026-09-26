@@ -15,11 +15,7 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 /// Returns null while nothing has landed yet — the same "not ready" the
 /// download provider already returns, and every caller already draws a
 /// placeholder for it.
-String? resolveMediaPath(
-  WidgetRef ref, {
-  int? fileId,
-  String? rawPath,
-}) {
+String? resolveMediaPath(WidgetRef ref, {int? fileId, String? rawPath}) {
   if (fileId != null && fileId != 0) {
     return ref.watch(fileDownloadProvider(fileId)).value;
   }
@@ -37,11 +33,7 @@ String? resolveMediaPath(
 }
 
 /// The `Ref` form, for providers rather than widgets.
-String? resolveMediaPathFrom(
-  Ref ref, {
-  int? fileId,
-  String? rawPath,
-}) {
+String? resolveMediaPathFrom(Ref ref, {int? fileId, String? rawPath}) {
   if (fileId != null && fileId != 0) {
     return ref.watch(fileDownloadProvider(fileId)).value;
   }

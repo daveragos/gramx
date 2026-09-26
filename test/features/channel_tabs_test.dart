@@ -47,14 +47,14 @@ class _RecordingMediaRepository implements ChannelMediaRepository {
 }
 
 Post _post(int messageId, {List<MediaItem> media = const []}) => Post(
-      id: '-1001_$messageId',
-      chatId: -1001,
-      channelId: '-1001',
-      messageId: messageId,
-      channelTitle: 'Ashangulit',
-      publishedAt: DateTime.fromMillisecondsSinceEpoch(messageId * 1000),
-      media: media,
-    );
+  id: '-1001_$messageId',
+  chatId: -1001,
+  channelId: '-1001',
+  messageId: messageId,
+  channelTitle: 'Ashangulit',
+  publishedAt: DateTime.fromMillisecondsSinceEpoch(messageId * 1000),
+  media: media,
+);
 
 MediaItem _media(String id, MediaType type) => MediaItem(id: id, type: type);
 
@@ -63,14 +63,22 @@ void main() {
     // Each tab is one TDLib filter, and getting the mapping wrong shows the
     // reader someone else's content under the wrong heading.
     test('maps every tab to the filter it means', () {
-      expect(ChannelMediaRepository.filterFor(ChannelTab.media),
-          isA<td.SearchMessagesFilterPhotoAndVideo>());
-      expect(ChannelMediaRepository.filterFor(ChannelTab.files),
-          isA<td.SearchMessagesFilterDocument>());
-      expect(ChannelMediaRepository.filterFor(ChannelTab.links),
-          isA<td.SearchMessagesFilterUrl>());
-      expect(ChannelMediaRepository.filterFor(ChannelTab.voice),
-          isA<td.SearchMessagesFilterVoiceAndVideoNote>());
+      expect(
+        ChannelMediaRepository.filterFor(ChannelTab.media),
+        isA<td.SearchMessagesFilterPhotoAndVideo>(),
+      );
+      expect(
+        ChannelMediaRepository.filterFor(ChannelTab.files),
+        isA<td.SearchMessagesFilterDocument>(),
+      );
+      expect(
+        ChannelMediaRepository.filterFor(ChannelTab.links),
+        isA<td.SearchMessagesFilterUrl>(),
+      );
+      expect(
+        ChannelMediaRepository.filterFor(ChannelTab.voice),
+        isA<td.SearchMessagesFilterVoiceAndVideoNote>(),
+      );
     });
 
     // Posts is the channel's plain history, already served by
@@ -92,9 +100,9 @@ void main() {
 
     ProviderContainer build({List<ChannelTabPage> pages = const []}) {
       repo = _RecordingMediaRepository(pages: pages);
-      final c = ProviderContainer(overrides: [
-        channelMediaRepositoryProvider.overrideWithValue(repo),
-      ]);
+      final c = ProviderContainer(
+        overrides: [channelMediaRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(c.dispose);
       return c;
     }
@@ -149,8 +157,10 @@ void main() {
       await notifier.ensureLoaded(mediaKey, -1001);
       await notifier.ensureLoaded(filesKey, -1001);
 
-      expect(repo.calls.map((c) => c.tab),
-          [ChannelTab.media, ChannelTab.files]);
+      expect(repo.calls.map((c) => c.tab), [
+        ChannelTab.media,
+        ChannelTab.files,
+      ]);
     });
 
     test('the Posts tab is never searched', () async {
@@ -164,27 +174,37 @@ void main() {
 
     group('pagination', () {
       test('loadMore pages from the oldest message loaded', () async {
-        container = build(pages: [
-          ChannelTabPage(posts: [_post(30), _post(20)], nextFromMessageId: 20),
-          ChannelTabPage(posts: [_post(10)], nextFromMessageId: 10),
-        ]);
+        container = build(
+          pages: [
+            ChannelTabPage(
+              posts: [_post(30), _post(20)],
+              nextFromMessageId: 20,
+            ),
+            ChannelTabPage(posts: [_post(10)], nextFromMessageId: 10),
+          ],
+        );
         notifier = container.read(channelTabNotifierProvider.notifier);
 
         await notifier.ensureLoaded(mediaKey, -1001);
         await notifier.loadMore(mediaKey, -1001);
 
         expect(repo.calls.map((c) => c.fromMessageId), [0, 20]);
-        expect(notifier.stateFor(mediaKey).posts.map((p) => p.messageId),
-            [30, 20, 10]);
+        expect(notifier.stateFor(mediaKey).posts.map((p) => p.messageId), [
+          30,
+          20,
+          10,
+        ]);
       });
 
       // The guard exists because pagination hangs off a scroll listener, which
       // fires on every frame near the bottom of a list. Without it that is a
       // networked request per frame, aimed at an account with a rate limit.
       test('an exhausted tab stops asking', () async {
-        container = build(pages: [
-          ChannelTabPage(posts: [_post(30)], nextFromMessageId: 0),
-        ]);
+        container = build(
+          pages: [
+            ChannelTabPage(posts: [_post(30)], nextFromMessageId: 0),
+          ],
+        );
         notifier = container.read(channelTabNotifierProvider.notifier);
 
         await notifier.ensureLoaded(mediaKey, -1001);
@@ -201,10 +221,15 @@ void main() {
       });
 
       test('a page of only duplicates ends the tab', () async {
-        container = build(pages: [
-          ChannelTabPage(posts: [_post(30), _post(20)], nextFromMessageId: 20),
-          ChannelTabPage(posts: [_post(20)], nextFromMessageId: 20),
-        ]);
+        container = build(
+          pages: [
+            ChannelTabPage(
+              posts: [_post(30), _post(20)],
+              nextFromMessageId: 20,
+            ),
+            ChannelTabPage(posts: [_post(20)], nextFromMessageId: 20),
+          ],
+        );
         notifier = container.read(channelTabNotifierProvider.notifier);
 
         await notifier.ensureLoaded(mediaKey, -1001);
@@ -227,7 +252,9 @@ void main() {
     test('reset drops one channel and leaves the others', () async {
       await notifier.ensureLoaded(mediaKey, -1001);
       await notifier.ensureLoaded(
-          const ChannelTabKey('-1002', ChannelTab.media), -1002);
+        const ChannelTabKey('-1002', ChannelTab.media),
+        -1002,
+      );
 
       notifier.reset('-1001');
 
@@ -243,12 +270,18 @@ void main() {
 
   group('ChannelTabKey', () {
     test('is keyed by channel and tab together', () {
-      expect(const ChannelTabKey('a', ChannelTab.media),
-          const ChannelTabKey('a', ChannelTab.media));
-      expect(const ChannelTabKey('a', ChannelTab.media),
-          isNot(const ChannelTabKey('a', ChannelTab.files)));
-      expect(const ChannelTabKey('a', ChannelTab.media),
-          isNot(const ChannelTabKey('b', ChannelTab.media)));
+      expect(
+        const ChannelTabKey('a', ChannelTab.media),
+        const ChannelTabKey('a', ChannelTab.media),
+      );
+      expect(
+        const ChannelTabKey('a', ChannelTab.media),
+        isNot(const ChannelTabKey('a', ChannelTab.files)),
+      );
+      expect(
+        const ChannelTabKey('a', ChannelTab.media),
+        isNot(const ChannelTabKey('b', ChannelTab.media)),
+      );
     });
   });
 
@@ -265,10 +298,10 @@ void main() {
     // one would hide the rest of the album from the tab that exists to show it.
     test('the grid flattens albums into one tile each', () {
       final tiles = ChannelMediaGrid.tilesFor([
-        _post(30, media: [
-          _media('a', MediaType.photo),
-          _media('b', MediaType.photo),
-        ]),
+        _post(
+          30,
+          media: [_media('a', MediaType.photo), _media('b', MediaType.photo)],
+        ),
         _post(20, media: [_media('c', MediaType.video)]),
       ]);
 
@@ -279,11 +312,14 @@ void main() {
 
     test('the grid skips documents and audio', () {
       final tiles = ChannelMediaGrid.tilesFor([
-        _post(30, media: [
-          _media('doc', MediaType.document),
-          _media('voice', MediaType.voice),
-          _media('pic', MediaType.photo),
-        ]),
+        _post(
+          30,
+          media: [
+            _media('doc', MediaType.document),
+            _media('voice', MediaType.voice),
+            _media('pic', MediaType.photo),
+          ],
+        ),
       ]);
 
       expect(tiles.map((t) => t.item.id), ['pic']);
@@ -291,10 +327,13 @@ void main() {
 
     test('the file list takes documents and nothing else', () {
       final rows = ChannelFileList.rowsFor([
-        _post(30, media: [
-          _media('doc', MediaType.document),
-          _media('pic', MediaType.photo),
-        ]),
+        _post(
+          30,
+          media: [
+            _media('doc', MediaType.document),
+            _media('pic', MediaType.photo),
+          ],
+        ),
       ]);
 
       expect(rows.map((r) => r.item.id), ['doc']);

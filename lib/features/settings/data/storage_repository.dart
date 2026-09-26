@@ -48,9 +48,7 @@ class StorageRepository {
   /// database, which is what a user means by "cache".
   Future<StorageUsage> usage() async {
     try {
-      final res = await _tdlib.sendRequest(
-        const td.GetStorageStatisticsFast(),
-      );
+      final res = await _tdlib.sendRequest(const td.GetStorageStatisticsFast());
       if (res is td.StorageStatisticsFast) {
         return StorageUsage(
           fileCount: res.fileCount,
@@ -70,17 +68,19 @@ class StorageRepository {
   Future<StorageUsage> clear() async {
     final before = await usage();
     try {
-      await _tdlib.sendRequest(const td.OptimizeStorage(
-        size: 0,
-        ttl: 0,
-        count: 0,
-        immunityDelay: 0,
-        fileTypes: [],
-        chatIds: [],
-        excludeChatIds: [],
-        returnDeletedFileStatistics: false,
-        chatLimit: 0,
-      ));
+      await _tdlib.sendRequest(
+        const td.OptimizeStorage(
+          size: 0,
+          ttl: 0,
+          count: 0,
+          immunityDelay: 0,
+          fileTypes: [],
+          chatIds: [],
+          excludeChatIds: [],
+          returnDeletedFileStatistics: false,
+          chatLimit: 0,
+        ),
+      );
     } catch (e) {
       debugPrint('[Storage] Clear failed: $e');
       return StorageUsage.empty;

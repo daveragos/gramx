@@ -27,8 +27,9 @@ class AuthPasswordPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Padding(
@@ -53,10 +54,9 @@ class AuthPasswordPage extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             'Enter your 2FA password',
-            style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
+            style: AppTypography.heading(
+              color: primaryColor,
+            ).copyWith(fontSize: 26, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
@@ -75,10 +75,16 @@ class AuthPasswordPage extends StatelessWidget {
             ),
             decoration: InputDecoration(
               hintText: AppStrings.authPasswordHint,
-              hintStyle: TextStyle(color: secondaryColor.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                color: secondaryColor.withValues(alpha: 0.5),
+              ),
               prefixIcon: const Padding(
                 padding: EdgeInsets.only(left: 16, right: 8),
-                child: Icon(Icons.lock_rounded, color: AppColors.accent, size: 22),
+                child: Icon(
+                  Icons.lock_rounded,
+                  color: AppColors.accent,
+                  size: 22,
+                ),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 0),
               suffixIcon: IconButton(
@@ -125,7 +131,9 @@ class AuthPasswordPage extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
+                disabledBackgroundColor: AppColors.accent.withValues(
+                  alpha: 0.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(26),
                 ),

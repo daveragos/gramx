@@ -6,14 +6,18 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 Post post(int messageId, {int chatId = -100500, int minutesAgo = 0}) => Post(
-      id: '${chatId}_$messageId',
-      chatId: chatId,
-      channelId: '$chatId',
-      messageId: messageId,
-      channelTitle: 'Channel',
-      publishedAt:
-          DateTime(2026, 8, 23, 12).subtract(Duration(minutes: minutesAgo)),
-    );
+  id: '${chatId}_$messageId',
+  chatId: chatId,
+  channelId: '$chatId',
+  messageId: messageId,
+  channelTitle: 'Channel',
+  publishedAt: DateTime(
+    2026,
+    8,
+    23,
+    12,
+  ).subtract(Duration(minutes: minutesAgo)),
+);
 
 /// Answers history requests from a script, and records what it was asked for.
 class ScriptedRepository implements FeedRepository {
@@ -56,11 +60,15 @@ ProviderContainer containerWith(
   ScriptedRepository repo, {
   required List<Post> initial,
 }) {
-  final container = ProviderContainer(overrides: [
-    feedRepositoryProvider.overrideWithValue(repo),
-    feedPostsProvider.overrideWith(_EmptyFeed.new),
-    initialChannelPostsProvider.overrideWith((ref, channelId) async => initial),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      feedRepositoryProvider.overrideWithValue(repo),
+      feedPostsProvider.overrideWith(_EmptyFeed.new),
+      initialChannelPostsProvider.overrideWith(
+        (ref, channelId) async => initial,
+      ),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }
@@ -69,33 +77,41 @@ void main() {
   group('channelPostsProvider', () {
     test('is newest first, whatever order the pages arrived in', () async {
       final repo = ScriptedRepository([[]]);
-      final container = containerWith(repo, initial: [
-        post(30, minutesAgo: 10),
-        post(10, minutesAgo: 90),
-        post(20, minutesAgo: 50),
-      ]);
+      final container = containerWith(
+        repo,
+        initial: [
+          post(30, minutesAgo: 10),
+          post(10, minutesAgo: 90),
+          post(20, minutesAgo: 50),
+        ],
+      );
 
       container.listen(channelPostsProvider('c'), (_, _) {});
       await container.read(initialChannelPostsProvider('c').future);
 
       expect(
-        container.read(channelPostsProvider('c')).value!.map((p) => p.messageId),
+        container
+            .read(channelPostsProvider('c'))
+            .value!
+            .map((p) => p.messageId),
         [30, 20, 10],
       );
     });
   });
 
   group('loadMore', () {
-    test('pages back from the oldest post, not the last in the list',
-        () async {
+    test('pages back from the oldest post, not the last in the list', () async {
       final repo = ScriptedRepository([
-        [post(5, minutesAgo: 200)]
+        [post(5, minutesAgo: 200)],
       ]);
-      final container = containerWith(repo, initial: [
-        post(30, minutesAgo: 10),
-        post(10, minutesAgo: 90),
-        post(20, minutesAgo: 50),
-      ]);
+      final container = containerWith(
+        repo,
+        initial: [
+          post(30, minutesAgo: 10),
+          post(10, minutesAgo: 90),
+          post(20, minutesAgo: 50),
+        ],
+      );
       container.listen(channelPostsProvider('c'), (_, _) {});
       await container.read(initialChannelPostsProvider('c').future);
 
@@ -103,7 +119,10 @@ void main() {
 
       expect(repo.requestedFrom, [10]);
       expect(
-        container.read(channelPostsProvider('c')).value!.map((p) => p.messageId),
+        container
+            .read(channelPostsProvider('c'))
+            .value!
+            .map((p) => p.messageId),
         [30, 20, 10, 5],
       );
     });
@@ -112,9 +131,12 @@ void main() {
     // guard that is one request per frame, against a rate-limited account.
     test('two overlapping calls make one request', () async {
       final repo = ScriptedRepository([
-        [post(5, minutesAgo: 200)]
+        [post(5, minutesAgo: 200)],
       ]);
-      final container = containerWith(repo, initial: [post(10, minutesAgo: 90)]);
+      final container = containerWith(
+        repo,
+        initial: [post(10, minutesAgo: 90)],
+      );
       container.listen(channelPostsProvider('c'), (_, _) {});
       await container.read(initialChannelPostsProvider('c').future);
 
@@ -126,9 +148,12 @@ void main() {
 
     test('a page with nothing new ends the paging', () async {
       final repo = ScriptedRepository([
-        [post(10, minutesAgo: 90)] // the post we already have
+        [post(10, minutesAgo: 90)], // the post we already have
       ]);
-      final container = containerWith(repo, initial: [post(10, minutesAgo: 90)]);
+      final container = containerWith(
+        repo,
+        initial: [post(10, minutesAgo: 90)],
+      );
       container.listen(channelPostsProvider('c'), (_, _) {});
       await container.read(initialChannelPostsProvider('c').future);
 
@@ -161,7 +186,10 @@ void main() {
         [post(5, minutesAgo: 200)],
         [],
       ]);
-      final container = containerWith(repo, initial: [post(10, minutesAgo: 90)]);
+      final container = containerWith(
+        repo,
+        initial: [post(10, minutesAgo: 90)],
+      );
       container.listen(channelPostsProvider('c'), (_, _) {});
       await container.read(initialChannelPostsProvider('c').future);
 

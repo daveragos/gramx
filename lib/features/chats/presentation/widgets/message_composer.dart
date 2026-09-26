@@ -340,7 +340,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       context,
       includePoll: widget.onSendPoll != null,
       includeDocument: widget.allowsDocuments,
-      includeVideoNote: widget.allowsVideoNotes && widget.onRecordVideoNote != null,
+      includeVideoNote:
+          widget.allowsVideoNotes && widget.onRecordVideoNote != null,
       includeLocation: widget.onSendLocation != null,
       includeContact: widget.onSendContact != null,
     );
@@ -554,126 +555,126 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                 )
               else
                 Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Attach and stickers, folded into one chevron while there
-                    // are words in the field — see CollapsibleComposerTools.
-                    CollapsibleComposerTools(
-                      collapsed: composerToolsFolded(
-                        hasText: _controller.text.isNotEmpty,
-                        expandedByHand: _toolsExpanded,
-                        toolCount: widget.onSendRemote == null ? 1 : 2,
-                      ),
-                      onExpand: () => setState(() => _toolsExpanded = true),
-                      tools: [
-                        IconButton(
-                          tooltip: AppStrings.chatAttach,
-                          icon: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            color: AppColors.accent,
-                          ),
-                          onPressed: _attach,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Attach and stickers, folded into one chevron while there
+                      // are words in the field — see CollapsibleComposerTools.
+                      CollapsibleComposerTools(
+                        collapsed: composerToolsFolded(
+                          hasText: _controller.text.isNotEmpty,
+                          expandedByHand: _toolsExpanded,
+                          toolCount: widget.onSendRemote == null ? 1 : 2,
                         ),
-                        if (widget.onSendRemote != null)
+                        onExpand: () => setState(() => _toolsExpanded = true),
+                        tools: [
                           IconButton(
-                            tooltip: AppStrings.chatStickers,
+                            tooltip: AppStrings.chatAttach,
                             icon: const Icon(
-                              Icons.emoji_emotions_outlined,
+                              Icons.add_circle_outline_rounded,
                               color: AppColors.accent,
                             ),
-                            onPressed: _isSending ? null : _pickRemote,
+                            onPressed: _attach,
                           ),
-                      ],
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        focusNode: _focus,
-                        maxLines: 5,
-                        minLines: 1,
-                        textCapitalization: TextCapitalization.sentences,
-                        keyboardType: TextInputType.multiline,
-                        style: AppTypography.body(color: primary),
-                        onChanged: (value) {
-                          widget.onChanged?.call(value);
-                          // Rebuilds the send button's enabled state. The field
-                          // itself is uncontrolled, so this costs one setState
-                          // per keystroke and no request at all. An emptied
-                          // field also unfolds the tools for the next message.
-                          setState(() {
-                            if (value.isEmpty) _toolsExpanded = false;
-                          });
-                        },
-                        decoration: InputDecoration(
-                          hintText: AppStrings.chatComposerHint,
-                          hintStyle: AppTypography.body(color: secondary),
-                          filled: true,
-                          fillColor: fill,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.md,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(22),
-                            borderSide: BorderSide.none,
+                          if (widget.onSendRemote != null)
+                            IconButton(
+                              tooltip: AppStrings.chatStickers,
+                              icon: const Icon(
+                                Icons.emoji_emotions_outlined,
+                                color: AppColors.accent,
+                              ),
+                              onPressed: _isSending ? null : _pickRemote,
+                            ),
+                        ],
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focus,
+                          maxLines: 5,
+                          minLines: 1,
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          style: AppTypography.body(color: primary),
+                          onChanged: (value) {
+                            widget.onChanged?.call(value);
+                            // Rebuilds the send button's enabled state. The field
+                            // itself is uncontrolled, so this costs one setState
+                            // per keystroke and no request at all. An emptied
+                            // field also unfolds the tools for the next message.
+                            setState(() {
+                              if (value.isEmpty) _toolsExpanded = false;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: AppStrings.chatComposerHint,
+                            hintStyle: AppTypography.body(color: secondary),
+                            filled: true,
+                            fillColor: fill,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                              vertical: AppSpacing.md,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    if (_showMicrophone)
-                      // Tap to start and use the bar's buttons, or hold and let
-                      // go to send — both, because readers arrive expecting one
-                      // or the other.
-                      //
-                      // No tooltip: a tooltip claims the long press for itself,
-                      // and the hold showed "Record a voice message" instead of
-                      // recording one. The label is kept for screen readers.
-                      Semantics(
-                        button: true,
-                        label: AppStrings.voiceRecord,
-                        onTap: _startRecording,
-                        excludeSemantics: true,
-                        child: GestureDetector(
-                          onLongPressStart: _startHeldRecording,
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.mic_none_rounded,
-                              color: AppColors.accent,
+                      const SizedBox(width: AppSpacing.xs),
+                      if (_showMicrophone)
+                        // Tap to start and use the bar's buttons, or hold and let
+                        // go to send — both, because readers arrive expecting one
+                        // or the other.
+                        //
+                        // No tooltip: a tooltip claims the long press for itself,
+                        // and the hold showed "Record a voice message" instead of
+                        // recording one. The label is kept for screen readers.
+                        Semantics(
+                          button: true,
+                          label: AppStrings.voiceRecord,
+                          onTap: _startRecording,
+                          excludeSemantics: true,
+                          child: GestureDetector(
+                            onLongPressStart: _startHeldRecording,
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.mic_none_rounded,
+                                color: AppColors.accent,
+                              ),
+                              onPressed: _startRecording,
                             ),
-                            onPressed: _startRecording,
                           ),
+                        )
+                      else
+                        _SendButton(
+                          isEnabled: _canSend,
+                          isSending: _isSending,
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            _send();
+                          },
+                          // Telegram's gesture, and the reason scheduling needs no
+                          // button of its own: the control that sends a message is
+                          // where somebody would look to send it later.
+                          onLongPress: widget.onPickSchedule == null
+                              ? null
+                              : () {
+                                  HapticFeedback.mediumImpact();
+                                  _sendLater();
+                                },
                         ),
-                      )
-                    else
-                      _SendButton(
-                        isEnabled: _canSend,
-                        isSending: _isSending,
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          _send();
-                        },
-                        // Telegram's gesture, and the reason scheduling needs no
-                        // button of its own: the control that sends a message is
-                        // where somebody would look to send it later.
-                        onLongPress: widget.onPickSchedule == null
-                            ? null
-                            : () {
-                                HapticFeedback.mediumImpact();
-                                _sendLater();
-                              },
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -718,14 +719,14 @@ class _SendButton extends StatelessWidget {
         // one that greys out.
         onPressed: isEnabled ? onPressed : null,
         icon: isSending
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.accent,
-              ),
-            )
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.accent,
+                ),
+              )
             : Icon(
                 Icons.arrow_upward_rounded,
                 color: isEnabled ? AppColors.accent : idle,
@@ -1030,10 +1031,7 @@ class _Badge extends StatelessWidget {
         color: Colors.black.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(AppSpacing.xs),
       ),
-      child: Text(
-        label,
-        style: AppTypography.timestamp(color: Colors.white),
-      ),
+      child: Text(label, style: AppTypography.timestamp(color: Colors.white)),
     );
   }
 }

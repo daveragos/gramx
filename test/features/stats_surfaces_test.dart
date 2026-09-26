@@ -89,7 +89,10 @@ void main() {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(host(actionBar(onViewsTap: () {})));
 
-      expect(find.bySemanticsLabel(AppStrings.a11yPostAnalytics), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(AppStrings.a11yPostAnalytics),
+        findsOneWidget,
+      );
       handle.dispose();
     });
   });
@@ -182,23 +185,24 @@ void main() {
 
     // An empty chart frame reads as a channel with no activity, which is a
     // claim about the channel rather than about the data.
-    testWidgets('says a chart is unavailable rather than drawing an empty one', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        host(
-          const StatSection(
-            chatId: -100123,
-            title: AppStrings.statsGraphGrowth,
-            source: StatGraphMissing('NOT_ENOUGH_DATA'),
-            slug: 'growth',
+    testWidgets(
+      'says a chart is unavailable rather than drawing an empty one',
+      (tester) async {
+        await tester.pumpWidget(
+          host(
+            const StatSection(
+              chatId: -100123,
+              title: AppStrings.statsGraphGrowth,
+              source: StatGraphMissing('NOT_ENOUGH_DATA'),
+              slug: 'growth',
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text(AppStrings.statsGraphUnavailable), findsOneWidget);
-      expect(find.byType(StatChart), findsNothing);
-    });
+        expect(find.text(AppStrings.statsGraphUnavailable), findsOneWidget);
+        expect(find.byType(StatChart), findsNothing);
+      },
+    );
 
     testWidgets('never shows Telegram\'s own error text to the reader', (
       tester,

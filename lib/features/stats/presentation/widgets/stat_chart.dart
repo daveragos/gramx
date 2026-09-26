@@ -290,9 +290,7 @@ class StatChartPainter extends CustomPainter {
     final span = last.difference(first);
 
     for (final index in geometry.labelIndices()) {
-      final painter = _text(
-        TimeUtils.axisLabel(geometry.dateAt(index), span),
-      );
+      final painter = _text(TimeUtils.axisLabel(geometry.dateAt(index), span));
       // The first and last labels are pulled inside the plot so neither hangs
       // off the edge of the card.
       var x = leftGutter + geometry.xAt(index) - painter.width / 2;

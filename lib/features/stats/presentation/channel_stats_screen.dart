@@ -76,7 +76,10 @@ class _ChannelStatsScreenState extends ConsumerState<ChannelStatsScreen>
       );
     }
 
-    final request = (chatId: chatId, isDark: theme.brightness == Brightness.dark);
+    final request = (
+      chatId: chatId,
+      isDark: theme.brightness == Brightness.dark,
+    );
     final statsAsync = ref.watch(channelStatsProvider(request));
 
     return Scaffold(

@@ -11,14 +11,18 @@ import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewe
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
 
 Post post(String id, {int chatId = -100, int minutesAgo = 1}) => Post(
-      id: id,
-      chatId: chatId,
-      channelId: '$chatId',
-      messageId: int.parse(id.split('_').last),
-      channelTitle: 'Channel $chatId',
-      publishedAt:
-          DateTime(2026, 8, 28, 12).subtract(Duration(minutes: minutesAgo)),
-    );
+  id: id,
+  chatId: chatId,
+  channelId: '$chatId',
+  messageId: int.parse(id.split('_').last),
+  channelTitle: 'Channel $chatId',
+  publishedAt: DateTime(
+    2026,
+    8,
+    28,
+    12,
+  ).subtract(Duration(minutes: minutesAgo)),
+);
 
 void main() {
   Widget host(Widget child) => ProviderScope(child: MaterialApp(home: child));
@@ -29,12 +33,12 @@ void main() {
   // takes it away instead, which has no number in it to be wrong.
   group('the compose button leaves with the chrome', () {
     Widget scaffold() => host(
-          ChromeScaffold(
-            header: const SizedBox(),
-            floatingActionButton: const ComposeFab(),
-            body: (context, top, bottom) => const SizedBox(),
-          ),
-        );
+      ChromeScaffold(
+        header: const SizedBox(),
+        floatingActionButton: const ComposeFab(),
+        body: (context, top, bottom) => const SizedBox(),
+      ),
+    );
 
     testWidgets('is on screen while the chrome is', (tester) async {
       await tester.pumpWidget(scaffold());
@@ -47,11 +51,9 @@ void main() {
         tester.element(find.byType(ChromeScaffold)),
       );
 
-      container.read(chromeOffsetProvider.notifier).onScroll(
-            delta: 200,
-            extent: 100,
-            pixels: 200,
-          );
+      container
+          .read(chromeOffsetProvider.notifier)
+          .onScroll(delta: 200, extent: 100, pixels: 200);
       await tester.pumpAndSettle();
 
       expect(find.byType(FloatingActionButton), findsNothing);
@@ -107,20 +109,23 @@ void main() {
   // Two arrows either side of one row said "download" twice. The leading
   // circle is the one that also turns into the progress ring, so it stays.
   group('PostDocumentCard', () {
-    testWidgets('an undownloaded file shows one download icon, not two',
-        (tester) async {
-      await tester.pumpWidget(host(
-        const Scaffold(
-          body: PostDocumentCard(
-            item: MediaItem(
-              id: 'doc',
-              type: MediaType.document,
-              fileName: 'report.pdf',
-              fileSize: 2048,
+    testWidgets('an undownloaded file shows one download icon, not two', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          const Scaffold(
+            body: PostDocumentCard(
+              item: MediaItem(
+                id: 'doc',
+                type: MediaType.document,
+                fileName: 'report.pdf',
+                fileSize: 2048,
+              ),
             ),
           ),
         ),
-      ));
+      );
 
       expect(find.byIcon(Icons.download_rounded), findsOneWidget);
       expect(find.byIcon(Icons.arrow_downward_rounded), findsNothing);

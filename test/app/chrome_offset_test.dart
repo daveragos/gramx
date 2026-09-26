@@ -14,8 +14,11 @@ void main() {
       );
 
       expect(next.hidden, closeTo(0.25, 0.0001));
-      expect(next.animate, isFalse,
-          reason: 'a drag must follow the thumb, not tween behind it');
+      expect(
+        next.animate,
+        isFalse,
+        reason: 'a drag must follow the thumb, not tween behind it',
+      );
     });
 
     test('scrolling back up brings it back by the same amount', () {
@@ -65,8 +68,11 @@ void main() {
       const current = ChromeOffset(hidden: 0.4);
       expect(
         applyScrollDelta(
-                current: current, delta: 20, extent: 0, pixels: 100)
-            .hidden,
+          current: current,
+          delta: 20,
+          extent: 0,
+          pixels: 100,
+        ).hidden,
         0.4,
       );
     });
@@ -152,12 +158,18 @@ void main() {
       expect(const ChromeOffset(hidden: 0.5).isHidden, isTrue);
     });
 
-    test('equal offsets compare equal, so the notifier can skip no-op writes',
-        () {
-      expect(const ChromeOffset(hidden: 0.3),
-          equals(const ChromeOffset(hidden: 0.3)));
-      expect(const ChromeOffset(hidden: 0.3),
-          isNot(equals(const ChromeOffset(hidden: 0.3, animate: true))));
-    });
+    test(
+      'equal offsets compare equal, so the notifier can skip no-op writes',
+      () {
+        expect(
+          const ChromeOffset(hidden: 0.3),
+          equals(const ChromeOffset(hidden: 0.3)),
+        );
+        expect(
+          const ChromeOffset(hidden: 0.3),
+          isNot(equals(const ChromeOffset(hidden: 0.3, animate: true))),
+        );
+      },
+    );
   });
 }

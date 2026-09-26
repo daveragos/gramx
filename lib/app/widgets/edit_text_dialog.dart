@@ -67,8 +67,7 @@ class _EditTextDialogState extends State<EditTextDialog> {
     super.dispose();
   }
 
-  bool get _canSave =>
-      widget.allowsEmpty || _controller.text.trim().isNotEmpty;
+  bool get _canSave => widget.allowsEmpty || _controller.text.trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {

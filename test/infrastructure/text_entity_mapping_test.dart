@@ -6,13 +6,16 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 /// Builds a TDLib entity of the given type over the whole string.
-td.TextEntity entity(Map<String, dynamic> type, {int offset = 0, int length = 4}) =>
-    td.TextEntity.fromJson({
-      '@type': 'textEntity',
-      'offset': offset,
-      'length': length,
-      'type': type,
-    });
+td.TextEntity entity(
+  Map<String, dynamic> type, {
+  int offset = 0,
+  int length = 4,
+}) => td.TextEntity.fromJson({
+  '@type': 'textEntity',
+  'offset': offset,
+  'length': length,
+  'type': type,
+});
 
 List<TextEntity> mapped(List<td.TextEntity> entities) {
   final json = TdlibMappers.serializeEntities(entities);
@@ -54,18 +57,22 @@ void main() {
 
     test('inline code and code blocks stay distinct', () {
       expect(
-        mapped([entity({'@type': 'textEntityTypeCode'})]).single.type,
+        mapped([
+          entity({'@type': 'textEntityTypeCode'}),
+        ]).single.type,
         TextEntityType.code,
       );
       expect(
-        mapped([entity({'@type': 'textEntityTypePre'})]).single.type,
+        mapped([
+          entity({'@type': 'textEntityTypePre'}),
+        ]).single.type,
         TextEntityType.codeBlock,
       );
     });
 
     test('a fenced block keeps its language', () {
       final result = mapped([
-        entity({'@type': 'textEntityTypePreCode', 'language': 'dart'})
+        entity({'@type': 'textEntityTypePreCode', 'language': 'dart'}),
       ]).single;
 
       expect(result.type, TextEntityType.codeBlock);
@@ -77,7 +84,7 @@ void main() {
         entity({
           '@type': 'textEntityTypeTextUrl',
           'url': 'https://example.com',
-        })
+        }),
       ]).single;
 
       expect(result.type, TextEntityType.textUrl);
@@ -86,7 +93,7 @@ void main() {
 
     test('offsets and lengths are carried through unchanged', () {
       final result = mapped([
-        entity({'@type': 'textEntityTypeBold'}, offset: 5, length: 9)
+        entity({'@type': 'textEntityTypeBold'}, offset: 5, length: 9),
       ]).single;
 
       expect(result.offset, 5);

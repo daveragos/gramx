@@ -31,7 +31,10 @@ void main() {
 
   group('TdlibRequestException', () {
     test('recognises both rate-limit codes', () {
-      expect(const TdlibRequestException(420, 'FLOOD_WAIT_30').isFloodWait, isTrue);
+      expect(
+        const TdlibRequestException(420, 'FLOOD_WAIT_30').isFloodWait,
+        isTrue,
+      );
       expect(
         const TdlibRequestException(429, 'retry after 30').isFloodWait,
         isTrue,
@@ -43,8 +46,14 @@ void main() {
         const TdlibRequestException(400, 'PHONE_NUMBER_INVALID').isFloodWait,
         isFalse,
       );
-      expect(const TdlibRequestException(401, 'Unauthorized').isFloodWait, isFalse);
-      expect(const TdlibRequestException(404, 'Not found').isFloodWait, isFalse);
+      expect(
+        const TdlibRequestException(401, 'Unauthorized').isFloodWait,
+        isFalse,
+      );
+      expect(
+        const TdlibRequestException(404, 'Not found').isFloodWait,
+        isFalse,
+      );
     });
 
     test('exposes the retry delay', () {
@@ -66,9 +75,10 @@ void main() {
         'PHONE_NUMBER_INVALID',
       );
       expect(
-        const TdlibRequestException(400, 'PHONE_CODE_INVALID')
-            .toString()
-            .replaceAll('Exception: ', ''),
+        const TdlibRequestException(
+          400,
+          'PHONE_CODE_INVALID',
+        ).toString().replaceAll('Exception: ', ''),
         'PHONE_CODE_INVALID',
         reason: 'the auth screen strips this prefix; result must be unchanged',
       );

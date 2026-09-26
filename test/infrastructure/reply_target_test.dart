@@ -36,8 +36,12 @@ Post threadPost(
     channelId: parts[0],
     messageId: int.parse(parts[1]),
     channelTitle: 'Channel',
-    publishedAt:
-        DateTime(2026, 8, 23, 12).subtract(Duration(minutes: minutesAgo)),
+    publishedAt: DateTime(
+      2026,
+      8,
+      23,
+      12,
+    ).subtract(Duration(minutes: minutesAgo)),
     replyToMessageId: replyToMessageId,
     replyToChatId: replyToChatId,
   );
@@ -101,8 +105,12 @@ void main() {
     test('a cross-chat reply is a quote, not a thread', () {
       final threads = groupIntoThreads([
         threadPost('-1_1', minutesAgo: 20),
-        threadPost('-1_2',
-            replyToMessageId: 1, replyToChatId: -999, minutesAgo: 10),
+        threadPost(
+          '-1_2',
+          replyToMessageId: 1,
+          replyToChatId: -999,
+          minutesAgo: 10,
+        ),
       ]);
 
       expect(threads, hasLength(2));

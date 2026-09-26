@@ -11,7 +11,7 @@ abstract class TimeUtils {
     if (diff.inSeconds < 60) return 'now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
-    
+
     if (dateTime.year == now.year) {
       return DateFormat('MMM d').format(dateTime);
     }

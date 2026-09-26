@@ -74,11 +74,15 @@ class TdlibReceiver {
 
     // Opening the library is near-instant, and bootstrap awaits this before
     // the first frame — so the failure path must not stall startup.
-    final started = await ready.future
-        .timeout(readyTimeout, onTimeout: () => false);
+    final started = await ready.future.timeout(
+      readyTimeout,
+      onTimeout: () => false,
+    );
 
     if (!started) {
-      debugPrint('[TdlibReceiver] Isolate could not open TDLib — using polling');
+      debugPrint(
+        '[TdlibReceiver] Isolate could not open TDLib — using polling',
+      );
       await stop();
       return false;
     }

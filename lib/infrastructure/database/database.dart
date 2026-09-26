@@ -23,10 +23,7 @@ class AppDatabase extends _$AppDatabase {
         // account rather than a local note — throwing the rows away would
         // leave the mirrors in Saved Messages with nothing pointing at them.
         if (from >= 3) {
-          await m.addColumn(
-            bookmarkEntries,
-            bookmarkEntries.savedMessageId,
-          );
+          await m.addColumn(bookmarkEntries, bookmarkEntries.savedMessageId);
           return;
         }
         for (final table in allTables) {

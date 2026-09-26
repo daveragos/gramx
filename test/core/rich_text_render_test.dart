@@ -6,54 +6,62 @@ import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 
 Widget wrap(Widget child) => MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    );
+  home: Scaffold(body: SingleChildScrollView(child: child)),
+);
 
 void main() {
-  testWidgets('a code block renders as a block, with its language and a copy',
-      (tester) async {
-    await tester.pumpWidget(wrap(
-      const TextEntityRenderer(
-        text: 'run this:\nflutter test',
-        entities: [
-          TextEntity(
-            offset: 10,
-            length: 12,
-            type: TextEntityType.codeBlock,
-            language: 'bash',
-          ),
-        ],
+  testWidgets('a code block renders as a block, with its language and a copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        const TextEntityRenderer(
+          text: 'run this:\nflutter test',
+          entities: [
+            TextEntity(
+              offset: 10,
+              length: 12,
+              type: TextEntityType.codeBlock,
+              language: 'bash',
+            ),
+          ],
+        ),
       ),
-    ));
+    );
 
     expect(find.byType(CodeBlock), findsOneWidget);
     expect(find.text('bash'), findsOneWidget);
     expect(find.byTooltip(AppStrings.codeBlockCopy), findsOneWidget);
   });
 
-  testWidgets('inline code renders as a chip rather than bare text',
-      (tester) async {
-    await tester.pumpWidget(wrap(
-      const TextEntityRenderer(
-        text: 'call main() now',
-        entities: [
-          TextEntity(offset: 5, length: 6, type: TextEntityType.code),
-        ],
+  testWidgets('inline code renders as a chip rather than bare text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        const TextEntityRenderer(
+          text: 'call main() now',
+          entities: [
+            TextEntity(offset: 5, length: 6, type: TextEntityType.code),
+          ],
+        ),
       ),
-    ));
+    );
 
     expect(find.byType(InlineCodeChip), findsOneWidget);
   });
 
   testWidgets('a block quote renders as a quote', (tester) async {
-    await tester.pumpWidget(wrap(
-      const TextEntityRenderer(
-        text: 'they said this',
-        entities: [
-          TextEntity(offset: 0, length: 14, type: TextEntityType.blockQuote),
-        ],
+    await tester.pumpWidget(
+      wrap(
+        const TextEntityRenderer(
+          text: 'they said this',
+          entities: [
+            TextEntity(offset: 0, length: 14, type: TextEntityType.blockQuote),
+          ],
+        ),
       ),
-    ));
+    );
 
     expect(find.byType(QuoteBlock), findsOneWidget);
   });
@@ -62,27 +70,32 @@ void main() {
     // The reported bug: the post's own "Show more" cannot clamp a quote,
     // because a quote is a widget inside the paragraph rather than more lines
     // of it — so a quoted wall of text was rendered whole.
-    testWidgets('a long quote collapses, and the toggle opens it',
-        (tester) async {
+    testWidgets('a long quote collapses, and the toggle opens it', (
+      tester,
+    ) async {
       final long = List.generate(30, (i) => 'quoted line $i').join('\n');
-      await tester.pumpWidget(wrap(
-        TextEntityRenderer(
-          text: long,
-          entities: [
-            TextEntity(
-              offset: 0,
-              length: long.length,
-              type: TextEntityType.blockQuote,
-            ),
-          ],
+      await tester.pumpWidget(
+        wrap(
+          TextEntityRenderer(
+            text: long,
+            entities: [
+              TextEntity(
+                offset: 0,
+                length: long.length,
+                type: TextEntityType.blockQuote,
+              ),
+            ],
+          ),
         ),
-      ));
+      );
 
       final collapsed = tester.widget<Text>(
-        find.descendant(
-          of: find.byType(QuoteBlock),
-          matching: find.byType(Text),
-        ).first,
+        find
+            .descendant(
+              of: find.byType(QuoteBlock),
+              matching: find.byType(Text),
+            )
+            .first,
       );
       expect(collapsed.maxLines, kCollapsedQuoteLines);
       expect(find.text(AppStrings.postShowMore), findsOneWidget);
@@ -91,24 +104,32 @@ void main() {
       await tester.pump();
 
       final expanded = tester.widget<Text>(
-        find.descendant(
-          of: find.byType(QuoteBlock),
-          matching: find.byType(Text),
-        ).first,
+        find
+            .descendant(
+              of: find.byType(QuoteBlock),
+              matching: find.byType(Text),
+            )
+            .first,
       );
       expect(expanded.maxLines, isNull);
       expect(find.text(AppStrings.postShowLess), findsOneWidget);
     });
 
     testWidgets('a short quote gets no toggle', (tester) async {
-      await tester.pumpWidget(wrap(
-        const TextEntityRenderer(
-          text: 'they said this',
-          entities: [
-            TextEntity(offset: 0, length: 14, type: TextEntityType.blockQuote),
-          ],
+      await tester.pumpWidget(
+        wrap(
+          const TextEntityRenderer(
+            text: 'they said this',
+            entities: [
+              TextEntity(
+                offset: 0,
+                length: 14,
+                type: TextEntityType.blockQuote,
+              ),
+            ],
+          ),
         ),
-      ));
+      );
 
       expect(find.byType(QuoteBlock), findsOneWidget);
       expect(find.text(AppStrings.postShowMore), findsNothing);
@@ -117,13 +138,15 @@ void main() {
 
   group('ExpandableText', () {
     testWidgets('a short post gets no toggle', (tester) async {
-      await tester.pumpWidget(wrap(
-        const ExpandableText(
-          text: 'Two lines\nonly',
-          entities: [],
-          style: TextStyle(fontSize: 14),
+      await tester.pumpWidget(
+        wrap(
+          const ExpandableText(
+            text: 'Two lines\nonly',
+            entities: [],
+            style: TextStyle(fontSize: 14),
+          ),
         ),
-      ));
+      );
 
       expect(find.text(AppStrings.postShowMore), findsNothing);
     });
@@ -131,16 +154,19 @@ void main() {
     // A SelectableText with a line limit keeps the rest of the post in its own
     // scroll view, so a collapsed post could be read by scrolling it and the
     // toggle meant nothing.
-    testWidgets('a collapsed post cannot be scrolled instead of expanded',
-        (tester) async {
+    testWidgets('a collapsed post cannot be scrolled instead of expanded', (
+      tester,
+    ) async {
       final long = List.generate(30, (i) => 'line $i').join('\n');
-      await tester.pumpWidget(wrap(
-        ExpandableText(
-          text: long,
-          entities: const [],
-          style: const TextStyle(fontSize: 14),
+      await tester.pumpWidget(
+        wrap(
+          ExpandableText(
+            text: long,
+            entities: const [],
+            style: const TextStyle(fontSize: 14),
+          ),
         ),
-      ));
+      );
 
       expect(find.byType(SelectableText), findsNothing);
       expect(
@@ -157,13 +183,15 @@ void main() {
 
     testWidgets('a long post clamps, and the toggle opens it', (tester) async {
       final long = List.generate(30, (i) => 'line $i').join('\n');
-      await tester.pumpWidget(wrap(
-        ExpandableText(
-          text: long,
-          entities: const [],
-          style: const TextStyle(fontSize: 14),
+      await tester.pumpWidget(
+        wrap(
+          ExpandableText(
+            text: long,
+            entities: const [],
+            style: const TextStyle(fontSize: 14),
+          ),
         ),
-      ));
+      );
 
       expect(find.text(AppStrings.postShowMore), findsOneWidget);
 

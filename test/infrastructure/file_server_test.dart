@@ -126,8 +126,9 @@ void main() {
 
     test('a request without the token is refused', () async {
       final url = await server.urlFor(7);
-      final response = await http
-          .get(Uri.parse('http://127.0.0.1:${url.port}/wrongtoken/7'));
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:${url.port}/wrongtoken/7'),
+      );
       expect(response.statusCode, HttpStatus.notFound);
     });
 
@@ -136,8 +137,9 @@ void main() {
       final token = url.pathSegments.first;
 
       for (final path in ['/$token', '/$token/notanumber', '/$token/7/extra']) {
-        final response =
-            await http.get(Uri.parse('http://127.0.0.1:${url.port}$path'));
+        final response = await http.get(
+          Uri.parse('http://127.0.0.1:${url.port}$path'),
+        );
         expect(response.statusCode, HttpStatus.notFound, reason: path);
       }
     });

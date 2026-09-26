@@ -80,14 +80,15 @@ class SettingsNotifier extends Notifier<AppSettings> {
   void setAutoPlay(AutoPlayPolicy policy) =>
       _update(state.copyWith(autoPlay: policy));
 
-  void toggleAutoPlay(bool enabled) => setAutoPlay(
-      enabled ? AutoPlayPolicy.always : AutoPlayPolicy.never);
+  void toggleAutoPlay(bool enabled) =>
+      setAutoPlay(enabled ? AutoPlayPolicy.always : AutoPlayPolicy.never);
 
   void setAutoDownloadImages(AutoDownloadPolicy policy) =>
       _update(state.copyWith(autoDownloadImages: policy));
 
   void toggleAutoDownloadImages(bool enabled) => setAutoDownloadImages(
-      enabled ? AutoDownloadPolicy.always : AutoDownloadPolicy.never);
+    enabled ? AutoDownloadPolicy.always : AutoDownloadPolicy.never,
+  );
 
   /// Enters or leaves browse-without-an-account.
   ///
@@ -101,13 +102,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
       _update(state.copyWith(guestMode: enabled));
 }
 
-final settingsProvider =
-    NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
+  SettingsNotifier.new,
+);
 
 /// The active theme, for widgets that only care about that.
-final themeModeProvider =
-    Provider<AppThemeMode>((ref) => ref.watch(settingsProvider).themeMode);
+final themeModeProvider = Provider<AppThemeMode>(
+  (ref) => ref.watch(settingsProvider).themeMode,
+);
 
 /// Whether inline video and GIFs may start on their own.
-final autoPlayEnabledProvider =
-    Provider<bool>((ref) => ref.watch(settingsProvider).autoPlayEnabled);
+final autoPlayEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(settingsProvider).autoPlayEnabled,
+);

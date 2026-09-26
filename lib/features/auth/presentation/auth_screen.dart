@@ -93,43 +93,43 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget _buildPage(AuthState authState, AuthController controller) {
     return switch (authState.step) {
       AuthStep.loading => AuthLoadingPage(
-          authState: authState,
-          controller: controller,
-        ),
+        authState: authState,
+        controller: controller,
+      ),
       AuthStep.loginMethodSelection => AuthSelectionPage(
-          authState: authState,
-          controller: controller,
-        ),
+        authState: authState,
+        controller: controller,
+      ),
       AuthStep.waitPhoneNumber => AuthPhonePage(
-          authState: authState,
-          controller: controller,
-          phoneController: _phoneController,
-        ),
+        authState: authState,
+        controller: controller,
+        phoneController: _phoneController,
+      ),
       AuthStep.waitCode => AuthCodePage(
-          authState: authState,
-          controller: controller,
-          codeController: _codeController,
-        ),
+        authState: authState,
+        controller: controller,
+        codeController: _codeController,
+      ),
       AuthStep.waitPassword => AuthPasswordPage(
-          authState: authState,
-          controller: controller,
-          passwordController: _passwordController,
-          obscurePassword: _obscurePassword,
-          onToggleObscure: () =>
-              setState(() => _obscurePassword = !_obscurePassword),
-        ),
+        authState: authState,
+        controller: controller,
+        passwordController: _passwordController,
+        obscurePassword: _obscurePassword,
+        onToggleObscure: () =>
+            setState(() => _obscurePassword = !_obscurePassword),
+      ),
       AuthStep.waitQrCode => AuthQrPage(
-          authState: authState,
-          controller: controller,
-        ),
+        authState: authState,
+        controller: controller,
+      ),
       AuthStep.error => AuthErrorPage(
-          authState: authState,
-          controller: controller,
-        ),
+        authState: authState,
+        controller: controller,
+      ),
       AuthStep.authenticated => AuthLoadingPage(
-          authState: authState,
-          controller: controller,
-        ),
+        authState: authState,
+        controller: controller,
+      ),
     };
   }
 }

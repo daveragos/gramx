@@ -60,8 +60,11 @@ void main() {
         AppStrings.onboardingLoggedInBody,
         AppStrings.onboardingLoggedOutBody,
       ]) {
-        expect(RegExp(r'[a-z][A-Z]').hasMatch(s), isFalse,
-            reason: 'looks like a missing space: $s');
+        expect(
+          RegExp(r'[a-z][A-Z]').hasMatch(s),
+          isFalse,
+          reason: 'looks like a missing space: $s',
+        );
       }
     });
   });

@@ -38,9 +38,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text(freed.isEmpty
-              ? AppStrings.settingsStorageNothingToClear
-              : AppStrings.settingsStorageFreed(freed.formattedSize)),
+          content: Text(
+            freed.isEmpty
+                ? AppStrings.settingsStorageNothingToClear
+                : AppStrings.settingsStorageFreed(freed.formattedSize),
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -91,7 +93,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final accountAsync = ref.watch(activeAccountProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final primaryColor = theme.colorScheme.onSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -101,10 +105,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(AppStrings.settingsTitle, style: AppTypography.heading(color: primaryColor)),
+            Text(
+              AppStrings.settingsTitle,
+              style: AppTypography.heading(color: primaryColor),
+            ),
             accountAsync.when(
               data: (acc) => acc != null && acc.username != null
-                  ? Text(AppStrings.handle(acc.username!), style: AppTypography.actionCount(color: secondaryColor))
+                  ? Text(
+                      AppStrings.handle(acc.username!),
+                      style: AppTypography.actionCount(color: secondaryColor),
+                    )
                   : const SizedBox.shrink(),
               loading: () => const SizedBox.shrink(),
               error: (err, st) => const SizedBox.shrink(),
@@ -121,11 +131,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           accountAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(AppSpacing.lg),
-              child: Center(child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2)),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.accent,
+                  strokeWidth: 2,
+                ),
+              ),
             ),
             error: (err, stack) => Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text(AppStrings.settingsAccountError(err), style: const TextStyle(color: AppColors.error)),
+              child: Text(
+                AppStrings.settingsAccountError(err),
+                style: const TextStyle(color: AppColors.error),
+              ),
             ),
             data: (account) {
               final isLoggedIn = account != null;
@@ -138,7 +156,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       vertical: AppSpacing.md,
                     ),
                     decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
+                      border: Border(
+                        bottom: BorderSide(color: borderColor, width: 0.5),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -175,12 +195,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             children: [
                               Text(
                                 account.displayName ?? 'Telegram User',
-                                style: AppTypography.displayName(color: primaryColor).copyWith(fontSize: 16),
+                                style: AppTypography.displayName(
+                                  color: primaryColor,
+                                ).copyWith(fontSize: 16),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '@${account.username ?? 'user'}',
-                                style: AppTypography.username(color: secondaryColor),
+                                style: AppTypography.username(
+                                  color: secondaryColor,
+                                ),
                               ),
                             ],
                           ),
@@ -197,14 +221,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
+                    border: Border(
+                      bottom: BorderSide(color: borderColor, width: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
                       const CircleAvatar(
                         radius: 22,
                         backgroundColor: AppColors.accent,
-                        child: Icon(Icons.login_rounded, color: Colors.white, size: 20),
+                        child: Icon(
+                          Icons.login_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
@@ -213,12 +243,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           children: [
                             Text(
                               AppStrings.authLogInPrompt,
-                              style: AppTypography.subheading(color: primaryColor),
+                              style: AppTypography.subheading(
+                                color: primaryColor,
+                              ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               AppStrings.authLogInBody,
-                              style: AppTypography.actionCount(color: secondaryColor),
+                              style: AppTypography.actionCount(
+                                color: secondaryColor,
+                              ),
                             ),
                           ],
                         ),
@@ -235,21 +269,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // back here. The drawer reaches both directly.
 
           _SectionHeader(
-              title: AppStrings.settingsSectionNotifications,
-              secondaryColor: secondaryColor),
+            title: AppStrings.settingsSectionNotifications,
+            secondaryColor: secondaryColor,
+          ),
           SwitchListTile(
             value: settings.notificationsEnabled,
-            title: Text(AppStrings.notificationsEnableTitle,
-                style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.notificationsEnableBody,
-                style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text(
+              AppStrings.notificationsEnableTitle,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            subtitle: Text(
+              AppStrings.notificationsEnableBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
             onChanged: (enabled) => _setNotifications(context, ref, enabled),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(title: AppStrings.settingsSectionDisplay, secondaryColor: secondaryColor),
+          _SectionHeader(
+            title: AppStrings.settingsSectionDisplay,
+            secondaryColor: secondaryColor,
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.xs,
+            ),
             child: Text(
               AppStrings.settingsDarkModeLabel,
               style: AppTypography.actionCount(color: secondaryColor),
@@ -268,7 +313,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.lightBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.lightTextPrimary,
-                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.light),
+                    onTap: () => ref
+                        .read(settingsProvider.notifier)
+                        .setThemeMode(AppThemeMode.light),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -280,7 +327,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.dimBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.dimTextPrimary,
-                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.dim),
+                    onTap: () => ref
+                        .read(settingsProvider.notifier)
+                        .setThemeMode(AppThemeMode.dim),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -292,7 +341,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bgColor: AppColors.darkBackground,
                     borderColor: borderColor,
                     tileTextColor: AppColors.darkTextPrimary,
-                    onTap: () => ref.read(settingsProvider.notifier).setThemeMode(AppThemeMode.dark),
+                    onTap: () => ref
+                        .read(settingsProvider.notifier)
+                        .setThemeMode(AppThemeMode.dark),
                   ),
                 ),
               ],
@@ -303,24 +354,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // for choosing one, and it does not have a colour to show.
           SwitchListTile(
             activeThumbColor: AppColors.accent,
-            title: Text(AppStrings.settingsThemeSystem,
-                style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.settingsThemeSystemBody,
-                style: AppTypography.actionCount(color: secondaryColor)),
-            value: currentTheme.followsDevice,
-            onChanged: (on) => ref.read(settingsProvider.notifier).setThemeMode(
-              on ? AppThemeMode.system : AppThemeMode.dark,
+            title: Text(
+              AppStrings.settingsThemeSystem,
+              style: AppTypography.body(color: primaryColor),
             ),
+            subtitle: Text(
+              AppStrings.settingsThemeSystemBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+            value: currentTheme.followsDevice,
+            onChanged: (on) => ref
+                .read(settingsProvider.notifier)
+                .setThemeMode(on ? AppThemeMode.system : AppThemeMode.dark),
           ),
           const SizedBox(height: AppSpacing.md),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 4. PREFERENCES SECTION
-          _SectionHeader(title: AppStrings.settingsSectionPreferences, secondaryColor: secondaryColor),
+          _SectionHeader(
+            title: AppStrings.settingsSectionPreferences,
+            secondaryColor: secondaryColor,
+          ),
           SwitchListTile(
             secondary: Icon(Icons.play_circle_outline, color: primaryColor),
-            title: Text(AppStrings.settingsAutoPlayTitle,
-                style: AppTypography.body(color: primaryColor)),
+            title: Text(
+              AppStrings.settingsAutoPlayTitle,
+              style: AppTypography.body(color: primaryColor),
+            ),
             subtitle: Text(
               AppStrings.settingsAutoPlayBody,
               style: AppTypography.actionCount(color: secondaryColor),
@@ -332,8 +392,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           SwitchListTile(
             secondary: Icon(Icons.image_outlined, color: primaryColor),
-            title: Text(AppStrings.settingsAutoDownloadImagesTitle,
-                style: AppTypography.body(color: primaryColor)),
+            title: Text(
+              AppStrings.settingsAutoDownloadImagesTitle,
+              style: AppTypography.body(color: primaryColor),
+            ),
             subtitle: Text(
               AppStrings.settingsAutoDownloadImagesBody,
               style: AppTypography.actionCount(color: secondaryColor),
@@ -347,13 +409,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 5. DATA AND STORAGE SECTION
-          _SectionHeader(title: AppStrings.settingsSectionData, secondaryColor: secondaryColor),
+          _SectionHeader(
+            title: AppStrings.settingsSectionData,
+            secondaryColor: secondaryColor,
+          ),
           ListTile(
             leading: Icon(Icons.storage_outlined, color: primaryColor),
-            title: Text(AppStrings.settingsStorageTitle,
-                style: AppTypography.body(color: primaryColor)),
+            title: Text(
+              AppStrings.settingsStorageTitle,
+              style: AppTypography.body(color: primaryColor),
+            ),
             subtitle: Text(
-              ref.watch(storageUsageProvider).when(
+              ref
+                  .watch(storageUsageProvider)
+                  .when(
                     data: (usage) => usage.isEmpty
                         ? AppStrings.settingsStorageNone
                         : AppStrings.settingsStorageUsage(usage.formattedSize),
@@ -367,19 +436,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.error),
+                      strokeWidth: 2,
+                      color: AppColors.error,
+                    ),
                   )
-                : const Text(AppStrings.settingsStorageClear,
+                : const Text(
+                    AppStrings.settingsStorageClear,
                     style: TextStyle(
-                        color: AppColors.error,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14)),
+                      color: AppColors.error,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
             onTap: _isClearingCache ? null : _clearCache,
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // 6. ABOUT & SUPPORT SECTION
-          _SectionHeader(title: AppStrings.settingsSectionAbout, secondaryColor: secondaryColor),
+          _SectionHeader(
+            title: AppStrings.settingsSectionAbout,
+            secondaryColor: secondaryColor,
+          ),
           _LinkTile(
             icon: Icons.volunteer_activism_rounded,
             title: AppStrings.settingsSupport,
@@ -400,29 +477,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
             leading: Icon(Icons.privacy_tip_outlined, color: primaryColor),
-            title: Text(AppStrings.settingsPrivacy,
-                style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.settingsPrivacyBody,
-                style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text(
+              AppStrings.settingsPrivacy,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            subtitle: Text(
+              AppStrings.settingsPrivacyBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () => context.push(LegalTexts.privacyRoute),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
             leading: Icon(Icons.gavel_rounded, color: primaryColor),
-            title: Text(AppStrings.settingsTerms,
-                style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.settingsTermsBody,
-                style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text(
+              AppStrings.settingsTerms,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            subtitle: Text(
+              AppStrings.settingsTermsBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
             trailing: Icon(Icons.chevron_right, color: secondaryColor),
             onTap: () => context.push(LegalTexts.termsRoute),
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
-            title: Text(AppStrings.settingsVersion, style: AppTypography.body(color: primaryColor)),
-            trailing: Text(AppStrings.appVersionValue,
-                style: AppTypography.actionCount(color: secondaryColor)),
+            title: Text(
+              AppStrings.settingsVersion,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            trailing: Text(
+              AppStrings.appVersionValue,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
           ),
 
           // Logging out lives here, quietly, as the last row — not as a red
@@ -432,8 +522,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Divider(height: 1, thickness: 0.5, color: borderColor),
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: AppColors.error),
-              title: Text(AppStrings.settingsLogOut,
-                  style: AppTypography.body(color: AppColors.error)),
+              title: Text(
+                AppStrings.settingsLogOut,
+                style: AppTypography.body(color: AppColors.error),
+              ),
               onTap: () => _confirmLogout(context, ref),
             ),
           ],
@@ -445,10 +537,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (ref.watch(isGuestModeProvider)) ...[
             ListTile(
               leading: const Icon(Icons.login_rounded, color: AppColors.accent),
-              title: Text(AppStrings.guestLeaveConfirm,
-                  style: AppTypography.body(color: AppColors.accent)),
-              subtitle: Text(AppStrings.guestBannerBody,
-                  style: AppTypography.actionCount(color: secondaryColor)),
+              title: Text(
+                AppStrings.guestLeaveConfirm,
+                style: AppTypography.body(color: AppColors.accent),
+              ),
+              subtitle: Text(
+                AppStrings.guestBannerBody,
+                style: AppTypography.actionCount(color: secondaryColor),
+              ),
               onTap: () => _leaveGuestMode(context, ref),
             ),
             Divider(height: 1, thickness: 0.5, color: borderColor),
@@ -514,10 +610,7 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final Color secondaryColor;
 
-  const _SectionHeader({
-    required this.title,
-    required this.secondaryColor,
-  });
+  const _SectionHeader({required this.title, required this.secondaryColor});
 
   @override
   Widget build(BuildContext context) {
@@ -569,7 +662,10 @@ class _XThemeSegmentTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.xs),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.md,
+          horizontal: AppSpacing.xs,
+        ),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
@@ -583,16 +679,21 @@ class _XThemeSegmentTile extends StatelessWidget {
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? AppColors.accent : tileTextColor.withValues(alpha: 0.6),
+              color: isSelected
+                  ? AppColors.accent
+                  : tileTextColor.withValues(alpha: 0.6),
               size: 16,
             ),
             const SizedBox(width: 6),
             Text(
               title,
-              style: AppTypography.body(color: isSelected ? AppColors.accent : tileTextColor).copyWith(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                fontSize: 14,
-              ),
+              style:
+                  AppTypography.body(
+                    color: isSelected ? AppColors.accent : tileTextColor,
+                  ).copyWith(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    fontSize: 14,
+                  ),
             ),
           ],
         ),
@@ -627,10 +728,15 @@ class _LinkTile extends StatelessWidget {
     return ListTile(
       leading: Icon(icon, color: primaryColor),
       title: Text(title, style: AppTypography.body(color: primaryColor)),
-      subtitle:
-          Text(subtitle, style: AppTypography.actionCount(color: secondaryColor)),
-      trailing:
-          Icon(Icons.open_in_new_rounded, size: 18, color: secondaryColor),
+      subtitle: Text(
+        subtitle,
+        style: AppTypography.actionCount(color: secondaryColor),
+      ),
+      trailing: Icon(
+        Icons.open_in_new_rounded,
+        size: 18,
+        color: secondaryColor,
+      ),
       onTap: () async {
         final messenger = ScaffoldMessenger.of(context);
         final opened = await openExternalUrl(normalizeUrl(url));

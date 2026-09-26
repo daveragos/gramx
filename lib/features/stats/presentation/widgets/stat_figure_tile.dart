@@ -20,10 +20,14 @@ class StatFigureTile extends StatelessWidget {
 
   /// A figure as it is read: `2.5K`, or `43.2%` for the one that is a share.
   static String format(StatFigure figure) {
-    if (!figure.isPercentage) return TimeUtils.formatCount(figure.value.round());
+    if (!figure.isPercentage) {
+      return TimeUtils.formatCount(figure.value.round());
+    }
     final rounded = figure.value.toStringAsFixed(1);
     return AppStrings.statsPercent(
-      rounded.endsWith('.0') ? rounded.substring(0, rounded.length - 2) : rounded,
+      rounded.endsWith('.0')
+          ? rounded.substring(0, rounded.length - 2)
+          : rounded,
     );
   }
 
@@ -46,7 +50,9 @@ class StatFigureTile extends StatelessWidget {
         AppStrings.a11yStatFigure(label, value),
         if (growth != null)
           AppStrings.a11yStatChange(
-            figure.isRising ? AppStrings.a11yStatsRising : AppStrings.a11yStatsFalling,
+            figure.isRising
+                ? AppStrings.a11yStatsRising
+                : AppStrings.a11yStatsFalling,
             growth,
           ),
       ].join(' '),

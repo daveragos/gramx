@@ -20,8 +20,9 @@ class AuthLoadingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return Center(
       child: Padding(
@@ -38,10 +39,9 @@ class AuthLoadingPage extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               AppStrings.authConnecting,
-              style: AppTypography.heading(color: theme.colorScheme.onSurface).copyWith(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              ),
+              style: AppTypography.heading(
+                color: theme.colorScheme.onSurface,
+              ).copyWith(fontSize: 22, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
             AnimatedSwitcher(
@@ -61,9 +61,7 @@ class AuthLoadingPage extends StatelessWidget {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: secondaryColor,
-                side: BorderSide(
-                  color: secondaryColor.withValues(alpha: 0.3),
-                ),
+                side: BorderSide(color: secondaryColor.withValues(alpha: 0.3)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),

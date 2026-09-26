@@ -52,8 +52,10 @@ enum AppThemeMode {
   /// Whether the device, not the reader, decides between light and dark.
   bool get followsDevice => this == AppThemeMode.system;
 
-  static AppThemeMode fromName(String? name) => AppThemeMode.values
-      .firstWhere((v) => v.name == name, orElse: () => AppThemeMode.dark);
+  static AppThemeMode fromName(String? name) => AppThemeMode.values.firstWhere(
+    (v) => v.name == name,
+    orElse: () => AppThemeMode.dark,
+  );
 }
 
 /// Everything the settings screen can change, in one immutable value.
@@ -110,18 +112,17 @@ class AppSettings {
       autoPlay: autoPlay ?? this.autoPlay,
       autoDownloadImages: autoDownloadImages ?? this.autoDownloadImages,
       guestMode: guestMode ?? this.guestMode,
-      notificationsEnabled:
-          notificationsEnabled ?? this.notificationsEnabled,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'themeMode': themeMode.name,
-        'autoPlay': autoPlay.name,
-        'autoDownloadImages': autoDownloadImages.name,
-        'guestMode': guestMode,
-        'notificationsEnabled': notificationsEnabled,
-      };
+    'themeMode': themeMode.name,
+    'autoPlay': autoPlay.name,
+    'autoDownloadImages': autoDownloadImages.name,
+    'guestMode': guestMode,
+    'notificationsEnabled': notificationsEnabled,
+  };
 
   /// Tolerant by design: a settings file written by an older or newer build
   /// should cost the user their preference for one field, never the whole file.
@@ -129,8 +130,9 @@ class AppSettings {
     return AppSettings(
       themeMode: AppThemeMode.fromName(json['themeMode'] as String?),
       autoPlay: AutoPlayPolicy.fromName(json['autoPlay'] as String?),
-      autoDownloadImages:
-          AutoDownloadPolicy.fromName(json['autoDownloadImages'] as String?),
+      autoDownloadImages: AutoDownloadPolicy.fromName(
+        json['autoDownloadImages'] as String?,
+      ),
       guestMode: json['guestMode'] as bool? ?? false,
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? false,
     );
@@ -157,7 +159,8 @@ class AppSettings {
       Object.hash(themeMode, autoPlay, autoDownloadImages, guestMode);
 
   @override
-  String toString() => 'AppSettings(theme: ${themeMode.name}, '
+  String toString() =>
+      'AppSettings(theme: ${themeMode.name}, '
       'autoPlay: ${autoPlay.name}, '
       'autoDownloadImages: ${autoDownloadImages.name}, guest: $guestMode)';
 }

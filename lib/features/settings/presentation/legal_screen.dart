@@ -22,8 +22,9 @@ class LegalScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final document = LegalTexts.byId(documentId);
 
@@ -72,8 +73,9 @@ class LegalScreen extends StatelessWidget {
                   for (final paragraph in section.paragraphs) ...[
                     Text(
                       paragraph,
-                      style: AppTypography.body(color: secondary)
-                          .copyWith(height: 1.45),
+                      style: AppTypography.body(
+                        color: secondary,
+                      ).copyWith(height: 1.45),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                   ],

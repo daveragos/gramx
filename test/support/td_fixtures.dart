@@ -475,8 +475,8 @@ abstract class TdFixtures {
     bool isSecret = true,
   }) {
     final message = photoMessage(id: id, chatId: chatId, fileIds: const [7]);
-    final json = jsonDecode(jsonEncode(message.toJson()))
-        as Map<String, dynamic>;
+    final json =
+        jsonDecode(jsonEncode(message.toJson())) as Map<String, dynamic>;
     (json['content'] as Map<String, dynamic>)['is_secret'] = isSecret;
     json['self_destruct_type'] = viewOnce
         ? {'@type': 'messageSelfDestructTypeImmediately'}
@@ -1266,11 +1266,7 @@ abstract class TdFixtures {
 
     return td.ChatStatisticsSupergroup.fromJson({
       '@type': 'chatStatisticsSupergroup',
-      'period': {
-        '@type': 'dateRange',
-        'start_date': 0,
-        'end_date': 1,
-      },
+      'period': {'@type': 'dateRange', 'start_date': 0, 'end_date': 1},
       'member_count': value,
       'message_count': value,
       'viewer_count': value,

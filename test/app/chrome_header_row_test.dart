@@ -20,8 +20,9 @@ Widget harness({required bool centerTitle}) {
 }
 
 void main() {
-  testWidgets('centerTitle false keeps the title left-aligned after leading',
-      (tester) async {
+  testWidgets('centerTitle false keeps the title left-aligned after leading', (
+    tester,
+  ) async {
     await tester.pumpWidget(harness(centerTitle: false));
 
     final rowLeft = tester.getTopLeft(find.byType(ChromeHeaderRow)).dx;
@@ -34,15 +35,17 @@ void main() {
     expect(titleCenter, greaterThan(rowCenter));
   });
 
-  testWidgets('centerTitle true centers the wordmark regardless of leading width',
-      (tester) async {
-    await tester.pumpWidget(harness(centerTitle: true));
+  testWidgets(
+    'centerTitle true centers the wordmark regardless of leading width',
+    (tester) async {
+      await tester.pumpWidget(harness(centerTitle: true));
 
-    final rowLeft = tester.getTopLeft(find.byType(ChromeHeaderRow)).dx;
-    final rowRight = tester.getTopRight(find.byType(ChromeHeaderRow)).dx;
-    final rowCenter = (rowLeft + rowRight) / 2;
-    final titleCenter = tester.getCenter(find.text('gramX')).dx;
+      final rowLeft = tester.getTopLeft(find.byType(ChromeHeaderRow)).dx;
+      final rowRight = tester.getTopRight(find.byType(ChromeHeaderRow)).dx;
+      final rowCenter = (rowLeft + rowRight) / 2;
+      final titleCenter = tester.getCenter(find.text('gramX')).dx;
 
-    expect(titleCenter, closeTo(rowCenter, 1.0));
-  });
+      expect(titleCenter, closeTo(rowCenter, 1.0));
+    },
+  );
 }

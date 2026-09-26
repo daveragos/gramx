@@ -378,9 +378,7 @@ class _SpoilerWidgetState extends State<SpoilerWidget> {
 
     return Semantics(
       button: true,
-      label: _revealed
-          ? widget.text
-          : AppStrings.spoilerTapToReveal,
+      label: _revealed ? widget.text : AppStrings.spoilerTapToReveal,
       excludeSemantics: true,
       child: GestureDetector(
         onTap: () => setState(() => _revealed = !_revealed),

@@ -33,7 +33,9 @@ void main() {
       final edited = applyPostOverrides(
         _post(
           text: 'bold words',
-          entities: const [TextEntity(offset: 0, length: 4, type: TextEntityType.bold)],
+          entities: const [
+            TextEntity(offset: 0, length: 4, type: TextEntityType.bold),
+          ],
         ),
         {
           '-100500_4': {'text': 'new'},

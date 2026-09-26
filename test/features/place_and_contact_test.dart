@@ -150,10 +150,10 @@ void main() {
       );
       expect(message.isPinned, isFalse);
 
-      final pinned = ConversationState(chatId: 9, messages: [message]).apply(
-        const ChatMessagePinChanged(9, 5, true),
-        users: const {},
-      );
+      final pinned = ConversationState(
+        chatId: 9,
+        messages: [message],
+      ).apply(const ChatMessagePinChanged(9, 5, true), users: const {});
 
       expect(pinned!.messages.single.isPinned, isTrue);
 
@@ -166,11 +166,7 @@ void main() {
 
     test('updateMessageIsPinned maps to the pin event', () {
       final event = ChatEvents.map(
-        const td.UpdateMessageIsPinned(
-          chatId: 9,
-          messageId: 5,
-          isPinned: true,
-        ),
+        const td.UpdateMessageIsPinned(chatId: 9, messageId: 5, isPinned: true),
       );
 
       expect(event, isA<ChatMessagePinChanged>());

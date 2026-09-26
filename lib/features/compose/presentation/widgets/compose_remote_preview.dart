@@ -57,8 +57,7 @@ class ComposeRemotePreview extends ConsumerWidget {
                       color: borderColor,
                       width: AppSpacing.mediaBorderWidth,
                     ),
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.mediaRadius),
+                    borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.sm),
@@ -86,12 +85,11 @@ class ComposeRemotePreview extends ConsumerWidget {
                         : AppStrings.composeRemoveGif,
                     iconSize: 18,
                     padding: const EdgeInsets.all(AppSpacing.xs),
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
                     ),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
                   ),
                 ),
               ),

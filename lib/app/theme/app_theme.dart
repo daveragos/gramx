@@ -97,10 +97,9 @@ class AppTheme {
     final baseText = isDark
         ? Typography.material2021().white
         : Typography.material2021().black;
-    final textTheme = GoogleFonts.interTextTheme(baseText).apply(
-      bodyColor: p.textPrimary,
-      displayColor: p.textPrimary,
-    );
+    final textTheme = GoogleFonts.interTextTheme(
+      baseText,
+    ).apply(bodyColor: p.textPrimary, displayColor: p.textPrimary);
 
     final colorScheme = isDark
         ? ColorScheme.dark(
@@ -160,11 +159,7 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
-      dividerTheme: DividerThemeData(
-        color: p.border,
-        thickness: 0.5,
-        space: 0,
-      ),
+      dividerTheme: DividerThemeData(color: p.border, thickness: 0.5, space: 0),
       cardTheme: const CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,

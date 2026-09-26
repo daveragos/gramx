@@ -16,8 +16,7 @@ class MuteRegistry {
   /// Alias id → when the mute lifts. A null value means "until I say so".
   final Map<String, DateTime?> _entries;
 
-  MuteRegistry([Map<String, DateTime?>? entries])
-      : _entries = {...?entries};
+  MuteRegistry([Map<String, DateTime?>? entries]) : _entries = {...?entries};
 
   /// Every id currently recorded, expired ones included. For persistence.
   Map<String, DateTime?> get entries => Map.unmodifiable(_entries);
@@ -29,14 +28,13 @@ class MuteRegistry {
     String channelId, {
     int? chatId,
     String? username,
-  }) =>
-      {
-        if (channelId.isNotEmpty) channelId,
-        if (chatId != null) chatId.toString(),
-        if (chatId != null) chatId.abs().toString(),
-        if (chatId != null) '-100${chatId.abs()}',
-        if (username != null && username.isNotEmpty) username,
-      };
+  }) => {
+    if (channelId.isNotEmpty) channelId,
+    if (chatId != null) chatId.toString(),
+    if (chatId != null) chatId.abs().toString(),
+    if (chatId != null) '-100${chatId.abs()}',
+    if (username != null && username.isNotEmpty) username,
+  };
 
   /// Whether this channel is muted at [now].
   bool isMuted(
@@ -47,7 +45,9 @@ class MuteRegistry {
   }) =>
       mutedUntil(channelId, chatId: chatId, username: username, now: now) !=
           null ||
-      _hasIndefiniteMute(aliasesOf(channelId, chatId: chatId, username: username));
+      _hasIndefiniteMute(
+        aliasesOf(channelId, chatId: chatId, username: username),
+      );
 
   /// When the mute lifts, or null if it is indefinite or not muted. Ask
   /// [isMuted] to tell those apart.
@@ -58,8 +58,11 @@ class MuteRegistry {
     required DateTime now,
   }) {
     DateTime? soonest;
-    for (final alias
-        in aliasesOf(channelId, chatId: chatId, username: username)) {
+    for (final alias in aliasesOf(
+      channelId,
+      chatId: chatId,
+      username: username,
+    )) {
       if (!_entries.containsKey(alias)) continue;
       final until = _entries[alias];
       if (until == null) continue;
@@ -83,15 +86,21 @@ class MuteRegistry {
     String? username,
     DateTime? until,
   }) {
-    for (final alias
-        in aliasesOf(channelId, chatId: chatId, username: username)) {
+    for (final alias in aliasesOf(
+      channelId,
+      chatId: chatId,
+      username: username,
+    )) {
       _entries[alias] = until;
     }
   }
 
   void unmute(String channelId, {int? chatId, String? username}) {
-    for (final alias
-        in aliasesOf(channelId, chatId: chatId, username: username)) {
+    for (final alias in aliasesOf(
+      channelId,
+      chatId: chatId,
+      username: username,
+    )) {
       _entries.remove(alias);
     }
   }
@@ -123,9 +132,9 @@ class MuteRegistry {
 
   /// Ids that count as muted at [now] — what the feed filter matches against.
   Set<String> activeIds(DateTime now) => {
-        for (final entry in _entries.entries)
-          if (entry.value == null || entry.value!.isAfter(now)) entry.key,
-      };
+    for (final entry in _entries.entries)
+      if (entry.value == null || entry.value!.isAfter(now)) entry.key,
+  };
 
   MuteRegistry copy() => MuteRegistry(_entries);
 
@@ -135,17 +144,16 @@ class MuteRegistry {
   /// of indefinite mutes keeps everything the reader already muted muted.
   factory MuteRegistry.fromJson(Object? decoded) {
     if (decoded is List) {
-      return MuteRegistry({
-        for (final id in decoded) id.toString(): null,
-      });
+      return MuteRegistry({for (final id in decoded) id.toString(): null});
     }
 
     if (decoded is Map) {
       final entries = <String, DateTime?>{};
       for (final entry in decoded.entries) {
         final raw = entry.value;
-        entries[entry.key.toString()] =
-            raw is String ? DateTime.tryParse(raw) : null;
+        entries[entry.key.toString()] = raw is String
+            ? DateTime.tryParse(raw)
+            : null;
       }
       return MuteRegistry(entries);
     }
@@ -154,9 +162,9 @@ class MuteRegistry {
   }
 
   Map<String, String?> toJson() => {
-        for (final entry in _entries.entries)
-          entry.key: entry.value?.toIso8601String(),
-      };
+    for (final entry in _entries.entries)
+      entry.key: entry.value?.toIso8601String(),
+  };
 }
 
 /// How long a mute lasts — Telegram's own menu.

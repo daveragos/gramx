@@ -73,14 +73,16 @@ void main() {
       expect(removal.revoke, isFalse);
     });
 
-    test('a supergroup drops off by itself, so leaving is all it takes',
-        () async {
-      await tdlib.push(TdFixtures.newChat(TdFixtures.groupChat(id: -100300)));
+    test(
+      'a supergroup drops off by itself, so leaving is all it takes',
+      () async {
+        await tdlib.push(TdFixtures.newChat(TdFixtures.groupChat(id: -100300)));
 
-      await repository.leaveChat(-100300);
+        await repository.leaveChat(-100300);
 
-      expect(tdlib.asked, [isA<td.LeaveChat>()]);
-    });
+        expect(tdlib.asked, [isA<td.LeaveChat>()]);
+      },
+    );
   });
 
   group('deleting a chat', () {
@@ -119,10 +121,10 @@ void main() {
       final calls = tdlib.asked.whereType<td.SetMessageSenderBlockList>();
       expect(calls.first.blockList, isA<td.BlockListMain>());
       expect(calls.last.blockList, isNull);
-      expect(
-        calls.map((c) => (c.senderId as td.MessageSenderUser).userId),
-        [42, 42],
-      );
+      expect(calls.map((c) => (c.senderId as td.MessageSenderUser).userId), [
+        42,
+        42,
+      ]);
     });
 
     // Read off the chat record, so a block made anywhere has to land on it.

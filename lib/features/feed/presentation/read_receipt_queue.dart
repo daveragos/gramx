@@ -125,8 +125,10 @@ class ReadReceiptQueue extends Notifier<void> {
     );
     if (error == null) return;
 
-    debugPrint('[Read] chat $chatId × ${messageIds.length} failed: $error'
-        '${isRetry ? ' (final)' : ' — retrying'}');
+    debugPrint(
+      '[Read] chat $chatId × ${messageIds.length} failed: $error'
+      '${isRetry ? ' (final)' : ' — retrying'}',
+    );
     if (isRetry) return;
 
     // One retry, spaced past a short flood wait. Two would be a queue that
@@ -137,5 +139,6 @@ class ReadReceiptQueue extends Notifier<void> {
   }
 }
 
-final readReceiptQueueProvider =
-    NotifierProvider<ReadReceiptQueue, void>(ReadReceiptQueue.new);
+final readReceiptQueueProvider = NotifierProvider<ReadReceiptQueue, void>(
+  ReadReceiptQueue.new,
+);

@@ -9,9 +9,7 @@ void main() {
   group('the cache', () {
     test('mirrors a secret chat record off the update stream', () {
       final state = ChatCacheState();
-      state.apply(
-        TdFixtures.secretChatUpdate(secretChatId: 5, userId: 42),
-      );
+      state.apply(TdFixtures.secretChatUpdate(secretChatId: 5, userId: 42));
 
       expect(state.secretChats[5], isNotNull);
       expect(state.secretChats[5]!.userId, 42);
@@ -26,11 +24,7 @@ void main() {
       final state = ChatCacheState();
       state.apply(TdFixtures.secretChatUpdate(secretChatId: 5, userId: 42));
 
-      final chat = TdFixtures.secretChat(
-        id: -900,
-        userId: 42,
-        secretChatId: 5,
-      );
+      final chat = TdFixtures.secretChat(id: -900, userId: 42, secretChatId: 5);
       expect(state.secretChatFor(chat)?.id, 5);
       // A chat that is not secret has no record, whatever is in the map.
       expect(state.secretChatFor(TdFixtures.privateChat(id: 7)), isNull);
@@ -74,7 +68,10 @@ void main() {
         users: {42: user},
         supergroups: const {},
         secretChats: {
-          5: TdFixtures.secretChatUpdate(secretChatId: 5, userId: 42).secretChat,
+          5: TdFixtures.secretChatUpdate(
+            secretChatId: 5,
+            userId: 42,
+          ).secretChat,
         },
       );
 

@@ -53,7 +53,10 @@ void main() {
 
   group('ErrorLogFormatter encode/decode', () {
     test('a header round-trips', () {
-      final record = _record('Something broke', at: DateTime(2026, 8, 30, 9, 5));
+      final record = _record(
+        'Something broke',
+        at: DateTime(2026, 8, 30, 9, 5),
+      );
       final decoded = ErrorLogFormatter.decodeHeader(
         ErrorLogFormatter.encode(record),
       );
@@ -84,10 +87,7 @@ void main() {
       );
 
       final trimmed = ErrorLogFormatter.trimStack(long)!;
-      expect(
-        trimmed.split('\n').length,
-        ErrorLogFormatter.stackFrames,
-      );
+      expect(trimmed.split('\n').length, ErrorLogFormatter.stackFrames);
     });
 
     test('no stack stays no stack', () {
@@ -134,7 +134,9 @@ void main() {
     });
 
     test('newestFirst is the reading order', () {
-      final state = const ErrorLogState().add(_record('old')).add(_record('new'));
+      final state = const ErrorLogState()
+          .add(_record('old'))
+          .add(_record('new'));
 
       expect(state.newestFirst.first.message, 'new');
     });

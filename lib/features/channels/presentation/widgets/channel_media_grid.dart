@@ -72,8 +72,9 @@ class _MediaTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final item = tile.item;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final placeholder =
-        isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200;
+    final placeholder = isDark
+        ? AppColors.darkSurfaceVariant
+        : Colors.grey.shade200;
 
     // Thumbnail first: a grid of full-resolution photos is a lot of decoding
     // for tiles this size, and the minithumbnail covers the gap before the

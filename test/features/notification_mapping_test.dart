@@ -6,13 +6,10 @@ import 'package:gramx/features/settings/data/app_settings.dart';
 
 import '../support/td_fixtures.dart';
 
-td.Notification _notification(td.NotificationType type, {bool silent = false}) =>
-    td.Notification(
-      id: 7,
-      date: 1700000000,
-      isSilent: silent,
-      type: type,
-    );
+td.Notification _notification(
+  td.NotificationType type, {
+  bool silent = false,
+}) => td.Notification(id: 7, date: 1700000000, isSilent: silent, type: type);
 
 void main() {
   group('NotificationMapper', () {
@@ -108,11 +105,7 @@ void main() {
       final mapped = NotificationMapper.map(
         _notification(
           td.NotificationTypeNewMessage(
-            message: TdFixtures.chatMessage(
-              id: 1,
-              chatId: -1,
-              senderUserId: 9,
-            ),
+            message: TdFixtures.chatMessage(id: 1, chatId: -1, senderUserId: 9),
             showPreview: true,
           ),
           silent: true,
@@ -209,9 +202,7 @@ void main() {
     });
 
     test('survives a round trip', () {
-      final settings = const AppSettings().copyWith(
-        notificationsEnabled: true,
-      );
+      final settings = const AppSettings().copyWith(notificationsEnabled: true);
 
       expect(
         AppSettings.fromJson(settings.toJson()).notificationsEnabled,

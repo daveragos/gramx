@@ -45,7 +45,9 @@ abstract class StatsMapper {
           value: statistics.enabledNotificationsPercentage,
           isPercentage: true,
         ),
-        ChannelStatFigure.viewsPerPost: _figure(statistics.meanMessageViewCount),
+        ChannelStatFigure.viewsPerPost: _figure(
+          statistics.meanMessageViewCount,
+        ),
         ChannelStatFigure.sharesPerPost: _figure(
           statistics.meanMessageShareCount,
         ),

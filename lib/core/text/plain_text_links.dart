@@ -51,9 +51,7 @@ List<TextEntity> linkifyPlainText(String text) {
       if (end <= start || overlaps(start, end)) continue;
 
       claimed.add((start: start, end: end));
-      found.add(
-        TextEntity(offset: start, length: end - start, type: type),
-      );
+      found.add(TextEntity(offset: start, length: end - start, type: type));
     }
   }
 

@@ -52,7 +52,8 @@ abstract class PostMenuSheet {
     // it edits for. Asked of Telegram rather than guessed, the same
     // `getMessageProperties` the conversation's long-press menu uses, so an
     // Edit row is only ever offered where the edit will be taken.
-    final canEdit = can.canMessage &&
+    final canEdit =
+        can.canMessage &&
         !isSynthetic &&
         (await ref
                 .read(chatsRepositoryProvider)
@@ -152,12 +153,16 @@ abstract class PostMenuSheet {
     if (!context.mounted) return;
 
     if (ok) {
-      ref.read(optimisticPostUpdatesProvider.notifier).setText(post.id, updated);
+      ref
+          .read(optimisticPostUpdatesProvider.notifier)
+          .setText(post.id, updated);
       ref.read(feedPostsProvider.notifier).updateTextLive(post.id, updated);
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? AppStrings.chatEditSaved : AppStrings.chatEditFailed),
+        content: Text(
+          ok ? AppStrings.chatEditSaved : AppStrings.chatEditFailed,
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );

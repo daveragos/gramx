@@ -63,7 +63,6 @@ class ChannelRepository {
     }
   }
 
-
   /// Every subscribed broadcast channel, most recently active first.
   ///
   /// Reads entirely from [ChatCache] — chats and supergroups both arrive on the
@@ -89,8 +88,9 @@ class ChannelRepository {
         if (type is td.ChatTypeSupergroup) {
           lookups++;
           try {
-            final res = await _tdlib
-                .sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+            final res = await _tdlib.sendRequest(
+              td.GetSupergroup(supergroupId: type.supergroupId),
+            );
             if (res is td.Supergroup) supergroup = res;
           } catch (_) {
             // Fall through — the row renders without member count or username.
@@ -134,7 +134,9 @@ class ChannelRepository {
         final supergroupId = _extractSupergroupId(rawId);
         if (supergroupId != null) {
           try {
-            final res = await _tdlib.sendRequest(td.CreateSupergroupChat(supergroupId: supergroupId, force: false));
+            final res = await _tdlib.sendRequest(
+              td.CreateSupergroupChat(supergroupId: supergroupId, force: false),
+            );
             if (res is td.Chat) {
               chatObj = res;
             }
@@ -153,7 +155,9 @@ class ChannelRepository {
 
       if (cleanUsername.isNotEmpty) {
         try {
-          final res = await _tdlib.sendRequest(td.SearchPublicChat(username: cleanUsername));
+          final res = await _tdlib.sendRequest(
+            td.SearchPublicChat(username: cleanUsername),
+          );
           if (res is td.Chat) {
             chatObj = res;
           }
@@ -168,14 +172,22 @@ class ChannelRepository {
         td.SupergroupFullInfo? fullInfo;
 
         try {
-          final sgObj = await _tdlib.sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+          final sgObj = await _tdlib.sendRequest(
+            td.GetSupergroup(supergroupId: type.supergroupId),
+          );
           if (sgObj is td.Supergroup) supergroup = sgObj;
 
-          final fiObj = await _tdlib.sendRequest(td.GetSupergroupFullInfo(supergroupId: type.supergroupId));
+          final fiObj = await _tdlib.sendRequest(
+            td.GetSupergroupFullInfo(supergroupId: type.supergroupId),
+          );
           if (fiObj is td.SupergroupFullInfo) fullInfo = fiObj;
         } catch (_) {}
 
-        return TdlibMappers.mapChatToChannel(chatObj, supergroup: supergroup, fullInfo: fullInfo);
+        return TdlibMappers.mapChatToChannel(
+          chatObj,
+          supergroup: supergroup,
+          fullInfo: fullInfo,
+        );
       }
     }
 
@@ -228,8 +240,7 @@ class ChannelRepository {
 
       final channels = <Channel>[];
       for (final chatId in res.chatIds.take(maxSearchResults)) {
-        final chat = _chatCache.chat(chatId) ??
-            await _fetchChat(chatId);
+        final chat = _chatCache.chat(chatId) ?? await _fetchChat(chatId);
         if (chat == null) continue;
 
         final type = chat.type;
@@ -238,15 +249,18 @@ class ChannelRepository {
         var supergroup = _chatCache.supergroupForChat(chat);
         if (supergroup == null) {
           try {
-            final sg = await _tdlib
-                .sendRequest(td.GetSupergroup(supergroupId: type.supergroupId));
+            final sg = await _tdlib.sendRequest(
+              td.GetSupergroup(supergroupId: type.supergroupId),
+            );
             if (sg is td.Supergroup) supergroup = sg;
           } catch (_) {
             // Row still renders, just without the member count.
           }
         }
 
-        channels.add(TdlibMappers.mapChatToChannel(chat, supergroup: supergroup));
+        channels.add(
+          TdlibMappers.mapChatToChannel(chat, supergroup: supergroup),
+        );
       }
       return channels;
     } catch (_) {}

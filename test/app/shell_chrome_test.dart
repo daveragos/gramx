@@ -7,8 +7,11 @@ void main() {
     // curves made the two halves of the frame disagree, which reads as jumpy.
     test('one duration and curve for both bars', () {
       expect(ShellChrome.slideDuration.inMilliseconds, greaterThan(0));
-      expect(ShellChrome.slideDuration.inMilliseconds, lessThanOrEqualTo(400),
-          reason: 'chrome should feel immediate, not sluggish');
+      expect(
+        ShellChrome.slideDuration.inMilliseconds,
+        lessThanOrEqualTo(400),
+        reason: 'chrome should feel immediate, not sluggish',
+      );
     });
 
     test('blur is strong enough to separate the bar from content', () {

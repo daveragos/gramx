@@ -18,24 +18,22 @@ import '../support/td_fixtures.dart';
 ComposeTarget _target({
   int chatId = 1,
   ComposeTargetKind kind = ComposeTargetKind.channel,
-}) =>
-    ComposeTarget(chatId: chatId, title: 'Somewhere', kind: kind);
+}) => ComposeTarget(chatId: chatId, title: 'Somewhere', kind: kind);
 
 ComposeAttachment _photo({String path = '/tmp/a.jpg'}) => ComposeAttachment(
-      path: path,
-      kind: ComposeMediaKind.photo,
-      width: 1200,
-      height: 800,
-    );
+  path: path,
+  kind: ComposeMediaKind.photo,
+  width: 1200,
+  height: 800,
+);
 
 ComposeAttachment _video() => const ComposeAttachment(
-      path: '/tmp/a.mp4',
-      kind: ComposeMediaKind.video,
-      width: 1920,
-      height: 1080,
-      durationSeconds: 42,
-    );
-
+  path: '/tmp/a.mp4',
+  kind: ComposeMediaKind.video,
+  width: 1920,
+  height: 1080,
+  durationSeconds: 42,
+);
 
 /// Stands in for the live target list, which reads the chat cache.
 class _FixedTargets extends ComposeTargetsNotifier {
@@ -46,7 +44,6 @@ class _FixedTargets extends ComposeTargetsNotifier {
   @override
   List<ComposeTarget> build() => _targets;
 }
-
 
 const _sticker = ComposeRemoteMedia(
   fileId: 900,
@@ -69,19 +66,21 @@ void main() {
     test('channels come before groups, groups before direct chats', () {
       final targets = ComposeTargets.fromChats([
         TdFixtures.privateChat(id: 7),
-        TdFixtures.chat(id: -100200, title: 'A group', isChannel: false,
-            mainOrder: 5, canSendBasicMessages: true),
+        TdFixtures.chat(
+          id: -100200,
+          title: 'A group',
+          isChannel: false,
+          mainOrder: 5,
+          canSendBasicMessages: true,
+        ),
         TdFixtures.chat(id: -100100, title: 'My channel', mainOrder: 1),
       ]);
 
-      expect(
-        targets.map((t) => t.kind),
-        [
-          ComposeTargetKind.channel,
-          ComposeTargetKind.group,
-          ComposeTargetKind.direct,
-        ],
-      );
+      expect(targets.map((t) => t.kind), [
+        ComposeTargetKind.channel,
+        ComposeTargetKind.group,
+        ComposeTargetKind.direct,
+      ]);
     });
 
     // The rule that makes this list different from the forward picker's. TDLib
@@ -89,8 +88,13 @@ void main() {
     // minutes ago above the channel they opened this screen to post to.
     test('a busier group does not outrank a quiet channel', () {
       final targets = ComposeTargets.fromChats([
-        TdFixtures.chat(id: -100200, title: 'Busy group', isChannel: false,
-            mainOrder: 9999, canSendBasicMessages: true),
+        TdFixtures.chat(
+          id: -100200,
+          title: 'Busy group',
+          isChannel: false,
+          mainOrder: 9999,
+          canSendBasicMessages: true,
+        ),
         TdFixtures.chat(id: -100100, title: 'Quiet channel', mainOrder: 1),
       ]);
 
@@ -107,19 +111,17 @@ void main() {
     });
 
     test('a private chat with yourself is Saved Messages', () {
-      final targets = ComposeTargets.fromChats(
-        [TdFixtures.privateChat(id: 42)],
-        selfUserId: 42,
-      );
+      final targets = ComposeTargets.fromChats([
+        TdFixtures.privateChat(id: 42),
+      ], selfUserId: 42);
 
       expect(targets.single.kind, ComposeTargetKind.savedMessages);
     });
 
     test('and with anybody else is not', () {
-      final targets = ComposeTargets.fromChats(
-        [TdFixtures.privateChat(id: 43)],
-        selfUserId: 42,
-      );
+      final targets = ComposeTargets.fromChats([
+        TdFixtures.privateChat(id: 43),
+      ], selfUserId: 42);
 
       expect(targets.single.kind, ComposeTargetKind.direct);
     });
@@ -127,23 +129,29 @@ void main() {
     // The account record loads asynchronously, so the id can genuinely be
     // missing on the first build. Reading as a direct chat is the safe answer:
     // it is still a destination, just under a different heading.
-    test('without knowing who you are, Saved Messages reads as a direct chat',
-        () {
-      final targets = ComposeTargets.fromChats([TdFixtures.privateChat(id: 42)]);
+    test(
+      'without knowing who you are, Saved Messages reads as a direct chat',
+      () {
+        final targets = ComposeTargets.fromChats([
+          TdFixtures.privateChat(id: 42),
+        ]);
 
-      expect(targets.single.kind, ComposeTargetKind.direct);
-    });
+        expect(targets.single.kind, ComposeTargetKind.direct);
+      },
+    );
 
     test('a basic group is a group', () {
-      final targets =
-          ComposeTargets.fromChats([TdFixtures.basicGroupChat(id: -55)]);
+      final targets = ComposeTargets.fromChats([
+        TdFixtures.basicGroupChat(id: -55),
+      ]);
 
       expect(targets.single.kind, ComposeTargetKind.group);
     });
 
     test('carries the chat photo through for the picker to draw', () {
-      final targets =
-          ComposeTargets.fromChats([TdFixtures.chat(id: -100100, mainOrder: 3)]);
+      final targets = ComposeTargets.fromChats([
+        TdFixtures.chat(id: -100100, mainOrder: 3),
+      ]);
 
       expect(targets.single.chatId, -100100);
       expect(targets.single.mainListOrder, 3);
@@ -162,8 +170,7 @@ void main() {
     });
 
     test('a photo with no words is a post', () {
-      final draft =
-          ComposeDraft(target: _target(), attachments: [_photo()]);
+      final draft = ComposeDraft(target: _target(), attachments: [_photo()]);
       expect(draft.canPost, isTrue);
     });
 
@@ -173,8 +180,11 @@ void main() {
     });
 
     test('a send already in flight refuses a second one', () {
-      final draft =
-          ComposeDraft(target: _target(), text: 'hello', isSending: true);
+      final draft = ComposeDraft(
+        target: _target(),
+        text: 'hello',
+        isSending: true,
+      );
       expect(draft.canPost, isFalse);
     });
 
@@ -199,15 +209,17 @@ void main() {
       expect(withPhoto.canPost, isFalse);
     });
 
-    test('the counter reports what is left, and goes negative past the end',
-        () {
-      final draft = ComposeDraft(
-        target: _target(),
-        text: 'x' * (ComposeLengthLimits.free.text + 3),
-      );
-      expect(draft.remaining, -3);
-      expect(draft.isOverLimit, isTrue);
-    });
+    test(
+      'the counter reports what is left, and goes negative past the end',
+      () {
+        final draft = ComposeDraft(
+          target: _target(),
+          text: 'x' * (ComposeLengthLimits.free.text + 3),
+        );
+        expect(draft.remaining, -3);
+        expect(draft.isOverLimit, isTrue);
+      },
+    );
 
     test('the tenth attachment is the last one', () {
       final full = ComposeDraft(
@@ -221,7 +233,6 @@ void main() {
       expect(full.copyWith(attachments: [_photo()]).canAttachMore, isTrue);
     });
   });
-
 
   // Telegram Premium raises the message limit to 8192 and the caption limit to
   // 4096 — four times the free caption allowance. A composer that assumed the
@@ -267,14 +278,13 @@ void main() {
       int width = 1200,
       int height = 800,
       int sizeBytes = 1024,
-    }) =>
-        ComposeAttachment(
-          path: '/tmp/a.jpg',
-          kind: ComposeMediaKind.photo,
-          width: width,
-          height: height,
-          sizeBytes: sizeBytes,
-        );
+    }) => ComposeAttachment(
+      path: '/tmp/a.jpg',
+      kind: ComposeMediaKind.photo,
+      width: width,
+      height: height,
+      sizeBytes: sizeBytes,
+    );
 
     test('an ordinary photo is fine', () {
       expect(ComposeLimits.photoRejection(photo()), isNull);
@@ -306,24 +316,22 @@ void main() {
     });
 
     test('exactly twenty to one still goes', () {
-      expect(ComposeLimits.photoRejection(photo(width: 2000, height: 100)),
-          isNull);
+      expect(
+        ComposeLimits.photoRejection(photo(width: 2000, height: 100)),
+        isNull,
+      );
     });
 
     // Refusing on a measurement that failed would block a photo Telegram would
     // have taken. Let it through and let the server decide.
     test('a photo the probe could not measure is not judged', () {
-      expect(
-        ComposeLimits.photoRejection(photo(width: 0, height: 0)),
-        isNull,
-      );
+      expect(ComposeLimits.photoRejection(photo(width: 0, height: 0)), isNull);
     });
 
     test('a video is not held to the photo rules', () {
       expect(ComposeLimits.photoRejection(_video()), isNull);
     });
   });
-
 
   // The regression this group exists for: signing in never reached the feed.
   //
@@ -342,13 +350,15 @@ void main() {
       changes = StreamController<void>.broadcast();
       rebuilds = 0;
 
-      final container = ProviderContainer(overrides: [
-        chatCacheChangesProvider.overrideWithValue(changes.stream),
-        composeTargetsSourceProvider.overrideWithValue(() {
-          rebuilds++;
-          return [_target()];
-        }),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          chatCacheChangesProvider.overrideWithValue(changes.stream),
+          composeTargetsSourceProvider.overrideWithValue(() {
+            rebuilds++;
+            return [_target()];
+          }),
+        ],
+      );
       addTearDown(() {
         container.dispose();
         changes.close();
@@ -370,8 +380,11 @@ void main() {
       }
       await settle();
 
-      expect(rebuilds, 2,
-          reason: '200 updates in a burst must collapse into one recompute');
+      expect(
+        rebuilds,
+        2,
+        reason: '200 updates in a burst must collapse into one recompute',
+      );
     });
 
     test('updates far apart are not collapsed into one', () async {
@@ -401,8 +414,10 @@ void main() {
 
   group('ComposeMessages.build', () {
     test('no attachments makes one text message', () {
-      final contents =
-          ComposeMessages.build(text: 'hello', attachments: const []);
+      final contents = ComposeMessages.build(
+        text: 'hello',
+        attachments: const [],
+      );
 
       expect(contents, hasLength(1));
       final content = contents.single as td.InputMessageText;
@@ -411,8 +426,10 @@ void main() {
     });
 
     test('one photo makes one message, not an album', () {
-      final contents =
-          ComposeMessages.build(text: 'look', attachments: [_photo()]);
+      final contents = ComposeMessages.build(
+        text: 'look',
+        attachments: [_photo()],
+      );
 
       expect(contents, hasLength(1));
       expect(ComposeMessages.isAlbum(contents), isFalse);
@@ -449,7 +466,10 @@ void main() {
     test('two attachments is already an album', () {
       final contents = ComposeMessages.build(
         text: '',
-        attachments: [_photo(path: '/tmp/1.jpg'), _photo(path: '/tmp/2.jpg')],
+        attachments: [
+          _photo(path: '/tmp/1.jpg'),
+          _photo(path: '/tmp/2.jpg'),
+        ],
       );
       expect(ComposeMessages.isAlbum(contents), isTrue);
     });
@@ -475,8 +495,10 @@ void main() {
     test('a video is never claimed to be streamable', () {
       final contents = ComposeMessages.build(text: '', attachments: [_video()]);
 
-      expect((contents.single as td.InputMessageVideo).supportsStreaming,
-          isFalse);
+      expect(
+        (contents.single as td.InputMessageVideo).supportsStreaming,
+        isFalse,
+      );
     });
 
     test('photos and videos mix in one album', () {
@@ -508,25 +530,30 @@ void main() {
     // The one that would otherwise drop what somebody wrote: there is nowhere
     // on a sticker message for the text to go, so it must not send silently.
     test('a sticker refuses to carry words', () {
-      final draft = ComposeDraft(target: _target(), text: 'happy birthday')
-          .withRemote(_sticker);
+      final draft = ComposeDraft(
+        target: _target(),
+        text: 'happy birthday',
+      ).withRemote(_sticker);
 
       expect(draft.stickerBlocksText, isTrue);
       expect(draft.canPost, isFalse);
     });
 
     test('clearing the words unblocks it', () {
-      final draft = ComposeDraft(target: _target(), text: 'hi')
-          .withRemote(_sticker)
-          .copyWith(text: '');
+      final draft = ComposeDraft(
+        target: _target(),
+        text: 'hi',
+      ).withRemote(_sticker).copyWith(text: '');
 
       expect(draft.stickerBlocksText, isFalse);
       expect(draft.canPost, isTrue);
     });
 
     test('a GIF does take a caption', () {
-      final draft =
-          ComposeDraft(target: _target(), text: 'look at this').withRemote(_gif);
+      final draft = ComposeDraft(
+        target: _target(),
+        text: 'look at this',
+      ).withRemote(_gif);
 
       expect(draft.stickerBlocksText, isFalse);
       expect(draft.canPost, isTrue);
@@ -544,17 +571,19 @@ void main() {
     // sendMessageAlbum groups only audio, document, photo and video — so these
     // two selections cannot coexist, and picking one must drop the other.
     test('choosing a sticker drops the photos', () {
-      final draft = ComposeDraft(target: _target(), attachments: [_photo()])
-          .withRemote(_gif);
+      final draft = ComposeDraft(
+        target: _target(),
+        attachments: [_photo()],
+      ).withRemote(_gif);
 
       expect(draft.attachments, isEmpty);
       expect(draft.remote, _gif);
     });
 
     test('choosing photos drops the sticker', () {
-      final draft = ComposeDraft(target: _target())
-          .withRemote(_sticker)
-          .withAttachments([_photo()]);
+      final draft = ComposeDraft(
+        target: _target(),
+      ).withRemote(_sticker).withAttachments([_photo()]);
 
       expect(draft.remote, isNull);
       expect(draft.attachments, hasLength(1));
@@ -566,8 +595,9 @@ void main() {
     });
 
     test('withRemote(null) clears it', () {
-      final draft =
-          ComposeDraft(target: _target()).withRemote(_sticker).withRemote(null);
+      final draft = ComposeDraft(
+        target: _target(),
+      ).withRemote(_sticker).withRemote(null);
       expect(draft.remote, isNull);
       expect(draft.isEmpty, isTrue);
     });
@@ -575,8 +605,11 @@ void main() {
 
   group('ComposeMessages.build for stickers and GIFs', () {
     test('a sticker is one sticker message, never an album', () {
-      final contents =
-          ComposeMessages.build(text: '', attachments: const [], remote: _sticker);
+      final contents = ComposeMessages.build(
+        text: '',
+        attachments: const [],
+        remote: _sticker,
+      );
 
       expect(contents, hasLength(1));
       expect(ComposeMessages.isAlbum(contents), isFalse);
@@ -601,8 +634,11 @@ void main() {
     });
 
     test('a wordless GIF carries no caption', () {
-      final contents =
-          ComposeMessages.build(text: '', attachments: const [], remote: _gif);
+      final contents = ComposeMessages.build(
+        text: '',
+        attachments: const [],
+        remote: _gif,
+      );
 
       expect((contents.single as td.InputMessageAnimation).caption, isNull);
     });
@@ -629,7 +665,10 @@ void main() {
     test('a chosen sticker wins over any attachments', () {
       final contents = ComposeMessages.build(
         text: '',
-        attachments: [_photo(), _photo(path: '/tmp/2.jpg')],
+        attachments: [
+          _photo(),
+          _photo(path: '/tmp/2.jpg'),
+        ],
         remote: _sticker,
       );
 
@@ -643,10 +682,12 @@ void main() {
       required ReaderCapabilities capabilities,
       required List<ComposeTarget> targets,
     }) {
-      final container = ProviderContainer(overrides: [
-        readerCapabilitiesProvider.overrideWithValue(capabilities),
-        composeTargetsProvider.overrideWith(() => _FixedTargets(targets)),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          readerCapabilitiesProvider.overrideWithValue(capabilities),
+          composeTargetsProvider.overrideWith(() => _FixedTargets(targets)),
+        ],
+      );
       addTearDown(container.dispose);
       return container;
     }

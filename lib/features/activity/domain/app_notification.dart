@@ -193,11 +193,13 @@ abstract class NotificationMapper {
   @visibleForTesting
   static String bodyOfPush(td.PushMessageContent content) => switch (content) {
     td.PushMessageContentText() => _oneLine(content.text),
-    td.PushMessageContentPhoto() when content.caption.isNotEmpty =>
-      _oneLine(content.caption),
+    td.PushMessageContentPhoto() when content.caption.isNotEmpty => _oneLine(
+      content.caption,
+    ),
     td.PushMessageContentPhoto() => '📷 Photo',
-    td.PushMessageContentVideo() when content.caption.isNotEmpty =>
-      _oneLine(content.caption),
+    td.PushMessageContentVideo() when content.caption.isNotEmpty => _oneLine(
+      content.caption,
+    ),
     td.PushMessageContentVideo() => '🎬 Video',
     td.PushMessageContentAnimation() => 'GIF',
     td.PushMessageContentDocument() => '📎 File',

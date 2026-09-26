@@ -48,8 +48,7 @@ bool hasQuotedText(Post post) {
 /// Whether there is enough of the answered post to fill a card.
 bool hasQuotedContent(Post post) {
   if (hasQuotedText(post)) return true;
-  if (post.replyToThumbnailFileId != null &&
-      post.replyToThumbnailFileId != 0) {
+  if (post.replyToThumbnailFileId != null && post.replyToThumbnailFileId != 0) {
     return true;
   }
   final url = post.replyToThumbnailUrl;

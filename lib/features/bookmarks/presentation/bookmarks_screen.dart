@@ -50,7 +50,9 @@ class BookmarksScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final bookmarksAsync = ref.watch(bookmarkedPostsProvider);
 
     return ChromeScaffold(
@@ -96,8 +98,9 @@ class BookmarksScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.lg),
                       Text(
                         AppStrings.bookmarksEmptyTitle,
-                        style: AppTypography.heading(color: primaryColor)
-                            .copyWith(fontSize: 22),
+                        style: AppTypography.heading(
+                          color: primaryColor,
+                        ).copyWith(fontSize: 22),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.sm),

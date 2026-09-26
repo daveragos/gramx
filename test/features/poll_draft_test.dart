@@ -17,10 +17,7 @@ void main() {
     });
 
     test('a poll with no question cannot be sent', () {
-      expect(
-        valid().withQuestion('   ').error,
-        PollDraftError.questionEmpty,
-      );
+      expect(valid().withQuestion('   ').error, PollDraftError.questionEmpty);
     });
 
     test('a question past Telegram\'s ceiling is named as such', () {
@@ -61,9 +58,7 @@ void main() {
     });
 
     test('a quiz cannot also take several answers', () {
-      final quiz = valid()
-          .withMultipleAnswers(true)
-          .withKind(PollKind.quiz);
+      final quiz = valid().withMultipleAnswers(true).withKind(PollKind.quiz);
       expect(quiz.allowsMultipleAnswers, isFalse);
       // And it stays off while it is a quiz.
       expect(quiz.withMultipleAnswers(true).allowsMultipleAnswers, isFalse);
@@ -127,29 +122,30 @@ void main() {
       expect(content.question.text, 'Best colour?');
       expect([for (final o in content.options) o.text], ['Red', 'Blue']);
       expect(content.isAnonymous, isTrue);
-      expect(
-        (content.type as td.PollTypeRegular).allowMultipleAnswers,
-        isTrue,
-      );
+      expect((content.type as td.PollTypeRegular).allowMultipleAnswers, isTrue);
     });
 
-    test('a quiz carries the index of the filled option, not the typed one', () {
-      // A blank row sits between the two answers, so the typed index and the
-      // sent index differ — which is exactly the case that would mark the
-      // wrong answer correct.
-      final quiz = const PollDraft(
-        question: 'Which?',
-        options: ['A', '', 'C'],
-      ).withKind(PollKind.quiz).withCorrectOption(1);
+    test(
+      'a quiz carries the index of the filled option, not the typed one',
+      () {
+        // A blank row sits between the two answers, so the typed index and the
+        // sent index differ — which is exactly the case that would mark the
+        // wrong answer correct.
+        final quiz = const PollDraft(
+          question: 'Which?',
+          options: ['A', '', 'C'],
+        ).withKind(PollKind.quiz).withCorrectOption(1);
 
-      final content = ComposeMessages.pollContent(quiz) as td.InputMessagePoll;
-      expect([for (final o in content.options) o.text], ['A', 'C']);
-      expect((content.type as td.PollTypeQuiz).correctOptionId, 1);
-    });
+        final content =
+            ComposeMessages.pollContent(quiz) as td.InputMessagePoll;
+        expect([for (final o in content.options) o.text], ['A', 'C']);
+        expect((content.type as td.PollTypeQuiz).correctOptionId, 1);
+      },
+    );
 
     test('the bot-only fields are left at zero', () {
-      final content = ComposeMessages.pollContent(valid())
-          as td.InputMessagePoll;
+      final content =
+          ComposeMessages.pollContent(valid()) as td.InputMessagePoll;
       expect(content.openPeriod, 0);
       expect(content.closeDate, 0);
       expect(content.isClosed, isFalse);

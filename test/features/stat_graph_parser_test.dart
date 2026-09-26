@@ -217,13 +217,16 @@ void main() {
         );
       });
 
-      test('answers null for anything else, so the chart keeps its palette', () {
-        expect(StatGraphParser.parseColor(null), isNull);
-        expect(StatGraphParser.parseColor(''), isNull);
-        expect(StatGraphParser.parseColor('teal'), isNull);
-        expect(StatGraphParser.parseColor('#12345'), isNull);
-        expect(StatGraphParser.parseColor('#GGGGGG'), isNull);
-      });
+      test(
+        'answers null for anything else, so the chart keeps its palette',
+        () {
+          expect(StatGraphParser.parseColor(null), isNull);
+          expect(StatGraphParser.parseColor(''), isNull);
+          expect(StatGraphParser.parseColor('teal'), isNull);
+          expect(StatGraphParser.parseColor('#12345'), isNull);
+          expect(StatGraphParser.parseColor('#GGGGGG'), isNull);
+        },
+      );
     });
   });
 }

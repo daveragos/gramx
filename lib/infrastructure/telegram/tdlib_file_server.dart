@@ -70,9 +70,12 @@ class TdlibFileServer {
     // the local network.
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _server = server;
-    server.listen(_handle, onError: (Object e) {
-      debugPrint('[FileServer] listen error: $e');
-    });
+    server.listen(
+      _handle,
+      onError: (Object e) {
+        debugPrint('[FileServer] listen error: $e');
+      },
+    );
     debugPrint('[FileServer] listening on 127.0.0.1:${server.port}');
     return server;
   }
@@ -132,21 +135,26 @@ class TdlibFileServer {
       return;
     }
 
-    final range = parseRange(request.headers.value(HttpHeaders.rangeHeader),
-        totalSize: totalSize);
+    final range = parseRange(
+      request.headers.value(HttpHeaders.rangeHeader),
+      totalSize: totalSize,
+    );
     final start = range.start;
     final end = range.end ?? totalSize - 1;
     final length = end - start + 1;
 
-    response.statusCode =
-        range.isPartial ? HttpStatus.partialContent : HttpStatus.ok;
+    response.statusCode = range.isPartial
+        ? HttpStatus.partialContent
+        : HttpStatus.ok;
     response.headers
       ..set(HttpHeaders.acceptRangesHeader, 'bytes')
       ..set(HttpHeaders.contentTypeHeader, 'video/mp4')
       ..set(HttpHeaders.contentLengthHeader, '$length');
     if (range.isPartial) {
-      response.headers
-          .set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$totalSize');
+      response.headers.set(
+        HttpHeaders.contentRangeHeader,
+        'bytes $start-$end/$totalSize',
+      );
     }
 
     if (request.method == 'HEAD') {
@@ -170,8 +178,11 @@ class TdlibFileServer {
 
         handle ??= await File(file.local.path).open();
 
-        final want = [chunkSize, available, end - position + 1]
-            .reduce((a, b) => a < b ? a : b);
+        final want = [
+          chunkSize,
+          available,
+          end - position + 1,
+        ].reduce((a, b) => a < b ? a : b);
         await handle.setPosition(position);
         final bytes = await handle.read(want);
         if (bytes.isEmpty) break;
@@ -246,13 +257,15 @@ class TdlibFileServer {
 
   Future<void> _startDownload(int fileId, {required int offset}) async {
     try {
-      await _tdlib.sendRequest(td.DownloadFile(
-        fileId: fileId,
-        priority: 32,
-        offset: offset,
-        limit: 0,
-        synchronous: false,
-      ));
+      await _tdlib.sendRequest(
+        td.DownloadFile(
+          fileId: fileId,
+          priority: 32,
+          offset: offset,
+          limit: 0,
+          synchronous: false,
+        ),
+      );
     } catch (e) {
       debugPrint('[FileServer] DownloadFile $fileId @$offset: $e');
     }
@@ -270,9 +283,10 @@ class TdlibFileServer {
 
   static String _makeToken() {
     final random = Random.secure();
-    return List.generate(16, (_) => random.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 }
 
@@ -324,7 +338,9 @@ ByteRange parseRange(String? header, {required int totalSize}) {
   }
 
   final parsedEnd = rawEnd.isEmpty ? null : int.tryParse(rawEnd);
-  final end = parsedEnd == null ? totalSize - 1 : parsedEnd.clamp(start, totalSize - 1);
+  final end = parsedEnd == null
+      ? totalSize - 1
+      : parsedEnd.clamp(start, totalSize - 1);
 
   return ByteRange(start: start, end: end, isPartial: true);
 }

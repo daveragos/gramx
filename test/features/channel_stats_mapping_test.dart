@@ -109,10 +109,7 @@ void main() {
     // The supergroup variant describes senders and administrators, which is a
     // different screen for a different thing.
     test('refuses a supergroup\'s statistics', () {
-      expect(
-        StatsMapper.mapChannel(TdFixtures.supergroupStatistics()),
-        isNull,
-      );
+      expect(StatsMapper.mapChannel(TdFixtures.supergroupStatistics()), isNull);
     });
   });
 

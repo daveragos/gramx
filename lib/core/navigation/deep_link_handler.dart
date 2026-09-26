@@ -50,15 +50,15 @@ abstract class DeepLinkRoutes {
     },
     // A link to one message in a group opens the group; the post screen is for
     // a channel's posts and their comments, which a group message is not.
-    TelegramPostLink() when chatId != null && kind != ResolvedChatKind.channel =>
+    TelegramPostLink()
+        when chatId != null && kind != ResolvedChatKind.channel =>
       '/chat/$chatId',
     // The channel screen scrolls to the post and highlights it, which is what
     // the existing `highlight` parameter is for — a link to a post is a link
     // to it *in its channel*, not to a detached copy.
     TelegramPostLink() when chatId != null =>
       '/post/${chatId}_${link.tdlibMessageId}',
-    TelegramPrivatePostLink() =>
-      '/post/${link.chatId}_${link.tdlibMessageId}',
+    TelegramPrivatePostLink() => '/post/${link.chatId}_${link.tdlibMessageId}',
     // A private channel with no post singled out. The id is already the one
     // TDLib knows, so unlike a username this costs no resolution.
     TelegramPrivateChannelLink() => '/channel/${link.chatId}',

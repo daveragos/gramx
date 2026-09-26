@@ -34,7 +34,8 @@ class ChannelFilterNotifier extends Notifier<ChannelFilter> {
 
 final channelFilterProvider =
     NotifierProvider<ChannelFilterNotifier, ChannelFilter>(
-        ChannelFilterNotifier.new);
+      ChannelFilterNotifier.new,
+    );
 
 /// The channels currently muted, in subscription order.
 ///
@@ -48,8 +49,7 @@ final mutedChannelsListProvider = Provider<List<Channel>>((ref) {
   final muted = ref.read(mutedChannelsProvider.notifier);
 
   return channels
-      .where((c) =>
-          muted.isMuted(c.id, chatId: c.chatId, username: c.username))
+      .where((c) => muted.isMuted(c.id, chatId: c.chatId, username: c.username))
       .toList();
 });
 
@@ -67,8 +67,9 @@ class ChannelsListScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final channelsAsync = ref.watch(channelsProvider);
     final filter = ref.watch(channelFilterProvider);
     final mutedChannels = ref.watch(mutedChannelsListProvider);
@@ -107,8 +108,9 @@ class ChannelsListScreen extends ConsumerWidget {
           ),
         ),
         data: (channels) {
-          final visible =
-              filter == ChannelFilter.muted ? mutedChannels : channels;
+          final visible = filter == ChannelFilter.muted
+              ? mutedChannels
+              : channels;
 
           if (visible.isEmpty) {
             return _EmptyState(
@@ -274,22 +276,27 @@ class _ChannelRow extends ConsumerWidget {
                         Flexible(
                           child: Text(
                             '@${channel.username}',
-                            style:
-                                AppTypography.username(color: secondaryColor),
+                            style: AppTypography.username(
+                              color: secondaryColor,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       if (channel.subscriberCount > 0) ...[
                         if (channel.username != null)
-                          Text(AppStrings.inlineSeparator,
-                              style: AppTypography.username(
-                                  color: secondaryColor)),
+                          Text(
+                            AppStrings.inlineSeparator,
+                            style: AppTypography.username(
+                              color: secondaryColor,
+                            ),
+                          ),
                         Text(
                           AppStrings.subscriberCountShort(
                             TimeUtils.formatCount(channel.subscriberCount),
                           ),
-                          style:
-                              AppTypography.actionCount(color: secondaryColor),
+                          style: AppTypography.actionCount(
+                            color: secondaryColor,
+                          ),
                         ),
                       ],
                     ],
@@ -303,7 +310,8 @@ class _ChannelRow extends ConsumerWidget {
                     Text(
                       mutedUntil != null
                           ? AppStrings.channelsMutedUntil(
-                              TimeUtils.untilWhen(mutedUntil))
+                              TimeUtils.untilWhen(mutedUntil),
+                            )
                           : AppStrings.channelsMutedIndefinitely,
                       style: AppTypography.actionCount(color: secondaryColor),
                     ),
@@ -374,8 +382,9 @@ class _EmptyState extends StatelessWidget {
                 isMutedFilter
                     ? AppStrings.channelsNoMutedTitle
                     : AppStrings.channelsEmptyTitle,
-                style: AppTypography.heading(color: primaryColor)
-                    .copyWith(fontSize: 22),
+                style: AppTypography.heading(
+                  color: primaryColor,
+                ).copyWith(fontSize: 22),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -401,8 +410,10 @@ class _EmptyState extends StatelessWidget {
                     ),
                   ),
                   onPressed: onAdd,
-                  child: const Text(AppStrings.channelsAddPublic,
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    AppStrings.channelsAddPublic,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ],

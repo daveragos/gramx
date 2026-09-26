@@ -24,7 +24,7 @@ class DatabaseKeyStore {
   final FlutterSecureStorage _storage;
 
   DatabaseKeyStore([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   /// The stored key, or null if this install has never had one.
   ///
@@ -59,11 +59,14 @@ class DatabaseKeyStore {
   /// A fresh random key, from the platform's cryptographic RNG.
   static String generate() {
     final random = Random.secure();
-    final bytes =
-        List<int>.generate(keyLengthBytes, (_) => random.nextInt(256));
+    final bytes = List<int>.generate(
+      keyLengthBytes,
+      (_) => random.nextInt(256),
+    );
     return base64UrlEncode(bytes);
   }
 }
 
-final databaseKeyStoreProvider =
-    Provider<DatabaseKeyStore>((ref) => DatabaseKeyStore());
+final databaseKeyStoreProvider = Provider<DatabaseKeyStore>(
+  (ref) => DatabaseKeyStore(),
+);

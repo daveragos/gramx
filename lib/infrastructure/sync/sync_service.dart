@@ -9,7 +9,6 @@ import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-
 sealed class LivePostUpdate {}
 
 class LiveReactionsUpdate extends LivePostUpdate {
@@ -99,7 +98,7 @@ class SyncService {
   final _liveUpdateController = StreamController<LivePostUpdate>.broadcast();
 
   Stream<LivePostUpdate> get livePostUpdates => _liveUpdateController.stream;
-  
+
   final Completer<void> _authReady = Completer<void>();
 
   /// Whether photos may be prefetched as messages arrive.
@@ -109,11 +108,8 @@ class SyncService {
   /// rebuilding it to pick up a preference would drop the stream.
   final bool Function() _autoDownloadImages;
 
-  SyncService(
-    this._db,
-    this._tdlib, {
-    bool Function()? autoDownloadImages,
-  }) : _autoDownloadImages = autoDownloadImages ?? (() => true);
+  SyncService(this._db, this._tdlib, {bool Function()? autoDownloadImages})
+    : _autoDownloadImages = autoDownloadImages ?? (() => true);
 
   /// Must be called by the auth controller when authentication is complete.
   void markAuthReady() {
@@ -143,10 +139,9 @@ class SyncService {
   Future<void> triggerInitialSync() async {
     await waitForAuth();
     try {
-      await _tdlib.sendRequest(const td.LoadChats(
-        chatList: td.ChatListMain(),
-        limit: 100,
-      ));
+      await _tdlib.sendRequest(
+        const td.LoadChats(chatList: td.ChatListMain(), limit: 100),
+      );
     } catch (e) {
       debugPrint('[Sync] LoadChats note: $e');
     }
@@ -156,13 +151,15 @@ class SyncService {
   Future<void> _downloadFile(int fileId, {int priority = 1}) async {
     if (fileId == 0) return;
     try {
-      await _tdlib.sendRequest(td.DownloadFile(
-        fileId: fileId,
-        priority: priority,
-        offset: 0,
-        limit: 0,
-        synchronous: false,
-      ));
+      await _tdlib.sendRequest(
+        td.DownloadFile(
+          fileId: fileId,
+          priority: priority,
+          offset: 0,
+          limit: 0,
+          synchronous: false,
+        ),
+      );
     } catch (e) {
       debugPrint('[Sync] DownloadFile failed for fileId $fileId: $e');
     }
@@ -194,11 +191,13 @@ class SyncService {
       }
     } else if (content is td.MessageVideo && content.video.thumbnail != null) {
       _downloadFile(content.video.thumbnail!.file.id);
-    } else if (content is td.MessageVideoNote && content.videoNote.thumbnail != null) {
+    } else if (content is td.MessageVideoNote &&
+        content.videoNote.thumbnail != null) {
       // Queued now that round video messages are drawn rather than labelled;
       // without this the tile has nothing to show until it is tapped.
       _downloadFile(content.videoNote.thumbnail!.file.id);
-    } else if (content is td.MessageAnimation && content.animation.thumbnail != null) {
+    } else if (content is td.MessageAnimation &&
+        content.animation.thumbnail != null) {
       _downloadFile(content.animation.thumbnail!.file.id);
     } else if (content is td.MessageSticker) {
       // Stickers were never queued, so their file never landed and the tile
@@ -214,7 +213,8 @@ class SyncService {
         for (final size in previewType.photo.sizes) {
           _downloadFile(size.photo.id);
         }
-      } else if (previewType is td.LinkPreviewTypeArticle && previewType.photo != null) {
+      } else if (previewType is td.LinkPreviewTypeArticle &&
+          previewType.photo != null) {
         for (final size in previewType.photo!.sizes) {
           _downloadFile(size.photo.id);
         }
@@ -235,9 +235,12 @@ class SyncService {
         final localPath = file.local.path;
         final fileIdStr = file.id.toString();
         final remoteId = file.remote.id;
-        
-        await (_db.update(_db.accounts)
-              ..where((a) => a.avatarPath.equals(fileIdStr) | a.avatarPath.equals(remoteId)))
+
+        await (_db.update(_db.accounts)..where(
+              (a) =>
+                  a.avatarPath.equals(fileIdStr) |
+                  a.avatarPath.equals(remoteId),
+            ))
             .write(AccountsCompanion(avatarPath: Value(localPath)));
       }
     } else {
@@ -255,19 +258,23 @@ class SyncService {
   }) async {
     try {
       if (isCurrentlyLiked) {
-        await _tdlib.sendRequest(td.RemoveMessageReaction(
-          chatId: chatId,
-          messageId: messageId,
-          reactionType: td.ReactionTypeEmoji(emoji: reactionEmoji),
-        ));
+        await _tdlib.sendRequest(
+          td.RemoveMessageReaction(
+            chatId: chatId,
+            messageId: messageId,
+            reactionType: td.ReactionTypeEmoji(emoji: reactionEmoji),
+          ),
+        );
       } else {
-        await _tdlib.sendRequest(td.AddMessageReaction(
-          chatId: chatId,
-          messageId: messageId,
-          reactionType: td.ReactionTypeEmoji(emoji: reactionEmoji),
-          isBig: false,
-          updateRecentReactions: true,
-        ));
+        await _tdlib.sendRequest(
+          td.AddMessageReaction(
+            chatId: chatId,
+            messageId: messageId,
+            reactionType: td.ReactionTypeEmoji(emoji: reactionEmoji),
+            isBig: false,
+            updateRecentReactions: true,
+          ),
+        );
       }
     } catch (e) {
       debugPrint('[Sync] Failed to toggle post reaction: $e');
@@ -276,23 +283,32 @@ class SyncService {
 
   /// Toggle bookmark status in local database
   Future<void> toggleBookmark(int chatId, int messageId) async {
-    final existing = await (_db.select(_db.bookmarkEntries)
-          ..where((b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
-        .getSingleOrNull();
+    final existing =
+        await (_db.select(_db.bookmarkEntries)..where(
+              (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
+            ))
+            .getSingleOrNull();
 
     if (existing != null) {
-      await (_db.delete(_db.bookmarkEntries)
-            ..where((b) => b.chatId.equals(chatId) & b.messageId.equals(messageId)))
+      await (_db.delete(_db.bookmarkEntries)..where(
+            (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
+          ))
           .go();
     } else {
-      final accounts = await (_db.select(_db.accounts)..where((a) => a.isActive.equals(true))).get();
+      final accounts = await (_db.select(
+        _db.accounts,
+      )..where((a) => a.isActive.equals(true))).get();
       final accountId = accounts.isNotEmpty ? accounts.first.id : 1;
-      
-      await _db.into(_db.bookmarkEntries).insert(BookmarkEntriesCompanion.insert(
-        accountId: accountId,
-        chatId: chatId,
-        messageId: messageId,
-      ));
+
+      await _db
+          .into(_db.bookmarkEntries)
+          .insert(
+            BookmarkEntriesCompanion.insert(
+              accountId: accountId,
+              chatId: chatId,
+              messageId: messageId,
+            ),
+          );
     }
   }
 
@@ -303,11 +319,13 @@ class SyncService {
     required List<int> optionIds,
   }) async {
     try {
-      await _tdlib.sendRequest(td.SetPollAnswer(
-        chatId: chatId,
-        messageId: messageId,
-        optionIds: optionIds,
-      ));
+      await _tdlib.sendRequest(
+        td.SetPollAnswer(
+          chatId: chatId,
+          messageId: messageId,
+          optionIds: optionIds,
+        ),
+      );
     } catch (e) {
       debugPrint('[Sync] Failed to vote in poll: $e');
       rethrow;
@@ -324,6 +342,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
     tdlib,
     // Read, not watched: watching would rebuild the service on every toggle
     // and take its update subscription with it.
-    autoDownloadImages: () => ref.read(settingsProvider).autoDownloadImagesEnabled,
+    autoDownloadImages: () =>
+        ref.read(settingsProvider).autoDownloadImagesEnabled,
   );
 });

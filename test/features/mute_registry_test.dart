@@ -7,13 +7,19 @@ void main() {
   group('MuteRegistry', () {
     test('a channel muted for an hour is muted now and free after', () {
       final registry = MuteRegistry();
-      registry.mute('-100111',
-          chatId: -100111, until: MuteDuration.oneHour.expiryFrom(now));
+      registry.mute(
+        '-100111',
+        chatId: -100111,
+        until: MuteDuration.oneHour.expiryFrom(now),
+      );
 
       expect(registry.isMuted('-100111', chatId: -100111, now: now), isTrue);
       expect(
-        registry.isMuted('-100111',
-            chatId: -100111, now: now.add(const Duration(hours: 2))),
+        registry.isMuted(
+          '-100111',
+          chatId: -100111,
+          now: now.add(const Duration(hours: 2)),
+        ),
         isFalse,
       );
     });
@@ -23,12 +29,18 @@ void main() {
       registry.mute('-100111', chatId: -100111);
 
       expect(
-        registry.isMuted('-100111',
-            chatId: -100111, now: now.add(const Duration(days: 400))),
+        registry.isMuted(
+          '-100111',
+          chatId: -100111,
+          now: now.add(const Duration(days: 400)),
+        ),
         isTrue,
       );
-      expect(registry.mutedUntil('-100111', chatId: -100111, now: now), isNull,
-          reason: 'there is no deadline to show');
+      expect(
+        registry.mutedUntil('-100111', chatId: -100111, now: now),
+        isNull,
+        reason: 'there is no deadline to show',
+      );
     });
 
     // A channel is learned under different ids depending on where it came
@@ -38,8 +50,11 @@ void main() {
       registry.mute('-100111', chatId: -100111, username: 'somech');
 
       expect(registry.isMuted('somech', now: now), isTrue);
-      expect(registry.isMuted('100111', now: now), isTrue,
-          reason: 'the unsigned chat id is one of the names it answers to');
+      expect(
+        registry.isMuted('100111', now: now),
+        isTrue,
+        reason: 'the unsigned chat id is one of the names it answers to',
+      );
       expect(registry.isMuted('-100111', now: now), isTrue);
     });
 
@@ -62,14 +77,23 @@ void main() {
 
     test('re-muting replaces the old deadline', () {
       final registry = MuteRegistry();
-      registry.mute('-100111',
-          chatId: -100111, until: MuteDuration.oneHour.expiryFrom(now));
-      registry.mute('-100111',
-          chatId: -100111, until: MuteDuration.twoDays.expiryFrom(now));
+      registry.mute(
+        '-100111',
+        chatId: -100111,
+        until: MuteDuration.oneHour.expiryFrom(now),
+      );
+      registry.mute(
+        '-100111',
+        chatId: -100111,
+        until: MuteDuration.twoDays.expiryFrom(now),
+      );
 
       expect(
-        registry.isMuted('-100111',
-            chatId: -100111, now: now.add(const Duration(hours: 5))),
+        registry.isMuted(
+          '-100111',
+          chatId: -100111,
+          now: now.add(const Duration(hours: 5)),
+        ),
         isTrue,
       );
     });
@@ -77,11 +101,17 @@ void main() {
     group('expiry', () {
       test('pruning drops what has run out and keeps what has not', () {
         final registry = MuteRegistry();
-        registry.mute('-100111',
-            chatId: -100111, until: now.add(const Duration(minutes: 30)));
+        registry.mute(
+          '-100111',
+          chatId: -100111,
+          until: now.add(const Duration(minutes: 30)),
+        );
         registry.mute('-100222', chatId: -100222);
 
-        expect(registry.pruneExpired(now.add(const Duration(hours: 1))), isTrue);
+        expect(
+          registry.pruneExpired(now.add(const Duration(hours: 1))),
+          isTrue,
+        );
         expect(registry.isMuted('-100111', chatId: -100111, now: now), isFalse);
         expect(registry.isMuted('-100222', chatId: -100222, now: now), isTrue);
       });
@@ -152,12 +182,18 @@ void main() {
     });
 
     test('the timed ones are the durations Telegram offers', () {
-      expect(MuteDuration.oneHour.expiryFrom(now),
-          now.add(const Duration(hours: 1)));
-      expect(MuteDuration.eightHours.expiryFrom(now),
-          now.add(const Duration(hours: 8)));
-      expect(MuteDuration.twoDays.expiryFrom(now),
-          now.add(const Duration(days: 2)));
+      expect(
+        MuteDuration.oneHour.expiryFrom(now),
+        now.add(const Duration(hours: 1)),
+      );
+      expect(
+        MuteDuration.eightHours.expiryFrom(now),
+        now.add(const Duration(hours: 8)),
+      );
+      expect(
+        MuteDuration.twoDays.expiryFrom(now),
+        now.add(const Duration(days: 2)),
+      );
     });
   });
 }

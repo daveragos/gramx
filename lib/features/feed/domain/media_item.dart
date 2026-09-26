@@ -22,26 +22,18 @@ enum StickerFormat {
   unknown;
 
   static StickerFormat fromTdName(String? typeName) => switch (typeName) {
-        'stickerFormatWebp' => StickerFormat.webp,
-        'stickerFormatTgs' => StickerFormat.tgs,
-        'stickerFormatWebm' => StickerFormat.webm,
-        _ => StickerFormat.unknown,
-      };
+    'stickerFormatWebp' => StickerFormat.webp,
+    'stickerFormatTgs' => StickerFormat.tgs,
+    'stickerFormatWebm' => StickerFormat.webm,
+    _ => StickerFormat.unknown,
+  };
 
   /// Whether this app can currently animate the format.
   bool get isAnimatable =>
       this == StickerFormat.webp || this == StickerFormat.tgs;
 }
 
-enum MediaType {
-  photo,
-  video,
-  gif,
-  document,
-  audio,
-  voice,
-  sticker,
-}
+enum MediaType { photo, video, gif, document, audio, voice, sticker }
 
 @freezed
 abstract class MediaItem with _$MediaItem {
@@ -66,17 +58,23 @@ abstract class MediaItem with _$MediaItem {
     /// thing looking for the index — so it must fall back to downloading in
     /// full. See `TdlibFileServer`.
     @Default(false) bool supportsStreaming,
+
     /// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
     String? minithumbnail,
+
     /// TDLib file ID for the main media file (for reactive download tracking).
     int? fileId,
+
     /// TDLib file ID for the thumbnail file.
     int? thumbnailFileId,
+
     /// How a sticker is encoded. Only meaningful for [MediaType.sticker].
     @Default(StickerFormat.unknown) StickerFormat stickerFormat,
+
     /// Telegram's "cover this until tapped" flag, set by the poster.
     @Default(false) bool hasSpoiler,
   }) = _MediaItem;
 
-  factory MediaItem.fromJson(Map<String, dynamic> json) => _$MediaItemFromJson(json);
+  factory MediaItem.fromJson(Map<String, dynamic> json) =>
+      _$MediaItemFromJson(json);
 }

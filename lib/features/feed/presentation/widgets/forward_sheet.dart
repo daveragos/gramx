@@ -44,10 +44,9 @@ class _ForwardSheetState extends ConsumerState<ForwardSheet> {
 
   Future<void> _forward(td.Chat chat) async {
     setState(() => _sendingTo = chat.id);
-    final ok = await ref.read(feedRepositoryProvider).forwardPost(
-          post: widget.post,
-          toChatId: chat.id,
-        );
+    final ok = await ref
+        .read(feedRepositoryProvider)
+        .forwardPost(post: widget.post, toChatId: chat.id);
     if (!mounted) return;
 
     if (!ok) {
@@ -65,15 +64,15 @@ class _ForwardSheetState extends ConsumerState<ForwardSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final needle = _query.trim().toLowerCase();
     final chats = ref
         .read(feedRepositoryProvider)
         .forwardTargets()
-        .where((c) =>
-            needle.isEmpty || c.title.toLowerCase().contains(needle))
+        .where((c) => needle.isEmpty || c.title.toLowerCase().contains(needle))
         .toList();
 
     return SafeArea(
@@ -96,8 +95,7 @@ class _ForwardSheetState extends ConsumerState<ForwardSheet> {
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 child: TextField(
                   autofocus: false,
                   onChanged: (v) => setState(() => _query = v),
@@ -141,8 +139,9 @@ class _ForwardSheetState extends ConsumerState<ForwardSheet> {
                                     width: 18,
                                     height: 18,
                                     child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.accent),
+                                      strokeWidth: 2,
+                                      color: AppColors.accent,
+                                    ),
                                   )
                                 : null,
                             // One forward at a time, so a double tap can't send twice.

@@ -36,28 +36,27 @@ const _saved = ComposeTarget(
 Widget _host(
   List<ComposeTarget> targets, {
   ComposeLengthLimits limits = ComposeLengthLimits.free,
-}) =>
-    ProviderScope(
-      overrides: [
-        composeTargetsProvider.overrideWith(() => _FixedTargets(targets)),
-        // Real limits come from TDLib, which a widget test has no business
-        // starting. See composeLengthLimitsProvider.
-        composeLengthLimitsProvider.overrideWith((ref) async => limits),
-        activeAccountProvider.overrideWith(
-          (ref) => Stream.value(
-            Account(
-              id: 1,
-              telegramUserId: '42',
-              displayName: 'Dawit B',
-              isActive: true,
-              createdAt: DateTime(2026),
-              updatedAt: DateTime(2026),
-            ),
-          ),
+}) => ProviderScope(
+  overrides: [
+    composeTargetsProvider.overrideWith(() => _FixedTargets(targets)),
+    // Real limits come from TDLib, which a widget test has no business
+    // starting. See composeLengthLimitsProvider.
+    composeLengthLimitsProvider.overrideWith((ref) async => limits),
+    activeAccountProvider.overrideWith(
+      (ref) => Stream.value(
+        Account(
+          id: 1,
+          telegramUserId: '42',
+          displayName: 'Dawit B',
+          isActive: true,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
         ),
-      ],
-      child: const MaterialApp(home: ComposeScreen()),
-    );
+      ),
+    ),
+  ],
+  child: const MaterialApp(home: ComposeScreen()),
+);
 
 /// Whether the Post button would do anything if tapped.
 bool _postEnabled(WidgetTester tester) {
@@ -74,19 +73,24 @@ bool _postEnabled(WidgetTester tester) {
 
 void main() {
   group('the composer', () {
-    testWidgets('starts on the first destination without being asked',
-        (tester) async {
+    testWidgets('starts on the first destination without being asked', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const [_channel]));
       await tester.pump();
 
       expect(find.text('My Channel'), findsWidgets);
-      expect(find.text(AppStrings.composePostingTo('My Channel')), findsOneWidget);
+      expect(
+        find.text(AppStrings.composePostingTo('My Channel')),
+        findsOneWidget,
+      );
     });
 
     // TDLib titles Saved Messages with the account holder's own name, so the
     // pill would otherwise read as posting to a person.
-    testWidgets('names Saved Messages for what it is, not who you are',
-        (tester) async {
+    testWidgets('names Saved Messages for what it is, not who you are', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const [_saved]));
       await tester.pump();
 
@@ -123,8 +127,9 @@ void main() {
 
     // The hard rule: a control that renders and does nothing is a bug. With
     // nowhere to post, the screen says so instead of offering a live button.
-    testWidgets('with nowhere to post, it says so and offers nothing',
-        (tester) async {
+    testWidgets('with nowhere to post, it says so and offers nothing', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const []));
       await tester.pump();
 
@@ -144,8 +149,9 @@ void main() {
     });
 
     // Discarding writing is irreversible, and UI.md says those ask first.
-    testWidgets('closing a written draft asks before throwing it away',
-        (tester) async {
+    testWidgets('closing a written draft asks before throwing it away', (
+      tester,
+    ) async {
       await tester.pumpWidget(_host(const [_channel]));
       await tester.pump();
 
@@ -172,24 +178,38 @@ void main() {
       final close = tester.getCenter(find.byTooltip(AppStrings.composeClose));
       final post = tester.getCenter(find.byType(PillButton));
       expect(close.dx, lessThan(post.dx));
-      expect((close.dy - post.dy).abs(), lessThan(24),
-          reason: 'they share the top bar');
+      expect(
+        (close.dy - post.dy).abs(),
+        lessThan(24),
+        reason: 'they share the top bar',
+      );
 
       final avatar = tester.getTopRight(find.byType(CircleAvatar).first);
-      final pill = tester.getTopLeft(find.byIcon(Icons.keyboard_arrow_down_rounded));
+      final pill = tester.getTopLeft(
+        find.byIcon(Icons.keyboard_arrow_down_rounded),
+      );
       final field = tester.getTopLeft(find.byType(TextField));
 
-      expect(pill.dx, greaterThan(avatar.dx),
-          reason: 'the pill sits in the column beside the avatar');
-      expect(field.dy, greaterThan(pill.dy),
-          reason: 'the writing starts under the destination');
+      expect(
+        pill.dx,
+        greaterThan(avatar.dx),
+        reason: 'the pill sits in the column beside the avatar',
+      );
+      expect(
+        field.dy,
+        greaterThan(pill.dy),
+        reason: 'the writing starts under the destination',
+      );
 
-      final footer =
-          tester.getTopLeft(find.text(AppStrings.composePostingTo('My Channel')));
-      expect(footer.dy, greaterThan(field.dy),
-          reason: 'where it posts is restated at the bottom, above the tools');
+      final footer = tester.getTopLeft(
+        find.text(AppStrings.composePostingTo('My Channel')),
+      );
+      expect(
+        footer.dy,
+        greaterThan(field.dy),
+        reason: 'where it posts is restated at the bottom, above the tools',
+      );
     });
-
 
     // Premium quadruples the caption allowance. A composer that assumed the
     // free tier would refuse a post the account is entitled to make.
@@ -214,6 +234,5 @@ void main() {
 
       expect(_postEnabled(tester), isFalse);
     });
-
   });
 }

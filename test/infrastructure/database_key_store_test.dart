@@ -21,10 +21,12 @@ void main() {
       expect(key, isNot(contains('\n')));
     });
 
-    test('is never empty — an empty key is what left the database plaintext',
-        () {
-      expect(DatabaseKeyStore.generate(), isNotEmpty);
-    });
+    test(
+      'is never empty — an empty key is what left the database plaintext',
+      () {
+        expect(DatabaseKeyStore.generate(), isNotEmpty);
+      },
+    );
   });
 
   group('storage key', () {

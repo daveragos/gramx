@@ -16,7 +16,12 @@ Post post(
     channelId: parts[0],
     messageId: int.parse(parts[1]),
     channelTitle: 'Channel ${parts[0]}',
-    publishedAt: DateTime(2026, 1, 1, 12).subtract(Duration(minutes: minutesAgo)),
+    publishedAt: DateTime(
+      2026,
+      1,
+      1,
+      12,
+    ).subtract(Duration(minutes: minutesAgo)),
     isBookmarked: isBookmarked,
     isRead: isRead,
     reactions: reactions,
@@ -124,16 +129,21 @@ void main() {
       final merged = mergePostsNewestFirst(current, incoming);
 
       expect(merged, hasLength(1));
-      expect(merged.single.isBookmarked, isTrue,
-          reason: 'the optimistic bookmark must survive');
+      expect(
+        merged.single.isBookmarked,
+        isTrue,
+        reason: 'the optimistic bookmark must survive',
+      );
     });
 
     test('returns the original list untouched when nothing is new', () {
       final current = [post('-1_2', minutesAgo: 10)];
 
       expect(
-        identical(mergePostsNewestFirst(current, [post('-1_2', minutesAgo: 10)]),
-            current),
+        identical(
+          mergePostsNewestFirst(current, [post('-1_2', minutesAgo: 10)]),
+          current,
+        ),
         isTrue,
         reason: 'callers use identity to skip a pointless state update',
       );
@@ -212,10 +222,7 @@ void main() {
   group('withoutRetired', () {
     test('drops exactly what the refresh retired', () {
       final kept = withoutRetired(
-        [
-          post('-100_1', minutesAgo: 30),
-          post('-100_2', minutesAgo: 20),
-        ],
+        [post('-100_1', minutesAgo: 30), post('-100_2', minutesAgo: 20)],
         {'-100_1'},
       );
 

@@ -162,9 +162,7 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
 
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (!mounted) return;
-      setState(
-        () => _elapsed += const Duration(milliseconds: 200),
-      );
+      setState(() => _elapsed += const Duration(milliseconds: 200));
       // Stops itself at Telegram's ceiling and sends what it has, rather than
       // recording past a limit the send would then refuse.
       if (_elapsed >= VideoNoteRecorderScreen.maxDuration) _stop();
@@ -297,8 +295,7 @@ class _RoundPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final side =
-        MediaQuery.of(context).size.width - AppSpacing.xxxl * 2;
+    final side = MediaQuery.of(context).size.width - AppSpacing.xxxl * 2;
 
     return Container(
       width: side,

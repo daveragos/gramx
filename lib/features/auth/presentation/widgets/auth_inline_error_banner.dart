@@ -4,10 +4,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 class AuthInlineErrorBanner extends StatelessWidget {
   final String message;
 
-  const AuthInlineErrorBanner({
-    super.key,
-    required this.message,
-  });
+  const AuthInlineErrorBanner({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +18,11 @@ class AuthInlineErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.error,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

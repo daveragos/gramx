@@ -268,8 +268,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                           ref.read(markPostAsReadProvider(post.id));
                           context.push('/post/${post.id}');
                         },
-                        onOpenChannel: (post) =>
-                            NavigationUtils.openChannel(context, post.channelId),
+                        onOpenChannel: (post) => NavigationUtils.openChannel(
+                          context,
+                          post.channelId,
+                        ),
                       );
                     },
                   ),
@@ -357,8 +359,11 @@ class _NewPostsPill extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (faces.isEmpty)
-                  const Icon(Icons.arrow_upward_rounded,
-                      color: Colors.white, size: 16)
+                  const Icon(
+                    Icons.arrow_upward_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  )
                 else
                   // The pill already carries the whole sentence as its
                   // semantic label; the faces would otherwise be read out

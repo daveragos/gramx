@@ -47,15 +47,18 @@ class _ComposeTargetSheetState extends ConsumerState<ComposeTargetSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     final needle = _query.trim().toLowerCase();
     final targets = ref
         .watch(composeTargetsProvider)
-        .where((t) =>
-            needle.isEmpty ||
-            composeTargetLabel(t).toLowerCase().contains(needle))
+        .where(
+          (t) =>
+              needle.isEmpty ||
+              composeTargetLabel(t).toLowerCase().contains(needle),
+        )
         .toList();
 
     return SafeArea(
@@ -137,8 +140,9 @@ class _TargetList extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
-    final secondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
 
     return ListView.builder(
       itemCount: targets.length,
@@ -206,11 +210,7 @@ class ComposeTargetAvatar extends StatelessWidget {
       return CircleAvatar(
         radius: radius,
         backgroundColor: AppColors.accent,
-        child: Icon(
-          Icons.bookmark_rounded,
-          size: radius,
-          color: Colors.white,
-        ),
+        child: Icon(Icons.bookmark_rounded, size: radius, color: Colors.white),
       );
     }
 
@@ -229,12 +229,12 @@ class ComposeTargetAvatar extends StatelessWidget {
 /// what it is, because TDLib titles it with the account holder's own name.
 String composeTargetLabel(ComposeTarget target) =>
     target.kind == ComposeTargetKind.savedMessages
-        ? AppStrings.composeSavedMessages
-        : target.title;
+    ? AppStrings.composeSavedMessages
+    : target.title;
 
 String composeTargetGroupLabel(ComposeTargetKind kind) => switch (kind) {
-      ComposeTargetKind.channel => AppStrings.composeGroupChannels,
-      ComposeTargetKind.group => AppStrings.composeGroupGroups,
-      ComposeTargetKind.savedMessages => AppStrings.composeGroupSaved,
-      ComposeTargetKind.direct => AppStrings.composeGroupDirect,
-    };
+  ComposeTargetKind.channel => AppStrings.composeGroupChannels,
+  ComposeTargetKind.group => AppStrings.composeGroupGroups,
+  ComposeTargetKind.savedMessages => AppStrings.composeGroupSaved,
+  ComposeTargetKind.direct => AppStrings.composeGroupDirect,
+};

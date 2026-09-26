@@ -52,9 +52,9 @@ void main() {
     });
 
     test('turning the timer off lets a spoiler be set again', () {
-      final back = photo(selfDestruct: SelfDestruct.viewOnce)
-          .copyWith(selfDestruct: SelfDestruct.none)
-          .copyWith(hasSpoiler: true);
+      final back = photo(
+        selfDestruct: SelfDestruct.viewOnce,
+      ).copyWith(selfDestruct: SelfDestruct.none).copyWith(hasSpoiler: true);
 
       expect(back.hasSpoiler, isTrue);
     });
@@ -78,7 +78,10 @@ void main() {
               ).single
               as td.InputMessagePhoto;
 
-      expect(content.selfDestructType, isA<td.MessageSelfDestructTypeImmediately>());
+      expect(
+        content.selfDestructType,
+        isA<td.MessageSelfDestructTypeImmediately>(),
+      );
     });
 
     test('a timer becomes the timer type, in seconds', () {
@@ -169,11 +172,7 @@ void main() {
       );
 
       final state = ConversationState(chatId: 9, messages: [message]).apply(
-        ChatMessageContentChanged(
-          9,
-          4,
-          const td.MessageExpiredPhoto(),
-        ),
+        ChatMessageContentChanged(9, 4, const td.MessageExpiredPhoto()),
         users: const {},
       );
 

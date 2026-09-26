@@ -487,8 +487,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     IconButton(
                                       tooltip: AppStrings.postMenuTooltip,
                                       visualDensity: VisualDensity.compact,
-                                      onPressed: () =>
-                                          PostMenuSheet.show(context, ref, post),
+                                      onPressed: () => PostMenuSheet.show(
+                                        context,
+                                        ref,
+                                        post,
+                                      ),
                                       icon: Icon(
                                         Icons.more_horiz_rounded,
                                         color: secondaryColor,
@@ -503,7 +506,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               // sits below the body; see ReplySlot.
                               ReplyTarget(
                                 post: post,
-                                onOpenPost: () => _openReplyTarget(context, post),
+                                onOpenPost: () =>
+                                    _openReplyTarget(context, post),
                                 onOpenAuthor: () =>
                                     context.push('/channel/${post.channelId}'),
                               ),
@@ -916,7 +920,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                 child: _buildXCommentItem(
                                                   context: context,
                                                   comment: sub,
-                                                  replyingTo: commentMap[sub.replyToMessageId],
+                                                  replyingTo:
+                                                      commentMap[sub
+                                                          .replyToMessageId],
                                                   isLast:
                                                       isLastSub &&
                                                       isLastTopComment,
@@ -1056,205 +1062,208 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       behavior: HitTestBehavior.translucent,
       onLongPress: () => _openCommentActions(comment),
       child: IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Left Column: Avatar + Thread Connector Line
-          Column(
-            children: [
-              ChannelAvatar(
-                title: comment.channelTitle,
-                avatarPath: comment.channelAvatarUrl,
-                avatarFileId: comment.channelAvatarFileId,
-                avatarColorHex: comment.channelAvatarColor,
-                radius: 18,
-                onTap: openAuthor,
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
-                  ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Left Column: Avatar + Thread Connector Line
+            Column(
+              children: [
+                ChannelAvatar(
+                  title: comment.channelTitle,
+                  avatarPath: comment.channelAvatarUrl,
+                  avatarFileId: comment.channelAvatarFileId,
+                  avatarColorHex: comment.channelAvatarColor,
+                  radius: 18,
+                  onTap: openAuthor,
                 ),
-            ],
-          ),
-          const SizedBox(width: 10),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: isDark
+                          ? AppColors.darkBorder
+                          : AppColors.lightBorder,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
 
-          // Right Column: Content + Header + Actions
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Row: Name @Username · Time
-                  Row(
-                    children: [
-                      Flexible(
-                        child: GestureDetector(
-                          onTap: openAuthor,
-                          child: Text(
-                            comment.channelTitle,
-                            style:
-                                AppTypography.displayName(
-                                  color: primaryColor,
-                                ).copyWith(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                            overflow: TextOverflow.ellipsis,
+            // Right Column: Content + Header + Actions
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header Row: Name @Username · Time
+                    Row(
+                      children: [
+                        Flexible(
+                          child: GestureDetector(
+                            onTap: openAuthor,
+                            child: Text(
+                              comment.channelTitle,
+                              style:
+                                  AppTypography.displayName(
+                                    color: primaryColor,
+                                  ).copyWith(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                      ),
-                      if (comment.channelUsername != null &&
-                          comment.channelUsername!.isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            '@${comment.channelUsername}',
-                            style: AppTypography.username(
-                              color: secondaryColor,
-                            ).copyWith(fontSize: 13),
-                            overflow: TextOverflow.ellipsis,
+                        if (comment.channelUsername != null &&
+                            comment.channelUsername!.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              '@${comment.channelUsername}',
+                              style: AppTypography.username(
+                                color: secondaryColor,
+                              ).copyWith(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
+                        ],
+                        const SizedBox(width: 4),
+                        Text(
+                          '·',
+                          style: AppTypography.username(color: secondaryColor),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          TimeUtils.relativeTime(comment.publishedAt),
+                          style: AppTypography.timestamp(
+                            color: secondaryColor,
+                          ).copyWith(fontSize: 12),
                         ),
                       ],
-                      const SizedBox(width: 4),
-                      Text(
-                        '·',
-                        style: AppTypography.username(color: secondaryColor),
+                    ),
+
+                    // A comment is already inside a thread, under a
+                    // connector, inside this screen. The card form would be a
+                    // fourth box, so it stays the line whatever it has — and
+                    // it is drawn only for a reply to another comment, naming
+                    // that comment's author. See [replyingTo].
+                    if (replyingTo != null)
+                      ReplyTarget(
+                        post: comment.copyWith(
+                          replyToAuthorTitle: replyingTo.channelTitle,
+                        ),
+                        compact: true,
+                        onOpenPost: () => _openReplyTarget(context, comment),
+                        onOpenAuthor: openAuthor,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        TimeUtils.relativeTime(comment.publishedAt),
-                        style: AppTypography.timestamp(
-                          color: secondaryColor,
-                        ).copyWith(fontSize: 12),
+
+                    // Text Content
+                    if (comment.text != null && comment.text!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      TextEntityRenderer(
+                        text: comment.text!,
+                        entities: comment.entities,
+                        style: AppTypography.body(
+                          color: primaryColor,
+                        ).copyWith(fontSize: 14, height: 1.3),
                       ),
                     ],
-                  ),
 
-                  // A comment is already inside a thread, under a
-                  // connector, inside this screen. The card form would be a
-                  // fourth box, so it stays the line whatever it has — and
-                  // it is drawn only for a reply to another comment, naming
-                  // that comment's author. See [replyingTo].
-                  if (replyingTo != null)
-                    ReplyTarget(
-                      post: comment.copyWith(
-                        replyToAuthorTitle: replyingTo.channelTitle,
+                    // Media Attachments
+                    if (comment.media.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        child: PostMediaGrid(
+                          media: comment.media,
+                          post: comment,
+                        ),
                       ),
-                      compact: true,
-                      onOpenPost: () => _openReplyTarget(context, comment),
-                      onOpenAuthor: openAuthor,
-                    ),
+                    ],
 
-                  // Text Content
-                  if (comment.text != null && comment.text!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    TextEntityRenderer(
-                      text: comment.text!,
-                      entities: comment.entities,
-                      style: AppTypography.body(
-                        color: primaryColor,
-                      ).copyWith(fontSize: 14, height: 1.3),
-                    ),
-                  ],
-
-                  // Media Attachments
-                  if (comment.media.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 220),
-                      child: PostMediaGrid(media: comment.media, post: comment),
-                    ),
-                  ],
 
-                  const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Reply Icon + Count
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() => _replyTargetPost = comment);
+                            _commentFocusNode.requestFocus();
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 16,
+                                  color: secondaryColor,
+                                ),
+                                if (comment.replyCount > 0) ...[
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    TimeUtils.formatCount(comment.replyCount),
+                                    style: AppTypography.actionCount(
+                                      color: secondaryColor,
+                                    ).copyWith(fontSize: 12),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Reply Icon + Count
-                      InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          setState(() => _replyTargetPost = comment);
-                          _commentFocusNode.requestFocus();
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
+                        // Reactions, with the post's own control: any reaction
+                        // the chat allows, not a hard-coded heart.
+                        Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,
                             vertical: 2,
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 16,
-                                color: secondaryColor,
-                              ),
-                              if (comment.replyCount > 0) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  TimeUtils.formatCount(comment.replyCount),
-                                  style: AppTypography.actionCount(
-                                    color: secondaryColor,
-                                  ).copyWith(fontSize: 12),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Reactions, with the post's own control: any reaction
-                      // the chat allows, not a hard-coded heart.
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
-                        ),
-                        child: ReactionControl(
-                          post: comment,
-                          color: secondaryColor,
-                          iconSize: 16,
-                          emojiSize: 15,
-                          countFontSize: 12,
-                          onSelectReaction: (emoji) =>
-                              _toggleReaction(comment, emoji),
-                        ),
-                      ),
-
-                      // Share Icon
-                      InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _handleShare(context, comment);
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.ios_share,
-                            size: 16,
+                          child: ReactionControl(
+                            post: comment,
                             color: secondaryColor,
+                            iconSize: 16,
+                            emojiSize: 15,
+                            countFontSize: 12,
+                            onSelectReaction: (emoji) =>
+                                _toggleReaction(comment, emoji),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+
+                        // Share Icon
+                        InkWell(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            _handleShare(context, comment);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.ios_share,
+                              size: 16,
+                              color: secondaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

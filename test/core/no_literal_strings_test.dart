@@ -69,7 +69,8 @@ void main() {
       expect(
         File(path).existsSync(),
         isTrue,
-        reason: '$path is exempt from the literal scan but is not there — '
+        reason:
+            '$path is exempt from the literal scan but is not there — '
             'a stale exemption hides real offenders.',
       );
     }

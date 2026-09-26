@@ -438,17 +438,15 @@ void main() {
   // then reads from the middle: more above, more below, and the live stream
   // no longer adjacent to what is on screen.
   group('a window in the middle', () {
-    ConversationState window() => _apply(
-      _apply(_empty(), ChatMessageArrived(_incoming(100))),
-      ChatMessageArrived(_incoming(101)),
-    ).windowed(
-      [
-        _mapped(50),
-        _mapped(51),
-      ],
-      reachedTop: false,
-      reachedBottom: false,
-    );
+    ConversationState window() =>
+        _apply(
+          _apply(_empty(), ChatMessageArrived(_incoming(100))),
+          ChatMessageArrived(_incoming(101)),
+        ).windowed(
+          [_mapped(50), _mapped(51)],
+          reachedTop: false,
+          reachedBottom: false,
+        );
 
     test('replaces what was loaded and opens both ends', () {
       final state = window();
@@ -466,21 +464,18 @@ void main() {
     });
 
     test('a page below lands below, and reaching the bottom closes it', () {
-      var state = window().append(
-        [_mapped(52)],
-        reachedBottom: false,
-      );
+      var state = window().append([_mapped(52)], reachedBottom: false);
       expect(state.messages.map((m) => m.messageId), [50, 51, 52]);
       expect(state.hasMoreNewer, isTrue);
 
-      state = state.append(
-        [_mapped(53)],
-        reachedBottom: true,
-      );
+      state = state.append([_mapped(53)], reachedBottom: true);
       expect(state.hasMoreNewer, isFalse);
       // Adjacent again: arrivals fold in as they always did.
       expect(
-        _apply(state, ChatMessageArrived(_incoming(200))).messages.last.messageId,
+        _apply(
+          state,
+          ChatMessageArrived(_incoming(200)),
+        ).messages.last.messageId,
         200,
       );
     });

@@ -16,11 +16,7 @@ class CustomEmoji {
   /// Local path, once TDLib has fetched the file.
   final String? path;
 
-  const CustomEmoji({
-    required this.fileId,
-    required this.format,
-    this.path,
-  });
+  const CustomEmoji({required this.fileId, required this.format, this.path});
 
   bool get isReady => path != null && path!.isNotEmpty;
 }
@@ -82,9 +78,9 @@ class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
     _requested.addAll(batch);
 
     try {
-      final res = await ref.read(tdlibServiceProvider).sendRequest(
-            td.GetCustomEmojiStickers(customEmojiIds: batch),
-          );
+      final res = await ref
+          .read(tdlibServiceProvider)
+          .sendRequest(td.GetCustomEmojiStickers(customEmojiIds: batch));
       if (res is! td.Stickers) return;
 
       final sync = ref.read(syncServiceProvider);
@@ -95,7 +91,8 @@ class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
         if (fullType is! td.StickerFullTypeCustomEmoji) continue;
 
         final file = sticker.sticker;
-        final path = file.local.isDownloadingCompleted && file.local.path.isNotEmpty
+        final path =
+            file.local.isDownloadingCompleted && file.local.path.isNotEmpty
             ? file.local.path
             : null;
 
@@ -142,4 +139,5 @@ class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
 
 final customEmojiProvider =
     NotifierProvider<CustomEmojiNotifier, Map<int, CustomEmoji>>(
-        CustomEmojiNotifier.new);
+      CustomEmojiNotifier.new,
+    );

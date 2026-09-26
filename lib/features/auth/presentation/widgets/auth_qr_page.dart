@@ -22,8 +22,9 @@ class AuthQrPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor =
-        isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    final secondaryColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
     final link = authState.qrCodeLink;
 
     return Padding(
@@ -33,10 +34,9 @@ class AuthQrPage extends StatelessWidget {
           const Spacer(),
           Text(
             'Scan QR Code',
-            style: AppTypography.heading(color: primaryColor).copyWith(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-            ),
+            style: AppTypography.heading(
+              color: primaryColor,
+            ).copyWith(fontSize: 26, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(

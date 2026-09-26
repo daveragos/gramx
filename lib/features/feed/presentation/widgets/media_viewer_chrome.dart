@@ -327,13 +327,16 @@ class _BottomSheetChrome extends ConsumerWidget {
 /// wants a drag the arena hands it to its last member when the finger lifts,
 /// and without this that handover started a dismiss for a drag that never
 /// met the rule.
-class MostlyVerticalDragGestureRecognizer extends VerticalDragGestureRecognizer {
+class MostlyVerticalDragGestureRecognizer
+    extends VerticalDragGestureRecognizer {
   /// How much larger than the sideways movement the vertical movement has to
   /// be. A touch more than equal, so a true diagonal goes to the page.
   static const double dominance = 1.25;
 
-  MostlyVerticalDragGestureRecognizer({super.debugOwner, super.supportedDevices})
-    : super() {
+  MostlyVerticalDragGestureRecognizer({
+    super.debugOwner,
+    super.supportedDevices,
+  }) : super() {
     onlyAcceptDragOnThreshold = true;
   }
 

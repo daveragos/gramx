@@ -47,10 +47,10 @@ class CustomEmojiGlyph extends ConsumerWidget {
       child: switch (emoji.format) {
         StickerFormat.tgs => _LottieGlyph(path: emoji.path!, size: size),
         StickerFormat.webp => Image.file(
-            File(emoji.path!),
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => _fallback(),
-          ),
+          File(emoji.path!),
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => _fallback(),
+        ),
         // WebM carries an alpha plane Android's decoder drops; the character
         // reads better than a black square.
         _ => _fallback(),
@@ -58,7 +58,8 @@ class CustomEmojiGlyph extends ConsumerWidget {
     );
   }
 
-  Widget _fallback() => Text(fallbackText, style: TextStyle(fontSize: size * 0.9));
+  Widget _fallback() =>
+      Text(fallbackText, style: TextStyle(fontSize: size * 0.9));
 }
 
 class _LottieGlyph extends StatefulWidget {

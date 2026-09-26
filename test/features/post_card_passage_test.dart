@@ -35,24 +35,29 @@ Post post({
 
 void main() {
   Widget host(Post p) => ProviderScope(
-        overrides: [
-          fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
-          // The action bar asks whether this reader may act. Deciding that
-          // walks the auth state into TDLib, which is not here.
-          readerCapabilitiesProvider
-              .overrideWithValue(ReaderCapabilities.signedIn),
-        ],
-        child: MaterialApp(
-          home: Scaffold(body: SingleChildScrollView(child: PostCard(post: p))),
-        ),
-      );
+    overrides: [
+      fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+      // The action bar asks whether this reader may act. Deciding that
+      // walks the auth state into TDLib, which is not here.
+      readerCapabilitiesProvider.overrideWithValue(ReaderCapabilities.signedIn),
+    ],
+    child: MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(child: PostCard(post: p)),
+      ),
+    ),
+  );
 
   testWidgets('the card draws the passage it singles out', (tester) async {
-    await tester.pumpWidget(host(post(
-      replyToMessageId: 4,
-      replyToText: 'the part they picked',
-      replyToIsQuote: true,
-    )));
+    await tester.pumpWidget(
+      host(
+        post(
+          replyToMessageId: 4,
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+        ),
+      ),
+    );
 
     expect(find.byType(QuotedPassage), findsOneWidget);
     expect(find.text('the part they picked'), findsOneWidget);
@@ -62,11 +67,15 @@ void main() {
   /// The passage sits above the post, not inside it — which is what lets the
   /// connector run down into the reply's own avatar.
   testWidgets('the passage stands above the reply', (tester) async {
-    await tester.pumpWidget(host(post(
-      replyToMessageId: 4,
-      replyToText: 'the part they picked',
-      replyToIsQuote: true,
-    )));
+    await tester.pumpWidget(
+      host(
+        post(
+          replyToMessageId: 4,
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+        ),
+      ),
+    );
 
     final passage = tester.getTopLeft(find.text('the part they picked'));
     final reply = tester.getTopLeft(find.text('the reply itself'));
@@ -76,23 +85,30 @@ void main() {
   /// One action bar on the card, and none on the passage. The reply keeps
   /// every control; the fragment it quotes gets none.
   testWidgets('the passage adds no second action bar', (tester) async {
-    await tester.pumpWidget(host(post(
-      replyToMessageId: 4,
-      replyToText: 'the part they picked',
-      replyToIsQuote: true,
-    )));
+    await tester.pumpWidget(
+      host(
+        post(
+          replyToMessageId: 4,
+          replyToText: 'the part they picked',
+          replyToIsQuote: true,
+        ),
+      ),
+    );
 
     expect(find.byType(PostActionBar), findsOneWidget);
     final bar = tester.getTopLeft(find.byType(PostActionBar));
-    expect(bar.dy, greaterThan(tester.getTopLeft(find.text('the reply itself')).dy));
+    expect(
+      bar.dy,
+      greaterThan(tester.getTopLeft(find.text('the reply itself')).dy),
+    );
   });
 
-  testWidgets('a whole-post reply gets the card, not the passage',
-      (tester) async {
-    await tester.pumpWidget(host(post(
-      replyToMessageId: 4,
-      replyToText: 'the whole original post',
-    )));
+  testWidgets('a whole-post reply gets the card, not the passage', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(post(replyToMessageId: 4, replyToText: 'the whole original post')),
+    );
 
     expect(find.byType(QuotedPassage), findsNothing);
     expect(find.byType(QuotedPostCard), findsOneWidget);
@@ -131,8 +147,9 @@ void main() {
       expect(quoted.dy, greaterThan(own.dy));
     });
 
-    testWidgets('and above the action bar, which belongs to the reply',
-        (tester) async {
+    testWidgets('and above the action bar, which belongs to the reply', (
+      tester,
+    ) async {
       await tester.pumpWidget(host(quoting()));
 
       final quoted = tester.getTopLeft(find.byType(QuotedPostCard));

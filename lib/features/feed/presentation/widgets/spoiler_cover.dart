@@ -58,8 +58,11 @@ class _SpoilerCoverState extends State<SpoilerCover> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.visibility_off_outlined,
-                          color: Colors.white, size: 26),
+                      const Icon(
+                        Icons.visibility_off_outlined,
+                        color: Colors.white,
+                        size: 26,
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         AppStrings.spoilerTapToReveal,
