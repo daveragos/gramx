@@ -6,6 +6,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gramx/core/navigation/telegram_link.dart';
 
+/// What a public username turned out to belong to.
+///
+/// `t.me/<name>` looks the same for all three, and they open three different
+/// screens — which is why resolving a name answers this as well as an id.
+enum ResolvedChatKind {
+  /// A broadcast channel: the channel screen.
+  channel,
+
+  /// A group: the conversation.
+  group,
+
+  /// A person or a bot: their profile, which is where "Message" lives.
+  person,
+}
+
 /// Where a parsed link should take the reader.
 ///
 /// A route string rather than a navigation call, so the whole decision is one
@@ -15,10 +30,28 @@ abstract class DeepLinkRoutes {
   /// The screen for a link whose chat id is already known.
   ///
   /// [chatId] comes from resolving a username, which costs a request and so
-  /// happens outside this. A private-post link carries its own id and needs no
-  /// resolution at all.
-  static String? routeFor(TelegramLink link, {int? chatId}) => switch (link) {
-    TelegramChannelLink() when chatId != null => '/channel/$chatId',
+  /// happens outside this, and [kind] is what that resolution found. It
+  /// defaults to a channel because that is what a link with no resolution
+  /// behind it — a private post, a `t.me/c/` link — can only ever be.
+  ///
+  /// A person's name used to open the *channel* screen with their private
+  /// chat's id, because every resolved name was assumed to be a channel.
+  static String? routeFor(
+    TelegramLink link, {
+    int? chatId,
+    ResolvedChatKind kind = ResolvedChatKind.channel,
+  }) => switch (link) {
+    TelegramChannelLink() when chatId != null => switch (kind) {
+      ResolvedChatKind.channel => '/channel/$chatId',
+      ResolvedChatKind.group => '/chat/$chatId',
+      // A private chat's id is its user's id, so the profile route takes it
+      // as it is.
+      ResolvedChatKind.person => '/user/$chatId',
+    },
+    // A link to one message in a group opens the group; the post screen is for
+    // a channel's posts and their comments, which a group message is not.
+    TelegramPostLink() when chatId != null && kind != ResolvedChatKind.channel =>
+      '/chat/$chatId',
     // The channel screen scrolls to the post and highlights it, which is what
     // the existing `highlight` parameter is for — a link to a post is a link
     // to it *in its channel*, not to a detached copy.

@@ -370,6 +370,9 @@ class _Body extends StatelessWidget {
             entities: message.entities,
             style: AppTypography.body(color: textColor),
             onMentionTap: onMentionTap,
+            // The long press belongs to the bubble. See
+            // [TextEntityRenderer.selectable].
+            selectable: false,
             // An outgoing bubble *is* the accent colour, so a mention or link
             // drawn in accent on it is invisible. Handing the renderer the
             // bubble's own foreground makes it legible, and it underlines when

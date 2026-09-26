@@ -78,9 +78,16 @@ abstract class ConversationRows {
   /// an id not in [messages], simply means no band — which is the honest answer
   /// for a chat opened with nothing waiting in it.
   static List<ConversationRow> build(
-    List<ChatMessage> messages, {
+    List<ChatMessage> all, {
     int? firstUnreadMessageId,
   }) {
+    // A service message with nothing to say is left out entirely, rather than
+    // drawn as an empty line — and so is the date band of a day that had only
+    // those in it. See `ChatMessageMapper.serviceText`.
+    final messages = [
+      for (final message in all)
+        if (!message.isService || (message.text?.isNotEmpty ?? false)) message,
+    ];
     final rows = <ConversationRow>[];
     DateTime? currentDay;
     var unreadBandDrawn = false;

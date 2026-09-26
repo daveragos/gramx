@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/chat_list_builder.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/message_place.dart';
@@ -32,6 +33,7 @@ abstract class ChatMessageMapper {
     required Map<int, td.User> users,
     required int lastReadOutboxMessageId,
     bool isGroup = false,
+    Map<int, td.Chat> chats = const {},
   }) {
     final content = message.content;
     final support = MessageContentSupport.supportFor(content);
@@ -40,6 +42,12 @@ abstract class ChatMessageMapper {
     final sender = message.senderId;
     final senderUser = sender is td.MessageSenderUser
         ? users[sender.userId]
+        : null;
+    // Somebody writing *as a chat* — a channel they run, or a group's
+    // anonymous admin. Looked up among chats rather than users, or the bubble
+    // draws a nameless "?" for one of the commonest senders in a group.
+    final senderChat = sender is td.MessageSenderChat
+        ? chats[sender.chatId]
         : null;
 
     final body = decodeContent(content);
@@ -57,19 +65,33 @@ abstract class ChatMessageMapper {
       senderId: sender is td.MessageSenderUser ? sender.userId : null,
       // Only groups name their senders. A null here is what the bubble reads to
       // decide not to draw a name row at all.
-      senderName: isGroup && senderUser != null
+      senderName: !isGroup
+          ? null
+          : senderUser != null
           ? ChatListBuilder.displayNameOf(senderUser)
-          : null,
-      senderAvatarPath: isGroup
-          ? (senderUser?.profilePhoto?.small.local.path.isNotEmpty == true
-                ? senderUser!.profilePhoto!.small.local.path
+          : senderChat?.title,
+      senderAvatarPath: !isGroup
+          ? null
+          : senderUser != null
+          ? (senderUser.profilePhoto?.small.local.path.isNotEmpty == true
+                ? senderUser.profilePhoto!.small.local.path
                 : null)
-          : null,
-      senderAvatarFileId: isGroup ? senderUser?.profilePhoto?.small.id : null,
-      senderAvatarColorHex: isGroup && senderUser != null
+          : (senderChat?.photo?.small.local.path.isNotEmpty == true
+                ? senderChat!.photo!.small.local.path
+                : null),
+      senderAvatarFileId: !isGroup
+          ? null
+          : senderUser?.profilePhoto?.small.id ?? senderChat?.photo?.small.id,
+      senderAvatarColorHex: !isGroup
+          ? null
+          : senderUser != null
           ? TdlibMappers.avatarColorFor(senderUser.id)
+          : senderChat != null
+          ? TdlibMappers.avatarColorFor(senderChat.id)
           : null,
-      text: body.text,
+      text: isService
+          ? serviceText(message, users: users, chats: chats)
+          : body.text,
       entities: body.entities,
       media: body.media,
       poll: body.poll,
@@ -93,7 +115,7 @@ abstract class ChatMessageMapper {
       replyToMessageId: _replyTarget(message)?.messageId,
       replyToChatId: _replyChatId(message),
       replyToText: _replyExcerpt(message),
-      replyToAuthorName: _replyAuthor(message, users: users),
+      replyToAuthorName: _replyAuthor(message, users: users, chats: chats),
       replyToThumbnailFileId: _replyThumbnailFileId(message),
       forwardedFromTitle: _forwardOrigin(message, users: users),
       linkPreviewUrl: body.linkPreviewUrl,
@@ -137,6 +159,7 @@ abstract class ChatMessageMapper {
     required Map<int, td.User> users,
     required int lastReadOutboxMessageId,
     bool isGroup = false,
+    Map<int, td.Chat> chats = const {},
   }) {
     final mapped = [
       for (final message in messages)
@@ -145,6 +168,7 @@ abstract class ChatMessageMapper {
           users: users,
           lastReadOutboxMessageId: lastReadOutboxMessageId,
           isGroup: isGroup,
+          chats: chats,
         ),
     ];
     mapped.sort((a, b) => a.messageId.compareTo(b.messageId));
@@ -160,11 +184,17 @@ abstract class ChatMessageMapper {
   /// page rather than asking the server. That is the whole point: the feed has
   /// to spend a `GetMessages` on this, and a conversation does not.
   ///
-  /// A reply to something older than the loaded page keeps its null preview and
-  /// draws as a bare "replying to" line, which is honest. It fills in by itself
-  /// when the reader pages back far enough to load it.
-  static List<ChatMessage> fillReplyExcerpts(List<ChatMessage> messages) {
-    final byId = {for (final message in messages) message.messageId: message};
+  /// [from] adds targets that are not in [messages] themselves: the rest of the
+  /// conversation, for a message arriving live, or the ones fetched for a page
+  /// whose replies point further back than it reaches.
+  static List<ChatMessage> fillReplyExcerpts(
+    List<ChatMessage> messages, {
+    Iterable<ChatMessage> from = const [],
+  }) {
+    final byId = {
+      for (final message in from) message.messageId: message,
+      for (final message in messages) message.messageId: message,
+    };
 
     return [
       for (final message in messages)
@@ -174,12 +204,54 @@ abstract class ChatMessageMapper {
           message
         else if (byId[message.replyToMessageId!] case final target?)
           message.copyWith(
-            replyToText: target.text,
-            replyToAuthorName: message.replyToAuthorName ?? target.senderName,
+            replyToText: replyPreviewOf(target),
+            replyToAuthorName: message.replyToAuthorName ?? replyAuthorOf(target),
+            replyToThumbnailFileId:
+                message.replyToThumbnailFileId ?? _thumbnailOf(target),
           )
         else
           message,
     ];
+  }
+
+  /// Who wrote a message, as a reply to it names them.
+  ///
+  /// "You" for your own, which Telegram says too — and which is the only name
+  /// there can be in a one-to-one chat, where nobody else's name is put on a
+  /// bubble. Null for somebody else there: the other person is the header.
+  static String? replyAuthorOf(ChatMessage target) =>
+      target.isOutgoing ? AppStrings.messagesYouPrefix : target.senderName;
+
+  /// A message in one line, as a reply to it quotes it.
+  ///
+  /// Its words when it has them, otherwise what it *is*. A photo has no text,
+  /// so a reply to one said "Replying to" and stopped.
+  static String? replyPreviewOf(ChatMessage target) {
+    final text = target.text;
+    if (text != null && text.trim().isNotEmpty) return text;
+    if (target.poll case final poll?) return poll.question;
+    if (target.place != null) return AppStrings.mediaLocation;
+    if (target.contact != null) return AppStrings.contactMessage;
+    if (target.media.isEmpty) return null;
+    return switch (target.media.first.type) {
+      MediaType.photo => AppStrings.mediaPhoto,
+      MediaType.video => AppStrings.mediaVideo,
+      MediaType.gif => AppStrings.mediaGif,
+      MediaType.document => AppStrings.mediaDocument,
+      MediaType.audio => AppStrings.mediaAudio,
+      MediaType.voice => AppStrings.mediaVoice,
+      MediaType.sticker => AppStrings.mediaSticker,
+    };
+  }
+
+  static int? _thumbnailOf(ChatMessage target) {
+    if (target.media.isEmpty) return null;
+    final item = target.media.first;
+    return switch (item.type) {
+      MediaType.photo => item.thumbnailFileId ?? item.fileId,
+      MediaType.video || MediaType.gif => item.thumbnailFileId,
+      _ => null,
+    };
   }
 
   /// Rewrites a mapped message around a new content object.
@@ -449,13 +521,21 @@ abstract class ChatMessageMapper {
   static String? _replyAuthor(
     td.Message message, {
     required Map<int, td.User> users,
+    Map<int, td.Chat> chats = const {},
   }) {
     final origin = _replyTarget(message)?.origin;
+    // A channel's post and a message sent as a chat are named after that
+    // chat. Only the signature was read before, which most channels do not
+    // set — so a reply to one said "Replying to" and stopped.
     return switch (origin) {
       td.MessageOriginUser() => _nameOfUser(origin.senderUserId, users: users),
       td.MessageOriginHiddenUser() => origin.senderName,
       td.MessageOriginChannel() =>
-        origin.authorSignature.isNotEmpty ? origin.authorSignature : null,
+        chats[origin.chatId]?.title ??
+            (origin.authorSignature.isNotEmpty ? origin.authorSignature : null),
+      td.MessageOriginChat() =>
+        chats[origin.senderChatId]?.title ??
+            (origin.authorSignature.isNotEmpty ? origin.authorSignature : null),
       _ => null,
     };
   }
@@ -489,5 +569,66 @@ abstract class ChatMessageMapper {
   static String? _nameOfUser(int userId, {required Map<int, td.User> users}) {
     final user = users[userId];
     return user == null ? null : ChatListBuilder.displayNameOf(user);
+  }
+
+  /// The line drawn for something that happened *to* a chat rather than being
+  /// said in it — a join, a pin, a rename.
+  ///
+  /// Null for a kind with nothing worth saying, and the conversation leaves
+  /// those out altogether (see `ConversationRows.build`). Every one of these
+  /// used to be drawn as an empty padded line, so a public group — mostly
+  /// joins — read as blank gaps under date headers with nothing in them.
+  static String? serviceText(
+    td.Message message, {
+    required Map<int, td.User> users,
+    Map<int, td.Chat> chats = const {},
+  }) {
+    final sender = message.senderId;
+    final who =
+        switch (sender) {
+          td.MessageSenderUser() => _nameOfUser(sender.userId, users: users),
+          td.MessageSenderChat() => chats[sender.chatId]?.title,
+        } ??
+        AppStrings.serviceSomeone;
+    String nameOf(int userId) =>
+        _nameOfUser(userId, users: users) ?? AppStrings.serviceSomeone;
+    final senderUserId = sender is td.MessageSenderUser ? sender.userId : null;
+
+    final content = message.content;
+    return switch (content) {
+      td.MessageChatAddMembers(:final memberUserIds)
+          when memberUserIds.length == 1 &&
+              memberUserIds.first == senderUserId =>
+        AppStrings.serviceJoined(who),
+      td.MessageChatAddMembers(:final memberUserIds) =>
+        AppStrings.serviceAdded(who, memberUserIds.map(nameOf).join(', ')),
+      td.MessageChatJoinByLink() => AppStrings.serviceJoinedByLink(who),
+      td.MessageChatJoinByRequest() => AppStrings.serviceAccepted(who),
+      td.MessageChatDeleteMember(:final userId) when userId == senderUserId =>
+        AppStrings.serviceLeft(who),
+      td.MessageChatDeleteMember(:final userId) =>
+        AppStrings.serviceRemoved(who, nameOf(userId)),
+      td.MessagePinMessage() => AppStrings.servicePinned(who),
+      td.MessageChatChangeTitle(:final title) =>
+        AppStrings.serviceRenamed(who, title),
+      td.MessageChatChangePhoto() => AppStrings.servicePhotoChanged(who),
+      td.MessageChatDeletePhoto() => AppStrings.servicePhotoRemoved(who),
+      td.MessageBasicGroupChatCreate(:final title) ||
+      td.MessageSupergroupChatCreate(:final title) =>
+        AppStrings.serviceCreated(who, title),
+      td.MessageChatUpgradeTo() ||
+      td.MessageChatUpgradeFrom() => AppStrings.serviceUpgraded,
+      td.MessageScreenshotTaken() => AppStrings.serviceScreenshot(who),
+      td.MessageChatSetMessageAutoDeleteTime(:final messageAutoDeleteTime) =>
+        AppStrings.serviceAutoDelete(who, messageAutoDeleteTime),
+      td.MessageContactRegistered() => AppStrings.serviceJoinedTelegram(who),
+      td.MessageVideoChatStarted() => AppStrings.serviceVideoChatStarted,
+      td.MessageVideoChatEnded() => AppStrings.serviceVideoChatEnded,
+      td.MessageForumTopicCreated(:final name) =>
+        AppStrings.serviceTopicCreated(name),
+      td.MessageChatBoost() => AppStrings.serviceBoosted(who),
+      td.MessageCustomServiceAction(:final text) when text.isNotEmpty => text,
+      _ => null,
+    };
   }
 }

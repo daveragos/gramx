@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/chats/data/chat_events.dart';
+import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/data/conversation_state.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
@@ -38,7 +40,6 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
 
   StreamSubscription<td.TdObject>? _sub;
   Timer? _typingExpiry;
-  bool _loadingOlder = false;
 
   /// Whether the screen showing this conversation is in front of the reader.
   ///
@@ -89,13 +90,13 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     // read it forwards — which is backwards.
     //
     // Only when there is something to come back to: with nothing unread the
-    // newest page is the right answer and costs one request instead of a
-    // window plus a jump.
+    // newest page is the right answer and costs one request instead of the
+    // several it can take to reach back to the read line.
     final readCursor = repository.lastReadInboxMessageId(chatId);
     final hasBacklog = repository.unreadCount(chatId) > 0 && readCursor != 0;
 
     final page = hasBacklog
-        ? await repository.historyAround(chatId, messageId: readCursor)
+        ? await repository.historyReaching(chatId, messageId: readCursor)
         : await repository.history(chatId);
 
     return ConversationState(
@@ -128,6 +129,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     final next = current.apply(
       event,
       users: ref.read(chatCacheProvider).usersById,
+      chats: ref.read(chatCacheProvider).chatsById,
     );
     if (next == null) return;
     state = AsyncData(next);
@@ -165,27 +167,153 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   ///
   /// Guarded against re-entry: a fast scroll fires the "near the top" callback
   /// on consecutive frames, and without the guard that is one request per
-  /// frame — the per-keystroke mistake in a different costume.
-  Future<void> loadOlder() async {
+  /// frame — the per-keystroke mistake in a different costume. A second caller
+  /// gets the page already in flight rather than an immediate return, so
+  /// [loadOlderUntil] can wait on a load the scroll listener started.
+  Future<void> loadOlder() => _olderInFlight ??= _fetchOlder().whenComplete(
+    () => _olderInFlight = null,
+  );
+
+  Future<void>? _olderInFlight;
+
+  Future<void> _fetchOlder() async {
     final current = state.value;
-    if (current == null || !current.hasMoreOlder || _loadingOlder) return;
+    if (current == null || !current.hasMoreOlder) return;
 
     final cursor = current.oldestMessageId;
     if (cursor == null) return;
 
-    _loadingOlder = true;
-    try {
-      final page = await ref
-          .read(chatsRepositoryProvider)
-          .history(chatId, fromMessageId: cursor);
-      final latest = state.value;
-      if (latest == null) return;
-      state = AsyncData(
-        latest.prepend(page.messages, reachedTop: page.reachedTop),
-      );
-    } finally {
-      _loadingOlder = false;
+    final page = await ref
+        .read(chatsRepositoryProvider)
+        .history(chatId, fromMessageId: cursor);
+    final latest = state.value;
+    if (latest == null) return;
+    state = AsyncData(
+      latest.prepend(page.messages, reachedTop: page.reachedTop),
+    );
+  }
+
+  /// How many pages [loadOlderUntil] will spend looking for one message
+  /// before [reveal] loads a window around it instead.
+  ///
+  /// A tap on a reply or a pin is one deliberate request for one message, so a
+  /// few pages is the on-demand, bounded shape `docs/TDLIB.md` allows — and
+  /// keeps the conversation continuous when the target is just above what is
+  /// loaded, which is the common case for a reply. Past that, one request for
+  /// the window around the target beats forty for the pages between.
+  static const int findPageLimit = 3;
+
+  /// Pages back until [messageId] is loaded. Returns whether it is.
+  ///
+  /// What a tap on a quoted reply, the pinned bar or a search result needs:
+  /// each of those points at one message, usually an older one, and a tap that
+  /// answered "not loaded — scroll up and try again" was asking the reader to
+  /// do by hand exactly what this does.
+  Future<bool> loadOlderUntil(
+    int messageId, {
+    int maxPages = findPageLimit,
+  }) async {
+    bool isLoaded() =>
+        state.value?.messages.any((m) => m.messageId == messageId) ?? false;
+
+    for (var page = 0; page < maxPages && !isLoaded(); page++) {
+      final current = state.value;
+      if (current == null || !current.hasMoreOlder) break;
+      // Already older than the oldest loaded? Then it is above, and paging
+      // back reaches it. Newer and still missing means it is gone.
+      final oldest = current.oldestMessageId;
+      if (oldest != null && messageId > oldest) break;
+      await loadOlder();
     }
+    return isLoaded();
+  }
+
+  /// Gets one message on screen, whatever it takes — and says if it cannot.
+  ///
+  /// What a tap on a quoted reply, the pinned bar or a search result needs.
+  /// Already loaded costs nothing. Just above what is loaded is paged back to,
+  /// so the conversation stays continuous. Anything further — a search hit
+  /// from last year — is loaded as a window around the message, the way
+  /// Telegram's clients jump: the chat then reads from the middle, and
+  /// [loadNewer] and [returnToLatest] are the ways back down. Only a message
+  /// Telegram no longer has answers false, and that is the one case the
+  /// screen still has to say something about.
+  ///
+  /// [maxPagesBack] is how far to page before jumping. A search hit is nearly
+  /// always far away, so the search passes one.
+  Future<bool> reveal(int messageId, {int maxPagesBack = findPageLimit}) async {
+    if (await loadOlderUntil(messageId, maxPages: maxPagesBack)) return true;
+    return loadAround(messageId);
+  }
+
+  /// Replaces the conversation with the stretch of history around [messageId].
+  ///
+  /// Returns whether the message was in what came back. A target Telegram
+  /// answers without — deleted since the search indexed it — leaves the
+  /// conversation exactly as it was.
+  Future<bool> loadAround(int messageId) async {
+    final window = await ref
+        .read(chatsRepositoryProvider)
+        .historyAround(chatId, messageId: messageId);
+    if (!window.messages.any((m) => m.messageId == messageId)) return false;
+
+    final current = state.value;
+    if (current == null) return false;
+    state = AsyncData(
+      current.windowed(
+        window.messages,
+        reachedTop: window.reachedTop,
+        reachedBottom: window.reachedBottom,
+      ),
+    );
+    return true;
+  }
+
+  /// Loads the page below what is on screen, for a conversation opened in the
+  /// middle. Guarded against re-entry the same way [loadOlder] is, and for
+  /// the same reason: the scroll listener fires every frame near the edge.
+  Future<void> loadNewer() => _newerInFlight ??= _fetchNewer().whenComplete(
+    () => _newerInFlight = null,
+  );
+
+  Future<void>? _newerInFlight;
+
+  Future<void> _fetchNewer() async {
+    final current = state.value;
+    if (current == null || !current.hasMoreNewer) return;
+
+    final cursor = current.newestMessageId;
+    if (cursor == null) return;
+
+    final page = await ref
+        .read(chatsRepositoryProvider)
+        .historyAfter(chatId, fromMessageId: cursor);
+    final latest = state.value;
+    if (latest == null || !latest.hasMoreNewer) return;
+    state = AsyncData(
+      latest.append(page.messages, reachedBottom: page.reachedBottom),
+    );
+  }
+
+  /// Goes straight back to the newest messages from anywhere in the history.
+  ///
+  /// The jump-to-latest button while a window is loaded, and the first thing
+  /// a send does: a message written from the middle of last year's chat still
+  /// lands at the bottom of today's, which is where its bubble belongs.
+  Future<void> returnToLatest() async {
+    final current = state.value;
+    if (current == null || !current.hasMoreNewer) return;
+
+    final page = await ref.read(chatsRepositoryProvider).history(chatId);
+    final latest = state.value;
+    if (latest == null) return;
+    state = AsyncData(
+      latest.copyWith(
+        messages: page.messages,
+        hasMoreOlder: !page.reachedTop,
+        hasMoreNewer: false,
+      ),
+    );
   }
 
   /// Sends a message, showing it before Telegram has answered.
@@ -201,9 +329,12 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     int? replyToMessageId,
     MessageSchedule schedule = MessageSchedule.now,
   }) async {
+    if (text.trim().isEmpty && attachments.isEmpty) return false;
+    // A message goes to the bottom of the chat, so the bottom is where the
+    // conversation has to be for the bubble to appear where it lands.
+    await returnToLatest();
     final current = state.value;
     if (current == null) return false;
-    if (text.trim().isEmpty && attachments.isEmpty) return false;
 
     final repository = ref.read(chatsRepositoryProvider);
     // Typing stops the moment the message goes, or the other side is left
@@ -260,10 +391,33 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       latest.apply(
             ChatMessageSent(sent, placeholder.messageId),
             users: ref.read(chatCacheProvider).usersById,
+            chats: ref.read(chatCacheProvider).chatsById,
           ) ??
           latest,
     );
     return true;
+  }
+
+  /// Sends a sticker or a GIF out of the account's collection.
+  ///
+  /// No optimistic bubble, for the reason [sendPoll] has none: the bubble
+  /// would need the sticker's own dimensions and thumbnail drawn from a file
+  /// id, and Telegram answers with the real message in the same round trip.
+  /// Telegram's own clients send a sticker on the tap, with nothing staged,
+  /// and so does this — [ComposeRemoteMedia] explains why a sticker and a
+  /// caption cannot share a message anyway.
+  Future<bool> sendRemote(ComposeRemoteMedia media, {int? replyToMessageId}) async {
+    await returnToLatest();
+    final repository = ref.read(chatsRepositoryProvider);
+    unawaited(repository.setTyping(chatId, isTyping: false));
+    return _absorb(
+      await repository.send(
+        chatId: chatId,
+        text: '',
+        remote: media,
+        replyToMessageId: replyToMessageId,
+      ),
+    );
   }
 
   /// Sends a poll into this chat. Returns whether Telegram queued it.
@@ -354,11 +508,19 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   bool _absorb(td.Message? sent) {
     if (sent == null) return false;
     final latest = state.value;
+    // Sent from the middle of the history: the message is real and at the
+    // bottom, which is not on screen. Going there is the honest answer, and
+    // the page it loads carries the message.
+    if (latest != null && latest.hasMoreNewer) {
+      unawaited(returnToLatest());
+      return true;
+    }
     if (latest != null) {
       state = AsyncData(
         latest.apply(
               ChatMessageArrived(sent),
               users: ref.read(chatCacheProvider).usersById,
+              chats: ref.read(chatCacheProvider).chatsById,
             ) ??
             latest,
       );
@@ -400,8 +562,12 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       sentAt: DateTime.now(),
       sendState: MessageSendState.sending,
       replyToMessageId: replyTo,
-      replyToText: replyTarget?.text,
-      replyToAuthorName: replyTarget?.senderName,
+      replyToText: replyTarget == null
+          ? null
+          : ChatMessageMapper.replyPreviewOf(replyTarget),
+      replyToAuthorName: replyTarget == null
+          ? null
+          : ChatMessageMapper.replyAuthorOf(replyTarget),
     );
   }
 
@@ -514,12 +680,24 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   Future<bool> resend(int messageId) =>
       ref.read(chatsRepositoryProvider).resend(chatId, [messageId]);
 
-  /// Rewrites a message this account sent.
+  /// Rewrites a message this account sent — its text, or a media message's
+  /// caption.
   Future<bool> edit(int messageId, String text) async {
-    if (text.trim().isEmpty) return false;
+    final message = state.value?.messages
+        .where((m) => m.messageId == messageId)
+        .firstOrNull;
+    final isCaption = message?.media.isNotEmpty ?? false;
+    // A caption may be emptied; a text message may not, since Telegram has no
+    // such thing as a message with nothing in it.
+    if (!isCaption && text.trim().isEmpty) return false;
     return ref
         .read(chatsRepositoryProvider)
-        .editText(chatId: chatId, messageId: messageId, text: text);
+        .editText(
+          chatId: chatId,
+          messageId: messageId,
+          text: text,
+          isCaption: isCaption,
+        );
   }
 
   /// Reloads from scratch, for the error state's retry.

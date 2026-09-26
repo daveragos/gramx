@@ -529,6 +529,9 @@ abstract class AppStrings {
   // list, which is this app's own. They are separate entries now.
   static const drawerBookmarks = 'Bookmarks';
   static const drawerSavedMessages = 'Saved Messages';
+
+  /// The chat with yourself, wherever it is listed or opened.
+  static const savedMessagesTitle = drawerSavedMessages;
   static const savedMessagesUnavailable =
       "Couldn't open Saved Messages. Try again in a moment.";
   static const drawerChannels = 'Subscribed Channels';
@@ -651,6 +654,7 @@ abstract class AppStrings {
   static const mediaDocument = 'Document';
   static const mediaAudio = 'Audio track';
   static const mediaVoice = 'Voice message';
+  static const mediaLocation = 'Location';
 
   static String mediaPosition(String kind, int index, int total) =>
       '$kind $index of $total';
@@ -819,6 +823,37 @@ abstract class AppStrings {
   static const messagesPinFailed =
       "Telegram wouldn't pin that — you may have pinned as many as it allows.";
   static const messagesStartOne = 'Start a conversation';
+
+  // Taking a conversation off the list. A group is left; a one-to-one chat,
+  // which there is no leaving, is deleted.
+  static const messagesDeleteChat = 'Delete chat';
+  static const messagesLeaveGroup = 'Leave group';
+  static String messagesDeleteChatTitle(String title) =>
+      'Delete the chat with $title?';
+  static const messagesDeleteChatBody =
+      'Its messages are removed from this account. This cannot be undone.';
+  static String messagesDeleteForBoth(String title) =>
+      'Delete for me and $title';
+  static String messagesLeaveGroupTitle(String title) => 'Leave $title?';
+  static const messagesLeaveGroupBody =
+      "You'll stop getting its messages. Rejoining a private group needs a "
+      'new invite.';
+  static const messagesDeleteFailed = "Telegram wouldn't delete that chat.";
+  static const messagesLeaveFailed = "Telegram wouldn't let you leave.";
+
+  // Blocking, from a profile or from a message sent by a stranger.
+  static const userBlock = 'Block';
+  static const userUnblock = 'Unblock';
+  static String userBlockTitle(String name) => 'Block $name?';
+  static const userBlockBody =
+      "They won't be able to message you or call you. They are not told.";
+  static const userBlocked = 'Blocked.';
+  static const userUnblocked = 'Unblocked.';
+  static const userBlockFailed = "Telegram wouldn't change that.";
+
+  // The bar across a chat started by somebody the reader does not know.
+  static const requestBarText = "You don't have this person in your contacts.";
+  static const requestBarDismiss = 'Dismiss';
 
   // ── Polls somebody is writing ──────────────────────────────────────────────
   static const pollComposeTitle = 'New poll';
@@ -1060,6 +1095,41 @@ abstract class AppStrings {
       ? 'Messages, 1 unread conversation'
       : 'Messages, $count unread conversations';
 
+  // ── Service lines: what happened to a chat, centred between the bubbles ────
+  // Every one of these used to be drawn as an empty line, so a public group —
+  // mostly joins — read as a column of blank gaps under date headers.
+  static String serviceJoined(String who) => '$who joined the group';
+  static String serviceAdded(String who, String whom) => '$who added $whom';
+  static String serviceJoinedByLink(String who) =>
+      '$who joined the group via invite link';
+  static String serviceAccepted(String who) =>
+      '$who was accepted into the group';
+  static String serviceLeft(String who) => '$who left the group';
+  static String serviceRemoved(String who, String whom) => '$who removed $whom';
+  static String servicePinned(String who) => '$who pinned a message';
+  static String serviceRenamed(String who, String title) =>
+      '$who changed the group name to "$title"';
+  static String servicePhotoChanged(String who) =>
+      '$who changed the group photo';
+  static String servicePhotoRemoved(String who) =>
+      '$who removed the group photo';
+  static String serviceCreated(String who, String title) =>
+      '$who created the group "$title"';
+  static const serviceUpgraded = 'The group was upgraded to a supergroup';
+  static String serviceScreenshot(String who) => '$who took a screenshot';
+  static String serviceAutoDelete(String who, int seconds) => seconds == 0
+      ? '$who turned off auto-delete'
+      : '$who set messages to delete '
+            '${autoDeleteChoice(seconds).toLowerCase()}';
+  static String serviceJoinedTelegram(String who) => '$who joined Telegram';
+  static const serviceVideoChatStarted = 'Video chat started';
+  static const serviceVideoChatEnded = 'Video chat ended';
+  static String serviceTopicCreated(String name) => 'Topic "$name" created';
+  static String serviceBoosted(String who) => '$who boosted the group';
+
+  /// Whoever did it, when Telegram does not say or the cache does not know.
+  static const serviceSomeone = 'Someone';
+
   // ── A conversation ─────────────────────────────────────────────────────────
   static const chatComposerHint = 'Message';
   static const chatSend = 'Send';
@@ -1101,8 +1171,12 @@ abstract class AppStrings {
       "Telegram doesn't know @$username.";
   static const chatForwarded = 'Forwarded.';
   static const chatForwardFailed = "Telegram wouldn't forward that.";
-  static const chatReplyNotLoaded =
-      "That message isn't loaded yet — scroll up to find it.";
+
+  /// A reply, pin or search hit that Telegram no longer has. Anything it
+  /// still has is jumped to, however far back — see
+  /// `ConversationNotifier.reveal`.
+  static const chatMessageTooFarBack =
+      "Couldn't find that message. It may have been deleted.";
   static const chatActionCopy = 'Copy text';
   static const chatActionEdit = 'Edit';
   static const chatActionDelete = 'Delete';
@@ -1115,8 +1189,19 @@ abstract class AppStrings {
       "This can't be undone. Choose who it disappears for.";
   static const chatCancel = 'Cancel';
   static const chatEditTitle = 'Edit message';
+  static const commentEditTitle = 'Edit comment';
+  static const postEditTitle = 'Edit post';
+  static const postMenuEdit = 'Edit post';
   static const chatSave = 'Save';
   static const chatEditFailed = "Telegram wouldn't take that edit.";
+  static const chatEditSaved = 'Saved.';
+
+  /// The composer's stickers-and-GIFs button, and the picker it opens.
+  static const chatStickers = 'Stickers and GIFs';
+
+  /// The one button the composer's tools fold into while somebody is typing,
+  /// so the field gets the width back. Tapping it unfolds them.
+  static const chatComposerMoreTools = 'More';
   static const chatDeleteFailed = "Telegram wouldn't delete that.";
 
   /// The date band between two days of messages. Today and yesterday get their
@@ -1171,11 +1256,6 @@ abstract class AppStrings {
   static const chatSearchPrompt = 'Type to search this conversation.';
   static const chatSearchFailed = 'Could not search this conversation.';
   static String chatSearchNoResults(String query) => 'No messages match "$query".';
-
-  /// A hit older than the loaded page cannot be scrolled to.
-  static const chatSearchResultNotLoaded =
-      'That message is further back than this chat has loaded. Scroll up to '
-      'load it, then try again.';
 
   static const chatPinnedMessage = 'Pinned message';
   static const chatPinnedNoText = 'Pinned';

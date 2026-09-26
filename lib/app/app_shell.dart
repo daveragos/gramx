@@ -200,6 +200,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
     }
 
     var chatId = link is TelegramPrivatePostLink ? link.chatId : null;
+    var kind = ResolvedChatKind.channel;
 
     final username = DeepLinkRoutes.usernameToResolve(link);
     if (username != null) {
@@ -207,9 +208,10 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
           .read(chatsRepositoryProvider)
           .resolveUsername(username);
       chatId = resolved?.chatId;
+      kind = resolved?.kind ?? kind;
     }
 
-    final route = DeepLinkRoutes.routeFor(link, chatId: chatId);
+    final route = DeepLinkRoutes.routeFor(link, chatId: chatId, kind: kind);
     if (route == null) {
       await openExternalUrl(uri);
       return;

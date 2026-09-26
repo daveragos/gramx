@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/chats/data/chat_list_builder.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
@@ -11,6 +12,7 @@ import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/domain/user_profile.dart';
 import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
+import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -55,6 +57,18 @@ extension MessageActionsNone on MessageActions {
 /// first: TDLib chooses its own batch size, so a short page is not the end of
 /// the history — see `docs/TDLIB.md`.
 typedef HistoryPage = ({List<ChatMessage> messages, bool reachedTop});
+
+/// A stretch of history that may end short of the newest message.
+///
+/// What a jump to a search hit loads: the messages around one point, with the
+/// chat continuing both above and below. [reachedBottom] is the half
+/// [HistoryPage] never had to answer, because a page fetched from the newest
+/// message always is the bottom.
+typedef HistoryWindow = ({
+  List<ChatMessage> messages,
+  bool reachedTop,
+  bool reachedBottom,
+});
 
 /// Everything a conversation does that reaches Telegram.
 ///
@@ -202,14 +216,97 @@ class ChatsRepository {
       collected.values.toList(),
       users: users,
       lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+      chats: _chatCache.chatsById,
       isGroup: isGroupChat(chatId),
     );
 
     return (
-      messages: ChatMessageMapper.fillReplyExcerpts(mapped),
+      messages: await _withReplyTargets(chatId, mapped),
       reachedTop: reachedTop,
     );
   }
+
+  /// The messages around one message — for landing on a search hit, a reply
+  /// target or a pin that is further back than paging would reach.
+  ///
+  /// One request. A negative offset is TDLib's "and some newer than this
+  /// one", so the target lands in the middle of the window with the chat
+  /// continuing on both sides. Paging back to a message a year up the
+  /// scrollback used to mean forty requests or a shrug; this is what
+  /// Telegram's own clients do instead, and it is the on-demand, one-tap
+  /// one-request shape `docs/TDLIB.md` allows.
+  ///
+  /// [reachedTop] is always false — nothing here asked about the top — and
+  /// the first page above will find it if it is there. [reachedBottom] is
+  /// answered against the chat's own last message, which the cache already
+  /// holds: TDLib chooses its own batch size, so a short window is not proof
+  /// of anything.
+  Future<HistoryWindow> historyAround(
+    int chatId, {
+    required int messageId,
+    int limit = historyPageSize,
+  }) async {
+    final batch = await _historyBatch(chatId, messageId, -(limit ~/ 2), limit);
+    final mapped = ChatMessageMapper.mapHistory(
+      batch,
+      users: _chatCache.usersById,
+      lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+      chats: _chatCache.chatsById,
+      isGroup: isGroupChat(chatId),
+    );
+    return (
+      messages: await _withReplyTargets(chatId, mapped),
+      reachedTop: false,
+      reachedBottom: isAtLatest(chatId, _newestIdIn(batch)),
+    );
+  }
+
+  /// The page below what is loaded, for a conversation opened in the middle.
+  ///
+  /// The mirror of [history]: [fromMessageId] is the newest id already on
+  /// screen, and the answer is what comes after it. TDLib returns the cursor
+  /// message itself along with the newer ones, so it is dropped here.
+  Future<HistoryWindow> historyAfter(
+    int chatId, {
+    required int fromMessageId,
+    int limit = historyPageSize,
+  }) async {
+    final batch = [
+      for (final message in await _historyBatch(
+        chatId,
+        fromMessageId,
+        -limit,
+        limit + 1,
+      ))
+        if (message.id > fromMessageId) message,
+    ];
+    final mapped = ChatMessageMapper.mapHistory(
+      batch,
+      users: _chatCache.usersById,
+      lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+      chats: _chatCache.chatsById,
+      isGroup: isGroupChat(chatId),
+    );
+    return (
+      messages: await _withReplyTargets(chatId, mapped),
+      reachedTop: false,
+      reachedBottom: isAtLatest(
+        chatId,
+        batch.isEmpty ? fromMessageId : _newestIdIn(batch),
+      ),
+    );
+  }
+
+  /// Whether [messageId] is the chat's newest message, as far as the cache
+  /// knows. The chat record's `lastMessage` is kept current by the update
+  /// stream, so this costs nothing and is not fooled by a short page.
+  bool isAtLatest(int chatId, int messageId) {
+    final last = _chatCache.chat(chatId)?.lastMessage;
+    return last == null || last.id <= messageId;
+  }
+
+  static int _newestIdIn(List<td.Message> messages) =>
+      messages.map((m) => m.id).fold(0, (a, b) => a > b ? a : b);
 
   /// Messages in one chat matching [query].
   ///
@@ -254,6 +351,7 @@ class ChatsRepository {
         res.messages,
         users: _chatCache.usersById,
         lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        chats: _chatCache.chatsById,
         isGroup: isGroupChat(chatId),
       );
 
@@ -301,6 +399,7 @@ class ChatsRepository {
         res.messages,
         users: _chatCache.usersById,
         lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        chats: _chatCache.chatsById,
         isGroup: isGroupChat(chatId),
       );
       return mapped.isEmpty ? null : mapped.first;
@@ -310,43 +409,114 @@ class ChatsRepository {
     }
   }
 
-  /// A page centred on the reader's unread cursor.
+  /// The most messages opening an unread chat will load before it stops
+  /// reaching for the read line.
   ///
-  /// `getChatHistory` walks *backwards* from `fromMessageId` by default, so
-  /// asking from the read cursor returns only messages already read — the
-  /// opposite of what an unread chat should open on. A **negative offset** is
-  /// what TDLib gives you for this: it additionally returns messages *newer*
-  /// than the anchor. The documented constraints are that it lies between -99
-  /// and -1 and that `limit >= -offset`.
+  /// Past this the chat opens on the newest [backlogMaxMessages] with the
+  /// unread band above the oldest of them, and scrolling up pages back the
+  /// ordinary way. Bounded because a group left for a month is thousands of
+  /// messages, and opening it must cost the same few requests as any other.
+  static const int backlogMaxMessages = 120;
+
+  /// The newest messages, reaching back far enough to include [messageId].
   ///
-  /// So the window straddles the cursor: read context above, the unread run
-  /// below. Falls back to the newest page when the chat has no cursor, or when
-  /// the window comes back empty.
-  Future<HistoryPage> historyAround(
+  /// This is how an unread chat opens: everything from the read line down to
+  /// the newest message, with nothing missing in between. It replaced a
+  /// window *centred* on the read cursor, which loaded twenty unread messages
+  /// and nothing after them — in a chat with more than that waiting, the
+  /// newest messages were simply not there, "jump to latest" stopped short of
+  /// them, and a message arriving live was appended below the hole. Loading
+  /// from the bottom up means the list is always one unbroken run ending at
+  /// the newest message, which every other part of the screen assumes.
+  ///
+  /// Stops when the read line is covered, when the chat runs out, or at
+  /// [backlogMaxMessages] — whichever comes first. Each round asks for a full
+  /// page from the oldest id so far, since TDLib answers with fewer than asked.
+  Future<HistoryPage> historyReaching(
     int chatId, {
     required int messageId,
-    int limit = historyPageSize,
+    int maxMessages = backlogMaxMessages,
   }) async {
-    if (messageId == 0) return history(chatId, limit: limit);
+    if (messageId == 0) return history(chatId);
 
-    // Half above, half below. The read side is context — enough to see what
-    // was being answered — and the unread side is what the reader came for.
-    final offset = -(limit ~/ 2);
-    final batch = await _historyBatch(chatId, messageId, offset, limit);
-    if (batch.isEmpty) return history(chatId, limit: limit);
+    final collected = <int, td.Message>{};
+    var cursor = 0;
+    var reachedTop = false;
+
+    // Enough rounds to fill [maxMessages] even when TDLib answers each with a
+    // short page, and never unbounded.
+    final maxRounds =
+        (maxMessages / historyPageSize).ceil() + historyMaxRequests;
+    for (var round = 0; round < maxRounds; round++) {
+      final batch = await _historyBatch(chatId, cursor, 0, historyPageSize);
+      if (batch.isEmpty) {
+        reachedTop = cursor != 0;
+        break;
+      }
+
+      for (final message in batch) {
+        collected[message.id] = message;
+      }
+
+      final oldest = batch.map((m) => m.id).reduce((a, b) => a < b ? a : b);
+      if (oldest <= messageId || collected.length >= maxMessages) break;
+      if (oldest == cursor) break;
+      cursor = oldest;
+    }
 
     final mapped = ChatMessageMapper.mapHistory(
-      batch,
+      collected.values.toList(),
       users: _chatCache.usersById,
       lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+      chats: _chatCache.chatsById,
       isGroup: isGroupChat(chatId),
     );
     return (
-      messages: ChatMessageMapper.fillReplyExcerpts(mapped),
-      // A window is never the top of the chat — there is always more above it,
-      // and claiming otherwise would stop pagination before it started.
-      reachedTop: false,
+      messages: await _withReplyTargets(chatId, mapped),
+      reachedTop: reachedTop,
     );
+  }
+
+  /// Fills in what the replies on a page are answering.
+  ///
+  /// Most answers are on the page already, and cost nothing — see
+  /// [ChatMessageMapper.fillReplyExcerpts]. The rest point further back than
+  /// the page reaches, and drew as a bare "Replying to" with nothing after it,
+  /// which in a busy group was most of the replies on screen. They are fetched
+  /// together: one `GetMessages` per page, bounded by the page size and only
+  /// ever for a page somebody asked to see.
+  Future<List<ChatMessage>> _withReplyTargets(
+    int chatId,
+    List<ChatMessage> page,
+  ) async {
+    final filled = ChatMessageMapper.fillReplyExcerpts(page);
+    final missing = {
+      for (final message in filled)
+        if (message.replyToMessageId != null &&
+            message.replyToChatId == null &&
+            message.replyToText == null)
+          message.replyToMessageId!,
+    };
+    if (missing.isEmpty) return filled;
+
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetMessages(chatId: chatId, messageIds: missing.toList()),
+      );
+      if (res is! td.Messages) return filled;
+      final targets = ChatMessageMapper.mapHistory(
+        // GetMessages answers with an id of 0 for anything it doesn't have.
+        [for (final message in res.messages) if (message.id != 0) message],
+        users: _chatCache.usersById,
+        chats: _chatCache.chatsById,
+        lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        isGroup: isGroupChat(chatId),
+      );
+      return ChatMessageMapper.fillReplyExcerpts(filled, from: targets);
+    } catch (e) {
+      debugPrint('[ChatsRepo] reply targets in $chatId failed: $e');
+      return filled;
+    }
   }
 
   Future<List<td.Message>> _historyBatch(
@@ -455,12 +625,17 @@ class ChatsRepository {
     required int chatId,
     required String text,
     List<ComposeAttachment> attachments = const [],
+
+    /// A sticker or GIF out of the account's collection. Already on
+    /// Telegram's servers, so nothing is uploaded — see [ComposeRemoteMedia].
+    ComposeRemoteMedia? remote,
     int? replyToMessageId,
     MessageSchedule schedule = MessageSchedule.now,
   }) async {
     final contents = ComposeMessages.build(
       text: text,
       attachments: attachments,
+      remote: remote,
     );
     final replyTo = replyToMessageId == null
         ? null
@@ -536,6 +711,7 @@ class ChatsRepository {
         res.messages,
         users: _chatCache.usersById,
         lastReadOutboxMessageId: lastReadOutboxMessageId(chatId),
+        chats: _chatCache.chatsById,
         isGroup: isGroupChat(chatId),
       );
       // Soonest first. `mapHistory` orders by message id, which for a scheduled
@@ -816,17 +992,29 @@ class ChatsRepository {
     required int chatId,
     required int messageId,
     required String text,
+    bool isCaption = false,
   }) async {
+    final formatted = td.FormattedText(text: text, entities: const []);
     try {
+      // A photo's or a file's words are its caption, and Telegram refuses to
+      // turn media into text — so "Edit" on one always failed while it sent
+      // `EditMessageText`.
       final res = await _tdlib.sendRequest(
-        td.EditMessageText(
-          chatId: chatId,
-          messageId: messageId,
-          inputMessageContent: td.InputMessageText(
-            text: td.FormattedText(text: text, entities: const []),
-            clearDraft: false,
-          ),
-        ),
+        isCaption
+            ? td.EditMessageCaption(
+                chatId: chatId,
+                messageId: messageId,
+                caption: formatted,
+                showCaptionAboveMedia: false,
+              )
+            : td.EditMessageText(
+                chatId: chatId,
+                messageId: messageId,
+                inputMessageContent: td.InputMessageText(
+                  text: formatted,
+                  clearDraft: false,
+                ),
+              ),
       );
       return res is td.Message;
     } catch (e) {
@@ -1198,6 +1386,99 @@ class ChatsRepository {
   /// choosing — it is what the official clients send.
   static const int muteForever = 2147483647;
 
+  /// Whether a chat is somewhere this account can *leave* — a group — as
+  /// opposed to a one-to-one chat, which can only be deleted.
+  bool canLeave(int chatId) {
+    final type = _chatCache.chat(chatId)?.type;
+    return type is td.ChatTypeBasicGroup ||
+        (type is td.ChatTypeSupergroup && !type.isChannel);
+  }
+
+  /// Whether deleting this chat can take the history away from the other
+  /// person too. Telegram's own answer, carried on the chat.
+  bool canDeleteForBoth(int chatId) =>
+      _chatCache.chat(chatId)?.canBeDeletedForAllUsers ?? false;
+
+  /// Takes a one-to-one chat off the list, with its history.
+  ///
+  /// Irreversible, so the screen confirms first. [revoke] deletes it for the
+  /// other person as well, and is only offered where [canDeleteForBoth] says
+  /// Telegram allows it. A secret chat is closed before it is deleted:
+  /// deleting the history of a live end-to-end session would leave the session
+  /// itself open on both devices.
+  Future<bool> deleteChat(int chatId, {required bool revoke}) async {
+    try {
+      if (isSecretChat(chatId)) await closeSecretChat(chatId);
+      final res = await _tdlib.sendRequest(
+        td.DeleteChatHistory(
+          chatId: chatId,
+          removeFromChatList: true,
+          revoke: revoke,
+        ),
+      );
+      return res is td.Ok;
+    } catch (e) {
+      debugPrint('[ChatsRepo] delete chat $chatId failed: $e');
+      return false;
+    }
+  }
+
+  /// Leaves a group, and takes it off the list.
+  ///
+  /// A supergroup drops off the list by itself once left. A basic group does
+  /// not — Telegram keeps it as a read-only chat — so its history is deleted
+  /// from the list as well, which is what "Leave" means in every client.
+  Future<bool> leaveChat(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(td.LeaveChat(chatId: chatId));
+      if (res is! td.Ok) return false;
+      if (_chatCache.chat(chatId)?.type is td.ChatTypeBasicGroup) {
+        await _tdlib.sendRequest(
+          td.DeleteChatHistory(
+            chatId: chatId,
+            removeFromChatList: true,
+            revoke: false,
+          ),
+        );
+      }
+      return true;
+    } catch (e) {
+      debugPrint('[ChatsRepo] leave $chatId failed: $e');
+      return false;
+    }
+  }
+
+  /// Whether this account has blocked [userId]. Read from the chat with them,
+  /// which TDLib keeps current, so asking costs nothing.
+  bool isBlocked(int userId) => _chatCache.chat(userId)?.blockList != null;
+
+  /// Blocks or unblocks a person. They can no longer message this account, and
+  /// Telegram tells nobody.
+  Future<bool> setBlocked(int userId, {required bool isBlocked}) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SetMessageSenderBlockList(
+          senderId: td.MessageSenderUser(userId: userId),
+          blockList: isBlocked ? const td.BlockListMain() : null,
+        ),
+      );
+      return res is td.Ok;
+    } catch (e) {
+      debugPrint('[ChatsRepo] block($userId, $isBlocked) failed: $e');
+      return false;
+    }
+  }
+
+  /// Puts away the "you don't know this person" bar without doing anything
+  /// else — the reader looked, and the chat is fine.
+  Future<void> dismissRequest(int chatId) async {
+    try {
+      await _tdlib.sendRequest(td.RemoveChatActionBar(chatId: chatId));
+    } catch (e) {
+      debugPrint('[ChatsRepo] dismiss request in $chatId failed: $e');
+    }
+  }
+
   /// Forwards messages into another chat, with attribution.
   ///
   /// `sendCopy: false`, so the destination shows "Forwarded from …" rather than
@@ -1243,10 +1524,10 @@ class ChatsRepository {
   ///
   /// Networked and one request per tap, which is the on-demand shape
   /// `docs/TDLIB.md` allows — a mention is only resolved when somebody touches
-  /// it. Answers the chat id and whether it is a person, because those go to
-  /// two different places: a channel to the channel screen, a person to a
-  /// conversation with them. Null when Telegram does not know the name.
-  Future<({int chatId, bool isPrivate})?> resolveUsername(
+  /// it. Answers the chat id and what kind of chat it is, because those go to
+  /// different places: a channel to the channel screen, a group to its
+  /// conversation, a person to them. Null when Telegram does not know the name.
+  Future<({int chatId, ResolvedChatKind kind})?> resolveUsername(
     String username,
   ) async {
     final handle = username.replaceFirst('@', '').trim();
@@ -1257,12 +1538,20 @@ class ChatsRepository {
         td.SearchPublicChat(username: handle),
       );
       if (res is! td.Chat) return null;
-      return (chatId: res.id, isPrivate: res.type is td.ChatTypePrivate);
+      return (chatId: res.id, kind: resolvedKindOf(res.type));
     } catch (e) {
       debugPrint('[ChatsRepo] resolve @$handle failed: $e');
       return null;
     }
   }
+
+  /// Which screen a resolved chat belongs on. Pure, so the rule is testable.
+  static ResolvedChatKind resolvedKindOf(td.ChatType type) => switch (type) {
+    td.ChatTypePrivate() || td.ChatTypeSecret() => ResolvedChatKind.person,
+    td.ChatTypeSupergroup(:final isChannel) when isChannel =>
+      ResolvedChatKind.channel,
+    _ => ResolvedChatKind.group,
+  };
 
   /// One person's profile.
   ///
@@ -1312,6 +1601,33 @@ class ChatsRepository {
       debugPrint('[ChatsRepo] userProfile($userId) failed: $e');
       return null;
     }
+  }
+
+  /// Fetches one person's full record into the cache, if it is not there.
+  ///
+  /// Returns whether the cache now has it. What it carries that the chat list
+  /// wants is the channel they run — see [ChatSummary.affiliatedChannelId] —
+  /// and the channel itself is fetched too when the cache has never met it,
+  /// otherwise the badge would draw as a question mark. Two requests at
+  /// most, and only ever from [AffiliationPrefetcher], which decides who is
+  /// worth asking about and how fast.
+  Future<bool> ensureUserFullInfo(int userId) async {
+    if (_chatCache.userFullInfosById.containsKey(userId)) return true;
+    final res = await _tdlib.sendRequest(td.GetUserFullInfo(userId: userId));
+    if (res is! td.UserFullInfo) return false;
+    _chatCache.rememberUserFullInfo(userId, res);
+
+    final personalChatId = res.personalChatId;
+    if (personalChatId != 0 && _chatCache.chat(personalChatId) == null) {
+      // A `GetChat` answers through `updateNewChat`, which is how the cache
+      // learns titles; the reply itself is not needed.
+      try {
+        await _tdlib.sendRequest(td.GetChat(chatId: personalChatId));
+      } catch (e) {
+        debugPrint('[ChatsRepo] personal chat $personalChatId: $e');
+      }
+    }
+    return true;
   }
 
   /// Sends a failed message again.

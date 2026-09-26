@@ -15,6 +15,10 @@ import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/domain/user_profile.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
+import 'package:gramx/features/chats/presentation/widgets/block_user.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/app/widgets/app_sheet.dart';
+import 'package:gramx/app/widgets/pill_button.dart';
 
 /// One person, in the shape the channel screen uses for a channel.
 ///
@@ -79,22 +83,18 @@ class _Body extends ConsumerWidget {
   /// with the device. Somebody who lands in one by a mis-tap and writes there
   /// has written somewhere they will not find it again.
   Future<void> _startSecretChat(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.secretChatStart),
-        content: const Text(AppStrings.secretChatStartBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(AppStrings.chatCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(AppStrings.secretChatStartConfirm),
-          ),
-        ],
-      ),
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: AppStrings.secretChatStart,
+      body: AppStrings.secretChatStartBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.secretChatStartConfirm,
+          value: true,
+          isPrimary: true,
+        ),
+        AppDialogAction.cancel(AppStrings.chatCancel),
+      ],
     );
     if (confirmed != true || !context.mounted) return;
 
@@ -127,164 +127,161 @@ class _Body extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
+        // The channel page's shape: a band, the avatar over its edge, and the
+        // controls on the row beneath, opposite the avatar.
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              height: _bannerHeight,
+              width: double.infinity,
+              color: _bannerTint(profile.avatarColorHex, isDark),
+            ),
+            Positioned(
+              left: AppSpacing.postPadding,
+              bottom: -_avatarRadius,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  shape: BoxShape.circle,
+                ),
+                child: ChannelAvatar(
+                  title: profile.displayName,
+                  avatarPath: profile.avatarPath,
+                  avatarFileId: profile.avatarFileId,
+                  avatarColorHex: profile.avatarColorHex,
+                  radius: _avatarRadius,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // the screen is for. Stacked full-width buttons used to take a third
+        // of the screen to say the same two things.
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.postPadding,
-            AppSpacing.lg,
+            AppSpacing.sm,
             AppSpacing.postPadding,
             0,
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!profile.isDeleted) ...[
+                RoundIconButton(
+                  icon: Icons.more_horiz_rounded,
+                  tooltip: AppStrings.profileMoreTooltip,
+                  onPressed: () => _showMore(context, ref),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                PillButton(
+                  label: AppStrings.profileMessageAction,
+                  icon: Icons.mail_outline_rounded,
+                  compact: true,
+                  onPressed: () =>
+                      context.push(ChatsScreen.routeFor(profile.chatId)),
+                ),
+              ] else
+                // Keeps the avatar's overhang clear even with nothing to
+                // press, so the name does not climb into it.
+                const SizedBox(height: 32),
+            ],
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.postPadding,
+            AppSpacing.sm,
+            AppSpacing.postPadding,
+            0,
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ChannelAvatar(
-                title: profile.displayName,
-                avatarPath: profile.avatarPath,
-                avatarFileId: profile.avatarFileId,
-                avatarColorHex: profile.avatarColorHex,
-                radius: 38,
-              ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            profile.displayName,
-                            style: AppTypography.heading(color: primary)
-                                .copyWith(
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (profile.isVerified) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.verified,
-                            color: AppColors.verified,
-                            size: 19,
-                            semanticLabel: AppStrings.a11yVerified,
-                          ),
-                        ],
-                      ],
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      profile.displayName,
+                      style: AppTypography.heading(color: primary).copyWith(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    if (profile.username != null)
-                      Text(
-                        '@${profile.username}',
-                        style: AppTypography.username(color: secondary),
-                      ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      _presenceLabel(profile) ?? '',
-                      style: AppTypography.timestamp(
-                        color: profile.presence == ChatPresence.online
-                            ? AppColors.accent
-                            : secondary,
-                      ),
+                  ),
+                  if (profile.isVerified) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.verified,
+                      color: AppColors.verified,
+                      size: 19,
+                      semanticLabel: AppStrings.a11yVerified,
                     ),
                   ],
-                ),
+                ],
               ),
+              if (profile.username != null)
+                Text(
+                  '@${profile.username}',
+                  style: AppTypography.username(color: secondary),
+                ),
+              if (_presenceLabel(profile) case final presence?) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  presence,
+                  style: AppTypography.timestamp(
+                    color: profile.presence == ChatPresence.online
+                        ? AppColors.accent
+                        : secondary,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
 
         // Badges say things the name cannot: software rather than a person,
         // somebody already in your contacts. Each is a fact, none is a control.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.postPadding,
-            AppSpacing.md,
-            AppSpacing.postPadding,
-            0,
-          ),
-          child: Wrap(
-            spacing: AppSpacing.xs,
-            runSpacing: AppSpacing.xs,
-            children: [
-              if (profile.isBot)
-                _Badge(label: AppStrings.profileBotBadge, color: secondary),
-              if (profile.isPremium)
-                _Badge(label: AppStrings.profilePremiumBadge, color: secondary),
-              if (profile.isContact)
-                _Badge(label: AppStrings.profileContactBadge, color: secondary),
-              if (profile.groupsInCommon > 0)
-                _Badge(
-                  label: AppStrings.profileGroupsInCommon(
-                    profile.groupsInCommon,
-                  ),
-                  color: secondary,
-                ),
-            ],
-          ),
-        ),
-
-        // The one thing this screen lets you do. Absent for a deleted account,
-        // which cannot be written to — a button that fails is worse than none.
-        if (!profile.isDeleted)
+        if (profile.isBot ||
+            profile.isPremium ||
+            profile.isContact ||
+            profile.groupsInCommon > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.postPadding,
-              AppSpacing.lg,
+              AppSpacing.md,
               AppSpacing.postPadding,
               0,
             ),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
+            child: Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                if (profile.isBot)
+                  _Badge(label: AppStrings.profileBotBadge, color: secondary),
+                if (profile.isPremium)
+                  _Badge(
+                    label: AppStrings.profilePremiumBadge,
+                    color: secondary,
                   ),
-                ),
-                onPressed: () =>
-                    context.push(ChatsScreen.routeFor(profile.chatId)),
-                icon: const Icon(Icons.mail_outline_rounded, size: 18),
-                label: const Text(
-                  AppStrings.profileMessageAction,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ),
-
-        // The second thing this screen lets you do, and the one Telegram has
-        // that nothing else does. Absent for a bot — Telegram has no
-        // end-to-end chat with one — and for a deleted account.
-        if (!profile.isDeleted && !profile.isBot)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.postPadding,
-              AppSpacing.sm,
-              AppSpacing.postPadding,
-              0,
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
+                if (profile.isContact)
+                  _Badge(
+                    label: AppStrings.profileContactBadge,
+                    color: secondary,
                   ),
-                ),
-                onPressed: () => _startSecretChat(context, ref),
-                icon: const Icon(Icons.lock_outline_rounded, size: 18),
-                label: const Text(
-                  AppStrings.secretChatStart,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
+                if (profile.groupsInCommon > 0)
+                  _Badge(
+                    label: AppStrings.profileGroupsInCommon(
+                      profile.groupsInCommon,
+                    ),
+                    color: secondary,
+                  ),
+              ],
             ),
           ),
 
@@ -367,6 +364,67 @@ class _Body extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  static const double _bannerHeight = 110;
+  static const double _avatarRadius = 38;
+
+  /// A band in the person's own colour. Telegram gives an account no cover
+  /// photo, and their avatar colour is the one thing about them that is
+  /// already a colour.
+  static Color _bannerTint(String? hex, bool isDark) {
+    Color? base;
+    if (hex != null && hex.isNotEmpty) {
+      final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
+      if (value != null) base = Color(0xFF000000 | value);
+    }
+    return Color.alphaBlend(
+      (base ?? AppColors.accent).withValues(alpha: isDark ? 0.32 : 0.22),
+      isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
+    );
+  }
+
+  /// The "…" sheet: the two things you can do here besides write.
+  ///
+  /// Block's label is read when the sheet opens, not when the screen was
+  /// built — a block lands on the chat record, which this screen does not
+  /// watch, and a label read earlier went on saying "Block" after the block.
+  Future<void> _showMore(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(chatsRepositoryProvider);
+    final isBlocked = repository.isBlocked(profile.userId);
+
+    final choice = await showAppSheet<_MoreChoice>(
+      context,
+      haptic: false,
+      children: [
+        // Telegram has no end-to-end chat with a bot.
+        if (!profile.isBot)
+          const AppSheetRow<_MoreChoice>(
+            icon: Icons.lock_outline_rounded,
+            label: AppStrings.secretChatStart,
+            value: _MoreChoice.secretChat,
+          ),
+        AppSheetRow<_MoreChoice>(
+          icon: Icons.block_rounded,
+          label: isBlocked ? AppStrings.userUnblock : AppStrings.userBlock,
+          value: _MoreChoice.toggleBlock,
+          isDestructive: !isBlocked,
+        ),
+      ],
+    );
+    if (choice == null || !context.mounted) return;
+
+    switch (choice) {
+      case _MoreChoice.secretChat:
+        await _startSecretChat(context, ref);
+      case _MoreChoice.toggleBlock:
+        await toggleBlock(
+          context,
+          repository,
+          userId: profile.userId,
+          name: profile.displayName,
+        );
+    }
   }
 
   /// Telegram's own hedged answer about when somebody was last around. Null
@@ -459,6 +517,8 @@ class _CopyableRow extends StatelessWidget {
     );
   }
 }
+
+enum _MoreChoice { secretChat, toggleBlock }
 
 class _Badge extends StatelessWidget {
   final String label;

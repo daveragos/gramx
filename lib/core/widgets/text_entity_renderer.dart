@@ -42,6 +42,13 @@ class TextEntityRenderer extends StatelessWidget {
   /// they never look tappable when they aren't.
   final ValueChanged<String>? onHashtagTap;
 
+  /// Whether a long press selects text. On by default, and off in a chat
+  /// bubble: there the long press is the way into the message's actions —
+  /// reply, edit, forward, delete — and a selectable field swallowed it, so
+  /// holding the words of a message opened the system's Copy/Share bar and
+  /// nothing of this app's. The bubble's own menu has "Copy text".
+  final bool selectable;
+
   const TextEntityRenderer({
     super.key,
     required this.text,
@@ -51,6 +58,7 @@ class TextEntityRenderer extends StatelessWidget {
     this.maxLines,
     this.linkColor,
     this.onMentionTap,
+    this.selectable = true,
   });
 
   @override
@@ -68,7 +76,9 @@ class TextEntityRenderer extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         );
       }
-      return SelectableText(text, style: defaultStyle);
+      return selectable
+          ? SelectableText(text, style: defaultStyle)
+          : Text(text, style: defaultStyle);
     }
 
     // Sort entities by offset ascending.
@@ -123,7 +133,9 @@ class TextEntityRenderer extends StatelessWidget {
       );
     }
 
-    return SelectableText.rich(TextSpan(children: spans));
+    return selectable
+        ? SelectableText.rich(TextSpan(children: spans))
+        : Text.rich(TextSpan(children: spans));
   }
 
   InlineSpan _buildEntitySpan(

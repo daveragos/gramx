@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/data/user_profile_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 
@@ -12,6 +15,41 @@ import '../support/td_fixtures.dart';
 /// blank row, a deleted account drawn as somebody with a very sparse profile,
 /// a missing photo inherited from somewhere else.
 void main() {
+  // A resolved username picks its screen from this. Getting it wrong is how a
+  // person's t.me link opened the channel screen.
+  group('what a resolved name belongs to', () {
+    test('a person or a bot is a person', () {
+      expect(
+        ChatsRepository.resolvedKindOf(const td.ChatTypePrivate(userId: 42)),
+        ResolvedChatKind.person,
+      );
+    });
+
+    test('a broadcast supergroup is a channel', () {
+      expect(
+        ChatsRepository.resolvedKindOf(
+          const td.ChatTypeSupergroup(supergroupId: 7, isChannel: true),
+        ),
+        ResolvedChatKind.channel,
+      );
+    });
+
+    test('any other supergroup, and a basic group, is a group', () {
+      expect(
+        ChatsRepository.resolvedKindOf(
+          const td.ChatTypeSupergroup(supergroupId: 7, isChannel: false),
+        ),
+        ResolvedChatKind.group,
+      );
+      expect(
+        ChatsRepository.resolvedKindOf(
+          const td.ChatTypeBasicGroup(basicGroupId: 9),
+        ),
+        ResolvedChatKind.group,
+      );
+    });
+  });
+
   group('UserProfileMapper', () {
     test('reads the plain user record without a full one', () {
       final profile = UserProfileMapper.from(

@@ -11,7 +11,18 @@ import 'package:gramx/core/diagnostics/startup_trace.dart';
 /// photos and forbid voice messages, and each of those is its own bit on
 /// `chatPermissions`. Naming them as a type is what lets one function answer
 /// for all of them without six near-identical copies.
-enum ChatSendRight { photos, videos, documents, voiceNotes, videoNotes, polls }
+/// One kind of thing a chat may or may not take. [stickers] covers GIFs too:
+/// Telegram files both under one permission, "other messages", alongside
+/// games and inline bots.
+enum ChatSendRight {
+  photos,
+  videos,
+  documents,
+  voiceNotes,
+  videoNotes,
+  polls,
+  stickers,
+}
 
 /// The chat map and the rules for folding TDLib updates into it.
 ///
@@ -38,12 +49,14 @@ class ChatCacheState {
 
   /// Full user records, keyed by user id.
   ///
-  /// Strictly what TDLib has volunteered. `UpdateUserFullInfo` arrives for
-  /// users the client has loaded fully — which happens when a profile or a
-  /// conversation is opened — and **nothing here ever asks for one**: a
-  /// `GetUserFullInfo` per row of the chat list is the per-chat fan-out
-  /// `docs/TDLIB.md` exists to forbid. Anything read from this map has to be
-  /// optional in the UI for that reason.
+  /// What TDLib has volunteered — `UpdateUserFullInfo` arrives for users the
+  /// client has loaded fully, which happens when a profile or a conversation
+  /// is opened — plus what `AffiliationPrefetcher` has asked for one row at a
+  /// time as the messages list is scrolled. **Nothing here ever asks for
+  /// one**, and nothing asks for the whole list's worth at once: a
+  /// `GetUserFullInfo` per row of the chat list, all together, is the
+  /// per-chat fan-out `docs/TDLIB.md` exists to forbid. Anything read from
+  /// this map has to be optional in the UI for that reason.
   final Map<int, td.UserFullInfo> userFullInfos = {};
 
   /// Secret chat records keyed by **secret chat id**, not chat id.
@@ -235,6 +248,7 @@ class ChatCacheState {
       ChatSendRight.voiceNotes => permissions.canSendVoiceNotes,
       ChatSendRight.videoNotes => permissions.canSendVideoNotes,
       ChatSendRight.polls => permissions.canSendPolls,
+      ChatSendRight.stickers => permissions.canSendOtherMessages,
     };
     // An admin is not bound by the members' default permissions.
     return permitted || _canPostAsAdmin(supergroup?.status);
@@ -289,10 +303,11 @@ class ChatCacheState {
           pendingLastMessages[update.chatId] = update;
           return false;
         }
-        chats[update.chatId] = existing.copyWith(
-          lastMessage: update.lastMessage,
-          positions: update.positions,
-        );
+        chats[update.chatId] = withCleared(
+          existing,
+          'last_message',
+          when: update.lastMessage == null,
+        ).copyWith(lastMessage: update.lastMessage, positions: update.positions);
         return true;
 
       case td.UpdateChatPosition():
@@ -332,7 +347,11 @@ class ChatCacheState {
       case td.UpdateChatPhoto():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        chats[update.chatId] = existing.copyWith(photo: update.photo);
+        chats[update.chatId] = withCleared(
+          existing,
+          'photo',
+          when: update.photo == null,
+        ).copyWith(photo: update.photo);
         return true;
 
       case td.UpdateSupergroup():
@@ -430,18 +449,45 @@ class ChatCacheState {
         );
         return true;
 
+      // Blocking is read off the chat, so a block made here or on another
+      // device has to land on it — otherwise the profile's Block button would
+      // keep offering what had already been done.
+      case td.UpdateChatBlockList():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        // An unblock arrives as a null list. See [withCleared].
+        chats[update.chatId] = withCleared(
+          existing,
+          'block_list',
+          when: update.blockList == null,
+        ).copyWith(blockList: update.blockList);
+        return true;
+
       // The action bar is how Telegram says "this is somebody you don't know",
       // which is what the Requests filter is built on.
       case td.UpdateChatActionBar():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        chats[update.chatId] = existing.copyWith(actionBar: update.actionBar);
+        // Dismissing it, adding the person, or blocking them all clear it
+        // with a null. See [withCleared].
+        chats[update.chatId] = withCleared(
+          existing,
+          'action_bar',
+          when: update.actionBar == null,
+        ).copyWith(actionBar: update.actionBar);
         return true;
 
       case td.UpdateChatDraftMessage():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        chats[update.chatId] = existing.copyWith(
+        // Sending clears the draft with a null. Kept, it came back into the
+        // composer the next time the chat was opened — the message the reader
+        // had already sent, waiting to be sent again. See [withCleared].
+        chats[update.chatId] = withCleared(
+          existing,
+          'draft_message',
+          when: update.draftMessage == null,
+        ).copyWith(
           draftMessage: update.draftMessage,
           positions: update.positions,
         );
@@ -464,10 +510,29 @@ class ChatCacheState {
     if (pending == null) return;
     final existing = chats[chatId];
     if (existing == null) return;
-    chats[chatId] = existing.copyWith(
-      lastMessage: pending.lastMessage,
-      positions: pending.positions,
-    );
+    chats[chatId] = withCleared(
+      existing,
+      'last_message',
+      when: pending.lastMessage == null,
+    ).copyWith(lastMessage: pending.lastMessage, positions: pending.positions);
+  }
+
+  /// [chat] with one field set to null, when [when] is true.
+  ///
+  /// TDLib's generated `copyWith` reads a null argument as "keep what was
+  /// there", so an update that *clears* a field — an unblock, a dismissed
+  /// action bar, a draft sent, a photo removed — was silently ignored and the
+  /// cache went on reporting the old value. Clearing is rare next to setting,
+  /// so a round trip through TDLib's own JSON is the plain fix; everything
+  /// else still goes through `copyWith`.
+  @visibleForTesting
+  static td.Chat withCleared(
+    td.Chat chat,
+    String jsonKey, {
+    required bool when,
+  }) {
+    if (!when) return chat;
+    return td.Chat.fromJson(chat.toJson()..[jsonKey] = null);
   }
 
   /// Replaces the position for one chat list, leaving the others alone.

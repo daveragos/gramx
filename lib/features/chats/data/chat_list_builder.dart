@@ -1,9 +1,12 @@
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 /// Turns cached chats into the rows of the messages list, and filters them.
@@ -118,20 +121,40 @@ abstract class ChatListBuilder {
     // and showing the last received message instead is how somebody forgets
     // they were mid-sentence with someone.
     final lastMessage = chat.lastMessage;
+    // A join or a pin has no words of its own, so the excerpt came back empty
+    // and the row read "Pearlie:" with nothing after it. It gets the same line
+    // the conversation draws, which already says who.
+    final lastIsService =
+        lastMessage != null &&
+        MessageContentSupport.isServiceMessage(lastMessage.content);
     final preview =
         draftText ??
-        (lastMessage == null ? null : TdlibMappers.excerptOf(lastMessage));
+        (lastMessage == null
+            ? null
+            : lastIsService
+            ? ChatMessageMapper.serviceText(
+                lastMessage,
+                users: users,
+                chats: chatsById,
+              )
+            : TdlibMappers.excerptOf(lastMessage));
 
     final fullInfo = type is td.ChatTypePrivate
         ? userFullInfos[type.userId]
         : null;
     final personalChatId = fullInfo?.personalChatId ?? 0;
     final personalChat = personalChatId == 0 ? null : chatsById[personalChatId];
+    final kind = kindOf(chat, user: user, selfUserId: selfUserId);
+    final isSaved = kind == ChatKind.savedMessages;
 
     return ChatSummary(
       chatId: chat.id,
-      title: chat.title,
-      kind: kindOf(chat, user: user, selfUserId: selfUserId),
+      // TDLib titles the chat with yourself with your own name, which in the
+      // forward picker sat beside a channel of the same name with the same
+      // photo — and forwarding into the wrong one publishes. Telegram calls it
+      // Saved Messages everywhere, and so does this.
+      title: isSaved ? AppStrings.savedMessagesTitle : chat.title,
+      kind: kind,
       username: _usernameOf(user: user, supergroup: supergroup),
       avatarPath: chat.photo?.small.local.path.isNotEmpty == true
           ? chat.photo!.small.local.path
@@ -139,7 +162,7 @@ abstract class ChatListBuilder {
       avatarFileId: chat.photo?.small.id,
       avatarColorHex: TdlibMappers.avatarColorFor(chat.id),
       preview: preview,
-      previewSender: draftText != null
+      previewSender: draftText != null || lastIsService
           ? null
           : _previewSender(chat, lastMessage, users: users),
       previewIsDraft: draftText != null,
@@ -168,7 +191,8 @@ abstract class ChatListBuilder {
       isMuted: isMuted(chat.notificationSettings),
       isVerified: user?.isVerified ?? supergroup?.isVerified ?? false,
       isRequest: isRequest(chat),
-      presence: presenceOf(user),
+      // "online" about yourself, in your own notes, says nothing.
+      presence: isSaved ? ChatPresence.unknown : presenceOf(user),
       mainListOrder: ChatCacheState.mainListOrder(chat),
       isPinned: isPinned(chat),
       isSecret: type is td.ChatTypeSecret,

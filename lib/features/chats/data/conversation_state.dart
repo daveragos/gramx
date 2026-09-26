@@ -64,6 +64,16 @@ class ConversationState {
   /// False once a history page comes back short — the top of the chat.
   final bool hasMoreOlder;
 
+  /// True while what is loaded stops short of the newest message.
+  ///
+  /// A conversation normally hangs off its bottom: the newest page is loaded
+  /// and everything arrives below it. Jumping to a search hit further back
+  /// than paging reaches breaks that — see [windowed] — and while it is
+  /// broken a live arrival is *not* adjacent to what is on screen, so it is
+  /// not folded in, and the way down is a page fetch rather than a scroll.
+  /// Cleared by loading down to the bottom, or by going straight back to it.
+  final bool hasMoreNewer;
+
   /// The oldest message the reader had not seen when they opened the chat.
   ///
   /// Captured **once, on open**, and never recomputed. It is where the unread
@@ -79,6 +89,7 @@ class ConversationState {
     this.lastReadOutboxMessageId = 0,
     this.typing,
     this.hasMoreOlder = true,
+    this.hasMoreNewer = false,
     this.firstUnreadMessageId,
   });
 
@@ -86,6 +97,7 @@ class ConversationState {
     List<ChatMessage>? messages,
     int? lastReadOutboxMessageId,
     bool? hasMoreOlder,
+    bool? hasMoreNewer,
     ChatTyping? typing,
     bool clearTyping = false,
   }) {
@@ -97,6 +109,7 @@ class ConversationState {
           lastReadOutboxMessageId ?? this.lastReadOutboxMessageId,
       typing: clearTyping ? null : (typing ?? this.typing),
       hasMoreOlder: hasMoreOlder ?? this.hasMoreOlder,
+      hasMoreNewer: hasMoreNewer ?? this.hasMoreNewer,
       firstUnreadMessageId: firstUnreadMessageId,
     );
   }
@@ -119,8 +132,37 @@ class ConversationState {
     return null;
   }
 
+  /// The order [messages] is kept in: oldest first, with messages that have not
+  /// left the device yet after everything that has.
+  ///
+  /// An optimistic bubble carries a negative id (see
+  /// `ConversationNotifier._optimisticMessage`), and a plain ascending sort put
+  /// it *above* the whole conversation — the reader's own message appeared at
+  /// the top of the chat until Telegram answered, and paging back asked TDLib
+  /// for history older than a negative id. Temporary ids count down as they are
+  /// handed out, so among themselves the order is reversed as well: -1 was
+  /// typed before -2.
+  static int compareOrder(ChatMessage a, ChatMessage b) {
+    final aPending = a.messageId < 0;
+    final bPending = b.messageId < 0;
+    if (aPending != bPending) return aPending ? 1 : -1;
+    return aPending
+        ? b.messageId.compareTo(a.messageId)
+        : a.messageId.compareTo(b.messageId);
+  }
+
   /// The newest message, or null on an empty chat.
   ChatMessage? get newest => messages.isEmpty ? null : messages.last;
+
+  /// The newest *sent* message id — the cursor the page below is fetched
+  /// from. Skips optimistic bubbles, whose ids are negative and mean nothing
+  /// to TDLib.
+  int? get newestMessageId {
+    for (final message in messages.reversed) {
+      if (message.messageId > 0) return message.messageId;
+    }
+    return null;
+  }
 
   /// The oldest loaded message id — the cursor the next page is fetched from.
   int? get oldestMessageId =>
@@ -147,12 +189,25 @@ class ConversationState {
   ConversationState? apply(
     ChatEvent event, {
     required Map<int, td.User> users,
+    Map<int, td.Chat> chats = const {},
   }) {
     if (event.chatId != chatId) return null;
 
     switch (event) {
       case ChatMessageArrived():
-        return _upsert(_map(event.message, users: users));
+        // Not adjacent to a window that stops short of the bottom: folding it
+        // in would draw a message from now directly under one from last year.
+        // It is waiting below, and the page fetch that reaches the bottom
+        // brings it in.
+        if (hasMoreNewer) return null;
+        // TDLib sends a same-chat reply with no preview of what it answers,
+        // and a page is only filled once, when it loads — so a reply arriving
+        // live drew a bare "Replying to" even with its target right above it.
+        final arrived = ChatMessageMapper.fillReplyExcerpts(
+          [_map(event.message, users: users, chats: chats)],
+          from: messages,
+        ).single;
+        return _upsert(arrived);
 
       case ChatMessageSent():
         // The id changed. Replacing by the *old* id is the whole point: the
@@ -161,7 +216,7 @@ class ConversationState {
         // message twice.
         return _replaceId(
           event.oldMessageId,
-          _map(event.message, users: users),
+          _map(event.message, users: users, chats: chats),
         );
 
       case ChatMessageFailed():
@@ -170,6 +225,7 @@ class ConversationState {
           _map(
             event.message,
             users: users,
+            chats: chats,
           ).copyWith(sendState: MessageSendState.failed),
         );
 
@@ -266,8 +322,55 @@ class ConversationState {
         if (!known.contains(message.messageId)) message,
       ...messages,
     ];
-    merged.sort((a, b) => a.messageId.compareTo(b.messageId));
-    return copyWith(messages: merged, hasMoreOlder: !reachedTop);
+    merged.sort(compareOrder);
+    // Replies already on screen may answer something in the page that just
+    // arrived above them.
+    return copyWith(
+      messages: ChatMessageMapper.fillReplyExcerpts(merged),
+      hasMoreOlder: !reachedTop,
+    );
+  }
+
+  /// Adds a page of newer messages below what is already loaded.
+  ///
+  /// The mirror of [prepend], for a conversation that was opened in the
+  /// middle. [reachedBottom] is the caller's answer, checked against the
+  /// chat's own newest message rather than inferred from the page size.
+  ConversationState append(
+    List<ChatMessage> newer, {
+    required bool reachedBottom,
+  }) {
+    final known = {for (final message in messages) message.messageId};
+    final merged = [
+      ...messages,
+      for (final message in newer)
+        if (!known.contains(message.messageId)) message,
+    ];
+    merged.sort(compareOrder);
+    return copyWith(
+      messages: ChatMessageMapper.fillReplyExcerpts(merged),
+      hasMoreNewer: !reachedBottom,
+    );
+  }
+
+  /// Replaces what is loaded with a stretch of history around one message.
+  ///
+  /// What a jump to a search hit does when the hit is further back than
+  /// paging reaches: the conversation now reads from the middle, with more
+  /// above and — unless the window happens to reach it — more below.
+  ConversationState windowed(
+    List<ChatMessage> window, {
+    required bool reachedTop,
+    required bool reachedBottom,
+  }) {
+    final sorted = [...window]..sort(compareOrder);
+    return copyWith(
+      messages: sorted,
+      hasMoreOlder: !reachedTop,
+      hasMoreNewer: !reachedBottom,
+      // Whatever was being typed at is off screen now.
+      clearTyping: true,
+    );
   }
 
   /// Puts a message the reader has just sent on screen before Telegram has
@@ -275,13 +378,17 @@ class ConversationState {
   /// trip later. The live stream reconciles it — see [ChatMessageSent].
   ConversationState withOptimistic(ChatMessage message) => _upsert(message);
 
-  ChatMessage _map(td.Message message, {required Map<int, td.User> users}) =>
-      ChatMessageMapper.map(
-        message,
-        users: users,
-        lastReadOutboxMessageId: lastReadOutboxMessageId,
-        isGroup: isGroup,
-      );
+  ChatMessage _map(
+    td.Message message, {
+    required Map<int, td.User> users,
+    Map<int, td.Chat> chats = const {},
+  }) => ChatMessageMapper.map(
+    message,
+    users: users,
+    lastReadOutboxMessageId: lastReadOutboxMessageId,
+    isGroup: isGroup,
+    chats: chats,
+  );
 
   /// Inserts, or replaces in place if the id is already loaded.
   ConversationState _upsert(ChatMessage message) {
@@ -296,7 +403,7 @@ class ConversationState {
     final next = [...messages, message];
     // Sorted rather than appended: a message can arrive out of order, and an
     // append would put it below something newer.
-    next.sort((a, b) => a.messageId.compareTo(b.messageId));
+    next.sort(compareOrder);
     return copyWith(messages: next);
   }
 

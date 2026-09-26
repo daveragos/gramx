@@ -44,6 +44,24 @@ void main() {
       );
     });
 
+    // TDLib titles it with your own name — which in the forward picker sat
+    // beside a channel of the same name, where forwarding publishes.
+    test('Saved Messages is called that, and has no presence', () {
+      final chat = TdFixtures.conversation(
+        id: 42,
+        userId: 42,
+        title: 'Dave RaGoose',
+      );
+      final row = ChatListBuilder.summaryFor(
+        chat,
+        users: {42: TdFixtures.user(id: 42, firstName: 'Dave')},
+        supergroups: const {},
+        selfUserId: 42,
+      );
+      expect(row.title, 'Saved Messages');
+      expect(row.presence, ChatPresence.unknown);
+    });
+
     // Without the user record a bot reads as a person, and the reader gets
     // "last seen recently" under a piece of software.
     test('a bot is told apart by its user record, not its chat', () {
@@ -117,6 +135,21 @@ void main() {
         ),
       );
       expect(private.previewSender, isNull);
+    });
+
+    // A join has no words of its own, so the row read "Pearlie:" and stopped.
+    test('a service message previews as what happened, with no prefix', () {
+      final join = TdFixtures.textMessageJson(id: 10, chatId: -100200)
+        ..['content'] = {'@type': 'messageChatJoinByLink'}
+        ..['is_channel_post'] = false;
+      final group = _summary(
+        TdFixtures.groupChat(id: -100200, lastMessage: join),
+        users: {9: TdFixtures.user(id: 9, firstName: 'Pearlie')},
+        lastSenderUserId: 9,
+      );
+
+      expect(group.preview, 'Pearlie joined the group via invite link');
+      expect(group.previewSender, isNull);
     });
 
     test('mute follows the chat only when it overrides the default', () {

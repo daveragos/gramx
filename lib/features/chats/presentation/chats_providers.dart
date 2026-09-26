@@ -103,9 +103,14 @@ final chatListProvider = NotifierProvider<ChatListNotifier, List<ChatSummary>>(
 );
 
 /// Which filter the header pill is showing. See [ChatFilter].
+///
+/// Opens on **Direct**, not All. gramX is a channel reader with a messages
+/// tab, and on a Telegram account the "all" list is mostly bots and groups —
+/// the people in it were buried under them. Direct is the list a reader
+/// means when they say "my messages"; All is one tap away in the pill.
 class ChatFilterNotifier extends Notifier<ChatFilter> {
   @override
-  ChatFilter build() => ChatFilter.all;
+  ChatFilter build() => ChatFilter.direct;
 
   void select(ChatFilter filter) => state = filter;
 }

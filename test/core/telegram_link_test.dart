@@ -186,6 +186,38 @@ void main() {
       );
     });
 
+    // Every resolved name used to be taken for a channel, so t.me/<person>
+    // opened the channel screen on somebody's private chat.
+    test('a resolved person opens their profile, and a group its chat', () {
+      expect(
+        DeepLinkRoutes.routeFor(
+          TelegramChannelLink('ada'),
+          chatId: 4242,
+          kind: ResolvedChatKind.person,
+        ),
+        '/user/4242',
+      );
+      expect(
+        DeepLinkRoutes.routeFor(
+          TelegramChannelLink('flutter_ethiopia'),
+          chatId: -100888,
+          kind: ResolvedChatKind.group,
+        ),
+        '/chat/-100888',
+      );
+    });
+
+    test('a link to a message in a group opens the group', () {
+      expect(
+        DeepLinkRoutes.routeFor(
+          TelegramPostLink('flutter_ethiopia', 3),
+          chatId: -100888,
+          kind: ResolvedChatKind.group,
+        ),
+        '/chat/-100888',
+      );
+    });
+
     test('a resolved post opens the post screen', () {
       expect(
         DeepLinkRoutes.routeFor(TelegramPostLink('durov', 3), chatId: -100777),

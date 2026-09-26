@@ -11,6 +11,16 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 import 'package:gramx/features/chats/presentation/conversation_providers.dart';
 import 'package:gramx/features/chats/presentation/widgets/forward_message_sheet.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/app/widgets/edit_text_dialog.dart';
+
+/// What the reader chose from [MessageActionsSheet], for the screen to carry
+/// out.
+enum MessageAction { reply, forward, edit, pin, select, delete }
+
+/// A choice, and what Telegram said was allowed when it was made — delete
+/// needs to know whether "for everyone" is on offer.
+typedef MessageActionChoice = ({MessageAction action, MessageActions rights});
 
 /// What can be done with one message, on a long press.
 ///
@@ -19,30 +29,31 @@ import 'package:gramx/features/chats/presentation/widgets/forward_message_sheet.
 /// request). A Delete that Telegram would refuse, or an Edit on somebody else's
 /// message, is the styled-but-inert control the hard rules forbid — so the row
 /// is absent rather than present and failing.
+///
+/// **The sheet chooses; the screen acts.** Every row used to close the sheet
+/// and then go on using the sheet's own context and `ref` — for a dialog, a
+/// chat picker, a request. Those were gone by the time the dialog answered, so
+/// Forward, Edit, Pin and Delete all ended in `if (!context.mounted) return`
+/// or a disposed `ref`, and did nothing at all. Now the sheet only answers
+/// *which*, and [runMessageAction] does the work with the conversation
+/// screen's context, which outlives it. Copy and a reaction stay here: both
+/// finish before the sheet closes.
 class MessageActionsSheet extends ConsumerWidget {
   final int chatId;
   final ChatMessage message;
-  final VoidCallback onReply;
-
-  /// Turns the conversation into selection mode with this message ticked.
-  final VoidCallback onSelect;
 
   const MessageActionsSheet({
     super.key,
     required this.chatId,
     required this.message,
-    required this.onReply,
-    required this.onSelect,
   });
 
-  static Future<void> show(
+  static Future<MessageActionChoice?> show(
     BuildContext context, {
     required int chatId,
     required ChatMessage message,
-    required VoidCallback onReply,
-    required VoidCallback onSelect,
   }) {
-    return showModalBottomSheet<void>(
+    return showModalBottomSheet<MessageActionChoice>(
       context: context,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
@@ -50,12 +61,7 @@ class MessageActionsSheet extends ConsumerWidget {
           top: Radius.circular(AppSpacing.lg),
         ),
       ),
-      builder: (_) => MessageActionsSheet(
-        chatId: chatId,
-        message: message,
-        onReply: onReply,
-        onSelect: onSelect,
-      ),
+      builder: (_) => MessageActionsSheet(chatId: chatId, message: message),
     );
   }
 
@@ -80,10 +86,12 @@ class MessageActionsSheet extends ConsumerWidget {
               emojis: reactions.value!,
               chosen: message.chosenReactions,
               onTap: (emoji) {
+                // Read before the sheet closes, while `ref` is still live.
+                final conversation = ref.read(
+                  conversationProvider(chatId).notifier,
+                );
                 Navigator.of(context).pop();
-                ref
-                    .read(conversationProvider(chatId).notifier)
-                    .toggleReaction(message.messageId, emoji);
+                conversation.toggleReaction(message.messageId, emoji);
               },
             ),
           actions.when(
@@ -101,13 +109,7 @@ class MessageActionsSheet extends ConsumerWidget {
                 style: AppTypography.body(),
               ),
             ),
-            data: (allowed) => _ActionList(
-              chatId: chatId,
-              message: message,
-              actions: allowed,
-              onReply: onReply,
-              onSelect: onSelect,
-            ),
+            data: (allowed) => _ActionList(message: message, actions: allowed),
           ),
         ],
       ),
@@ -115,24 +117,17 @@ class MessageActionsSheet extends ConsumerWidget {
   }
 }
 
-class _ActionList extends ConsumerWidget {
-  final int chatId;
+class _ActionList extends StatelessWidget {
   final ChatMessage message;
   final MessageActions actions;
-  final VoidCallback onReply;
-  final VoidCallback onSelect;
 
-  const _ActionList({
-    required this.chatId,
-    required this.message,
-    required this.actions,
-    required this.onReply,
-    required this.onSelect,
-  });
+  const _ActionList({required this.message, required this.actions});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final text = message.text;
+    void choose(MessageAction action) =>
+        Navigator.of(context).pop((action: action, rights: actions));
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -141,20 +136,18 @@ class _ActionList extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.reply_rounded),
             title: const Text(AppStrings.chatActionReply),
-            onTap: () {
-              Navigator.of(context).pop();
-              onReply();
-            },
+            onTap: () => choose(MessageAction.reply),
           ),
         if (actions.canCopy && text != null && text.isNotEmpty)
           ListTile(
             leading: const Icon(Icons.copy_rounded),
             title: const Text(AppStrings.chatActionCopy),
             onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               await Clipboard.setData(ClipboardData(text: text));
-              if (!context.mounted) return;
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
+              navigator.pop();
+              messenger.showSnackBar(
                 const SnackBar(
                   content: Text(AppStrings.chatCopied),
                   behavior: SnackBarBehavior.floating,
@@ -169,19 +162,13 @@ class _ActionList extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.forward_rounded),
             title: const Text(AppStrings.chatActionForward),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _forward(context, ref);
-            },
+            onTap: () => choose(MessageAction.forward),
           ),
         if (actions.canEdit)
           ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: const Text(AppStrings.chatActionEdit),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _edit(context, ref);
-            },
+            onTap: () => choose(MessageAction.edit),
           ),
         // A pinned message is already reachable from the header banner and was
         // the one thing about it nobody could change from inside gramX. The row
@@ -200,10 +187,7 @@ class _ActionList extends ConsumerWidget {
                   ? AppStrings.chatActionUnpin
                   : AppStrings.chatActionPin,
             ),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _togglePin(context, ref);
-            },
+            onTap: () => choose(MessageAction.pin),
           ),
         // The way into selection mode. Deliberately not a second gesture:
         // long-press is already taken by this menu, and a chat with two
@@ -211,10 +195,7 @@ class _ActionList extends ConsumerWidget {
         ListTile(
           leading: const Icon(Icons.checklist_rounded),
           title: const Text(AppStrings.chatActionSelect),
-          onTap: () {
-            Navigator.of(context).pop();
-            onSelect();
-          },
+          onTap: () => choose(MessageAction.select),
         ),
         if (actions.canDeleteForSelf || actions.canDeleteForAll)
           ListTile(
@@ -226,174 +207,190 @@ class _ActionList extends ConsumerWidget {
               AppStrings.chatActionDelete,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            onTap: () async {
-              Navigator.of(context).pop();
-              await _confirmDelete(context, ref);
-            },
+            onTap: () => choose(MessageAction.delete),
           ),
       ],
     );
   }
+}
 
-  /// Pins or unpins, asking first only in the direction that is visible to
-  /// everybody else in the chat.
-  Future<void> _togglePin(BuildContext context, WidgetRef ref) async {
-    final pinning = !message.isPinned;
+/// Carries out a forward, an edit, a pin or a delete chosen from the sheet.
+///
+/// [context] and [ref] are the conversation screen's, which are still there
+/// when the dialogs these open have answered. Reply and select change the
+/// screen's own state, so the screen handles those itself.
+Future<void> runMessageAction(
+  MessageActionChoice choice,
+  BuildContext context,
+  WidgetRef ref, {
+  required int chatId,
+  required ChatMessage message,
+}) => switch (choice.action) {
+  MessageAction.forward => _forward(context, ref, chatId, message),
+  MessageAction.edit => _edit(context, ref, chatId, message),
+  MessageAction.pin => _togglePin(context, ref, chatId, message),
+  MessageAction.delete => _confirmDelete(
+    context,
+    ref,
+    chatId,
+    message,
+    choice.rights,
+  ),
+  MessageAction.reply || MessageAction.select => Future<void>.value(),
+};
 
-    if (pinning) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text(AppStrings.chatPinTitle),
-          content: const Text(AppStrings.chatPinBody),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text(AppStrings.chatCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(AppStrings.chatPinConfirm),
-            ),
-          ],
+/// Pins or unpins, asking first only in the direction that is visible to
+/// everybody else in the chat.
+Future<void> _togglePin(
+  BuildContext context,
+  WidgetRef ref,
+  int chatId,
+  ChatMessage message,
+) async {
+  final pinning = !message.isPinned;
+
+  if (pinning) {
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: AppStrings.chatPinTitle,
+      body: AppStrings.chatPinBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.chatPinConfirm,
+          value: true,
+          isPrimary: true,
         ),
+        AppDialogAction.cancel(AppStrings.chatCancel),
+      ],
+    );
+    if (confirmed != true || !context.mounted) return;
+  }
+
+  final ok = await ref
+      .read(chatsRepositoryProvider)
+      .setMessagePinned(
+        chatId: chatId,
+        messageId: message.messageId,
+        isPinned: pinning,
       );
-      if (confirmed != true || !context.mounted) return;
-    }
+  if (!context.mounted) return;
 
-    final ok = await ref
-        .read(chatsRepositoryProvider)
-        .setMessagePinned(
-          chatId: chatId,
-          messageId: message.messageId,
-          isPinned: pinning,
-        );
-    if (!context.mounted) return;
+  // The banner reads its own provider, which has no update to listen to —
+  // `updateMessageIsPinned` moves the bubble's state, not the cached
+  // "what is pinned in this chat" answer — so it is refreshed by hand.
+  if (ok) ref.invalidate(pinnedMessageProvider(chatId));
 
-    // The banner reads its own provider, which has no update to listen to —
-    // `updateMessageIsPinned` moves the bubble's state, not the cached
-    // "what is pinned in this chat" answer — so it is refreshed by hand.
-    if (ok) ref.invalidate(pinnedMessageProvider(chatId));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok
+            ? (pinning ? AppStrings.chatPinned : AppStrings.chatUnpinned)
+            : (pinning ? AppStrings.chatPinFailed : AppStrings.chatUnpinFailed),
+      ),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? (pinning ? AppStrings.chatPinned : AppStrings.chatUnpinned)
-              : (pinning
-                    ? AppStrings.chatPinFailed
-                    : AppStrings.chatUnpinFailed),
+Future<void> _forward(
+  BuildContext context,
+  WidgetRef ref,
+  int chatId,
+  ChatMessage message,
+) async {
+  final toChatId = await ForwardMessageSheet.show(context);
+  if (toChatId == null || !context.mounted) return;
+
+  final ok = await ref
+      .read(chatsRepositoryProvider)
+      .forward(
+        fromChatId: chatId,
+        messageIds: [message.messageId],
+        toChatId: toChatId,
+      );
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        ok ? AppStrings.chatForwarded : AppStrings.chatForwardFailed,
+      ),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+Future<void> _edit(
+  BuildContext context,
+  WidgetRef ref,
+  int chatId,
+  ChatMessage message,
+) async {
+  final updated = await EditTextDialog.show(
+    context,
+    initialText: message.text ?? '',
+    // A photo's or a file's words are its caption, and a caption may be
+    // emptied; a text message may not.
+    allowsEmpty: message.media.isNotEmpty,
+  );
+  if (updated == null || !context.mounted) return;
+
+  final ok = await ref
+      .read(conversationProvider(chatId).notifier)
+      .edit(message.messageId, updated);
+  if (ok || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(AppStrings.chatEditFailed),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+/// Deleting is irreversible, so it asks — and it asks *who for*, because
+/// "delete for me" and "delete for everyone" are different acts and Telegram
+/// offers both. See the destructive-action rule in `docs/UI.md`.
+Future<void> _confirmDelete(
+  BuildContext context,
+  WidgetRef ref,
+  int chatId,
+  ChatMessage message,
+  MessageActions actions,
+) async {
+  final revoke = await showAppDialog<bool>(
+    context,
+    title: AppStrings.chatDeleteTitle,
+    body: AppStrings.chatDeleteBody,
+    actions: [
+      if (actions.canDeleteForAll)
+        const AppDialogAction(
+          label: AppStrings.chatActionDeleteForEveryone,
+          value: true,
+          isPrimary: true,
+          isDestructive: true,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _forward(BuildContext context, WidgetRef ref) async {
-    final toChatId = await ForwardMessageSheet.show(context);
-    if (toChatId == null || !context.mounted) return;
-
-    final ok = await ref
-        .read(chatsRepositoryProvider)
-        .forward(
-          fromChatId: chatId,
-          messageIds: [message.messageId],
-          toChatId: toChatId,
-        );
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? AppStrings.chatForwarded : AppStrings.chatForwardFailed,
+      if (actions.canDeleteForSelf)
+        AppDialogAction(
+          label: AppStrings.chatActionDeleteForMe,
+          value: false,
+          isPrimary: !actions.canDeleteForAll,
+          isDestructive: true,
         ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+      const AppDialogAction.cancel(AppStrings.chatCancel),
+    ],
+  );
+  if (revoke == null || !context.mounted) return;
 
-  Future<void> _edit(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController(text: message.text ?? '');
-    final updated = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.chatEditTitle),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 5,
-          minLines: 1,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(AppStrings.chatCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text(AppStrings.chatSave),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (updated == null) return;
-
-    final ok = await ref
-        .read(conversationProvider(chatId).notifier)
-        .edit(message.messageId, updated);
-    if (ok || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(AppStrings.chatEditFailed),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  /// Deleting is irreversible, so it asks — and it asks *who for*, because
-  /// "delete for me" and "delete for everyone" are different acts and Telegram
-  /// offers both. See the destructive-action rule in `docs/UI.md`.
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final revoke = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.chatDeleteTitle),
-        content: const Text(AppStrings.chatDeleteBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(AppStrings.chatCancel),
-          ),
-          if (actions.canDeleteForSelf)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(AppStrings.chatActionDeleteForMe),
-            ),
-          if (actions.canDeleteForAll)
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(
-                AppStrings.chatActionDeleteForEveryone,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ),
-        ],
-      ),
-    );
-    if (revoke == null) return;
-
-    final ok = await ref.read(conversationProvider(chatId).notifier).delete([
-      message.messageId,
-    ], revoke: revoke);
-    if (ok || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(AppStrings.chatDeleteFailed),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  final ok = await ref.read(conversationProvider(chatId).notifier).delete([
+    message.messageId,
+  ], revoke: revoke);
+  if (ok || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(AppStrings.chatDeleteFailed),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
 }
 
 /// The quick-reaction row across the top of the sheet.

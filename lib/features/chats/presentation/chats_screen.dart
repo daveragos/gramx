@@ -11,7 +11,9 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/chats/data/affiliation_prefetcher.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
+import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_actions_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_filter_menu.dart';
@@ -141,6 +143,14 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               itemCount: chats.length,
               itemBuilder: (context, index) {
                 final chat = chats[index];
+                // A row being built is a row about to be looked at, so the
+                // channel this person runs is asked for now rather than when
+                // their chat is opened. Deduped, spaced and capped — see
+                // AffiliationPrefetcher for why this is not a fan-out.
+                if (chat.kind == ChatKind.direct &&
+                    chat.affiliatedChannelId == null) {
+                  ref.read(affiliationPrefetcherProvider).request(chat.chatId);
+                }
                 return ChatListTile(
                   chat: chat,
                   onTap: () => context.push(ChatsScreen.routeFor(chat.chatId)),

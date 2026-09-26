@@ -44,6 +44,24 @@ td.Message _outgoing(int id, {String text = 'hi', String? sendingState}) =>
 ConversationState _apply(ConversationState state, ChatEvent event) =>
     state.apply(event, users: _users) ?? state;
 
+/// An incoming message as a page of history would carry it.
+ChatMessage _mapped(int id) => ChatMessageMapper.map(
+  _incoming(id),
+  users: _users,
+  lastReadOutboxMessageId: 0,
+);
+
+/// A bubble that has not left the device, keyed the way the notifier keys one.
+ChatMessage _pending(int id) => ChatMessage(
+  id: '${_chatId}_$id',
+  chatId: _chatId,
+  messageId: id,
+  isOutgoing: true,
+  text: 'on its way',
+  sentAt: DateTime(2026),
+  sendState: MessageSendState.sending,
+);
+
 void main() {
   group('arrivals', () {
     test('a message lands in the list', () {
@@ -117,6 +135,56 @@ void main() {
         ChatMessageFailed(_outgoing(901), -1, 'MESSAGE_TOO_LONG'),
       );
       expect(state.messages.single.sendState, MessageSendState.failed);
+    });
+
+    // Optimistic ids are negative. Sorted as plain numbers, the reader's own
+    // message jumped to the top of the chat until Telegram answered — which
+    // the empty-chat tests above could never show.
+    test('an optimistic bubble sits below the conversation, not above it', () {
+      var state = _apply(_empty(), ChatMessageArrived(_incoming(100)));
+      state = _apply(state, ChatMessageArrived(_incoming(200)));
+      state = state.withOptimistic(_pending(-1));
+
+      expect(state.messages.map((m) => m.messageId), [100, 200, -1]);
+      expect(state.newest?.messageId, -1);
+      expect(
+        state.oldestMessageId,
+        100,
+        reason: 'paging back starts from a real message',
+      );
+    });
+
+    test('two messages sent back to back keep the order they were typed', () {
+      var state = _apply(_empty(), ChatMessageArrived(_incoming(100)));
+      state = state.withOptimistic(_pending(-1));
+      state = state.withOptimistic(_pending(-2));
+
+      expect(state.messages.map((m) => m.messageId), [100, -1, -2]);
+    });
+
+    test(
+      'a message arriving while one is sending goes above the pending one',
+      () {
+        var state = _apply(_empty(), ChatMessageArrived(_incoming(100)));
+        state = state.withOptimistic(_pending(-1));
+        state = _apply(state, ChatMessageArrived(_incoming(300)));
+
+        expect(state.messages.map((m) => m.messageId), [100, 300, -1]);
+      },
+    );
+
+    test('a page of older history still lands above a pending message', () {
+      var state = _apply(_empty(), ChatMessageArrived(_incoming(500)));
+      state = state.withOptimistic(_pending(-1));
+      final older = ChatMessageMapper.mapHistory(
+        [_incoming(300), _incoming(400)],
+        users: _users,
+        lastReadOutboxMessageId: 0,
+        isGroup: false,
+      );
+      state = state.prepend(older, reachedTop: false);
+
+      expect(state.messages.map((m) => m.messageId), [300, 400, 500, -1]);
     });
 
     test('a pending message reads as sending', () {
@@ -274,6 +342,62 @@ void main() {
     });
   });
 
+  // TDLib sends a same-chat reply with no preview of what it answers. Only a
+  // freshly loaded page was ever filled, so a reply arriving live — the
+  // commonest reply there is — drew a bare "Replying to".
+  group('reply previews', () {
+    test('a reply arriving live is filled from what is on screen', () {
+      var state = _apply(
+        _empty(isGroup: true),
+        ChatMessageArrived(_incoming(100, text: 'the question')),
+      );
+      state = _apply(
+        state,
+        ChatMessageArrived(
+          TdFixtures.chatMessage(
+            id: 200,
+            chatId: _chatId,
+            senderUserId: _them,
+            text: 'the answer',
+            replyToMessageId: 100,
+          ),
+        ),
+      );
+
+      final reply = state.messages.last;
+      expect(reply.replyToText, 'the question');
+      expect(reply.replyToAuthorName, 'Ada');
+    });
+
+    test('a reply already on screen is filled when its target pages in', () {
+      var state = _apply(
+        _empty(isGroup: true),
+        ChatMessageArrived(
+          TdFixtures.chatMessage(
+            id: 200,
+            chatId: _chatId,
+            senderUserId: _them,
+            text: 'the answer',
+            replyToMessageId: 100,
+          ),
+        ),
+      );
+      expect(state.messages.single.replyToText, isNull);
+
+      state = state.prepend(
+        ChatMessageMapper.mapHistory(
+          [_incoming(100, text: 'the question')],
+          users: _users,
+          lastReadOutboxMessageId: 0,
+          isGroup: true,
+        ),
+        reachedTop: false,
+      );
+
+      expect(state.messages.last.replyToText, 'the question');
+    });
+  });
+
   group('paging back', () {
     test('older messages go above, without duplicating', () {
       var state = _apply(_empty(), ChatMessageArrived(_incoming(300)));
@@ -307,6 +431,74 @@ void main() {
       expect(state.unreadIncomingIds(100), [200]);
       expect(state.unreadIncomingIds(0), [200, 100]);
       expect(state.unreadIncomingIds(999), isEmpty);
+    });
+  });
+
+  // A jump to a search hit far back loads a window around it, and the chat
+  // then reads from the middle: more above, more below, and the live stream
+  // no longer adjacent to what is on screen.
+  group('a window in the middle', () {
+    ConversationState window() => _apply(
+      _apply(_empty(), ChatMessageArrived(_incoming(100))),
+      ChatMessageArrived(_incoming(101)),
+    ).windowed(
+      [
+        _mapped(50),
+        _mapped(51),
+      ],
+      reachedTop: false,
+      reachedBottom: false,
+    );
+
+    test('replaces what was loaded and opens both ends', () {
+      final state = window();
+      expect(state.messages.map((m) => m.messageId), [50, 51]);
+      expect(state.hasMoreOlder, isTrue);
+      expect(state.hasMoreNewer, isTrue);
+    });
+
+    test('a live arrival is not folded in while the bottom is off screen', () {
+      final state = window();
+      expect(
+        state.apply(ChatMessageArrived(_incoming(200)), users: _users),
+        isNull,
+      );
+    });
+
+    test('a page below lands below, and reaching the bottom closes it', () {
+      var state = window().append(
+        [_mapped(52)],
+        reachedBottom: false,
+      );
+      expect(state.messages.map((m) => m.messageId), [50, 51, 52]);
+      expect(state.hasMoreNewer, isTrue);
+
+      state = state.append(
+        [_mapped(53)],
+        reachedBottom: true,
+      );
+      expect(state.hasMoreNewer, isFalse);
+      // Adjacent again: arrivals fold in as they always did.
+      expect(
+        _apply(state, ChatMessageArrived(_incoming(200))).messages.last.messageId,
+        200,
+      );
+    });
+
+    test('a window that reaches the bottom is not a window at all', () {
+      final state = window().windowed(
+        [_mapped(60)],
+        reachedTop: false,
+        reachedBottom: true,
+      );
+      expect(state.hasMoreNewer, isFalse);
+    });
+
+    // The cursor the page below is fetched from has to be an id TDLib knows.
+    test('the newest id skips a bubble that has not been sent', () {
+      final state = window().withOptimistic(_pending(-1));
+      expect(state.newestMessageId, 51);
+      expect(_empty().newestMessageId, isNull);
     });
   });
 }

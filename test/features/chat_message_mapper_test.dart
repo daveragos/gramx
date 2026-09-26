@@ -6,6 +6,7 @@ import 'package:gramx/features/chats/data/conversation_rows.dart';
 import 'package:gramx/features/chats/data/conversation_state.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_date_separator.dart';
+import 'package:gramx/features/feed/domain/media_item.dart';
 
 import '../support/td_fixtures.dart';
 
@@ -27,7 +28,99 @@ ChatMessage _map(td.Message message, {bool isGroup = false, int cursor = 0}) =>
     );
 
 void main() {
+  // A reply to a channel's post named its author from the post's signature,
+  // which most channels leave blank — so the bubble said "Replying to" and
+  // stopped. The channel is the author, and its title is its name.
+  test('a reply to a channel post is to that channel', () {
+    final message = TdFixtures.replyingMessage(
+      id: 20,
+      chatId: _chatId,
+      replyToMessageId: 7 << 20,
+      replyToChatId: -100900,
+      targetText: 'to the whole community',
+      originChatId: -100900,
+    );
+    final channel = TdFixtures.chat(id: -100900, title: 'Self Made Coder');
+
+    final mapped = ChatMessageMapper.map(
+      message,
+      users: _users,
+      chats: {channel.id: channel},
+      lastReadOutboxMessageId: 0,
+      isGroup: true,
+    );
+
+    expect(mapped.replyToAuthorName, 'Self Made Coder');
+  });
+
+  // A photo has no text, and a one-to-one chat puts no name on a bubble — so a
+  // reply to your own photo said "Replying to" and nothing else.
+  group('what a reply quotes', () {
+    ChatMessage photo({bool outgoing = true}) => ChatMessage(
+      id: '${_chatId}_1',
+      chatId: _chatId,
+      messageId: 1,
+      isOutgoing: outgoing,
+      sentAt: DateTime(2026),
+      media: const [
+        MediaItem(id: 'p', type: MediaType.photo, fileId: 40, thumbnailFileId: 41),
+      ],
+    );
+    ChatMessage replyTo(int id) => ChatMessage(
+      id: '${_chatId}_2',
+      chatId: _chatId,
+      messageId: 2,
+      isOutgoing: true,
+      text: 'about that',
+      sentAt: DateTime(2026),
+      replyToMessageId: id,
+    );
+
+    test('a photo is quoted as what it is, with its thumbnail', () {
+      final filled = ChatMessageMapper.fillReplyExcerpts([photo(), replyTo(1)]);
+      final reply = filled.last;
+
+      expect(reply.replyToText, 'Photo');
+      expect(reply.replyToAuthorName, 'You');
+      expect(reply.replyToThumbnailFileId, 41);
+    });
+
+    test("somebody else's in a one-to-one chat is not named", () {
+      final filled = ChatMessageMapper.fillReplyExcerpts([
+        photo(outgoing: false),
+        replyTo(1),
+      ]);
+      expect(filled.last.replyToAuthorName, isNull);
+      expect(filled.last.replyToText, 'Photo');
+    });
+  });
+
   group('sender names', () {
+    // Somebody posting in a group as their channel, or an anonymous admin
+    // posting as the group, is a chat and not a user. Looked up only among
+    // users, they were drawn as a nameless "?".
+    test('a message sent as a chat is named after that chat', () {
+      final json = TdFixtures.textMessageJson(id: 11, chatId: _chatId);
+      json['sender_id'] = {'@type': 'messageSenderChat', 'chat_id': -100900};
+      json['is_outgoing'] = false;
+      json['is_channel_post'] = false;
+      final message = td.Message.fromJson(json);
+      final channel = TdFixtures.chat(id: -100900, title: 'RaGoose dumps');
+
+      final mapped = ChatMessageMapper.map(
+        message,
+        users: _users,
+        chats: {channel.id: channel},
+        lastReadOutboxMessageId: 0,
+        isGroup: true,
+      );
+
+      expect(mapped.senderName, 'RaGoose dumps');
+      expect(mapped.senderAvatarColorHex, isNotNull);
+      // Not a person, so there is no profile for the avatar to open.
+      expect(mapped.senderId, isNull);
+    });
+
     // In a private chat the two possible senders are the two people looking at
     // the screen, and naming them on every bubble is noise.
     test('only groups carry one', () {
@@ -176,6 +269,106 @@ void main() {
         lastReadOutboxMessageId: 0,
       );
       expect(page.map((m) => m.messageId), [100, 200, 300]);
+    });
+  });
+
+  // Service messages were drawn as empty lines, so a public group — mostly
+  // joins — read as blank gaps under date headers with nothing in them.
+  group('service lines', () {
+    td.Message service(
+      Map<String, dynamic> content, {
+      int senderUserId = _them,
+      int id = 30,
+      int date = 1700000000,
+    }) {
+      final json = TdFixtures.textMessageJson(
+        id: id,
+        chatId: _chatId,
+        date: date,
+      );
+      json['sender_id'] = {'@type': 'messageSenderUser', 'user_id': senderUserId};
+      json['is_channel_post'] = false;
+      json['content'] = content;
+      return td.Message.fromJson(json);
+    }
+
+    test('say who joined, left, or was added', () {
+      expect(
+        _map(
+          service({
+            '@type': 'messageChatAddMembers',
+            'member_user_ids': [_them],
+          }),
+          isGroup: true,
+        ).text,
+        'Ada Lovelace joined the group',
+      );
+      expect(
+        _map(
+          service({
+            '@type': 'messageChatAddMembers',
+            'member_user_ids': [_me],
+          }),
+          isGroup: true,
+        ).text,
+        'Ada Lovelace added Me',
+      );
+      expect(
+        _map(
+          service({'@type': 'messageChatDeleteMember', 'user_id': _them}),
+          isGroup: true,
+        ).text,
+        'Ada Lovelace left the group',
+      );
+      expect(
+        _map(service({'@type': 'messageChatJoinByLink'}), isGroup: true).text,
+        'Ada Lovelace joined the group via invite link',
+      );
+    });
+
+    test('a pin and a rename say what changed', () {
+      expect(
+        _map(
+          service({'@type': 'messagePinMessage', 'message_id': 1}),
+          isGroup: true,
+        ).text,
+        'Ada Lovelace pinned a message',
+      );
+      expect(
+        _map(
+          service({'@type': 'messageChatChangeTitle', 'title': 'Flutter'}),
+          isGroup: true,
+        ).text,
+        'Ada Lovelace changed the group name to "Flutter"',
+      );
+    });
+
+    test('a kind with nothing to say is left out, with its empty day', () {
+      final day1 = DateTime(2026, 9, 19, 12).millisecondsSinceEpoch ~/ 1000;
+      final day2 = DateTime(2026, 9, 20, 12).millisecondsSinceEpoch ~/ 1000;
+      final messages = ChatMessageMapper.mapHistory(
+        [
+          // A theme change: no line for it.
+          service(
+            {'@type': 'messageChatSetTheme', 'theme_name': ''},
+            id: 1,
+            date: day1,
+          ),
+          TdFixtures.chatMessage(
+            id: 2,
+            chatId: _chatId,
+            senderUserId: _them,
+            date: day2,
+          ),
+        ],
+        users: _users,
+        lastReadOutboxMessageId: 0,
+        isGroup: true,
+      );
+
+      final rows = ConversationRows.build(messages);
+      expect(rows.whereType<ConversationDateRow>(), hasLength(1));
+      expect(rows.whereType<ConversationMessageRow>(), hasLength(1));
     });
   });
 

@@ -506,4 +506,82 @@ void main() {
       expect(state.userFullInfos, isEmpty);
     });
   });
+
+  // TDLib clears a field by sending null for it, and its generated copyWith
+  // reads null as "keep". Every one of these stayed at its old value.
+  group('a field TDLib clears is cleared', () {
+    late ChatCacheState state;
+
+    setUp(() {
+      state = ChatCacheState();
+      state.apply(TdFixtures.newChat(TdFixtures.privateChat(id: 42)));
+    });
+
+    // Sending clears the draft. Kept, it came back into the composer the next
+    // time the chat was opened.
+    test('a draft, once sent', () {
+      state.apply(
+        const td.UpdateChatDraftMessage(
+          chatId: 42,
+          draftMessage: td.DraftMessage(
+            date: 1700000000,
+            inputMessageText: td.InputMessageText(
+              text: td.FormattedText(text: 'half a thought', entities: []),
+              clearDraft: false,
+            ),
+            effectId: 0,
+          ),
+          positions: [],
+        ),
+      );
+      expect(state.chats[42]?.draftMessage, isNotNull);
+
+      state.apply(const td.UpdateChatDraftMessage(chatId: 42, positions: []));
+      expect(state.chats[42]?.draftMessage, isNull);
+    });
+
+    test('the stranger bar, once dismissed', () {
+      state.apply(
+        const td.UpdateChatActionBar(
+          chatId: 42,
+          actionBar: td.ChatActionBarReportAddBlock(
+            canUnarchive: false,
+            distance: -1,
+          ),
+        ),
+      );
+      expect(state.chats[42]?.actionBar, isNotNull);
+
+      state.apply(const td.UpdateChatActionBar(chatId: 42));
+      expect(state.chats[42]?.actionBar, isNull);
+    });
+
+    test('the last message, once it is gone', () {
+      state.apply(
+        td.UpdateChatLastMessage(
+          chatId: 42,
+          lastMessage: TdFixtures.chatMessage(
+            id: 1 << 20,
+            chatId: 42,
+            senderUserId: 42,
+          ),
+          positions: const [],
+        ),
+      );
+      expect(state.chats[42]?.lastMessage, isNotNull);
+
+      state.apply(const td.UpdateChatLastMessage(chatId: 42, positions: []));
+      expect(state.chats[42]?.lastMessage, isNull);
+    });
+
+    test('and nothing else about the chat changes on the way', () {
+      final before = state.chats[42]!;
+      state.apply(const td.UpdateChatActionBar(chatId: 42));
+      final after = state.chats[42]!;
+
+      expect(after.title, before.title);
+      expect(after.type, isA<td.ChatTypePrivate>());
+      expect(after.positions.length, before.positions.length);
+    });
+  });
 }
