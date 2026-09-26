@@ -141,9 +141,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Branches are declared in ShellTab order and take their paths from it;
       // see app/app_shell.dart. Adding a tab means adding a branch here.
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) {
-          return AppShell(navigationShell: navigationShell);
-        },
+        // A fade, not the platform's page transition. The shell is arrived at
+        // from the splash and from sign-in — both screens that carry the same
+        // mark on the same background — and the default Android transition
+        // slid the feed up over the splash as if it were a page pushed on top
+        // of something the reader had been using. A cross-fade lets the mark
+        // become the feed's header in place, which is what the two screens
+        // are: one start-up, not a navigation.
+        pageBuilder: (context, state, navigationShell) => CustomTransitionPage(
+          key: state.pageKey,
+          child: AppShell(navigationShell: navigationShell),
+          transitionDuration: const Duration(milliseconds: 260),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: child,
+              ),
+        ),
         branches: [
           // Home tab
           StatefulShellBranch(

@@ -38,3 +38,41 @@ class BrandMark extends StatelessWidget {
     );
   }
 }
+
+/// The mark, flat and still, at a given height. The feed header's wordmark.
+///
+/// the same idea with gramX's own mark. Flat and monochrome rather than the
+/// coloured mark the splash animates: that is how the designer's Look & Feel
+/// boards draw the header, and on a row that already carries an avatar and a
+/// bell it is the one that reads as a title. Which of the two it is follows
+/// the theme — see [BrandAssets.glyphFor]. The artwork is portrait, so it is
+/// sized by height and takes the width that gives it.
+///
+/// The default is sized for the 56-point header: tall enough that the mark
+/// is the thing you see on the row, with a margin above and below that keeps
+/// it off the avatar and the bell.
+class BrandGlyph extends StatelessWidget {
+  final double height;
+
+  const BrandGlyph({super.key, this.height = 32});
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      BrandAssets.glyphFor(Theme.of(context).brightness),
+      height: height,
+      fit: BoxFit.contain,
+      semanticLabel: AppStrings.appName,
+      // The word, if the picture cannot be had. Better than a broken glyph in
+      // the one spot on the page that names the app.
+      errorBuilder: (context, error, stackTrace) => Text(
+        AppStrings.appName,
+        style: TextStyle(
+          fontSize: height * 0.75,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+}

@@ -394,7 +394,12 @@ class ChromeScaffold extends StatelessWidget {
 
 /// The standard header row: a title, and optional actions on the right.
 class ChromeHeaderRow extends StatelessWidget {
-  final String title;
+  /// The page's name. Null when [titleWidget] carries it instead.
+  final String? title;
+
+  /// Drawn in place of [title] — the home tab's mark, which is a picture.
+  final Widget? titleWidget;
+
   final List<Widget> actions;
 
   /// Drawn before the title — the feed's account avatar.
@@ -406,20 +411,25 @@ class ChromeHeaderRow extends StatelessWidget {
 
   const ChromeHeaderRow({
     super.key,
-    required this.title,
+    this.title,
+    this.titleWidget,
     this.actions = const [],
     this.leading,
     this.centerTitle = false,
-  });
+  }) : assert(
+         title != null || titleWidget != null,
+         'A header row names its page, in words or as a mark.',
+       );
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.onSurface;
-    final titleText = Text(
-      title,
-      style: AppTypography.heading(color: primary),
-      overflow: TextOverflow.ellipsis,
-    );
+    final titleText = titleWidget ??
+        Text(
+          title!,
+          style: AppTypography.heading(color: primary),
+          overflow: TextOverflow.ellipsis,
+        );
 
     final row = Row(
       children: [

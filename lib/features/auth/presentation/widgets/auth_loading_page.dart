@@ -53,15 +53,10 @@ class AuthLoadingPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 36),
-            const SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: AppColors.accent,
-              ),
-            ),
+            // No spinner under the status line. The mark above is already
+            // moving, and two things moving on a screen that says "connecting"
+            // read as two separate waits — the splash dropped its spinner for
+            // the same reason.
             const SizedBox(height: 48),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(

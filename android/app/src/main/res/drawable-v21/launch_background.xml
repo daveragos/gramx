@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
+<!-- The window behind the app while the Flutter engine comes up, and on
+     Android 11 and below the whole launch screen.
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+     Black, in both the light and the dark system theme: the app's own default
+     is its dark look, so the frame before Flutter's first one should be that
+     colour rather than the system's — a white window that snaps to black the
+     instant the splash draws was the very first thing a new reader saw. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/black" />
 </layer-list>

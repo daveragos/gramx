@@ -17,6 +17,25 @@ abstract class BrandAssets {
   /// holding all of them.
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
 
+  /// The mark at rest: the fullest frame of [markAnimation], exported once.
+  /// For a place that shows the coloured mark and is not waiting on anything.
+  /// The feed header used to be that place; it now draws [glyphFor] instead.
+  static const String markStatic = 'assets/brand/gramx_mark_static.png';
+
+  /// The mark as a flat glyph, for the feed header. Two of them, named for
+  /// the surface they sit on: the designer's Look & Feel boards draw the
+  /// header with a monochrome mark — pale on the dark screen, grey on the
+  /// light one — not the coloured, glossy one the splash animates. On a row
+  /// that also carries an avatar and a bell, the flat mark is the one that
+  /// reads as a title rather than a fourth icon.
+  static const String _glyphOnDark = 'assets/brand/glyph_on_dark.png';
+  static const String _glyphOnLight = 'assets/brand/glyph_on_light.png';
+
+  /// The flat glyph that reads against `brightness`; `dim` reports
+  /// `Brightness.dark` and gets the pale one.
+  static String glyphFor(Brightness brightness) =>
+      brightness == Brightness.dark ? _glyphOnDark : _glyphOnLight;
+
   /// The icons are named for the surface they sit on, not for their own
   /// colour — the light-ground icon is the one that belongs on a dark screen,
   /// and reading it the other way round is how you end up with black on black.

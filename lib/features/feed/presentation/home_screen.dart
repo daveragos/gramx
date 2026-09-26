@@ -18,6 +18,7 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.dart';
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/app/widgets/brand_mark.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -88,7 +89,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // the header does not appear, disappear and reappear across the first
     // frames of a cold start.
     final header = ChromeHeaderRow(
-      title: AppStrings.appName,
+      // else, and the word was already on the splash and the drawer.
+      titleWidget: const BrandGlyph(),
       centerTitle: true,
       // Channels and stays that way, so the bell lives here — which is where
       actions: const [ActivityBell()],
@@ -139,7 +141,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircularProgressIndicator(color: AppColors.accent),
+                      // The mark, still drawing itself: the same motion the
+                      // splash and the connecting screen carry, so the wait
+                      // between sign-in and the first channel reads as the
+                      // tail of one start-up rather than a third spinner.
+                      const BrandMark(size: 96),
                       const SizedBox(height: 24),
                       Text(
                         AppStrings.feedSyncingTitle,

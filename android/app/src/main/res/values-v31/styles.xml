@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 and later draw the launch screen themselves: the launcher
+         icon, centred on a colour, held until the app's first frame. Left to
+         its defaults that colour came from the system theme, so a phone in
+         light mode opened gramX on a white screen that cut to the black
+         splash — the same flash launch_background.xml fixes for older
+         Android, on the surface that replaced it.
+
+         Black, with the icon the reader just tapped, and then Flutter's own
+         splash carries on with the same mark on the same black. One wait
+         that looks like one wait. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

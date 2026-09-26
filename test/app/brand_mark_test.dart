@@ -53,6 +53,8 @@ void main() {
     });
   });
 
+  _glyphTests();
+
   group('the splash screen', () {
     testWidgets('carries the animated mark and the wordmark', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
@@ -67,6 +69,43 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
 
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+  });
+}
+
+/// The header glyph follows the theme: the designer's boards draw it pale on
+/// the dark screen and grey on the light one, and a pale mark on an off-white
+/// header would be the one thing on the row you could not see.
+void _glyphTests() {
+  group('the header glyph', () {
+    Future<String> assetShown(WidgetTester tester, ThemeData theme) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: theme,
+        home: const Scaffold(body: BrandGlyph()),
+      ));
+      final image = tester.widget<Image>(find.byType(Image));
+      return (image.image as AssetImage).assetName;
+    }
+
+    testWidgets('is the pale mark on a dark theme', (tester) async {
+      expect(
+        await assetShown(tester, ThemeData.dark()),
+        BrandAssets.glyphFor(Brightness.dark),
+      );
+    });
+
+    testWidgets('is the grey mark on a light theme', (tester) async {
+      expect(
+        await assetShown(tester, ThemeData.light()),
+        BrandAssets.glyphFor(Brightness.light),
+      );
+    });
+
+    testWidgets('the two are different files', (tester) async {
+      expect(
+        BrandAssets.glyphFor(Brightness.dark),
+        isNot(BrandAssets.glyphFor(Brightness.light)),
+      );
     });
   });
 }
