@@ -5,7 +5,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
-/// T17-8. The bug: a comment left by somebody with **no profile photo** was
+/// The bug: a comment left by somebody with **no profile photo** was
 /// drawn wearing the channel's avatar, so a stranger appeared to be posting as
 /// the channel itself.
 ///

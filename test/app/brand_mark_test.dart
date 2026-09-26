@@ -73,9 +73,9 @@ void main() {
   });
 }
 
-/// The header glyph follows the theme: the designer's boards draw it pale on
-/// the dark screen and grey on the light one, and a pale mark on an off-white
-/// header would be the one thing on the row you could not see.
+/// The header glyph follows the theme: pale on the dark screen and grey on
+/// the light one, because a pale mark on an off-white header would be the one
+/// thing on the row you could not see.
 void _glyphTests() {
   group('the header glyph', () {
     Future<String> assetShown(WidgetTester tester, ThemeData theme) async {

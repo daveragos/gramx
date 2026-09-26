@@ -59,8 +59,8 @@ void main() {
       expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
     });
 
-    // Shape alone carries the state, which is exactly the case the
-    // accessibility rule in docs/CONVENTIONS.md names.
+    // Shape alone carries the state, which is exactly the case a
+    // label is for.
     testWidgets('says what it means out loud', (tester) async {
       final semantics = tester.ensureSemantics();
 
@@ -147,7 +147,7 @@ void main() {
     });
   });
 
-  // T17-14. Two long presses on one row: the row's own opens the actions
+  // Two long presses on one row: the row's own opens the actions
   // sheet, and the face opens a read-only look into the conversation. The
   // innermost detector wins the arena, which is the whole reason this works —
   // and the reason it is worth pinning.
@@ -200,7 +200,7 @@ void main() {
     });
   });
 
-  // T17-5. Telegram draws a reply as a quote: an accent bar down the left, the
+  // Telegram draws a reply as a quote: an accent bar down the left, the
   // author in bold, the words indented behind it — a card inside the bubble.
   group('a reply is named, not quoted', () {
     ChatMessage reply({String? text}) => ChatMessage(

@@ -63,14 +63,14 @@ dependencies:
   connectivity_plus: ^6.1.0
 
   # Deep links. A Telegram client that cannot open a t.me link is the one
-  # link every post in it renders — see docs/ROADMAP.md T18-2. This delivers
+  # link every post in it renders. This delivers
   # the launch link and the ones that arrive while running; what they mean is
   # decided in `core/navigation/telegram_link.dart`, which is pure.
   app_links: ^6.3.2
 
   # Showing a notification. TDLib decides *what* should be notified and keeps
   # the groups in step across the reader's devices; it has no way to draw one,
-  # which is what this is for. See docs/ROADMAP.md T19-2.
+  # which is what this is for.
   flutter_local_notifications: ^18.0.1
   lottie: ^3.5.1
   open_filex: ^4.7.0
@@ -88,7 +88,7 @@ dependencies:
   # Attaching a file that is not a picture. Uses the platform's own document
   # picker (SAF on Android, UIDocumentPicker on iOS), which hands back a single
   # file the app has been granted — so it needs no storage permission of its
-  # own. See docs/ROADMAP.md T24-10.
+  # own.
   file_picker: ^11.0.3
 
   # Recording a voice message. Configured for Opus in an OGG container, which
@@ -99,7 +99,7 @@ dependencies:
 
   # One position fix, for sending a location. Never a stream and never in the
   # background: gramX asks once, when somebody taps "send my location", and
-  # stops. See docs/ROADMAP.md T24-8 for what that rules out.
+  # stops.
   geolocator: ^14.0.2
 
   # Recording a round video message. The only thing in the app that opens the

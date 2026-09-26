@@ -12,13 +12,13 @@ import 'package:path_provider/path_provider.dart';
 ///
 /// Guest content comes from Telegram's CDN over https, while every image widget
 /// in this app renders from a local path — `cached_network_image` was removed
-/// in T8-29 precisely so the app could say it fetches from Telegram and nobody
+/// precisely so the app could say it fetches from Telegram and nobody
 /// else. Caching to disk keeps that true and leaves the widgets untouched: the
 /// only new thing is where the file came from, and it still came from Telegram.
 ///
 /// Only `https` hosts under Telegram's own domains are fetched. The URLs come
 /// out of a page parsed from the network, and an image loader pointed at an
-/// arbitrary host by remote markup is exactly the leak T8-29 closed.
+/// arbitrary host by remote markup is exactly the leak that removal closed.
 class GuestMediaCache {
   final http.Client _http;
 

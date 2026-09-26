@@ -8,7 +8,7 @@ import 'package:gramx/features/chats/domain/chat_summary.dart';
 
 import '../support/td_fixtures.dart';
 
-/// T17-3: the screen gramX never had — somewhere to put a person.
+/// The screen gramX never had — somewhere to put a person.
 ///
 /// The mapper is what is worth testing here. Every one of these is a rule that
 /// can be wrong quietly: an empty string that means "hidden" rendered as a

@@ -18,7 +18,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 /// is the pattern being copied.
 ///
 /// Costs no requests. Everything it reads is already in [ChatCache], put there
-/// by the update stream — see `docs/TDLIB.md`.
+/// by the update stream.
 abstract class ChatListBuilder {
   /// Builds one row per chat.
   ///
@@ -317,7 +317,7 @@ abstract class ChatListBuilder {
   ///
   /// [query] matches the title and the username, case-insensitively. It filters
   /// what is already loaded and issues no request, which is what makes typing
-  /// in the search box free — see the per-keystroke rule in `docs/TDLIB.md`.
+  /// in the search box free.
   static List<ChatSummary> filter(
     List<ChatSummary> rows, {
     ChatFilter filter = ChatFilter.all,

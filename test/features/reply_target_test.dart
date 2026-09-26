@@ -276,7 +276,7 @@ void main() {
     });
 
     // A comment is already on a connector inside a thread. A second connector
-    // inside it would be the nested shape T17-5 removed, in a new form.
+    // inside it would be the nested shape already removed, in a new form.
     testWidgets('a comment shows a passage as the line, not a connector',
         (tester) async {
       await tester.pumpWidget(

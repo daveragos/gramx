@@ -247,7 +247,7 @@ void main() {
     });
 
     // Leaving guest mode has to strand nobody in the shell — the same fault
-    // T8-37 fixed for a hung sign-out.
+    // already fixed for a hung sign-out.
     test('dropping the flag sends them back to sign-in', () {
       expect(
         authRedirect(

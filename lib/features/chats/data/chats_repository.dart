@@ -55,7 +55,7 @@ extension MessageActionsNone on MessageActions {
 ///
 /// The two are returned together because the second cannot be inferred from the
 /// first: TDLib chooses its own batch size, so a short page is not the end of
-/// the history — see `docs/TDLIB.md`.
+/// the history.
 typedef HistoryPage = ({List<ChatMessage> messages, bool reachedTop});
 
 /// A stretch of history that may end short of the newest message.
@@ -181,7 +181,7 @@ class ChatsRepository {
   ///
   /// [fromMessageId] is the cursor: 0 for the newest messages, otherwise the
   /// oldest id already loaded. One tap is one page — this is the on-demand
-  /// shape `docs/TDLIB.md` allows, not a fan-out.
+  /// shape the request budget allows, not a fan-out.
   Future<HistoryPage> history(
     int chatId, {
     int fromMessageId = 0,
@@ -234,7 +234,7 @@ class ChatsRepository {
   /// continuing on both sides. Paging back to a message a year up the
   /// scrollback used to mean forty requests or a shrug; this is what
   /// Telegram's own clients do instead, and it is the on-demand, one-tap
-  /// one-request shape `docs/TDLIB.md` allows.
+  /// one-request shape the request budget allows.
   ///
   /// [reachedTop] is always false — nothing here asked about the top — and
   /// the first page above will find it if it is there. [reachedBottom] is
@@ -314,7 +314,7 @@ class ChatsRepository {
   /// named in the T15 notes as absent rather than half-built.
   ///
   /// **On the budget, and driven by a person typing** — so it must reach TDLib
-  /// only after the 300 ms debounce `docs/TDLIB.md` requires, which is the
+  /// only after the 300 ms debounce the request budget requires, which is the
   /// caller's job and is why this takes a settled query rather than a
   /// controller. One page per call; [fromMessageId] pages back through the
   /// results using TDLib's own `nextFromMessageId`, which answers 0 when they
@@ -373,7 +373,7 @@ class ChatsRepository {
   /// this question. It is therefore issued once per chat, when a conversation
   /// is opened, and the provider that calls it holds the answer for the rest of
   /// the session: one tap, one request, which is the on-demand shape
-  /// `docs/TDLIB.md` allows.
+  /// the request budget allows.
   ///
   /// Only the newest pin is returned. Telegram allows several and shows a
   /// counter to page through them; that is a control gramX does not have, and
@@ -547,7 +547,7 @@ class ChatsRepository {
   /// Returns whether TDLib acknowledged it, and the caller needs that answer: a
   /// read acknowledgement sent with `forceRead: false` against a chat TDLib does
   /// not consider open is quietly declined and still answers `Ok`, so nothing
-  /// retries it. See `docs/TDLIB.md`.
+  /// retries it.
   Future<bool> openChat(int chatId) async {
     try {
       return await _tdlib.sendRequest(td.OpenChat(chatId: chatId)) is td.Ok;
@@ -599,7 +599,7 @@ class ChatsRepository {
   /// success, or the error to log.
   ///
   /// Forced, because the chat is not open: an unforced ack against an unopened
-  /// chat is declined silently and still answers `Ok`. See `docs/TDLIB.md`.
+  /// chat is declined silently and still answers `Ok`.
   Future<String?> markChatRead(int chatId) async {
     final lastMessageId = _chatCache.chat(chatId)?.lastMessage?.id;
     if (lastMessageId == null) return null;
@@ -1050,8 +1050,8 @@ class ChatsRepository {
   ///
   /// Asked per message and only when the reader long-presses one, never for a
   /// page of them. TDLib documents `getMessageProperties` as an **offline**
-  /// request, so this costs no network round trip — but the fan-out rule in
-  /// `docs/TDLIB.md` is about shape as much as cost, and forty of anything on
+  /// request, so this costs no network round trip — but the fan-out rule
+  /// is about shape as much as cost, and forty of anything on
   /// opening a screen is the shape that goes wrong when a future TDLib changes
   /// its mind about what is local.
   ///
@@ -1136,7 +1136,7 @@ class ChatsRepository {
   ///
   /// Chat-wide and two-sided: it applies to everything either side sends from
   /// now on, both people see the change, and Telegram posts a service notice
-  /// about it. Distinct from the per-message self-destruct in T24-3, which the
+  /// about it. Distinct from the per-message self-destruct, which the
   /// sender chooses for one picture.
   Future<bool> setAutoDeleteTime(int chatId, int seconds) async {
     try {
@@ -1244,7 +1244,7 @@ class ChatsRepository {
   ///
   /// Telegram expects this roughly every five seconds while typing continues,
   /// and the caller throttles to that — a per-keystroke send is exactly the
-  /// shape `docs/TDLIB.md` forbids.
+  /// shape the request budget forbids.
   Future<void> setTyping(int chatId, {required bool isTyping}) async {
     try {
       await _tdlib.sendRequest(
@@ -1523,7 +1523,7 @@ class ChatsRepository {
   /// What a `@username` refers to, so a tap can go to the right screen.
   ///
   /// Networked and one request per tap, which is the on-demand shape
-  /// `docs/TDLIB.md` allows — a mention is only resolved when somebody touches
+  /// the request budget allows — a mention is only resolved when somebody touches
   /// it. Answers the chat id and what kind of chat it is, because those go to
   /// different places: a channel to the channel screen, a group to its
   /// conversation, a person to them. Null when Telegram does not know the name.
@@ -1561,7 +1561,7 @@ class ChatsRepository {
   /// for. `GetUserFullInfo` is the one that always costs something, and it is
   /// the half that carries the bio, the groups in common and the channel this
   /// person runs. That is the on-demand, user-driven, bounded shape
-  /// `docs/TDLIB.md` allows; what it must never become is a lookup per row of
+  /// the request budget allows; what it must never become is a lookup per row of
   /// a list — see [ChatSummary.affiliatedChannelId].
   ///
   /// The full record is filed back into the cache on the way out, so the chat

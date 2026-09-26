@@ -28,7 +28,7 @@ class PostActionBar extends ConsumerWidget {
   /// Opens this post's analytics, on the one surface where there are any.
   ///
   /// Null everywhere else, and that is the whole point: the view count went
-  /// from a button to a plain figure in T3-6 precisely because it looked
+  /// from a button to a plain figure precisely because it looked
   /// pressable and did nothing. It becomes a control again only where Telegram
   /// says the numbers exist — see `StatsRepository.canViewPostStats` — which is
   final VoidCallback? onViewsTap;

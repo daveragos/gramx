@@ -15,7 +15,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 /// **What this costs, and why it is allowed.** Every call here is networked and
 /// every one of them is a tap: opening the Analytics screen, scrolling a chart
 /// into view, opening one post's numbers. That is the on-demand shape
-/// `docs/TDLIB.md` permits, and it is deliberately *not* the shape the rest of
+/// the request budget permits, and it is deliberately *not* the shape the rest of
 /// the app avoids — nothing here runs on a timer, in a loop over chats, or
 /// while the screen that would show it is closed.
 ///

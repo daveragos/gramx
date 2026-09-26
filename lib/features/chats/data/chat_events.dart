@@ -140,8 +140,8 @@ class ChatActionChanged extends ChatEvent {
 /// Turns raw TDLib updates into [ChatEvent]s.
 ///
 /// Pure and top-level, so the whole translation is testable without a client, a
-/// database or a subscription — the seam the testing rules in
-/// `docs/CONVENTIONS.md` ask for. Returns null for every update a conversation
+/// database or a subscription — the seam the tests
+/// need. Returns null for every update a conversation
 /// does not care about, which is the vast majority of them.
 abstract class ChatEvents {
   static ChatEvent? map(td.TdObject update) {
@@ -190,7 +190,7 @@ abstract class ChatEvents {
       case td.UpdateMessageInteractionInfo():
         final info = update.interactionInfo;
         // Reactions reach a user client through this field and nowhere else —
-        // `updateMessageReactions` is documented bots-only. See docs/TDLIB.md.
+        // `updateMessageReactions` is documented bots-only.
         if (info == null) {
           return ChatReactionsChanged(
             update.chatId,
@@ -202,7 +202,7 @@ abstract class ChatEvents {
         // Through TdlibMappers rather than a loop here: it is the one place
         // that flattens emoji, custom-emoji and paid reactions together, and
         // the last time two copies of this existed they disagreed and dropped
-        // two of the three kinds. See docs/TDLIB.md.
+        // two of the three kinds.
         final mapped = TdlibMappers.mapReactions(info.reactions);
         return ChatReactionsChanged(
           update.chatId,

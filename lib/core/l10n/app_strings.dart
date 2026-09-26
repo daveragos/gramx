@@ -1209,8 +1209,7 @@ abstract class AppStrings {
   static const chatActionPlayingGame = 'playing a game';
 
   // Delivery state, for screen readers. The ticks are the visual form and
-  // convey state by shape alone, which is exactly the case the accessibility
-  // rule in docs/CONVENTIONS.md names.
+  // convey state by shape alone, which is exactly the case a label is for.
   static const chatSearchTooltip = 'Search this conversation';
   static const chatSearchClose = 'Close search';
   static const chatSearchHint = 'Search messages';

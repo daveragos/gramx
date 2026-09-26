@@ -51,7 +51,7 @@ ChatSummary _chat(
 void main() {
   // This is the budget argument for the whole screen. A list of everything
   // that has happened to you is a request per chat over the whole chat list,
-  // which docs/TDLIB.md forbids — unless something already knows which chats
+  // which the request budget forbids — unless something already knows which chats
   // have anything in them. The update stream does, for free.
   group('ActivityPlan.queriesFor', () {
     test('a chat with nothing waiting is never asked about', () {

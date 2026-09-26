@@ -46,7 +46,7 @@ void main() {
   group('the debounce', () {
     // Searching a chat is a networked SearchChatMessages. A ten-character
     // query undebounced is ten of them, on the one path a person drives
-    // keystroke by keystroke — the rule docs/TDLIB.md states outright.
+    // keystroke by keystroke.
     test('typing does not reach the settled query straight away', () {
       final notifier = container.read(inChatSearchQueryProvider.notifier)
         ..open();

@@ -45,8 +45,7 @@ class LinkUnknown extends LinkVerdict {
 /// TDLib bump, which no regex in this repository ever will. TDLib documents it
 /// as *"Returns a 404 error if the link is not internal. Can be called before
 /// authorization"*, and callable before authorization means it never reaches
-/// the server: it is off the request budget and works in guest mode. See
-/// `docs/TDLIB.md`.
+/// the server: it is off the request budget and works in guest mode.
 ///
 /// [TelegramLinks] stays, as the fallback. It is needed for two real cases,
 /// not as a hedge:

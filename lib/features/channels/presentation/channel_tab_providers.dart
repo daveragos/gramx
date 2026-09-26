@@ -80,7 +80,7 @@ class ChannelTabState {
 /// **A tab is fetched only when the reader selects it.** Five tabs opened
 /// eagerly would be four networked `SearchChatMessages` calls per channel
 /// visited, for content nobody asked to see — the same shape of mistake as the
-/// cold-start fan-out that T0-2 removed. [ensureLoaded] is therefore driven by
+/// cold-start fan-out this app once had. [ensureLoaded] is therefore driven by
 /// the tab controller, not by `build`.
 ///
 /// The in-flight and exhausted flags are not optional either: pagination hangs
@@ -171,7 +171,7 @@ final channelTabNotifierProvider =
 ///
 /// Synchronous, like `channelPostsProvider` — watching the overrides inside a
 /// future would re-run the search on every reaction tap, which is a TDLib
-/// request and a spinner per tap (T8-15).
+/// request and a spinner per tap.
 final channelTabPostsProvider =
     Provider.family<ChannelTabState, ChannelTabKey>((ref, key) {
   final tabs = ref.watch(channelTabNotifierProvider);

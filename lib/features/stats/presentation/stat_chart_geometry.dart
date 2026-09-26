@@ -5,8 +5,8 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 
 /// Where every point of a [StatGraph] lands inside a box.
 ///
-/// The pure half of the chart, split out for the reason `docs/CONVENTIONS.md`
-/// gives for `ChatCacheState`: the decisions with a wrong answer live here,
+/// The pure half of the chart, split out for the same reason
+/// `ChatCacheState` is: the decisions with a wrong answer live here,
 /// where a test can reach them, and the painter only puts ink where it is told.
 /// The wrong answers this exists to pin are the arithmetic ones — a flat line
 /// dividing by a zero range, a single-point graph dividing by `n - 1`, and a

@@ -157,7 +157,7 @@ void main() {
       expect(MessageContentSupport.describe(titleChanged), isNull);
     });
 
-    // The regression at the heart of T9-3: these named things reached the
+    // The regression: these named things reached the
     // reader as "Unsupported message — open in Telegram to view".
     test('names expired media and gifts rather than calling them unsupported',
         () {

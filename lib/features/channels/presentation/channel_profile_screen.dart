@@ -33,7 +33,7 @@ import 'package:gramx/app/widgets/app_dialog.dart';
 /// backed by `SearchChatMessages`, which is networked. Opening a channel must
 /// not spend four requests on content nobody asked to see, so a tab fetches
 /// only when it is first selected — `ChannelTabNotifier.ensureLoaded`, driven
-/// from the tab controller rather than from `build`. See docs/TDLIB.md.
+/// from the tab controller rather than from `build`.
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
   final int? highlightMessageId;

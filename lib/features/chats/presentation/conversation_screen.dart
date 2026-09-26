@@ -103,7 +103,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// ticked.
   ///
   /// One `getMessageProperties` per tick — user-driven and bounded, which is
-  /// the on-demand shape `docs/TDLIB.md` allows, and the same request the
+  /// the on-demand shape the request budget allows, and the same request the
   /// long-press menu already makes for one message. Unticking costs nothing:
   /// the answer is still here, and the bar recomputes from what is left.
   final Map<int, MessageActions> _selectionRights = {};
@@ -677,8 +677,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// `ensureVisible` to work with: estimate the offset from the average row
   /// height and jump roughly there, then — because that estimate is only as
   /// good as the part of the list already laid out — step the rest of the way
-  /// until the target is built. T21-1 is the round that learned the estimate
-  /// alone is not enough.
+  /// until the target is built. The estimate alone turned out not to be
+  /// enough.
   ///
   /// A target older than what is loaded is paged back to when it is close and
   /// loaded as a window around itself when it is not — see
@@ -804,7 +804,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// A mention in a channel post is always a channel; in a conversation it is
   /// usually a person, and the app has somewhere to put a person now. Which one
   /// it is has to be asked — one networked lookup per tap, which is on-demand
-  /// and bounded, the shape `docs/TDLIB.md` allows.
+  /// and bounded, the shape the request budget allows.
   Future<void> _openMention(String username) async {
     final resolved = await ref
         .read(chatsRepositoryProvider)

@@ -44,7 +44,7 @@ class ChatCacheState {
   /// for, so a private chat's name, username, verified flag, bot-ness and
   /// online status are all already here — mirroring them is what lets the chat
   /// list draw without a `GetUser` per row, which would be the same per-chat
-  /// fan-out `docs/TDLIB.md` forbids.
+  /// fan-out the request budget forbids.
   final Map<int, td.User> users = {};
 
   /// Full user records, keyed by user id.
@@ -55,7 +55,7 @@ class ChatCacheState {
   /// time as the messages list is scrolled. **Nothing here ever asks for
   /// one**, and nothing asks for the whole list's worth at once: a
   /// `GetUserFullInfo` per row of the chat list, all together, is the
-  /// per-chat fan-out `docs/TDLIB.md` exists to forbid. Anything read from
+  /// per-chat fan-out the request budget exists to forbid. Anything read from
   /// this map has to be optional in the UI for that reason.
   final Map<int, td.UserFullInfo> userFullInfos = {};
 
@@ -440,7 +440,7 @@ class ChatCacheState {
 
       // The other half of the same fact, and it was arriving on this stream
       // already with nowhere to go. It is what lets the Activity screen know
-      // which chats to ask about without a request per chat — see T19-1.
+      // which chats to ask about without a request per chat.
       case td.UpdateChatUnreadReactionCount():
         final existing = chats[update.chatId];
         if (existing == null) return false;

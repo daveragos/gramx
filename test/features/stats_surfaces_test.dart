@@ -55,7 +55,7 @@ void main() {
     onViewsTap: onViewsTap,
   );
 
-  // T3-6 made the view count a plain figure because it looked pressable and
+  // The view count became a plain figure because it looked pressable and
   // did nothing. It becomes a control again only where there is something
   group('the view count', () {
     testWidgets('is a plain figure where there are no analytics', (

@@ -4,9 +4,9 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/navigation/telegram_link_resolver.dart';
 
-/// T23-3. `GetInternalLinkType` is Telegram's own parser, shipped inside
+/// `GetInternalLinkType` is Telegram's own parser, shipped inside
 /// TDLib, documented offline and callable before authorization — so it is off
-/// the request budget in `docs/TDLIB.md` and works in guest mode.
+/// the request budget and works in guest mode.
 ///
 /// The whole design turns on there being **three** answers rather than two.
 /// "TDLib could not say" and "TDLib says this is a Telegram link gramX has no

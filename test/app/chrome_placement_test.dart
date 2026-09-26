@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 
-/// T17-13 and T17-12: two screens that had a piece of furniture on the wrong
+/// Two screens that had a piece of furniture on the wrong
 /// side of the chrome boundary.
 ///
 /// The rule both of them broke is the same one: anything drawn at a *fixed*

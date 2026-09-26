@@ -28,7 +28,7 @@ class ChannelTabPage {
 /// **Budget.** `SearchChatMessages` is networked, and there are four of these
 /// tabs. Nothing here may be called speculatively: a tab fetches its first page
 /// only when the reader selects it, and one page at a time after that. Never
-/// loop this over the channel list — see docs/TDLIB.md.
+/// loop this over the channel list.
 class ChannelMediaRepository {
   final TdlibService _tdlib;
   final FeedRepository _feed;

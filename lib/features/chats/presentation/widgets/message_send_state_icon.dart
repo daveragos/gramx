@@ -6,8 +6,8 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 /// The tick under a message this account sent.
 ///
 /// Shape alone carries the state — one tick, two ticks, a clock, a warning —
-/// which is precisely the case the accessibility rule in
-/// `docs/CONVENTIONS.md` names, so every one of them is labelled.
+/// which is precisely the case a label is for, so every
+/// one of them has one.
 ///
 /// Read is the accent blue and sent is not, because the difference between "it
 /// arrived" and "they read it" is the one thing anybody actually looks at here.

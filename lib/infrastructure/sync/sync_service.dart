@@ -53,8 +53,8 @@ class LiveInteractionUpdate extends LivePostUpdate {
 /// Turns a counter-bearing TDLib update into the event the feed folds in.
 ///
 /// Pure and top-level so it can be tested without standing up a client, a
-/// database and a subscription — the seam the testing rules in
-/// docs/CONVENTIONS.md ask for. Returns null for updates that carry no
+/// database and a subscription — the seam the tests
+/// need. Returns null for updates that carry no
 /// counters.
 ///
 /// The reaction path is the whole reason this exists. `updateMessageReactions`
@@ -62,7 +62,7 @@ class LiveInteractionUpdate extends LivePostUpdate {
 /// only place a reader is ever told about a reaction is
 /// `updateMessageInteractionInfo.interactionInfo.reactions`, and that field
 /// used to be read past and dropped. Everything downstream was already wired up
-/// and waiting for it. See docs/TDLIB.md.
+/// and waiting for it.
 LivePostUpdate? mapCounterUpdate(td.TdObject update) {
   if (update is td.UpdateMessageInteractionInfo) {
     final info = update.interactionInfo;

@@ -753,7 +753,7 @@ abstract class TdFixtures {
   /// The update that actually carries reactions to a user client.
   ///
   /// `updateMessageReactions` is bots-only, so this is the only one that fires
-  /// for a reader — see docs/TDLIB.md.
+  /// for a reader.
   static td.UpdateMessageInteractionInfo interactionInfo({
     required int chatId,
     required int messageId,

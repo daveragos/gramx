@@ -491,7 +491,7 @@ void main() {
     });
   });
 
-  // The hard rule in docs/CONVENTIONS.md: a control that renders and does
+  // The hard rule: a control that renders and does
   // nothing is a bug. The compose button has two ways to become one, and both
   // are here.
 

@@ -2,8 +2,8 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 
 /// The models behind the analytics screens.
 ///
-/// Plain classes rather than Freezed, which `docs/CONVENTIONS.md` names as the
-/// default — for the same reason `ActivityItem` and `UserProfile` are. Nothing
+/// Plain classes rather than Freezed, which is the default here — for the
+/// same reason `ActivityItem` and `UserProfile` are. Nothing
 /// here is stored, sent, or copied with a field changed: it is read from TDLib
 /// once, drawn, and dropped when the screen closes, so `copyWith` and a JSON
 /// codec would be generated code with no caller.

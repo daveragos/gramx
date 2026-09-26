@@ -28,7 +28,7 @@ import 'package:gramx/features/chats/presentation/widgets/message_bubble.dart';
 /// makes the conversation screen *interactive* is what would make this leave a
 /// trace, which is why it is a separate surface rather than a flag on that one.
 ///
-/// One request per peek, user-driven — the shape `docs/TDLIB.md` allows.
+/// One request per peek, user-driven — the shape the request budget allows.
 class ChatPeekSheet extends ConsumerWidget {
   final ChatSummary chat;
 

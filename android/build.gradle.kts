@@ -47,7 +47,7 @@ tasks.register<Delete>("clean") {
 // after the Android plugin, and this fires the moment file_picker applies it.
 //
 // **Remove this** on the move to file_picker 12, which drops the conditional
-// and the KGP application entirely — see `docs/RELEASE.md`.
+// and the KGP application entirely.
 subprojects {
     if (name != "file_picker") return@subprojects
 

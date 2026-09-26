@@ -89,7 +89,7 @@ void main() {
 
   group('reactions', () {
     // Reactions reach a user client through interaction info and nowhere else
-    // — `updateMessageReactions` is documented bots-only. See docs/TDLIB.md.
+    // — `updateMessageReactions` is documented bots-only.
     test('come from interaction info', () {
       final update = TdFixtures.interactionInfo(
         chatId: -5,

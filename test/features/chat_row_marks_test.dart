@@ -6,7 +6,7 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 
 import '../support/td_fixtures.dart';
 
-/// T17-11 and T17-4: the two things a row of the messages list now says that
+/// The two things a row of the messages list now says that
 /// it did not before — whether your own last message has been read, and which
 /// channel the person you are talking to runs.
 void main() {
@@ -191,7 +191,7 @@ void main() {
     });
 
     // Deliberately: resolving the title would be a `GetChat` per row, which is
-    // the fan-out docs/TDLIB.md forbids. The id is still carried so the badge
+    // the fan-out the request budget forbids. The id is still carried so the badge
     // can lead somewhere once a title turns up.
     test('carries the id with no title rather than fetching one', () {
       final row = ChatListBuilder.summaryFor(

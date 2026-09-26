@@ -82,7 +82,7 @@ class ComposeTargetsNotifier extends Notifier<List<ComposeTarget>> {
     });
 
     // Riverpod fires onDispose on a *rebuild* too, keeping the notifier
-    // instance — see the generation-token note on T9-11. Cancelling here is
+    // instance. Cancelling here is
     // therefore also what stops a pending recompute from the previous
     // dependencies landing on the new one, or on a disposed notifier.
     ref.onDispose(() {

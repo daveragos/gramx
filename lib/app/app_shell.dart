@@ -171,7 +171,7 @@ class _AppShellState extends ConsumerState<AppShell> with WidgetsBindingObserver
   /// Opens whatever link is waiting.
   ///
   /// A username costs one `SearchPublicChat` to turn into a chat id, which is
-  /// the on-demand, one-tap-one-request shape `docs/TDLIB.md` allows. Anything
+  /// the on-demand, one-tap-one-request shape the request budget allows. Anything
   /// this app has no screen for — an invite, a sticker pack, a name Telegram
   /// does not know — is handed to Telegram itself rather than swallowed. That
   /// is the honest end of a link gramX cannot open, and it is what the reader

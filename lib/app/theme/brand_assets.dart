@@ -19,8 +19,8 @@ abstract class BrandAssets {
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
 
   /// The mark as a flat glyph, for the feed header. Two of them, named for
-  /// the surface they sit on: the designer's Look & Feel boards draw the
-  /// header with a monochrome mark — pale on the dark screen, grey on the
+  /// the surface they sit on: the brand draws the header with a monochrome
+  /// mark — pale on the dark screen, grey on the
   /// light one — not the coloured, glossy one the splash animates. On a row
   /// that also carries an avatar and a bell, the flat mark is the one that
   /// reads as a title rather than a fourth icon.

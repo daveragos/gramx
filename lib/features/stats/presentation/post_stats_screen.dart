@@ -179,7 +179,7 @@ class _Body extends ConsumerWidget {
         ),
         // The heading waits for the answer. A heading over a space that is
         // about to fill is the same fault as one over a space that never
-        // will — see the Who-to-follow note in docs/ROADMAP.md T20-1.
+        // will.
         if (shares != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(

@@ -7,8 +7,8 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 
 /// TDLib's statistics objects, in this app's terms.
 ///
-/// Pure and separate from `StatsRepository` for the reason `docs/CONVENTIONS.md`
-/// gives: the repository owns the requests, and every decision that has a wrong
+/// Pure and separate from `StatsRepository` for one reason:
+/// the repository owns the requests, and every decision that has a wrong
 /// answer lives somewhere a test can reach without a TDLib client.
 abstract class StatsMapper {
   /// How many of Telegram's recent interactions the Content tab keeps.

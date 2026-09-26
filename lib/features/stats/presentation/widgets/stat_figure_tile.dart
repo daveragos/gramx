@@ -10,7 +10,7 @@ import 'package:gramx/features/stats/domain/channel_stats.dart';
 ///
 /// A label, the figure, and the change against the period before it. The
 /// arrow is an [Icon] rather than a glyph in the string so it can be coloured
-/// and, more to the point, **labelled**: `docs/UI.md` requires it, because up
+/// and, more to the point, **labelled**, because up
 /// and down here are told apart by colour and by a shape three pixels tall.
 class StatFigureTile extends StatelessWidget {
   final String label;

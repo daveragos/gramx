@@ -107,7 +107,7 @@ void main() {
     const mediaKey = ChannelTabKey('-1001', ChannelTab.media);
     const filesKey = ChannelTabKey('-1001', ChannelTab.files);
 
-    // T20-4 made the tabs swipeable, which means `TabBarView` now builds the
+    // The tabs are swipeable, which means `TabBarView` now builds the
     // *adjacent* tab's body while a swipe is in flight. That body reads its
     // tab's state — so reading must stay free, or swiping past a tab would
     // fetch it, and the budget rule above would be broken by a gesture rather
@@ -129,7 +129,7 @@ void main() {
 
     // The budget rule. Five tabs fetched on open would be four networked
     // searches per channel visited, for content nobody asked to see — the same
-    // shape of mistake as the cold-start fan-out T0-2 removed.
+    // shape of mistake as the cold-start fan-out this app once had.
     test('a tab that has not been selected costs no request', () async {
       expect(repo.calls, isEmpty);
       expect(notifier.stateFor(mediaKey).hasFetched, isFalse);

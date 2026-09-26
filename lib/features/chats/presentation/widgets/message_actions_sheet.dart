@@ -157,7 +157,7 @@ class _ActionList extends StatelessWidget {
           ),
         // `canForward` was fetched from Telegram and then never used, which
         // left a message with no way out of the chat it was in — while the
-        // feed has had a forward picker since T8-20.
+        // feed has had a forward picker all along.
         if (actions.canForward)
           ListTile(
             leading: const Icon(Icons.forward_rounded),
@@ -349,7 +349,7 @@ Future<void> _edit(
 
 /// Deleting is irreversible, so it asks — and it asks *who for*, because
 /// "delete for me" and "delete for everyone" are different acts and Telegram
-/// offers both. See the destructive-action rule in `docs/UI.md`.
+/// offers both.
 Future<void> _confirmDelete(
   BuildContext context,
   WidgetRef ref,

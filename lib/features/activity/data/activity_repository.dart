@@ -11,7 +11,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 /// Which chats are worth asking about, and how many requests that costs.
 ///
 /// **This is the whole budget argument for the Activity screen.** A list of
-/// everything that has happened to you is the shape `docs/TDLIB.md` forbids —
+/// everything that has happened to you is the shape the request budget forbids —
 /// a request per chat, over the whole chat list — unless something already
 /// knows which chats have anything in them. Something does: TDLib pushes
 /// `updateChatUnreadMentionCount` and `updateChatUnreadReactionCount` on the
@@ -193,7 +193,7 @@ class ActivityRepository {
   /// Who sent a message, read only from what the cache already holds.
   ///
   /// Never a request: a lookup per row of a list is the fan-out
-  /// `docs/TDLIB.md` forbids, and this is a list. A sender the cache does not
+  /// the request budget forbids, and this is a list. A sender the cache does not
   /// know simply has no name, and the row says where it happened instead.
   ({String name, int? avatarFileId, int seed})? _senderOf(td.Message message) {
     final sender = message.senderId;

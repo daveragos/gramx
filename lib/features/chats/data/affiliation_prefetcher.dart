@@ -19,7 +19,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 /// people the reader had talked to today and for nobody else, and a list
 /// meant to show who somebody is showed it only after you already knew.
 ///
-/// **Why this is not the fan-out `docs/TDLIB.md` forbids.** It is driven by
+/// **Why this is not the fan-out the request budget forbids.** It is driven by
 /// rows being *built*, which `ListView.builder` does for what is on or near
 /// the screen — not by the list existing. Each person is asked about once a
 /// session, one at a time, [spacing] apart, and the whole thing stops at

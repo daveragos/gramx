@@ -17,7 +17,7 @@ import 'package:gramx/features/stats/presentation/widgets/stat_chart.dart';
 /// graphs as a token rather than as data, so resolving them all when the
 /// statistics reply lands would be ten requests for ten charts on a screen
 /// that shows three of them without scrolling — the same fault as loading a
-/// channel's four tabs on open, which `docs/TDLIB.md` names. A card asks for
+/// channel's four tabs on open. A card asks for
 /// its own graph the first time it is **visible**, and `StatGraphLoads` makes
 /// sure it asks once however many times it crosses the viewport edge.
 ///

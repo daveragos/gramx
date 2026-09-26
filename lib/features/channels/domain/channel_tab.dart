@@ -6,7 +6,7 @@
 /// [posts] is the odd one out — it is the channel's history, served by the
 /// existing `channelPostsProvider`, not by a search. Every other tab costs one
 /// networked `SearchChatMessages` per page, which is why nothing is fetched
-/// until the reader actually selects the tab. See docs/TDLIB.md.
+/// until the reader actually selects the tab.
 enum ChannelTab {
   posts,
   media,

@@ -506,7 +506,7 @@ class FeedRepository {
     // quoting, putting the wrong byline over somebody else's words.
     //
     // The cache answers most of these for free; only genuinely unknown chats
-    // cost a request, and that is capped. See docs/TDLIB.md.
+    // cost a request, and that is capped.
     final unresolved = <int>{};
     void nameOrigin(td.MessageOrigin? origin) {
       final originId = switch (origin) {
@@ -1289,7 +1289,7 @@ class FeedRepository {
   /// Notify TDLib that the user has opened a chat.
   ///
   /// Required for unread tracking across clients, and for interaction info —
-  /// views and reactions only stream for open chats (docs/TDLIB.md).
+  /// views and reactions only stream for open chats.
   ///
   /// Returns whether TDLib actually acknowledged it. The caller needs that: a
   /// read acknowledgement sent with `forceRead: false` against a chat TDLib

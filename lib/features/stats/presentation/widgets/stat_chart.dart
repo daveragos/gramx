@@ -95,7 +95,7 @@ class StatChart extends StatelessWidget {
 
 ///
 /// The swatch is not decoration: two lines on one chart are told apart by
-/// colour and nothing else, which is exactly the case `docs/UI.md` says needs
+/// colour and nothing else, which is exactly the case that needs
 /// a label rather than a hue.
 class _LegendChip extends StatelessWidget {
   final String label;

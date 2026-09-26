@@ -21,7 +21,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 /// **It also depends on a manifest declaration.** Android 11 hides apps that
 /// are not matched by a `<queries>` entry, so without the `VIEW` + `*/*` intent
 /// in `AndroidManifest.xml` this reports "no app found" on a device that has
-/// three apps for the file. That was the state before T16-1.
+/// three apps for the file.
 Future<void> openWithSystemApp(BuildContext context, String? path) async {
   if (path == null || path.isEmpty || !File(path).existsSync()) {
     _say(context, AppStrings.openWithNotReady);

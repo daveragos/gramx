@@ -27,7 +27,7 @@ class ChannelRepository {
   /// **One request, and the names are free.** `getRecommendedChats` answers
   /// with chat *ids*, and TDLib always pushes `updateNewChat` for a chat before
   /// it names it in a reply — so `ChatCache` already holds every one of them by
-  /// the time this returns. That is the same property T0-3 leans on, and it is
+  /// the time this returns. That is the same property the cold start leans on, and it is
   /// what keeps this off the per-chat fan-out the rules forbid: there is no
   /// `GetChat` per result, because there does not need to be.
   ///

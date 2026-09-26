@@ -29,8 +29,8 @@ final statsRepositoryProvider = Provider<StatsRepository>((ref) {
 
 /// A channel's statistics. One `getChatStatistics`, on opening the screen.
 ///
-/// Auto-dispose, explicitly: a `.family` is **not** in Riverpod 3 (see
-/// `docs/ARCHITECTURE.md`), and statistics held for the rest of the session
+/// Auto-dispose, explicitly: a `.family` is **not** in Riverpod 3,
+/// and statistics held for the rest of the session
 /// would show yesterday's figures to somebody who reopened the screen to see
 /// today's. Held alive by the screen watching it, and only by that.
 final channelStatsProvider =
@@ -107,7 +107,7 @@ final canViewPostStatsProvider =
 /// into view, and this makes sure that costs one request per chart at most.
 ///
 /// Explicitly auto-dispose: `NotifierProvider.family` is **not** by default in
-/// Riverpod 3 (see `docs/ARCHITECTURE.md`), and holding a chat's charts for
+/// Riverpod 3, and holding a chat's charts for
 /// the rest of the session would show yesterday's numbers to somebody who
 /// reopened the screen to see today's.
 final statGraphsProvider =

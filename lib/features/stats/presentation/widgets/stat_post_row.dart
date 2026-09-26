@@ -12,8 +12,8 @@ import 'package:gramx/features/stats/domain/channel_stats.dart';
 /// card uses for them — a reader should not have to learn a second vocabulary
 /// for "views" between the feed and the analytics screen.
 ///
-/// Hairline separator and no card, because this is a list of posts and
-/// `docs/UI.md` is specific about how those are divided.
+/// Hairline separator and no card, because this is a list of posts, and
+/// every list in the app is divided the same way.
 class StatPostRow extends StatelessWidget {
   final PostInteraction interaction;
 

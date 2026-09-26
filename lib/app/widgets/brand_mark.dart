@@ -42,9 +42,9 @@ class BrandMark extends StatelessWidget {
 /// The mark, flat and still, at a given height. The feed header's wordmark.
 ///
 /// the same idea with gramX's own mark. Flat and monochrome rather than the
-/// coloured mark the splash animates: that is how the designer's Look & Feel
-/// boards draw the header, and on a row that already carries an avatar and a
-/// bell it is the one that reads as a title. Which of the two it is follows
+/// coloured mark the splash animates: that is how the brand draws its own
+/// header, and on a row that already carries an avatar and a bell it is the
+/// one that reads as a title. Which of the two it is follows
 /// the theme — see [BrandAssets.glyphFor]. The artwork is portrait, so it is
 /// sized by height and takes the width that gives it.
 ///

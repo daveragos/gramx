@@ -111,7 +111,7 @@ class TelegramPrivateChannelLink extends TelegramLink {
 
 /// `tg://search?query=%23flutter` — Telegram's global hashtag search.
 ///
-/// gramX has had the screen since T20-1; it just had no link into it. The tag
+/// gramX already had the screen; it just had no link into it. The tag
 /// keeps its leading `#`, because that is what the search field expects and
 /// re-adding it at the other end is a second place to get it wrong.
 class TelegramHashtagLink extends TelegramLink {
@@ -233,7 +233,7 @@ abstract class TelegramLinks {
       if (group == null) return null;
       final message = _lastNumber(segments.skip(2));
       // No message is a link to the channel itself, not a broken link to a
-      // post. A forum topic id lands here too — gramX has no topics (T13-12),
+      // post. A forum topic id lands here too — gramX has no topics,
       // so it opens the channel rather than refusing the link.
       return message == null
           ? TelegramPrivateChannelLink(group)
@@ -266,7 +266,7 @@ abstract class TelegramLinks {
     if (!isUsername(name)) return null;
 
     // The *last* number is the message. A forum link carries the topic first,
-    // and gramX has no topics yet (T13-12) — the post still opens.
+    // and gramX has no topics yet — the post still opens.
     final message = _lastNumber(rest);
     if (message == null) {
       // Trailing junk that is not a message id means this is some link shape

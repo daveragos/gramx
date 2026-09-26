@@ -41,7 +41,7 @@ class ComposeStickerSet {
 /// loading every installed set up front is a request per set for content
 /// nobody asked to see. That is the same shape as the channel-profile tabs, and
 /// it gets the same rule: **a set is fetched only when the reader opens it**,
-/// and cached after. See docs/TDLIB.md.
+/// and cached after.
 class StickerRepository {
   final TdlibService _tdlib;
 

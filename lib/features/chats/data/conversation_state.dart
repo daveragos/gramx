@@ -311,7 +311,7 @@ class ConversationState {
   ///
   /// [reachedTop] is the caller's answer, not something inferred from the page
   /// size: TDLib chooses its own batch size and a short page is not an empty
-  /// one — see `docs/TDLIB.md`.
+  /// one.
   ConversationState prepend(
     List<ChatMessage> older, {
     required bool reachedTop,

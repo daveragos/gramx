@@ -26,8 +26,8 @@ class TdlibMappers {
   /// Fallback glyph for a custom emoji reaction.
   ///
   /// Resolving the real artwork means `GetCustomEmojiStickers`, a networked
-  /// request per distinct emoji and squarely against the budget in
-  /// docs/TDLIB.md. A count under a placeholder is the honest version of "one
+  /// request per distinct emoji and squarely against the request
+  /// budget. A count under a placeholder is the honest version of "one
   /// more person reacted", and it beats dropping the reaction entirely — which
   /// is what used to happen.
   static const String customReactionEmoji = '🩶';

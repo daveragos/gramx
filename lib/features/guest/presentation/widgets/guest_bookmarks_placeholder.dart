@@ -12,7 +12,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 ///
 /// The tab stays — `ShellTab` owns tab order *and* route path, and `goBranch`
 /// addresses branches by index, so quietly dropping one would send every other
-/// tab to the wrong screen (`docs/ARCHITECTURE.md`, pinned by a test). So the
+/// tab to the wrong screen (pinned by a test). So the
 /// tab is present and says what it is waiting for, rather than showing an
 /// empty list that reads as a bug.
 class GuestBookmarksPlaceholder extends ConsumerWidget {

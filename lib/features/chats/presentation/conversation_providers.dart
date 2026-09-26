@@ -28,7 +28,7 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 /// **Request budget.** Opening a conversation is one `OpenChat` and one
 /// `GetChatHistory`. Paging back is one more, on demand. Nothing here loops over
 /// chats, and nothing here polls — every subsequent change arrives on the update
-/// stream, which is free. See `docs/TDLIB.md`.
+/// stream, which is free.
 class ConversationNotifier extends AsyncNotifier<ConversationState> {
   /// The chat this conversation is of.
   ///
@@ -197,7 +197,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   /// before [reveal] loads a window around it instead.
   ///
   /// A tap on a reply or a pin is one deliberate request for one message, so a
-  /// few pages is the on-demand, bounded shape `docs/TDLIB.md` allows — and
+  /// few pages is the on-demand, bounded shape the request budget allows — and
   /// keeps the conversation continuous when the target is just above what is
   /// loaded, which is the common case for a reply. Past that, one request for
   /// the window around the target beats forty for the pages between.
@@ -318,7 +318,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
 
   /// Sends a message, showing it before Telegram has answered.
   ///
-  /// Optimistic first, network second — the rule in `docs/UI.md`. The bubble
+  /// Optimistic first, network second. The bubble
   /// appears under the sender's thumb carrying [MessageSendState.sending], and
   /// `updateMessageSendSucceeded` swaps in the real one with its real id. If
   /// Telegram refuses it outright the optimistic bubble is dropped, because a
@@ -727,7 +727,7 @@ final conversationProvider =
 ///
 /// Telegram expects a chat action about every five seconds while typing
 /// continues and treats one as valid for six. Sending per keystroke would be
-/// exactly the per-keystroke traffic `docs/TDLIB.md` forbids, so this sends at
+/// exactly the per-keystroke traffic the request budget forbids, so this sends at
 /// most one every [interval] however fast somebody types.
 class TypingSignal {
   /// The floor between two `SendChatAction` calls.

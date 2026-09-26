@@ -1,8 +1,7 @@
 import 'dart:ui';
 
 abstract class AppColors {
-  // The brand's own colours come from the designer's colour sheet
-  // (`Assets/colorSet.pdf` in the delivery): a blue, a black, an off-white,
+  // The brand's own colours come from its colour sheet: a blue, a black, an
   // Anything not on the sheet — surfaces, borders, the secondary text — keeps
 
   // Dark theme ('Lights out' - default)
@@ -14,7 +13,7 @@ abstract class AppColors {
   static const Color darkTextSecondary = Color(0xFF71767B);
   
   // Light theme. The sheet's white is an off-white, and its black is a
-  // near-black; both are what the Look & Feel boards draw the light screen in.
+  // near-black; both are what the brand's light screen is drawn in.
   static const Color lightBackground = Color(0xFFF9F9F9);
   static const Color lightSurface = Color(0xFFF9F9F9);
   static const Color lightSurfaceVariant = Color(0xFFF7F9F9);

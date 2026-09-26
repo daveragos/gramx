@@ -50,7 +50,7 @@ void main() {
       expect(find.byKey(const Key('media')), findsOneWidget);
     });
 
-    // T17-7. "Open with" was a filled black chip pinned over the top-right
+    // "Open with" was a filled black chip pinned over the top-right
     // corner of every picture — the same weight as the back button, for
     // something that is a thing you *can* do with a photo rather than the
     // thing you came here for. It belongs in the action bar at the bottom.

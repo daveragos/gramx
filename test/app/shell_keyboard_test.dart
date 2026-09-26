@@ -8,7 +8,7 @@ import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 
-/// T17-15: the bottom bar rode up on top of the keyboard.
+/// The bottom bar rode up on top of the keyboard.
 ///
 /// The bar is pinned to the bottom of the shell's own `Scaffold` body, so
 /// letting that Scaffold shrink for the keyboard carried the bar with it — a

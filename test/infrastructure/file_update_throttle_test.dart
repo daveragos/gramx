@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/infrastructure/telegram/file_update_throttle.dart';
 
-/// T17-6. A download used to announce itself in a snackbar and then jump
+/// A download used to announce itself in a snackbar and then jump
 /// straight to a finished icon, with no progress in between — and the cause
 /// was one line in `TdlibService`, which broadcast **only completed** file
 /// updates to the UI. That filter was there for a reason: TDLib emits

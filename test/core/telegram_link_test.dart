@@ -46,7 +46,7 @@ void main() {
       expect(link.tdlibMessageId, 42 << 20);
     });
 
-    // A forum link carries the topic first. gramX has no topics (T13-12), and
+    // A forum link carries the topic first. gramX has no topics, and
     // the post still opens — which beats refusing the link.
     test('a forum link opens the post and ignores the topic', () {
       expect(parse('https://t.me/ragoose_dumps/7/11123'),

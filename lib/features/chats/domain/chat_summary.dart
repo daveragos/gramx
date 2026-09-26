@@ -55,7 +55,7 @@ enum ChatPresence {
 /// One row of the chat list.
 ///
 /// Built entirely from what [ChatCache] already holds, so drawing the whole
-/// list costs zero TDLib requests — see `docs/TDLIB.md`. Nothing here is
+/// list costs zero TDLib requests. Nothing here is
 /// fetched per-chat; if a field cannot be answered from the cache it is null
 /// and the row draws without it.
 @freezed
@@ -100,7 +100,7 @@ abstract class ChatSummary with _$ChatSummary {
     /// `UserFullInfo`, which TDLib volunteers through `UpdateUserFullInfo` for
     /// users it has loaded fully and otherwise costs one `GetUserFullInfo` per
     /// user — and a request per row down a scrolling list is precisely the
-    /// fan-out `docs/TDLIB.md` forbids. So the badge appears for people whose
+    /// fan-out the request budget forbids. So the badge appears for people whose
     /// profile the reader has actually opened, and is simply absent otherwise.
     ///
     /// The title is carried for the label and the tooltip rather than for the

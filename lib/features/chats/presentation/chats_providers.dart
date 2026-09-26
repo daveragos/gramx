@@ -123,7 +123,7 @@ final chatFilterProvider = NotifierProvider<ChatFilterNotifier, ChatFilter>(
 ///
 /// Not debounced, and it does not need to be: it filters rows already in
 /// memory and issues no request, so a keystroke costs a rebuild and nothing
-/// else. The debounce rule in `docs/TDLIB.md` is about requests.
+/// else. The debounce rule is about requests.
 class ChatSearchQueryNotifier extends Notifier<String> {
   @override
   String build() => '';

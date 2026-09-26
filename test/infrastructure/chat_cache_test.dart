@@ -452,10 +452,10 @@ void main() {
     });
   });
 
-  // T17-4. The channel a person runs lives on `UserFullInfo`, and the only
+  // The channel a person runs lives on `UserFullInfo`, and the only
   // affordable way to have one is to keep the ones TDLib volunteers. Asking
   // for them would be a `GetUserFullInfo` per row of the chat list, which is
-  // the fan-out docs/TDLIB.md exists to forbid.
+  // the fan-out the request budget exists to forbid.
   group('ChatCacheState full user records', () {
     late ChatCacheState state;
 

@@ -24,7 +24,7 @@ import 'package:gramx/app/widgets/pill_button.dart';
 /// theory that a small square blown up to a wide band would look wrong; in
 /// practice the blur threw away the only picture the channel has and left a
 /// coloured smear, which is the empty band the profile screen already lost to
-/// once in T8-42. A bottom-weighted scrim is what keeps the controls over it
+/// once before. A bottom-weighted scrim is what keeps the controls over it
 /// legible now, and it costs the image nothing.
 class ChannelHeader extends ConsumerWidget {
   final Channel channel;

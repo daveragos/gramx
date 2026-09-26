@@ -159,8 +159,7 @@ class TdlibService {
     if (function is td.GetOption) return true;
     // TDLib documents `searchChats` as an offline method: it searches the
     // titles and usernames of chats it has *already* loaded and never asks the
-    // server. That is what makes the new-message picker free to type in — see
-    // the per-keystroke rule in docs/TDLIB.md.
+    // server. That is what makes the new-message picker free to type in.
     if (function is td.SearchChats) return true;
     // TDLib's own documentation on `getMessageProperties`: "this is an offline
     // request". It is what the message long-press menu asks before deciding

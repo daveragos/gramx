@@ -108,7 +108,7 @@ void main() {
     });
 
     // A new setting cannot be added without also being persisted — the whole
-    // reason AppSettings is one value object (docs/ARCHITECTURE.md).
+    // reason AppSettings is one value object.
     test('survives a save and a reload', () {
       const settings = AppSettings(
         autoDownloadImages: AutoDownloadPolicy.never,

@@ -316,9 +316,9 @@ abstract class ComposeMessages {
       width: attachment.width,
       height: attachment.height,
       // Deliberately false. The flag means "this file was muxed with its index
-      // at the front", and gramX does not transcode or inspect for that — see
-      // docs/TDLIB.md. Claiming it for a video that isn't stalls every player
-      // that trusts it, including this app's own streaming path (T9-8). Telegram
+      // at the front", and gramX does not transcode or inspect for that.
+      // Claiming it for a video that isn't stalls every player
+      // that trusts it, including this app's own streaming path. Telegram
       // works the real answer out server-side; a lie here it cannot undo.
       supportsStreaming: false,
       caption: caption,

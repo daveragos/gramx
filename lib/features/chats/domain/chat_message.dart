@@ -11,7 +11,7 @@ part 'chat_message.g.dart';
 /// Where a message is on its way to Telegram.
 ///
 /// `SendMessage` answers as soon as the message is queued, not when it lands —
-/// see `docs/TDLIB.md` — so a bubble has to be able to say "on its way" rather
+/// so a bubble has to be able to say "on its way" rather
 /// than claiming delivery it cannot know about. [failed] is a real state a
 /// reader can act on: Telegram rejected it, and it will not retry itself.
 enum MessageSendState {
