@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -247,6 +248,23 @@ class ErrorLog extends Notifier<ErrorLogState> {
         stack: ErrorLogFormatter.trimStack(stack),
       );
 
+      // An error thrown while the widget tree is being built — a failed
+      // assertion in a build method, which is most of what reaches here — may
+      // not change a provider there and then: Riverpod refuses, and the record
+      // was lost, so the errors most worth keeping never reached Diagnostics.
+      // Those are stored once the frame is over.
+      if (_isBuilding) {
+        scheduleMicrotask(() => _store(entry));
+      } else {
+        _store(entry);
+      }
+    } catch (e) {
+      debugPrint('[ErrorLog] failed to record an error: $e');
+    }
+  }
+
+  void _store(ErrorRecord entry) {
+    try {
       final next = state.add(entry);
       if (identical(next, state)) return;
       state = next;
@@ -254,6 +272,17 @@ class ErrorLog extends Notifier<ErrorLogState> {
       unawaited(_append(entry));
     } catch (e) {
       debugPrint('[ErrorLog] failed to record an error: $e');
+    }
+  }
+
+  /// Whether a frame's build, layout or paint is running right now. False with
+  /// no binding at all, which is a plain unit test.
+  static bool get _isBuilding {
+    try {
+      return SchedulerBinding.instance.schedulerPhase ==
+          SchedulerPhase.persistentCallbacks;
+    } catch (_) {
+      return false;
     }
   }
 

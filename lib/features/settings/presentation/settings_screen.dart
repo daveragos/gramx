@@ -6,7 +6,6 @@ import 'package:gramx/core/config/app_links.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
-import 'package:gramx/features/settings/presentation/diagnostics_screen.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -16,6 +15,8 @@ import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/features/settings/data/storage_repository.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -418,21 +419,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
-            leading: Icon(Icons.bug_report_outlined, color: primaryColor),
-            title: Text(AppStrings.settingsDiagnostics,
-                style: AppTypography.body(color: primaryColor)),
-            subtitle: Text(AppStrings.settingsDiagnosticsBody,
-                style: AppTypography.actionCount(color: secondaryColor)),
-            trailing: Icon(Icons.chevron_right, color: secondaryColor),
-            onTap: () => context.push(DiagnosticsScreen.route),
-          ),
-          Divider(height: 1, thickness: 0.5, color: borderColor),
-          ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text(AppStrings.settingsVersion, style: AppTypography.body(color: primaryColor)),
             trailing: Text(AppStrings.appVersionValue,
                 style: AppTypography.actionCount(color: secondaryColor)),
           ),
+
+          // Logging out lives here, quietly, as the last row — not as a red
+          // band across the profile. The profile is what a reader looks at;
+          // bottom of Settings for the same reason.
+          if (accountAsync.value != null) ...[
+            Divider(height: 1, thickness: 0.5, color: borderColor),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+              title: Text(AppStrings.settingsLogOut,
+                  style: AppTypography.body(color: AppColors.error)),
+              onTap: () => _confirmLogout(context, ref),
+            ),
+          ],
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           // The way out of guest mode. Logging out lives on the profile beside
@@ -456,27 +460,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// Signs out, after asking. TDLib wipes its database on logout, so this is
+  /// not a state to fall into by a mis-tap.
+  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: AppStrings.settingsLogOutTitle,
+      body: AppStrings.settingsLogOutBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.settingsLogOut,
+          value: true,
+          isPrimary: true,
+          isDestructive: true,
+        ),
+        AppDialogAction.cancel(AppStrings.settingsCancel),
+      ],
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(authControllerProvider.notifier).logout();
+    if (context.mounted) context.go('/auth');
+  }
+
   /// Leaves guest mode, after saying what that deletes.
   ///
   /// Destructive and irreversible — the channel list and the cached pictures
   /// both go — so it asks first, the way logging out and leaving a channel do.
   Future<void> _leaveGuestMode(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.guestLeaveTitle),
-        content: const Text(AppStrings.guestLeaveBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.guestSignInSheetDismiss),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.guestLeaveConfirm),
-          ),
-        ],
-      ),
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: AppStrings.guestLeaveTitle,
+      body: AppStrings.guestLeaveBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.guestLeaveConfirm,
+          value: true,
+          isPrimary: true,
+        ),
+        AppDialogAction.cancel(AppStrings.guestSignInSheetDismiss),
+      ],
     );
 
     if (confirmed != true) return;

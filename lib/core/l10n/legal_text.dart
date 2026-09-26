@@ -101,8 +101,8 @@ abstract class LegalTexts {
             'along with when each mute expires.',
         'A short log of errors the app has caught — the last fifty, with '
             'phone numbers, file paths and keys stripped out before anything '
-            'is written down. Settings \u2192 Diagnostics shows you exactly '
-            'what it holds, and deletes it on request.',
+            'is written down. It is never shown to anyone and never sent '
+            'anywhere; it exists so a bug you report can be looked into.',
         'None of this leaves the device.',
       ]),
       LegalSection('Keeping it safe', [
@@ -158,7 +158,7 @@ abstract class LegalTexts {
             'account record, your bookmarks, and Telegram\'s local database.',
         'Your preferences — theme, autoplay, muted channels — stay on the '
             'device until you uninstall the app.',
-        'Settings \u2192 Diagnostics deletes the error log.',
+        'The error log is deleted with the app\'s data when you uninstall it.',
         'Settings → Media storage and cache clears downloaded media without '
             'signing you out.',
       ]),

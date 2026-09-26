@@ -1,4 +1,3 @@
-import 'package:gramx/core/diagnostics/error_log.dart' show ErrorSource;
 import 'package:gramx/features/activity/domain/activity_item.dart'
     show ActivityKind;
 import 'package:gramx/features/compose/domain/poll_draft.dart'
@@ -485,31 +484,6 @@ abstract class AppStrings {
   static const settingsTermsBody = 'What this app is, and what it is not';
   static const settingsVersion = 'Version';
 
-  // ── Diagnostics ────────────────────────────────────────────────────────────
-  static const diagnosticsTitle = 'Diagnostics';
-  static const settingsDiagnostics = 'Diagnostics';
-  static const settingsDiagnosticsBody =
-      'What went wrong, and when. Nothing here is sent anywhere.';
-  static const diagnosticsBody =
-      'Errors gramX caught, newest first. They stay on this device — there is '
-      'no reporting service — and phone numbers, file paths and keys are '
-      'removed before anything is written down, so this is safe to share when '
-      'somebody asks what happened.';
-  static const diagnosticsEmptyTitle = 'Nothing has gone wrong';
-  static const diagnosticsEmptyBody =
-      'Errors gramX catches will be listed here.';
-  static const diagnosticsCopy = 'Copy the whole log';
-  static const diagnosticsCopied = 'Diagnostics copied to clipboard.';
-  static const diagnosticsClear = 'Delete the log';
-
-  /// Where an error came from, said the way a reader would say it.
-  static String diagnosticsSource(ErrorSource source) => switch (source) {
-    ErrorSource.widget => 'Drawing the screen',
-    ErrorSource.platform => 'The device',
-    ErrorSource.zone => 'Background work',
-    ErrorSource.reported => 'gramX',
-  };
-
   // ── Notifications ──────────────────────────────────────────────────────────
   static const settingsSectionNotifications = 'Notifications';
   static const notificationsEnableTitle = 'Notify me';
@@ -569,6 +543,9 @@ abstract class AppStrings {
 
   // ── Profile ────────────────────────────────────────────────────────────────
   static const profileTitle = 'Profile';
+  static const profileTabBookmarks = 'Bookmarks';
+  static const profileTabChannels = 'Channels';
+  static const profileMoreTooltip = 'More';
   static const profileGuestName = 'Guest User';
   static const profileGuestHandle = '@guest';
   static const profileSectionDetails = 'ACCOUNT DETAILS';

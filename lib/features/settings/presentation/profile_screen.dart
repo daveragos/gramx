@@ -1,15 +1,33 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/services.dart';
+
 import 'package:gramx/app/theme/app_colors.dart';
-import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/pill_button.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
+import 'package:gramx/core/text/plain_text_links.dart';
+import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/widgets/channel_avatar.dart';
+import 'package:gramx/core/widgets/text_entity_renderer.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
+import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
-import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
+import 'package:gramx/features/compose/presentation/compose_providers.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
+import 'package:gramx/infrastructure/database/database.dart';
 
+///
+/// It used to be an avatar, a phone number and a red Log out button — a
+/// avatar over its edge, name and handle, a bio, a row of counts and tabs of
+/// what you have kept. Telegram has all of that for an account: a bio (from
+/// the same lookup the person screen uses), the channels you read and the
+/// folders you sort them into for the counts, and your bookmarks for a tab.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -17,255 +35,604 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final accountAsync = ref.watch(activeAccountProvider);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final primary = theme.colorScheme.onSurface;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(AppStrings.profileTitle,
-            style: AppTypography.heading(color: primaryColor)),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Divider(height: 1, thickness: 0.5, color: borderColor),
+    return accountAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text(AppStrings.profileTitle)),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.accent),
         ),
       ),
-      body: accountAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-        error: (err, _) => Center(
-          child: Text(AppStrings.profileError(err),
-              style: const TextStyle(color: AppColors.error)),
+      error: (err, _) => Scaffold(
+        appBar: AppBar(title: const Text(AppStrings.profileTitle)),
+        body: Center(
+          child: Text(
+            AppStrings.profileError(err),
+            style: AppTypography.body(color: AppColors.error),
+          ),
         ),
-        data: (account) {
-          final isLoggedIn = account != null;
-
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // No cover banner: a grey box with a stock grid glyph in
-                // it is not a header, it is a placeholder that was never
-                // filled. Telegram has no cover image to put there.
-                const SizedBox(height: AppSpacing.xl),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: () {
-                      final path = account?.avatarPath;
-                      if (path != null && path.isNotEmpty) {
-                        final file = File(path);
-                        if (file.existsSync()) {
-                          return CircleAvatar(
-                            radius: 40,
-                            backgroundImage: FileImage(file),
-                          );
-                        }
-                      }
-                      return CircleAvatar(
-                        radius: 40,
-                        backgroundColor: AppColors.accent,
-                        child: Text(
-                          isLoggedIn &&
-                                  (account.displayName?.isNotEmpty ?? false)
-                              ? account.displayName![0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      );
-                    }(),
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                // 2. Profile Details & Handle
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isLoggedIn
-                            ? (account.displayName ??
-                                AppStrings.drawerAccountFallback)
-                            : AppStrings.profileGuestName,
-                        style: AppTypography.heading(color: primaryColor).copyWith(fontSize: 22),
-                      ),
-                      const SizedBox(height: 2),
-                      if (isLoggedIn && account.username != null)
-                        Text(
-                          '@${account.username}',
-                          style: AppTypography.username(color: secondaryColor).copyWith(fontSize: 15),
-                        )
-                      else
-                        Text(
-                          AppStrings.profileGuestHandle,
-                          style: AppTypography.username(color: secondaryColor).copyWith(fontSize: 15),
-                        ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-                Divider(height: 1, thickness: 0.5, color: borderColor),
-
-                // One detail, no section header over it, and no row leading
-                // back to Settings — Settings used to link here, and this
-                // linked back.
-                if (isLoggedIn) ...[
-                  _CopyableDetail(
-                    icon: Icons.phone_outlined,
-                    label: AppStrings.profilePhone,
-                    value: account.phoneNumber,
-                    primaryColor: primaryColor,
-                    secondaryColor: secondaryColor,
-                  ),
-                  Divider(height: 1, thickness: 0.5, color: borderColor),
-                ] else ...[
-                  ListTile(
-                    leading: Icon(Icons.info_outline, color: primaryColor),
-                    title: Text(AppStrings.profileStatus,
-                        style: AppTypography.body(color: primaryColor)),
-                    subtitle: Text(AppStrings.profileStatusOffline,
-                        style:
-                            AppTypography.actionCount(color: secondaryColor)),
-                  ),
-                  Divider(height: 1, thickness: 0.5, color: borderColor),
-                ],
-
-                const SizedBox(height: AppSpacing.xl),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: isLoggedIn
-                      ? ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          onPressed: () => _confirmLogout(context, ref),
-                          child: const Text(AppStrings.settingsLogOut,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
-                        )
-                      : ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
-                          onPressed: () {
-                            context.push('/auth');
-                          },
-                          child: const Text(AppStrings.profileLogIn,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
-                        ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-              ],
-            ),
-          );
-        },
       ),
+      data: (account) => account == null
+          ? const _GuestProfile()
+          : _AccountProfile(account: account, primary: primary),
     );
-  }
-
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.settingsLogOutTitle),
-        content: const Text(AppStrings.settingsLogOutBody),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(AppStrings.settingsCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(AppStrings.settingsLogOut,
-                style: TextStyle(
-                    color: AppColors.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await ref.read(authControllerProvider.notifier).logout();
-      if (context.mounted) {
-        context.go('/auth');
-      }
-    }
   }
 }
 
-/// An account detail that can be copied.
-///
-/// These rows are the only place the reader can get at their own Telegram id or
-/// phone number, and reading a number off a screen to type it somewhere else is
-/// a bad time — so the row does something when tapped.
-class _CopyableDetail extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? value;
-  final Color primaryColor;
-  final Color secondaryColor;
+/// The two tabs under the header. Both are things this account has chosen,
+enum _ProfileTab {
+  bookmarks,
+  channels;
 
-  const _CopyableDetail({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.primaryColor,
-    required this.secondaryColor,
+  String get label => switch (this) {
+    _ProfileTab.bookmarks => AppStrings.profileTabBookmarks,
+    _ProfileTab.channels => AppStrings.profileTabChannels,
+  };
+}
+
+class _AccountProfile extends ConsumerWidget {
+  final Account account;
+  final Color primary;
+
+  const _AccountProfile({required this.account, required this.primary});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final displayName =
+        account.displayName ?? AppStrings.drawerAccountFallback;
+
+    // The bio comes from the same lookup the person screen makes for anybody
+    // else — one request, cached by the chat cache — because the accounts
+    // table never stored one.
+    final selfId = ref.watch(selfUserIdProvider);
+    final bio = selfId == null
+        ? null
+        : ref.watch(userProfileProvider(selfId)).value?.bio;
+
+    final channelCount = ref.watch(channelsProvider).value?.length ?? 0;
+    final folderCount = ref.watch(foldersProvider).value?.length ?? 0;
+
+    return DefaultTabController(
+      length: _ProfileTab.values.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(displayName, overflow: TextOverflow.ellipsis),
+        ),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _ProfileHeader(
+                displayName: displayName,
+                username: account.username,
+                avatarPath: account.avatarPath,
+                bio: bio,
+                phone: account.phoneNumber,
+                channelCount: channelCount,
+                folderCount: folderCount,
+                primary: primary,
+                secondary: secondary,
+              ),
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _ProfileTabBar(
+                background: theme.scaffoldBackgroundColor,
+                controller: DefaultTabController.of(context),
+              ),
+            ),
+          ],
+          body: const TabBarView(
+            children: [_BookmarksTab(), _ChannelsTab()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Banner, avatar over its edge, name, handle, bio, details, counts.
+class _ProfileHeader extends StatelessWidget {
+  final String displayName;
+  final String? username;
+  final String? avatarPath;
+  final String? bio;
+  final String? phone;
+  final int channelCount;
+  final int folderCount;
+  final Color primary;
+  final Color secondary;
+
+  static const double _bannerHeight = 110;
+  static const double _avatarRadius = 38;
+
+  const _ProfileHeader({
+    required this.displayName,
+    required this.username,
+    required this.avatarPath,
+    required this.bio,
+    required this.phone,
+    required this.channelCount,
+    required this.folderCount,
+    required this.primary,
+    required this.secondary,
   });
 
   @override
   Widget build(BuildContext context) {
-    final shown = value?.isNotEmpty == true
-        ? value!
-        : AppStrings.profileNotProvided;
-    final canCopy = value?.isNotEmpty == true;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    return ListTile(
-      leading: Icon(icon, color: primaryColor),
-      title: Text(label, style: AppTypography.body(color: primaryColor)),
-      subtitle:
-          Text(shown, style: AppTypography.actionCount(color: secondaryColor)),
-      trailing:
-          canCopy ? Icon(Icons.copy_rounded, size: 18, color: secondaryColor) : null,
-      onTap: canCopy
-          ? () async {
-              final messenger = ScaffoldMessenger.of(context);
-              await Clipboard.setData(ClipboardData(text: value!));
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text(AppStrings.profileCopied),
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Telegram has no cover photo for an account, so the band is a
+            // wash of the accent — the same fallback a channel with no photo
+            // gets, and enough to give the avatar an edge to sit on.
+            Container(
+              height: _bannerHeight,
+              width: double.infinity,
+              color: Color.alphaBlend(
+                AppColors.accent.withValues(alpha: isDark ? 0.32 : 0.22),
+                isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
+              ),
+            ),
+            Positioned(
+              left: AppSpacing.postPadding,
+              bottom: -_avatarRadius,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: theme.scaffoldBackgroundColor,
+                  shape: BoxShape.circle,
                 ),
-              );
-            }
-          : null,
+                child: ChannelAvatar(
+                  title: displayName,
+                  avatarPath: avatarPath,
+                  radius: _avatarRadius,
+                ),
+              ),
+            ),
+          ],
+        ),
+        // edits an account from its own app, so the row is left clear rather
+        // than carrying a button that would have to say no.
+        const SizedBox(height: _avatarRadius + AppSpacing.md),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.postPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                displayName,
+                style: AppTypography.heading(color: primary)
+                    .copyWith(fontSize: 21, fontWeight: FontWeight.w800),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (username != null) ...[
+                const SizedBox(height: 1),
+                Text(
+                  '@$username',
+                  style: AppTypography.username(color: secondary),
+                ),
+              ],
+              if (bio case final bio? when bio.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextEntityRenderer(
+                  text: bio,
+                  entities: linkifyPlainText(bio),
+                  style: AppTypography.body(color: primary),
+                ),
+              ],
+              if (phone case final phone? when phone.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                _PhoneLine(phone: phone, secondary: secondary),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              // each a way into the thing it counts.
+              Row(
+                children: [
+                  _Count(
+                    count: channelCount,
+                    label: AppStrings.drawerChannelsCount,
+                    primary: primary,
+                    secondary: secondary,
+                    onTap: () => context.push('/channels'),
+                  ),
+                  const SizedBox(width: AppSpacing.xl),
+                  _Count(
+                    count: folderCount,
+                    label: AppStrings.drawerFoldersCount,
+                    primary: primary,
+                    secondary: secondary,
+                    onTap: () => context.push('/folders'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// profile's location and link. Tapping copies it — it is the one detail on
+/// this screen somebody needs to get out of it.
+class _PhoneLine extends StatelessWidget {
+  final String phone;
+  final Color secondary;
+
+  const _PhoneLine({required this.phone, required this.secondary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: AppStrings.profilePhone,
+      child: InkWell(
+        onTap: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          await Clipboard.setData(ClipboardData(text: phone));
+          HapticFeedback.lightImpact();
+          messenger.showSnackBar(
+            const SnackBar(content: Text(AppStrings.profileCopied)),
+          );
+        },
+        borderRadius: BorderRadius.circular(AppSpacing.xs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.phone_outlined, size: 16, color: secondary),
+              const SizedBox(width: AppSpacing.xs),
+              Text(phone, style: AppTypography.body(color: secondary)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Count extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color primary;
+  final Color secondary;
+  final VoidCallback onTap;
+
+  const _Count({
+    required this.count,
+    required this.label,
+    required this.primary,
+    required this.secondary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.xs),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              TimeUtils.formatCount(count),
+              style: AppTypography.body(color: primary)
+                  .copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(label, style: AppTypography.body(color: secondary)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tab strip, pinned under the app bar once the header scrolls away.
+class _ProfileTabBar extends SliverPersistentHeaderDelegate {
+  final Color background;
+  final TabController controller;
+
+  static const double _height = 46;
+
+  _ProfileTabBar({required this.background, required this.controller});
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: _height,
+      color: background,
+      child: Column(
+        children: [
+          Expanded(
+            child: TabBar(
+              controller: controller,
+              tabs: [
+                for (final tab in _ProfileTab.values) Tab(text: tab.label),
+              ],
+            ),
+          ),
+          Divider(
+            height: 0.5,
+            thickness: 0.5,
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_ProfileTabBar oldDelegate) =>
+      oldDelegate.background != background ||
+      oldDelegate.controller != controller;
+}
+
+/// The same list the Bookmarks screen shows, as a tab.
+class _BookmarksTab extends ConsumerWidget {
+  const _BookmarksTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final bookmarks = ref.watch(bookmarkedPostsProvider);
+
+    return bookmarks.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+      error: (err, _) => _TabNotice(
+        text: AppStrings.bookmarksError(err),
+        color: secondary,
+      ),
+      data: (posts) {
+        if (posts.isEmpty) {
+          return _TabNotice(
+            text: AppStrings.bookmarksEmptyBody,
+            color: secondary,
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            final post = posts[index];
+            return PostCard(
+              post: post,
+              onTap: () {
+                ref.read(markPostAsReadProvider(post.id));
+                context.push('/post/${post.id}');
+              },
+              onChannelTap: () =>
+                  NavigationUtils.openChannel(context, post.channelId),
+              onBookmarkTap: () => ref.read(bookmarkToggleProvider(post.id)),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// The channels this account reads, one row each.
+class _ChannelsTab extends ConsumerWidget {
+  const _ChannelsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+    final channels = ref.watch(channelsProvider);
+
+    return channels.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+      error: (err, _) => _TabNotice(
+        text: AppStrings.channelsError(err),
+        color: secondary,
+      ),
+      data: (list) {
+        if (list.isEmpty) {
+          return _TabNotice(
+            text: AppStrings.channelsEmptyBody,
+            color: secondary,
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          itemCount: list.length,
+          separatorBuilder: (_, _) => const Divider(),
+          itemBuilder: (context, index) => _ChannelRow(
+            channel: list[index],
+            primary: primary,
+            secondary: secondary,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ChannelRow extends StatelessWidget {
+  final Channel channel;
+  final Color primary;
+  final Color secondary;
+
+  const _ChannelRow({
+    required this.channel,
+    required this.primary,
+    required this.secondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = channel.username != null ? '@${channel.username}' : null;
+    final subscribers = channel.subscriberCount > 0
+        ? AppStrings.subscriberCountShort(
+            TimeUtils.formatCount(channel.subscriberCount),
+          )
+        : null;
+    final line = [handle, subscribers].nonNulls.join(AppStrings.inlineSeparator);
+
+    return InkWell(
+      onTap: () => NavigationUtils.openChannel(context, channel.id),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.postPadding,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            ChannelAvatar(
+              title: channel.title,
+              avatarPath: channel.avatarUrl,
+              avatarFileId: channel.avatarFileId,
+              avatarColorHex: channel.avatarColor,
+              radius: AppSpacing.avatarSizeLarge / 2,
+            ),
+            const SizedBox(width: AppSpacing.avatarGap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          channel.title,
+                          style: AppTypography.displayName(color: primary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (channel.isVerified) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.verified,
+                          color: AppColors.verified,
+                          size: 16,
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (line.isNotEmpty)
+                    Text(
+                      line,
+                      style: AppTypography.username(color: secondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TabNotice extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _TabNotice({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: AppTypography.body(color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// A guest has no account to show: the mark, a word, and the way in.
+class _GuestProfile extends StatelessWidget {
+  const _GuestProfile();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.onSurface;
+    final secondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text(AppStrings.profileTitle)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xxl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircleAvatar(
+                radius: 40,
+                backgroundColor: AppColors.accent,
+                child: Icon(Icons.person_outline_rounded,
+                    color: Colors.white, size: 40),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                AppStrings.profileGuestName,
+                style: AppTypography.heading(color: primary),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                AppStrings.profileStatusOffline,
+                style: AppTypography.body(color: secondary),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              PillButton(
+                label: AppStrings.profileLogIn,
+                onPressed: () => context.push('/auth'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -64,11 +64,29 @@ class ChannelAvatar extends ConsumerWidget {
     return avatar;
   }
 
+  static final RegExp _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
+  /// What a photo-less avatar draws: the first letter of [title].
+  ///
+  /// By grapheme rather than by `title[0]`, which is one UTF-16 code unit —
+  /// half of any emoji — so a name like "🇮🇱 Ada" drew a replacement "?". The
+  /// first *letter* is skipped to where there is one, since a flag or a star
+  /// in front of a name is decoration; a name that is nothing but emoji draws
+  /// its first one.
+  @visibleForTesting
+  static String initialOf(String title) {
+    final graphemes = title.trim().characters;
+    for (final grapheme in graphemes) {
+      if (_letterOrDigit.hasMatch(grapheme)) return grapheme.toUpperCase();
+    }
+    return graphemes.isEmpty ? '?' : graphemes.first;
+  }
+
   Widget _buildFallbackAvatar() {
     final bgColor = avatarColorHex != null
         ? _parseColor(avatarColorHex!)
         : AppColors.accent;
-    final initial = title.isNotEmpty ? title[0].toUpperCase() : '?';
+    final initial = initialOf(title);
 
     return CircleAvatar(
       radius: radius,

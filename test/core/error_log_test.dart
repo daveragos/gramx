@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/core/diagnostics/error_handlers.dart';
@@ -177,5 +179,47 @@ void main() {
       ErrorHandlers.connect((e, _, _) => seen.add(e.toString()));
       expect(seen.first, contains('e0'));
     });
+  });
+
+  // Most of what reaches the log is thrown while the widget tree is being
+  // built — a failed assertion in a build method — and Riverpod refuses a
+  // provider change mid-build. The record was dropped, so exactly the errors
+  // worth keeping never reached Diagnostics.
+  testWidgets('an error recorded while building is kept', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    // Listened to, the way the Diagnostics screen listens to it.
+    container.listen(errorLogProvider, (_, _) {});
+
+    // The refusal surfaced only as a line on the console, after the state had
+    // changed and before the record reached the file — so the screen showed
+    // it once and it was gone on the next launch.
+    final printed = <String>[];
+    final original = debugPrint;
+    debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: Consumer(
+          builder: (context, ref, _) {
+            ref
+                .read(errorLogProvider.notifier)
+                .record(StateError('thrown while building'));
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    // Restored inside the test: the framework checks it is back before
+    // tear-down runs.
+    debugPrint = original;
+
+    expect(
+      container.read(errorLogProvider).records.single.message,
+      contains('thrown while building'),
+    );
+    expect(printed.where((line) => line.contains('failed to record')), isEmpty);
   });
 }
