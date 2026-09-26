@@ -46,9 +46,7 @@ app.*.map.json
 /android/build/
 /android/.gradle/
 
-# NOTE: /docs is tracked — it holds the project documentation (ARCHITECTURE,
-# TDLIB, ROADMAP, UI). Generated dartdoc output is covered by **/doc/api/ above.
-
+# Telegram API credentials. Copy app_config.example.dart and fill it in.
 /lib/core/config/app_config.dart
 
 # Release signing. The keystore lives outside the repository; key.properties
@@ -56,7 +54,3 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
-
-# Working notes, kept out of the repository. They live on disk and keep
-# guiding the work; they are not part of what gets published.
-docs/
