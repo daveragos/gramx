@@ -49,9 +49,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accountAsync = ref.watch(activeAccountProvider);
     final feedAsync = ref.watch(feedPostsProvider);
     final isSyncing = feedAsync.isLoading;
-    // The feed can have posts before the channel list has answered: the last
-    // session's snapshot paints at the first frame, and the channel list is
-    // a request behind it. Posts on screen outrank a skeleton for them.
+    // The feed can have posts before the channel list has answered: the
+    // headline stage paints straight from the chat cache, and the channel
+    // list is a request behind it. Posts on screen outrank a skeleton for them.
     final feedHasPosts = feedAsync.value?.isNotEmpty ?? false;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
@@ -118,8 +118,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     // The feed proper, built the same whether the channel list has answered
-    // or is still on its way: with a snapshot on screen the reader is
-    // reading, and the tabs fill in around them.
+    // or is still on its way: with posts on screen the reader is reading,
+    // and the tabs fill in around them.
     Widget feedScaffold() => DefaultTabController(
       length: tabItems.length,
       child: _FolderTabSync(

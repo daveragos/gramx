@@ -184,11 +184,11 @@ void main() {
   // Most of what reaches the log is thrown while the widget tree is being
   // built — a failed assertion in a build method — and Riverpod refuses a
   // provider change mid-build. The record was dropped, so exactly the errors
-  // worth keeping never reached Diagnostics.
+  // worth keeping were never kept.
   testWidgets('an error recorded while building is kept', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    // Listened to, the way the Diagnostics screen listens to it.
+    // Listened to, so the provider is alive and the change can be seen.
     container.listen(errorLogProvider, (_, _) {});
 
     // The refusal surfaced only as a line on the console, after the state had

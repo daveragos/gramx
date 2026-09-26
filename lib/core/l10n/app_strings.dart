@@ -72,12 +72,10 @@ abstract class AppStrings {
   static const feedSyncingTitle = 'Syncing Telegram Feed';
   static const feedSyncingBody =
       'Fetching your subscribed channels and history from Telegram...';
-  static const feedEmptyTitleAll = 'No posts yet';
   static const feedErrorTitle = 'Something went wrong';
   static const feedCaughtUpTitle = "You're all caught up";
   static const feedCaughtUpBody =
       'Posts you have read are cleared on refresh. New ones will appear here.';
-  static const feedScrollToTop = 'Top';
   static const feedPressBackAgain = pressBackAgainToExit;
   static const feedCommentsDisabled = 'Comments are disabled for this channel.';
   static const feedOriginalChannelUnavailable =
@@ -182,7 +180,6 @@ abstract class AppStrings {
 
   static const guestAddTooltip = 'Add a public channel';
   static const guestPasteTooltip = 'Paste a link or username';
-  static const guestOpenChannel = 'Open this channel';
   static const guestNotAUsername = 'That is not a Telegram channel username.';
   static String guestAlreadyAdded(String username) =>
       'You have already added @$username.';
@@ -201,7 +198,6 @@ abstract class AppStrings {
       'Reading channel $done of $total…';
   static const guestFeedEnd = 'You have reached the end of these channels.';
   static const a11yOpenMenu = 'Open navigation menu';
-  static const a11yScrollToTop = 'Scroll to top';
 
   static String a11yReplyWithCount(int count) =>
       count == 0 ? a11yReply : 'Reply, $count comments';
@@ -223,13 +219,11 @@ abstract class AppStrings {
 
   // ── Comments ───────────────────────────────────────────────────────────────
   static const commentPosted = 'Comment posted!';
-  static const commentEmpty = 'No comments yet';
 
   static String commentFailed(Object error) => 'Failed to post comment: $error';
 
   static const commentsHeading = 'Comments';
   static const commentsLoginPrompt = 'Log in to Telegram to post comments.';
-  static const commentReplyingTo = 'Replying to ';
   static const commentHint = 'Add a comment…';
   static const commentReplyHint = 'Post your reply…';
 
@@ -258,19 +252,13 @@ abstract class AppStrings {
   static const searchWhoToFollow = 'Channels you might like';
   static const searchWhoToFollowBody =
       'Suggested by Telegram, from the channels you already read.';
-  static const searchFollowAction = 'Follow';
 
   // ── Channels ───────────────────────────────────────────────────────────────
-  static const channelAddFieldLabel = 'Channel Username';
-  static const channelAddCancel = 'Cancel';
-  static const channelAddSubmit = 'Add';
   static const channelsTitle = 'Channels';
   static const channelsEmptyTitle = 'No channels yet';
   static const channelsEmptyBody =
       'Add public channels or log in to sync channels you already subscribe to.';
   static const channelsAddPublic = 'Add Public Channel';
-  static const channelHiddenFromFeed =
-      'Hidden from feed. Posts from this channel are now hidden from your feed.';
   static const channelVisibleInFeed =
       'Visible in feed. Posts from this channel will appear in your feed.';
   static const channelNoPosts = 'No posts found in this channel.';
@@ -339,7 +327,6 @@ abstract class AppStrings {
 
   static String channelsMutedUntil(String when) => 'Muted until $when';
 
-  static const channelsMutedLabel = 'Muted — hidden from your feed';
   static const channelsMutedIndefinitely = 'Muted';
   static const channelsMuteAction = 'Mute this channel';
   static const channelsUnmuteAction = 'Unmute this channel';
@@ -436,9 +423,6 @@ abstract class AppStrings {
       'Error loading bookmarks: $error';
 
   static const bookmarksRestore = 'Restore from Saved Messages';
-  static const bookmarksRestoreBody =
-      'gramX keeps a copy of every bookmark in your Telegram Saved Messages, '
-      'so they survive a reinstall. This reads them back.';
 
   static String bookmarksRestored(int count) => switch (count) {
     0 => 'Nothing to restore — every saved bookmark is already here.',
@@ -450,15 +434,11 @@ abstract class AppStrings {
   static String settingsAccountError(Object error) =>
       'Error loading account: $error';
   static const settingsTitle = 'Settings and privacy';
-  static const settingsSectionAccount = 'YOUR ACCOUNT';
   static const settingsSectionDisplay = 'DISPLAY AND SOUND';
   static const settingsSectionPreferences = 'PREFERENCES';
   static const settingsSectionData = 'DATA AND STORAGE';
   static const settingsSectionAbout = 'ABOUT & SUPPORT';
 
-  static const settingsAccountInfo = 'Account Information';
-  static const settingsAccountInfoBody =
-      'See your Telegram account details, ID, and phone number';
   static const settingsDarkModeLabel = 'Dark mode appearance';
   static const settingsThemeLight = 'Light';
   static const settingsThemeDim = 'Dim';
@@ -496,7 +476,6 @@ abstract class AppStrings {
   static const notificationsEnableBody =
       'Mentions, replies and messages, decided by Telegram — so a chat you '
       'muted there stays quiet here.';
-  static const notificationsDeniedTitle = 'Notifications are blocked';
   static const notificationsDeniedBody =
       'Your device refused the request. Turn gramX on in your system '
       'notification settings, then try again.';
@@ -556,18 +535,10 @@ abstract class AppStrings {
   static const profileTabChannels = 'Channels';
   static const profileMoreTooltip = 'More';
   static const profileGuestName = 'Guest User';
-  static const profileGuestHandle = '@guest';
-  static const profileSectionDetails = 'ACCOUNT DETAILS';
   static const profilePhone = 'Phone number';
-  static const profileTelegramId = 'Telegram ID';
-  static const profileNotProvided = 'Not provided';
-  static const profileStatus = 'Status';
   static const profileStatusOffline = 'Not logged in';
   static const profileLogIn = 'Log in with Telegram';
   static const profileCopied = 'Copied to clipboard.';
-  static const profileOpenSettings = 'Settings and privacy';
-  static const profileOpenSettingsBody =
-      'Appearance, playback, storage and your account';
 
   static String profileError(Object error) => 'Error: $error';
 
@@ -603,8 +574,6 @@ abstract class AppStrings {
   static const authResetConnection = 'Reset Connection';
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
-
-  static const replyUnavailable = 'Message unavailable';
 
   /// quotes it. The card is a link, and a screen reader needs to hear whose
   /// post it leads to before hearing the words in it.
@@ -677,7 +646,6 @@ abstract class AppStrings {
   static const documentFallbackName = 'Document file';
   static const documentTapToDownload = 'Tap to download';
   static const documentDownloaded = 'Downloaded';
-  static const documentDownloadingLabel = 'Downloading';
 
   static String downloadPercent(int percent) => '$percent%';
 
@@ -881,7 +849,6 @@ abstract class AppStrings {
   static const pollComposeDiscardTitle = 'Discard poll?';
   static const pollComposeDiscardBody = "This poll won't be saved.";
   static const pollComposeSendFailed = "Telegram wouldn't take that poll.";
-  static const pollComposeUnavailable = 'Polls';
   static String pollComposeOptionHint(int number) => 'Option $number';
 
   /// Why the Create button is off. One sentence per rule the draft breaks,
@@ -947,7 +914,6 @@ abstract class AppStrings {
       '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}';
 
   // ── End-to-end chats ───────────────────────────────────────────────────────
-  static const secretChatBadge = 'Secret';
   static const secretChatStart = 'Start a secret chat';
   static const secretChatStartBody =
       'Messages are encrypted end to end, live only on these two devices, and '
@@ -973,14 +939,12 @@ abstract class AppStrings {
   static const scheduleWhenOnlineBody =
       'Telegram holds it until they next open the app.';
   static const schedulePickDate = 'Pick a date and time';
-  static const scheduleTooltip = 'Send later';
   static const chatSendOrSchedule = 'Send. Hold to send later.';
   static const scheduleScreenTitle = 'Scheduled';
   static const scheduleMenu = 'Scheduled messages';
   static const scheduleEmpty = 'Nothing is scheduled here';
   static const scheduleSendNow = 'Send now';
   static const scheduleDelete = 'Delete';
-  static const scheduleFailed = "Telegram wouldn't schedule that.";
   static const scheduleInvalid =
       'Pick a time at least a minute from now, and within a year.';
   static const scheduleSent = 'Sent.';
@@ -1060,11 +1024,8 @@ abstract class AppStrings {
   static const selfDestructOff = 'Stays in the chat';
   static const selfDestructViewOnce = 'View once';
   static const selfDestructViewOnceBody = 'Gone as soon as they close it.';
-  static const selfDestructOption = 'Disappearing';
   static const selfDestructSpoiler = 'Hide behind a spoiler';
   static const selfDestructSpoilerOn = 'Spoiler on';
-  static const selfDestructPrivateOnly =
-      'Telegram only takes disappearing media in a one-to-one chat.';
 
   static String selfDestructAfter(int seconds) =>
       seconds >= 60 ? 'After 1 minute' : 'After $seconds seconds';
@@ -1141,7 +1102,6 @@ abstract class AppStrings {
   static const chatComposerHint = 'Message';
   static const chatSend = 'Send';
   static const chatAttach = 'Attach a photo or video';
-  static const chatLoadingHistory = 'Loading messages';
   static const chatEmptyTitle = 'No messages yet';
   static const chatEmptyBody = 'Say something to start this conversation.';
   static const chatHistoryFailed = "Couldn't load this conversation.";
@@ -1158,8 +1118,6 @@ abstract class AppStrings {
   /// The "↱ Forwarded from Ada" line above a forwarded message.
   static String chatForwardedFrom(String name) => 'Forwarded from $name';
   static const chatCancelReply = 'Cancel reply';
-  static const chatDeletedMessage = 'This message was deleted.';
-  static const chatOpenInTelegram = 'Open in Telegram';
   static const chatUnsupported = "gramX can't show this message yet.";
   static const chatScrollToBottom = 'Jump to the latest message';
   static const chatOnline = 'online';
@@ -1182,14 +1140,13 @@ abstract class AppStrings {
   /// A reply, pin or search hit that Telegram no longer has. Anything it
   /// still has is jumped to, however far back — see
   /// `ConversationNotifier.reveal`.
-  static const chatMessageTooFarBack =
+  static const chatMessageUnavailable =
       "Couldn't find that message. It may have been deleted.";
   static const chatActionCopy = 'Copy text';
   static const chatActionEdit = 'Edit';
   static const chatActionDelete = 'Delete';
   static const chatActionDeleteForMe = 'Delete for me';
   static const chatActionDeleteForEveryone = 'Delete for everyone';
-  static const chatActionReact = 'React';
   static const chatCopied = 'Copied.';
   static const chatDeleteTitle = 'Delete message?';
   static const chatDeleteBody =
@@ -1232,9 +1189,6 @@ abstract class AppStrings {
   static const chatLastSeenWeek = 'last seen within a week';
   static const chatLastSeenMonth = 'last seen within a month';
   static const chatLastSeenOffline = 'offline';
-
-  static String chatMembers(int count) =>
-      count == 1 ? '1 member' : '$count members';
 
   // What somebody is doing, for the typing line. Verb phrases, so they read
   // after a name in a group ("Ada is recording audio…") and alone in a private
@@ -1343,8 +1297,6 @@ abstract class AppStrings {
   static const statsGraphReactions = 'Reactions per post';
   static const statsGraphInstantViews = 'Instant View opens';
 
-  // The Content tab, and one post's own screen.
-  static const statsRecentPosts = 'Recent posts';
   static const statsContentEmpty = 'No posts in this period.';
   static const statsPostFallback = 'Post';
   static const statsPostTitle = 'Post analytics';

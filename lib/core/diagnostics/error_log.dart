@@ -251,7 +251,7 @@ class ErrorLog extends Notifier<ErrorLogState> {
       // An error thrown while the widget tree is being built — a failed
       // assertion in a build method, which is most of what reaches here — may
       // not change a provider there and then: Riverpod refuses, and the record
-      // was lost, so the errors most worth keeping never reached Diagnostics.
+      // was lost, so the errors most worth keeping were never kept.
       // Those are stored once the frame is over.
       if (_isBuilding) {
         scheduleMicrotask(() => _store(entry));

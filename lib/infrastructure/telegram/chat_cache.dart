@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:handy_tdlib/api.dart' as td;
-import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
 /// One of Telegram's per-kind send permissions.
 ///

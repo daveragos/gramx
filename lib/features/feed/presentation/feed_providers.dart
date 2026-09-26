@@ -3,11 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
-import 'package:gramx/features/guest/presentation/guest_providers.dart';
-import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -15,10 +12,13 @@ import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
-import 'package:gramx/core/diagnostics/startup_trace.dart';
+import 'package:handy_tdlib/api.dart' as td;
+import 'package:path_provider/path_provider.dart';
 
 /// Narrows pagination cursors to a set of chats.
 ///

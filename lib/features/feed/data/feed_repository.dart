@@ -121,16 +121,6 @@ class FeedRepository {
     return list;
   }
 
-  /// Builds the merged feed with **no per-channel network requests**.
-  ///
-  /// Two cheap phases: the chat cache's `lastMessage` (already delivered by the
-  /// update stream, so free) and a local-only history read (never touches the
-  /// server). Real history for the busiest channels arrives afterwards via
-  /// [backfillRecentHistory], which is throttled.
-  ///
-  /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
-  /// per channel. Doing so over a 200-channel list is an instant account-global
-  /// FLOOD_WAIT.
   /// One post per channel, from what the update stream already delivered.
   ///
   /// The first stage of a cold start's feed. Every chat TDLib loads arrives
@@ -150,6 +140,16 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, channelChats, quick: true);
   }
 
+  /// Builds the merged feed with **no per-channel network requests**.
+  ///
+  /// Two cheap phases: the chat cache's `lastMessage` (already delivered by the
+  /// update stream, so free) and a local-only history read (never touches the
+  /// server). Real history for the busiest channels arrives afterwards via
+  /// [backfillRecentHistory], which is throttled.
+  ///
+  /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
+  /// per channel. Doing so over a 200-channel list is an instant account-global
+  /// FLOOD_WAIT.
   Future<List<Post>> fetchFeedPosts() async {
     await _chatCache.ensureLoaded();
     final channelChats = _chatCache.channels;

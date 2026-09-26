@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 ///
 /// The launcher icons are not here — those are platform resources under
 /// `android/app/src/main/res` and `ios/Runner/Assets.xcassets`, built from the
-/// same delivery but never loaded through Flutter. These are the two places the
-/// app draws its own mark: the icon, framed, and the mark animating.
+/// same delivery but never loaded through Flutter. These are the places the app
+/// draws its own mark: the icon, framed, the mark animating, and the flat
+/// glyph in the feed header.
 abstract class BrandAssets {
   /// The mark drawing itself: roughly three seconds, and the file's own loop
   /// count is infinite, so nothing has to drive it.
@@ -16,11 +17,6 @@ abstract class BrandAssets {
   /// animation at 338 KB, and Flutter decodes it a frame at a time instead of
   /// holding all of them.
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
-
-  /// The mark at rest: the fullest frame of [markAnimation], exported once.
-  /// For a place that shows the coloured mark and is not waiting on anything.
-  /// The feed header used to be that place; it now draws [glyphFor] instead.
-  static const String markStatic = 'assets/brand/gramx_mark_static.png';
 
   /// The mark as a flat glyph, for the feed header. Two of them, named for
   /// the surface they sit on: the designer's Look & Feel boards draw the

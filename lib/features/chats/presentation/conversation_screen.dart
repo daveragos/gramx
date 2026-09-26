@@ -708,7 +708,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (!found || index < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(AppStrings.chatMessageTooFarBack),
+          content: Text(AppStrings.chatMessageUnavailable),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -788,7 +788,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (!found) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(AppStrings.chatMessageTooFarBack),
+          content: Text(AppStrings.chatMessageUnavailable),
           behavior: SnackBarBehavior.floating,
         ),
       );

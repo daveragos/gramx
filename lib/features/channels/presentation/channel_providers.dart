@@ -1,20 +1,20 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
-import 'package:gramx/features/guest/presentation/guest_providers.dart';
-import 'package:gramx/features/guest/data/guest_channel_store.dart';
-import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/channels/data/channel_media_repository.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
+import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_tab_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
-import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/guest/data/guest_channel_store.dart';
+import 'package:gramx/features/guest/data/guest_post_mapper.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
-import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// Provides the list of all channels (non-hidden).
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {

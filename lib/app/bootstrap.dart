@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
+import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
-import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// Initializes services before running the app.
 Future<ProviderContainer> bootstrap() async {

@@ -82,7 +82,7 @@ class ChannelsListScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: AppStrings.channelsAddPublic,
-            onPressed: () => _showAddChannelDialog(context, ref),
+            onPressed: () => showAddChannelDialog(context),
           ),
         ],
       ),
@@ -116,7 +116,7 @@ class ChannelsListScreen extends ConsumerWidget {
               filter: filter,
               primaryColor: primaryColor,
               secondaryColor: secondaryColor,
-              onAdd: () => _showAddChannelDialog(context, ref),
+              onAdd: () => showAddChannelDialog(context),
             );
           }
 
@@ -136,10 +136,6 @@ class ChannelsListScreen extends ConsumerWidget {
   }
 
   static const double _filterStripHeight = 48;
-
-  void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
-    showAddChannelDialog(context);
-  }
 }
 
 /// All / Muted. Only offered once something is actually muted — an empty
@@ -416,9 +412,3 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
-
-/// Adds a public channel — and actually joins it.
-///
-/// Resolving the username only taught TDLib the channel existed; the user was
-/// never subscribed, so the channel never reached the feed and the button
-/// looked broken.
