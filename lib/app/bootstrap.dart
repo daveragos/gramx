@@ -9,6 +9,7 @@ import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// Initializes services before running the app.
 Future<ProviderContainer> bootstrap() async {
@@ -26,6 +27,7 @@ Future<ProviderContainer> bootstrap() async {
   // We await this so auth state is available before the first frame renders.
   try {
     await container.read(tdlibServiceProvider).initialize();
+    StartupTrace.mark('TDLib client up');
   } catch (e, stack) {
     debugPrint('TDLib initialization error: $e\n$stack');
   }

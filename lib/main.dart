@@ -6,6 +6,7 @@ import 'package:gramx/app/app.dart';
 import 'package:gramx/app/bootstrap.dart';
 import 'package:gramx/core/diagnostics/error_handlers.dart';
 import 'package:gramx/core/diagnostics/error_log.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 void main() {
   // Before anything else, including the binding: the errors most worth having
@@ -13,6 +14,7 @@ void main() {
   // reader can never describe, because the app never got far enough to show
   // them anything.
   ErrorHandlers.install();
+  StartupTrace.mark('Dart started');
 
   // `bootstrap()` initialises the binding, so it has to run inside this zone —
   // Flutter requires the binding and `runApp` to share one, and a mismatch is

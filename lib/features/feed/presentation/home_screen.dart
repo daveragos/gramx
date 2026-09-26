@@ -47,7 +47,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final channelsAsync = ref.watch(channelsProvider);
     final accountAsync = ref.watch(activeAccountProvider);
-    final isSyncing = ref.watch(feedPostsProvider).isLoading;
+    final feedAsync = ref.watch(feedPostsProvider);
+    final isSyncing = feedAsync.isLoading;
+    // The feed can have posts before the channel list has answered: the last
+    // session's snapshot paints at the first frame, and the channel list is
+    // a request behind it. Posts on screen outrank a skeleton for them.
+    final feedHasPosts = feedAsync.value?.isNotEmpty ?? false;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
     final foldersAsync = ref.watch(foldersProvider);
@@ -112,21 +117,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
 
+    // The feed proper, built the same whether the channel list has answered
+    // or is still on its way: with a snapshot on screen the reader is
+    // reading, and the tabs fill in around them.
+    Widget feedScaffold() => DefaultTabController(
+      length: tabItems.length,
+      child: _FolderTabSync(
+        folderIds: tabItems.map((t) => t.id).toList(),
+        child: ChromeScaffold(
+          // The feed owns four scrollables, one per tab, so each reports
+          // its own scrolling rather than the scaffold guessing which is
+          // on screen.
+          observeScroll: false,
+          // Nothing to post to — a guest, or an account that runs no
+          // channel and shares no group — means no button at all, rather
+          // than one that opens a screen saying no. Decided here because
+          // the scaffold needs a null to leave the slot empty.
+          floatingActionButton: ref.watch(canComposeProvider)
+              ? const ComposeFab()
+              : null,
+          headerBottomHeight: _tabBarHeight,
+          header: header,
+          headerBottom: _FolderTabBar(
+            titles: tabItems.map((t) => t.title).toList(),
+            onTabTap: (index) {
+              final folderId = tabItems[index].id;
+              // Compared against the folder actually on screen, not a
+              // remembered tap: swiping to a tab and then tapping it is a
+              // re-tap, and used to be treated as a switch.
+              final isRetap = ref.read(activeFolderProvider) == folderId;
+              ref.read(activeFolderProvider.notifier).set(folderId);
+              if (isRetap) {
+                ref
+                    .read(feedScrollToTopProvider.notifier)
+                    .request(folderId);
+              }
+            },
+          ),
+          body: (context, topPadding, bottomPadding) => TabBarView(
+            children: tabItems.map((item) {
+              return FolderFeed(
+                folderTitle: item.title,
+                folderId: item.id,
+                topPadding: topPadding,
+                bottomPadding: bottomPadding,
+                // Where the pill sits once the header is gone.
+                collapsedTopPadding: MediaQuery.of(context).padding.top,
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+
     return channelsAsync.when(
       // The bottom bar is drawn by the shell from the first frame, so a body
       // with no header at all left the app looking half-built. What is
       // genuinely unknown at this point is which folders exist and what is in
       // them — so those are the parts that shimmer, and the header is simply
       // there.
-      loading: () => ChromeScaffold(
-        observeScroll: false,
-        headerBottomHeight: _tabBarHeight,
-        header: header,
-        headerBottom: const FolderTabsSkeleton(),
-        body: (context, topPadding, bottomPadding) => FeedSkeleton(
-          padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
-        ),
-      ),
+      loading: () => feedHasPosts
+          ? feedScaffold()
+          : ChromeScaffold(
+              observeScroll: false,
+              headerBottomHeight: _tabBarHeight,
+              header: header,
+              headerBottom: const FolderTabsSkeleton(),
+              body: (context, topPadding, bottomPadding) => FeedSkeleton(
+                padding:
+                    EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+              ),
+            ),
       error: (err, _) => Scaffold(body: Center(child: Text(AppStrings.feedError(err)))),
       data: (channels) {
         final isEmpty = channels.isEmpty;
@@ -166,55 +227,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           return const Scaffold(body: FeedOnboardingView());
         }
 
-        return DefaultTabController(
-          length: tabItems.length,
-          child: _FolderTabSync(
-            folderIds: tabItems.map((t) => t.id).toList(),
-            child: ChromeScaffold(
-              // The feed owns four scrollables, one per tab, so each reports
-              // its own scrolling rather than the scaffold guessing which is
-              // on screen.
-              observeScroll: false,
-              // Nothing to post to — a guest, or an account that runs no
-              // channel and shares no group — means no button at all, rather
-              // than one that opens a screen saying no. Decided here because
-              // the scaffold needs a null to leave the slot empty.
-              floatingActionButton: ref.watch(canComposeProvider)
-                  ? const ComposeFab()
-                  : null,
-              headerBottomHeight: _tabBarHeight,
-              header: header,
-              headerBottom: _FolderTabBar(
-                titles: tabItems.map((t) => t.title).toList(),
-                onTabTap: (index) {
-                  final folderId = tabItems[index].id;
-                  // Compared against the folder actually on screen, not a
-                  // remembered tap: swiping to a tab and then tapping it is a
-                  // re-tap, and used to be treated as a switch.
-                  final isRetap = ref.read(activeFolderProvider) == folderId;
-                  ref.read(activeFolderProvider.notifier).set(folderId);
-                  if (isRetap) {
-                    ref
-                        .read(feedScrollToTopProvider.notifier)
-                        .request(folderId);
-                  }
-                },
-              ),
-              body: (context, topPadding, bottomPadding) => TabBarView(
-                children: tabItems.map((item) {
-                  return FolderFeed(
-                    folderTitle: item.title,
-                    folderId: item.id,
-                    topPadding: topPadding,
-                    bottomPadding: bottomPadding,
-                    // Where the pill sits once the header is gone.
-                    collapsedTopPadding: MediaQuery.of(context).padding.top,
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        );
+        return feedScaffold();
       },
     );
   }

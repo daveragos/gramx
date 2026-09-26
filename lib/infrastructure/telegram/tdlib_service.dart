@@ -11,6 +11,7 @@ import 'package:gramx/core/config/app_config.dart';
 import 'package:gramx/infrastructure/telegram/database_key_store.dart';
 import 'package:gramx/infrastructure/telegram/file_update_throttle.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_receiver.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// A failed TDLib request, carrying the numeric error code.
 ///
@@ -215,6 +216,7 @@ class TdlibService {
 
   void _markTdlibReady() {
     if (!_tdlibReadyCompleter.isCompleted) {
+      StartupTrace.mark('TDLib parameters accepted');
       _tdlibReadyCompleter.complete();
     }
   }

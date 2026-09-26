@@ -14,6 +14,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// Provides the list of all channels (non-hidden).
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
@@ -25,7 +26,11 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   ref.watch(channelsKnownProvider);
 
   final repo = ref.watch(channelRepositoryProvider);
-  return repo.getSubscribedChannels();
+  final channels = await repo.getSubscribedChannels();
+  if (channels.isNotEmpty) {
+    StartupTrace.mark('channels resolved (${channels.length})');
+  }
+  return channels;
 });
 
 /// Provides a single channel by its chat ID, username, or identifier.

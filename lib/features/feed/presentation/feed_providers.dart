@@ -18,6 +18,7 @@ import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// Narrows pagination cursors to a set of chats.
 ///
@@ -204,7 +205,35 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     // not be modified while another is building.
     Future.microtask(() => ref.read(feedWarmupProvider.notifier).start());
 
-    final posts = await repo.fetchFeedPosts();
+    // The feed arrives in two stages, each painted as soon as it exists,
+    // because the alternative was a skeleton held for the sum of them. Both
+    // come out of TDLib's own database — the same store Telegram's clients
+    // open from — and nothing here keeps a copy of its own. Assigning `state`
+    // inside `build` is what paints a stage; what `build` returns is the last.
+    //
+    // Stage 1 — one post per channel, from the chat list itself. Every chat
+    // TDLib loads arrives with its `lastMessage`, so this costs no request
+    // past the chat list and lands well before the histories do.
+    try {
+      final headlines = _admit(await repo.fetchHeadlinePosts());
+      if (_disposed) return headlines;
+      if (headlines.isNotEmpty) {
+        _updateOldestIds(headlines);
+        state = AsyncData(headlines);
+        StartupTrace.mark(
+          'feed painted from channel headlines (${headlines.length})',
+        );
+      }
+    } catch (e) {
+      debugPrint('[Feed] Headlines skipped: $e');
+    }
+
+    // Stage 2 — the real thing: each channel's local history, names and
+    // excerpts resolved. It replaces the headlines, which it contains.
+    final posts = _admit(await repo.fetchFeedPosts());
+    if (posts.isNotEmpty) {
+      StartupTrace.mark('first feed posts (${posts.length})');
+    }
     _updateOldestIds(posts);
     // The mix has to be there in the first painted feed, not arrive twenty
     // seconds later while the reader is already scrolling. Both of these are

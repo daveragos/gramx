@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
+
+import 'package:gramx/core/async/ui_yield.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
@@ -129,6 +131,25 @@ class FeedRepository {
   /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
   /// per channel. Doing so over a 200-channel list is an instant account-global
   /// FLOOD_WAIT.
+  /// One post per channel, from what the update stream already delivered.
+  ///
+  /// The first stage of a cold start's feed. Every chat TDLib loads arrives
+  /// with its `lastMessage`, so once the chat list is in, this costs no
+  /// request at all — no history, no name lookups, no reply excerpts — and
+  /// can be on screen while [fetchFeedPosts] is still asking for the rest.
+  /// A card built here may lack the name of a channel it was forwarded from;
+  /// the full pass replaces it a moment later with one that has it.
+  Future<List<Post>> fetchHeadlinePosts() async {
+    await _chatCache.ensureLoaded();
+    final channelChats = _chatCache.channels;
+    final messagesByChatId = <int, List<td.Message>>{
+      for (final chat in channelChats)
+        if (chat.lastMessage != null) chat.id: [chat.lastMessage!],
+    };
+    if (messagesByChatId.isEmpty) return [];
+    return _buildPosts(messagesByChatId, channelChats, quick: true);
+  }
+
   Future<List<Post>> fetchFeedPosts() async {
     await _chatCache.ensureLoaded();
     final channelChats = _chatCache.channels;
@@ -147,21 +168,37 @@ class FeedRepository {
     }
 
     // Phase 2 — whatever TDLib already has on disk.
-    final localHistories = await Future.wait(
-      channelChats.map(
-        (chat) => _localHistory(chat.id, limit: postsPerChannel),
-      ),
-    );
-    for (var i = 0; i < channelChats.length; i++) {
-      final chatId = channelChats[i].id;
-      messagesByChatId[chatId] = _dedupeMessages([
-        ...?messagesByChatId[chatId],
-        ...localHistories[i],
-      ]);
+    //
+    // A few channels at a time, with a frame let through between each batch.
+    // Asked for all at once, a hundred channels' local histories came back as
+    // one burst of a few thousand message objects to build on the UI thread —
+    // right after the headlines had painted, which is when the reader first
+    // tried to touch the screen and found it frozen. Local reads are fast, so
+    // the batches cost little time; they just stop costing every frame.
+    for (var start = 0; start < channelChats.length; start += localReadBatch) {
+      final batch = channelChats.skip(start).take(localReadBatch).toList();
+      final localHistories = await Future.wait(
+        batch.map((chat) => _localHistory(chat.id, limit: postsPerChannel)),
+      );
+      for (var i = 0; i < batch.length; i++) {
+        final chatId = batch[i].id;
+        messagesByChatId[chatId] = _dedupeMessages([
+          ...?messagesByChatId[chatId],
+          ...localHistories[i],
+        ]);
+      }
+      await yieldToUi();
     }
 
     return _buildPosts(messagesByChatId, channelChats);
   }
+
+  /// How many channels' local histories are read at once. Small enough that
+  /// the objects built from one batch fit comfortably inside a frame budget.
+  static const int localReadBatch = 6;
+
+  /// How many messages [_buildPosts] maps before letting a frame through.
+  static const int mapYieldEvery = 60;
 
   /// Fetches real history for the busiest channels, one request at a time.
   ///
@@ -225,14 +262,17 @@ class FeedRepository {
         .toList();
     if (targets.isEmpty) return const [];
 
-    final histories = await Future.wait(
-      targets.map((chat) => _localUnread(chat)),
-    );
-
+    // Batched with a frame between, like fetchFeedPosts: this runs right
+    // behind the first paint, which is the worst moment to hold the thread.
     final messagesByChatId = <int, List<td.Message>>{};
-    for (var i = 0; i < targets.length; i++) {
-      if (histories[i].isEmpty) continue;
-      messagesByChatId[targets[i].id] = _dedupeMessages(histories[i]);
+    for (var start = 0; start < targets.length; start += localReadBatch) {
+      final batch = targets.skip(start).take(localReadBatch).toList();
+      final histories = await Future.wait(batch.map(_localUnread));
+      for (var i = 0; i < batch.length; i++) {
+        if (histories[i].isEmpty) continue;
+        messagesByChatId[batch[i].id] = _dedupeMessages(histories[i]);
+      }
+      await yieldToUi();
     }
     if (messagesByChatId.isEmpty) return const [];
 
@@ -398,37 +438,61 @@ class FeedRepository {
 
     if (wanted.isEmpty) return const {};
 
+    // One request per channel, all in flight at once — see `_buildPosts` for
+    // why they no longer wait on each other.
     final excerpts = <String, String>{};
-    for (final entry in wanted.entries) {
-      try {
-        final res = await _tdlib.sendRequest(
-          td.GetMessages(chatId: entry.key, messageIds: entry.value.toList()),
-        );
-        if (res is! td.Messages) continue;
-        for (final message in res.messages) {
-          // GetMessages answers with an id of 0 for anything it doesn't have.
-          if (message.id == 0) continue;
-          final excerpt = TdlibMappers.excerptOf(message);
-          if (excerpt != null) {
-            excerpts['${entry.key}_${message.id}'] = excerpt;
+    await Future.wait(
+      wanted.entries.map((entry) async {
+        try {
+          final res = await _tdlib.sendRequest(
+            td.GetMessages(chatId: entry.key, messageIds: entry.value.toList()),
+          );
+          if (res is! td.Messages) return;
+          for (final message in res.messages) {
+            // GetMessages answers with an id of 0 for anything it doesn't have.
+            if (message.id == 0) continue;
+            final excerpt = TdlibMappers.excerptOf(message);
+            if (excerpt != null) {
+              excerpts['${entry.key}_${message.id}'] = excerpt;
+            }
           }
+        } catch (e) {
+          debugPrint(
+            '[FeedRepo] Reply excerpt lookup failed for ${entry.key}: $e',
+          );
         }
-      } catch (e) {
-        debugPrint(
-          '[FeedRepo] Reply excerpt lookup failed for ${entry.key}: $e',
-        );
-      }
-    }
+      }),
+    );
     return excerpts;
   }
 
+  /// Names the channels the cache does not know, one `GetChat` each, all at
+  /// once. A private or deleted origin answers with an error and is left out;
+  /// the card falls back to the author signature.
+  Future<Map<int, String>> _lookupOriginTitles(Iterable<int> chatIds) async {
+    final titles = <int, String>{};
+    await Future.wait(
+      chatIds.map((id) async {
+        try {
+          final res = await _tdlib.sendRequest(td.GetChat(chatId: id));
+          if (res is td.Chat) titles[res.id] = res.title;
+        } catch (_) {}
+      }),
+    );
+    return titles;
+  }
+
   /// Maps raw messages into sorted [Post]s, resolving forwarded-channel names.
+  ///
+  /// [quick] skips every lookup that would reach the server — unknown origin
+  /// names, reply excerpts — and builds from what is in hand. For a first
+  /// paint that must not wait on the network; the full pass follows.
   Future<List<Post>> _buildPosts(
     Map<int, List<td.Message>> messagesByChatId,
-    List<td.Chat> chats,
-  ) async {
+    List<td.Chat> chats, {
+    bool quick = false,
+  }) async {
     final chatMap = {for (final c in chats) c.id: c};
-    final bookmarkKeys = await _bookmarkKeys();
 
     final knownChatTitles = <int, String>{};
     for (final chat in chats) {
@@ -468,19 +532,30 @@ class FeedRepository {
       }
     }
 
-    for (final id in unresolved.take(_maxForwardLookups)) {
-      try {
-        final res = await _tdlib.sendRequest(td.GetChat(chatId: id));
-        if (res is td.Chat) knownChatTitles[res.id] = res.title;
-      } catch (_) {
-        // A private or deleted origin channel; the card falls back to the
-        // author signature.
-      }
-    }
+    // Three lookups that do not depend on each other, started together and
+    // awaited together. Run one after another they cost the sum of their round
+    // trips — up to ten `GetChat`s for unknown origins, then a `GetMessages`
+    // per channel with replies, each a trip to the server on a cold cache —
+    // and that sum sat between the folder tabs appearing and the first post.
+    // Same requests, same budget; they just no longer queue.
+    final bookmarkKeysFuture = _bookmarkKeys();
+    final originTitlesFuture = quick
+        ? Future.value(const <int, String>{})
+        : _lookupOriginTitles(unresolved.take(_maxForwardLookups));
+    final replyExcerptsFuture = quick
+        ? Future.value(const <String, String>{})
+        : _resolveReplyExcerpts(messagesByChatId);
 
-    final replyExcerpts = await _resolveReplyExcerpts(messagesByChatId);
+    final bookmarkKeys = await bookmarkKeysFuture;
+    knownChatTitles.addAll(await originTitlesFuture);
+    final replyExcerpts = await replyExcerptsFuture;
 
+    // Mapping is where the time goes: entities, media, reactions and reply
+    // targets for every message, all synchronous. Done in one pass over a
+    // hundred channels it held the UI thread for the better part of a
+    // second, so a frame is let through every [mapYieldEvery] messages.
     final posts = <Post>[];
+    var mappedSinceYield = 0;
     for (final entry in messagesByChatId.entries) {
       final chat = chatMap[entry.key];
       if (chat == null) continue;
@@ -493,6 +568,11 @@ class FeedRepository {
           knownReplyExcerpts: replyExcerpts,
         ),
       );
+      mappedSinceYield += entry.value.length;
+      if (mappedSinceYield >= mapYieldEvery) {
+        mappedSinceYield = 0;
+        await yieldToUi();
+      }
     }
 
     posts.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));

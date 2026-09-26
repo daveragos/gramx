@@ -9,6 +9,7 @@ import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 // ---------------------------------------------------------------------------
 // Auth step enum — each value maps to a distinct UI page.
@@ -271,6 +272,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> _handleAuthReady() async {
+    StartupTrace.mark('Telegram session ready');
     state = state.copyWith(step: AuthStep.loading, isSubmitting: false, statusMessage: 'Loading account profile...');
     try {
       final me = await _tdlib.sendRequest(const td.GetMe());
@@ -341,6 +343,7 @@ class AuthController extends Notifier<AuthState> {
       }
 
       state = state.copyWith(step: AuthStep.authenticated);
+      StartupTrace.mark('account loaded, leaving the splash');
 
       // Trigger background channel & feed sync
       final syncService = ref.read(syncServiceProvider);

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 /// One of Telegram's per-kind send permissions.
 ///
@@ -601,6 +602,10 @@ class ChatCache {
 
   bool get isEmpty => _state.chats.isEmpty;
 
+  /// Whether the main chat list has been loaded this session — the difference
+  /// between "no channels" and "not asked yet". See [ensureLoaded].
+  bool get isLoaded => _loaded;
+
   /// A chat's sort order within the main chat list, or 0 if it isn't in it.
   static int mainListOrder(td.Chat chat) => ChatCacheState.mainListOrder(chat);
 
@@ -609,7 +614,30 @@ class ChatCache {
   ///
   /// Costs at most [_maxLoadChatsRounds] requests total, regardless of how many
   /// chats the user has. Returns as soon as the cache stops growing.
-  Future<void> ensureLoaded() async {
+  ///
+  /// **Once per session, shared by everyone who asks.** Three repositories call
+  /// this on the way to the first feed — channels, folders, posts — and each
+  /// rebuilds when the first channel lands, so a cold start used to run the
+  /// whole load five or six times over, back to back, every run paying its own
+  /// `LoadChats` round trips and its own settle wait. That was most of the gap
+  /// between the splash and the first post. Now the first caller runs it, the
+  /// rest wait on the same future, and once the list is known everybody after
+  /// that returns immediately. A load that found nothing is not remembered:
+  /// before sign-in every request fails, and the next caller must try again.
+  /// [clear] forgets it too, because the next account has its own list.
+  Future<void> ensureLoaded() {
+    if (_loaded) return Future.value();
+    return _loading ??= _load().whenComplete(() => _loading = null);
+  }
+
+  /// True once the main list has been loaded in this session.
+  bool _loaded = false;
+
+  /// The load in flight, if one is.
+  Future<void>? _loading;
+
+  Future<void> _load() async {
+    var exhausted = false;
     for (var round = 0; round < _maxLoadChatsRounds; round++) {
       final before = _state.chats.length;
       try {
@@ -621,7 +649,10 @@ class ChatCache {
         );
       } on TdlibRequestException catch (e) {
         // 404 means the list is fully loaded — the expected exit, not a failure.
-        if (e.code == _chatListExhaustedCode) break;
+        if (e.code == _chatListExhaustedCode) {
+          exhausted = true;
+          break;
+        }
         if (e.isFloodWait) {
           debugPrint(
             '[ChatCache] Rate limited during LoadChats — using what we have',
@@ -641,6 +672,14 @@ class ChatCache {
     }
 
     if (_state.chats.isEmpty) await _recoverFromMissedUpdates();
+
+    // Known, or known to be empty: TDLib said so with a 404. An empty answer
+    // for any other reason — signed out, offline, rate limited — is a guess,
+    // and the next caller asks again.
+    _loaded = exhausted || _state.chats.isNotEmpty;
+    if (_loaded) {
+      StartupTrace.mark('chat list loaded (${_state.chats.length} chats)');
+    }
   }
 
   /// Last resort when the update stream told us nothing.
@@ -682,24 +721,23 @@ class ChatCache {
 
   /// Waits until the cache stops growing, or until we run out of patience.
   ///
-  /// `LoadChats` returns before its updates have been drained by the polling
-  /// loop, so we have to watch the cache rather than trust the reply.
+  /// `LoadChats` can answer before every one of its updates has been folded
+  /// in, so the reply alone is not the signal — the cache going quiet is.
+  /// Quiet means [settle] without a change. This used to poll every 120 ms and
+  /// insist on two empty polls, which put a quarter of a second on every round
+  /// even when the updates had all landed before the reply did, which with the
+  /// receiver isolate is the usual case: they travel the same queue, in order.
   Future<void> _awaitQuiescence({
-    Duration step = const Duration(milliseconds: 120),
-    Duration limit = const Duration(seconds: 3),
+    Duration settle = const Duration(milliseconds: 80),
+    Duration limit = const Duration(milliseconds: 1500),
   }) async {
     final deadline = DateTime.now().add(limit);
-    var stableRounds = 0;
-    var lastCount = _state.chats.length;
-
     while (DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(step);
-      if (_state.chats.length == lastCount) {
-        if (++stableRounds >= 2) return;
-      } else {
-        stableRounds = 0;
-        lastCount = _state.chats.length;
-      }
+      if (_changesController.isClosed) return;
+      final changed = await _changesController.stream.first
+          .then((_) => true, onError: (_) => false)
+          .timeout(settle, onTimeout: () => false);
+      if (!changed) return;
     }
   }
 
@@ -714,6 +752,7 @@ class ChatCache {
   /// Drops every cached chat. Call on logout — chats are account-scoped.
   void clear() {
     _state.clear();
+    _loaded = false;
     _notify();
   }
 
