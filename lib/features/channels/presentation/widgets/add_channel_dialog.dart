@@ -1,31 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gramx/app/theme/app_colors.dart';
-import 'package:gramx/app/theme/app_typography.dart';
+
+import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/app/widgets/pill_button.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
-import 'package:handy_tdlib/api.dart' as td;
 
-void showAddChannelDialog(BuildContext context, WidgetRef ref) {
-  showDialog(
+/// Asks for a public channel's username and joins it.
+///
+/// One dialog, reached from the empty feed and from the Channels tab. There
+/// used to be two — the onboarding one resolved the username and then did not
+/// join, so the channel it "added" never reached the feed — and this is the
+/// one that worked, kept.
+Future<void> showAddChannelDialog(BuildContext context) {
+  return showDialog<void>(
     context: context,
-    builder: (context) => AddChannelDialog(ref: ref),
+    builder: (context) => const AddChannelDialog(),
   );
 }
 
-class AddChannelDialog extends StatefulWidget {
-  final WidgetRef ref;
-
-  const AddChannelDialog({super.key, required this.ref});
+class AddChannelDialog extends ConsumerStatefulWidget {
+  const AddChannelDialog({super.key});
 
   @override
-  State<AddChannelDialog> createState() => _AddChannelDialogState();
+  ConsumerState<AddChannelDialog> createState() => _AddChannelDialogState();
 }
 
-class _AddChannelDialogState extends State<AddChannelDialog> {
-  final _controller = TextEditingController();
+class _AddChannelDialogState extends ConsumerState<AddChannelDialog> {
+  final TextEditingController _controller = TextEditingController();
   bool _isLoading = false;
   String? _errorMsg;
 
@@ -35,92 +39,79 @@ class _AddChannelDialogState extends State<AddChannelDialog> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _add() async {
+    final username = _controller.text.trim().replaceFirst('@', '');
+    if (username.isEmpty) return;
 
     setState(() {
       _isLoading = true;
       _errorMsg = null;
     });
 
+    // Captured before the dialog closes: the toast has to be shown by
+    // whatever is left on screen afterwards, not by the widget that is gone.
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(channelRepositoryProvider);
     try {
-      final tdlibService = widget.ref.read(tdlibServiceProvider);
-      await tdlibService.sendRequest(td.SearchPublicChat(username: text));
-      if (mounted && context.mounted) {
-        Navigator.pop(context);
-      }
-
-      widget.ref.invalidate(feedPostsProvider);
-      widget.ref.invalidate(channelsProvider);
-    } catch (e) {
-      if (mounted) {
+      final channel = await repo.getChannelByIdentifier(username);
+      if (channel == null) {
         setState(() {
           _isLoading = false;
-          _errorMsg = e.toString().replaceFirst('Exception: ', '');
+          _errorMsg = AppStrings.channelsAddNotFound;
         });
+        return;
       }
+
+      final joined = await repo.joinChannel(channel.chatId);
+      if (!joined) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg = AppStrings.channelsAddJoinFailed;
+        });
+        return;
+      }
+
+      ref.invalidate(channelsProvider);
+      ref.invalidate(feedPostsProvider);
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        SnackBar(content: Text(AppStrings.channelsAdded(channel.title))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMsg = e.toString().replaceFirst('Exception: ', '');
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor = theme.brightness == Brightness.dark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
-
-    return AlertDialog(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      title: Text(
-        'Add Public Channel',
-        style: AppTypography.heading(color: primaryColor),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            AppStrings.channelsAddBody,
-            style: AppTypography.body(color: secondaryColor),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            decoration: InputDecoration(
-              labelText: AppStrings.channelAddFieldLabel,
-              hintText: AppStrings.channelsAddFieldHint,
-              prefixText: '@',
-              errorText: _errorMsg,
-              border: const OutlineInputBorder(),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(AppStrings.channelAddCancel),
+    return AppDialog<void>(
+      title: AppStrings.channelsAddPublic,
+      body: AppStrings.channelsAddBody,
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        enabled: !_isLoading,
+        onSubmitted: (_) => _add(),
+        decoration: InputDecoration(
+          labelText: AppStrings.channelsAddFieldLabel,
+          hintText: AppStrings.channelsAddFieldHint,
+          prefixText: '@',
+          errorText: _errorMsg,
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: _isLoading ? null : _submit,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-              : const Text(AppStrings.channelAddSubmit),
-        ),
-      ],
+      ),
+      primary: PillButton(
+        label: AppStrings.channelsAddConfirm,
+        expand: true,
+        isBusy: _isLoading,
+        onPressed: _add,
+      ),
+      actions: const [AppDialogAction.cancel(AppStrings.settingsCancel)],
     );
   }
 }

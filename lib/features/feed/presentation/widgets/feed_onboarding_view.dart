@@ -83,7 +83,7 @@ class FeedOnboardingView extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  onPressed: () => showAddChannelDialog(context, ref),
+                  onPressed: () => showAddChannelDialog(context),
                   child: const Text(
                     'Add Public Channel',
                     style: TextStyle(fontWeight: FontWeight.bold),

@@ -10,6 +10,7 @@ import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
+import 'package:gramx/app/widgets/app_sheet.dart';
 
 /// One chat's queue of messages waiting to be sent.
 ///
@@ -129,19 +130,30 @@ class _ScheduledRow extends ConsumerWidget {
         AppStrings.scheduledFor(_whenLabel()),
         style: AppTypography.timestamp(color: secondary),
       ),
-      trailing: PopupMenuButton<_ScheduledAction>(
+      trailing: IconButton(
+        icon: const Icon(Icons.more_horiz_rounded),
         tooltip: AppStrings.chatMoreTooltip,
-        onSelected: (action) => _run(context, ref, action),
-        itemBuilder: (context) => const [
-          PopupMenuItem(
-            value: _ScheduledAction.sendNow,
-            child: Text(AppStrings.scheduleSendNow),
-          ),
-          PopupMenuItem(
-            value: _ScheduledAction.delete,
-            child: Text(AppStrings.scheduleDelete),
-          ),
-        ],
+        onPressed: () async {
+          final action = await showAppSheet<_ScheduledAction>(
+            context,
+            haptic: false,
+            children: const [
+              AppSheetRow<_ScheduledAction>(
+                icon: Icons.send_rounded,
+                label: AppStrings.scheduleSendNow,
+                value: _ScheduledAction.sendNow,
+              ),
+              AppSheetRow<_ScheduledAction>(
+                icon: Icons.delete_outline_rounded,
+                label: AppStrings.scheduleDelete,
+                value: _ScheduledAction.delete,
+                isDestructive: true,
+              ),
+            ],
+          );
+          if (action == null || !context.mounted) return;
+          await _run(context, ref, action);
+        },
       ),
     );
   }

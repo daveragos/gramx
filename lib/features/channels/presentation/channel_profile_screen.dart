@@ -25,6 +25,7 @@ import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/features/stats/presentation/channel_stats_screen.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
 
 /// the pinned post, then tabs over the channel's own content.
 ///
@@ -221,23 +222,19 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   /// signed in to the account. That asymmetry is the whole reason this is here
   /// rather than a confirmation on both halves of the same button.
   Future<bool> _confirmLeave(Channel channel) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text(AppStrings.channelLeaveConfirmTitle),
-        content: Text(AppStrings.channelLeaveConfirmBody(channel.title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text(AppStrings.channelLeaveCancelAction),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text(AppStrings.channelLeaveConfirmAction),
-          ),
-        ],
-      ),
+    final confirmed = await showAppDialog<bool>(
+      context,
+      title: AppStrings.channelLeaveConfirmTitle,
+      body: AppStrings.channelLeaveConfirmBody(channel.title),
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.channelLeaveConfirmAction,
+          value: true,
+          isPrimary: true,
+          isDestructive: true,
+        ),
+        AppDialogAction.cancel(AppStrings.channelLeaveCancelAction),
+      ],
     );
     return confirmed ?? false;
   }

@@ -10,7 +10,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
-import 'package:gramx/features/channels/data/channel_repository.dart';
+import 'package:gramx/features/channels/presentation/widgets/add_channel_dialog.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
@@ -138,10 +138,7 @@ class ChannelsListScreen extends ConsumerWidget {
   static const double _filterStripHeight = 48;
 
   void _showAddChannelDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => const _AddChannelDialog(),
-    );
+    showAddChannelDialog(context);
   }
 }
 
@@ -301,16 +298,18 @@ class _ChannelRow extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Muted state is otherwise carried only by the icon's
-                  // colour — and a timed mute has to say when it lifts, or the
-                  // reader has no way to tell it apart from a permanent one.
+                  // Muted state is otherwise carried only by the icon — and a
+                  // timed mute has to say when it lifts, or the reader has no
+                  // way to tell it apart from a permanent one. In the grey the
+                  // row's other facts use: a mute is a preference the reader
+                  // set, and the red it used to wear made it read as an error.
                   if (muted)
                     Text(
                       mutedUntil != null
                           ? AppStrings.channelsMutedUntil(
                               TimeUtils.untilWhen(mutedUntil))
                           : AppStrings.channelsMutedIndefinitely,
-                      style: AppTypography.actionCount(color: AppColors.error),
+                      style: AppTypography.actionCount(color: secondaryColor),
                     ),
                 ],
               ),
@@ -320,8 +319,10 @@ class _ChannelRow extends ConsumerWidget {
                   ? AppStrings.channelsUnmuteAction
                   : AppStrings.channelsMuteAction,
               icon: Icon(
-                muted ? Icons.notifications_off : Icons.notifications_none,
-                color: muted ? AppColors.error : secondaryColor,
+                muted
+                    ? Icons.notifications_off_outlined
+                    : Icons.notifications_none,
+                color: secondaryColor,
               ),
               onPressed: () => MuteSheet.show(
                 context,
@@ -421,134 +422,3 @@ class _EmptyState extends StatelessWidget {
 /// Resolving the username only taught TDLib the channel existed; the user was
 /// never subscribed, so the channel never reached the feed and the button
 /// looked broken.
-class _AddChannelDialog extends ConsumerStatefulWidget {
-  const _AddChannelDialog();
-
-  @override
-  ConsumerState<_AddChannelDialog> createState() => _AddChannelDialogState();
-}
-
-class _AddChannelDialogState extends ConsumerState<_AddChannelDialog> {
-  final TextEditingController _controller = TextEditingController();
-  bool _isLoading = false;
-  String? _errorMsg;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _add() async {
-    final username = _controller.text.trim().replaceFirst('@', '');
-    if (username.isEmpty) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMsg = null;
-    });
-
-    final repo = ref.read(channelRepositoryProvider);
-    try {
-      final channel = await repo.getChannelByIdentifier(username);
-      if (channel == null) {
-        setState(() {
-          _isLoading = false;
-          _errorMsg = AppStrings.channelsAddNotFound;
-        });
-        return;
-      }
-
-      final joined = await repo.joinChannel(channel.chatId);
-      if (!joined) {
-        setState(() {
-          _isLoading = false;
-          _errorMsg = AppStrings.channelsAddJoinFailed;
-        });
-        return;
-      }
-
-      ref.invalidate(channelsProvider);
-      ref.invalidate(feedPostsProvider);
-
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.channelsAdded(channel.title)),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMsg = e.toString().replaceFirst('Exception: ', '');
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.onSurface;
-    final secondaryColor = theme.brightness == Brightness.dark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
-
-    return AlertDialog(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      title: Text(
-        AppStrings.channelsAddPublic,
-        style: AppTypography.heading(color: primaryColor),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            AppStrings.channelsAddBody,
-            style: AppTypography.body(color: secondaryColor),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            enabled: !_isLoading,
-            onSubmitted: (_) => _add(),
-            decoration: InputDecoration(
-              labelText: AppStrings.channelsAddFieldLabel,
-              hintText: AppStrings.channelsAddFieldHint,
-              prefixText: '@',
-              errorText: _errorMsg,
-              border: const OutlineInputBorder(),
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text(AppStrings.settingsCancel),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.accent,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: _isLoading ? null : _add,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-              : const Text(AppStrings.channelsAddConfirm),
-        ),
-      ],
-    );
-  }
-}

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
@@ -16,15 +17,54 @@ import 'package:gramx/features/chats/presentation/chats_providers.dart';
 /// the list shows and stays selected, the other happens once.
 enum ChatMenuAction { settings, markAllRead }
 
-/// The "All ⌄" pill in the header, and the menu it opens.
+/// The "All ⌄" pill in the header, and the sheet it opens.
 ///
 /// Every row here does something — the five filters change the list, Settings
 /// opens Settings, and "Mark all as read" acknowledges every unread
 /// conversation. That is the bar for shipping a control at all.
+///
+/// pill, and Material's popup menu was the one surface in the app drawn in
+/// the framework's own shape.
 class ChatFilterMenu extends ConsumerWidget {
   final void Function(ChatMenuAction action) onAction;
 
   const ChatFilterMenu({super.key, required this.onAction});
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final active = ref.read(chatFilterProvider);
+    final choice = await showAppSheet<Object>(
+      context,
+      haptic: false,
+      children: [
+        for (final filter in ChatFilter.values)
+          AppSheetRow<Object>(
+            icon: _iconFor(filter),
+            label: filter.label,
+            value: filter,
+            isSelected: filter == active,
+          ),
+        const AppSheetDivider(),
+        const AppSheetRow<Object>(
+          icon: Icons.settings_outlined,
+          label: AppStrings.messagesSettings,
+          value: ChatMenuAction.settings,
+        ),
+        const AppSheetRow<Object>(
+          icon: Icons.done_all_rounded,
+          label: AppStrings.messagesMarkAllRead,
+          value: ChatMenuAction.markAllRead,
+        ),
+      ],
+    );
+    if (choice == null) return;
+
+    HapticFeedback.lightImpact();
+    if (choice is ChatFilter) {
+      ref.read(chatFilterProvider.notifier).select(choice);
+    } else if (choice is ChatMenuAction) {
+      onAction(choice);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,69 +74,33 @@ class ChatFilterMenu extends ConsumerWidget {
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final active = ref.watch(chatFilterProvider);
 
-    return PopupMenuButton<Object>(
-      tooltip: AppStrings.messagesFilterTooltip,
-      position: PopupMenuPosition.under,
-      color: theme.scaffoldBackgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppSpacing.md),
-        side: BorderSide(color: border, width: 0.5),
-      ),
-      onSelected: (value) {
-        HapticFeedback.lightImpact();
-        if (value is ChatFilter) {
-          ref.read(chatFilterProvider.notifier).select(value);
-        } else if (value is ChatMenuAction) {
-          onAction(value);
-        }
-      },
-      itemBuilder: (context) => [
-        for (final filter in ChatFilter.values)
-          PopupMenuItem<Object>(
-            value: filter,
-            child: _MenuRow(
-              icon: _iconFor(filter),
-              label: filter.label,
-              isSelected: filter == active,
-              color: primary,
-            ),
+    return Semantics(
+      button: true,
+      label: AppStrings.messagesFilterTooltip,
+      child: InkWell(
+        onTap: () => _open(context, ref),
+        borderRadius: BorderRadius.circular(AppSpacing.pillRadius),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
           ),
-        const PopupMenuDivider(),
-        PopupMenuItem<Object>(
-          value: ChatMenuAction.settings,
-          child: _MenuRow(
-            icon: Icons.settings_outlined,
-            label: AppStrings.messagesSettings,
-            isSelected: false,
-            color: primary,
+          decoration: BoxDecoration(
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(AppSpacing.pillRadius),
           ),
-        ),
-        PopupMenuItem<Object>(
-          value: ChatMenuAction.markAllRead,
-          child: _MenuRow(
-            icon: Icons.done_all_rounded,
-            label: AppStrings.messagesMarkAllRead,
-            isSelected: false,
-            color: primary,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(active.label, style: AppTypography.button(color: primary)),
+              const SizedBox(width: AppSpacing.xxs),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: primary,
+                size: 18,
+              ),
+            ],
           ),
-        ),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: BoxDecoration(
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(active.label, style: AppTypography.button(color: primary)),
-            const SizedBox(width: AppSpacing.xxs),
-            Icon(Icons.keyboard_arrow_down_rounded, color: primary, size: 18),
-          ],
         ),
       ),
     );
@@ -109,35 +113,4 @@ class ChatFilterMenu extends ConsumerWidget {
     ChatFilter.groups => Icons.group_outlined,
     ChatFilter.bots => Icons.smart_toy_outlined,
   };
-}
-
-class _MenuRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final Color color;
-
-  const _MenuRow({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Text(label, style: AppTypography.body(color: color)),
-        ),
-        // The tick, not a highlight: the selected filter has to be readable
-        // without relying on a background tint that the three themes render
-        // differently.
-        if (isSelected) Icon(Icons.check_rounded, color: color, size: 20),
-      ],
-    );
-  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:gramx/app/widgets/pill_button.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/compose/domain/compose_draft.dart';
@@ -60,7 +61,14 @@ Widget _host(
 
 /// Whether the Post button would do anything if tapped.
 bool _postEnabled(WidgetTester tester) {
-  final button = tester.widget<FilledButton>(find.byType(FilledButton));
+  // The pill is drawn by an ElevatedButton inside PillButton; that is the
+  // widget that knows whether a tap would land.
+  final button = tester.widget<ElevatedButton>(
+    find.descendant(
+      of: find.byType(PillButton),
+      matching: find.byType(ElevatedButton),
+    ),
+  );
   return button.onPressed != null;
 }
 
@@ -162,7 +170,7 @@ void main() {
       await tester.pump();
 
       final close = tester.getCenter(find.byTooltip(AppStrings.composeClose));
-      final post = tester.getCenter(find.byType(FilledButton));
+      final post = tester.getCenter(find.byType(PillButton));
       expect(close.dx, lessThan(post.dx));
       expect((close.dy - post.dy).abs(), lessThan(24),
           reason: 'they share the top bar');

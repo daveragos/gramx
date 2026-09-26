@@ -335,7 +335,7 @@ abstract class AppStrings {
   static String channelsMutedUntil(String when) => 'Muted until $when';
 
   static const channelsMutedLabel = 'Muted — hidden from your feed';
-  static const channelsMutedIndefinitely = 'Muted — hidden until you unmute';
+  static const channelsMutedIndefinitely = 'Muted';
   static const channelsMuteAction = 'Mute this channel';
   static const channelsUnmuteAction = 'Unmute this channel';
   static const channelsNoMutedTitle = 'Nothing muted';
@@ -454,6 +454,9 @@ abstract class AppStrings {
   static const settingsThemeLight = 'Light';
   static const settingsThemeDim = 'Dim';
   static const settingsThemeDark = 'Lights out';
+  static const settingsThemeSystem = 'Use device setting';
+  static const settingsThemeSystemBody =
+      'Light or Lights out, whichever your phone is using';
 
   static const settingsAutoPlayTitle = 'Auto-play videos and GIFs';
   static const settingsAutoPlayBody = 'Play silently while they are on screen';

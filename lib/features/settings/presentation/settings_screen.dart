@@ -297,6 +297,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          // than a fourth tile beside them: it is not a look, it is a rule
+          // for choosing one, and it does not have a colour to show.
+          SwitchListTile(
+            activeThumbColor: AppColors.accent,
+            title: Text(AppStrings.settingsThemeSystem,
+                style: AppTypography.body(color: primaryColor)),
+            subtitle: Text(AppStrings.settingsThemeSystemBody,
+                style: AppTypography.actionCount(color: secondaryColor)),
+            value: currentTheme.followsDevice,
+            onChanged: (on) => ref.read(settingsProvider.notifier).setThemeMode(
+              on ? AppThemeMode.system : AppThemeMode.dark,
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 

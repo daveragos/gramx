@@ -15,6 +15,7 @@ import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/app/widgets/pill_button.dart';
 
 /// name, handle, subscriber count, description, and the join control.
 ///
@@ -266,40 +267,14 @@ class _JoinButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = theme.colorScheme.onSurface;
-    final secondary = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
-
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isJoined ? Colors.transparent : AppColors.accent,
-        foregroundColor: isJoined ? primary : Colors.white,
-        elevation: 0,
-        side: isJoined
-            ? BorderSide(color: secondary.withValues(alpha: 0.5))
-            : null,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xl,
-          vertical: 9,
-        ),
-      ),
-      onPressed: isBusy ? null : onPressed,
-      child: isBusy
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(
-              isJoined
-                  ? AppStrings.channelJoinedAction
-                  : AppStrings.channelJoinAction,
-              style: AppTypography.button(),
-            ),
+    // Filled for the thing the screen asks you to do, outlined once it is
+    return PillButton(
+      label: isJoined
+          ? AppStrings.channelJoinedAction
+          : AppStrings.channelJoinAction,
+      style: isJoined ? PillStyle.outlined : PillStyle.filled,
+      isBusy: isBusy,
+      onPressed: onPressed,
     );
   }
 }

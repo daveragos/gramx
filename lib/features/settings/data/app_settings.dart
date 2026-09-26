@@ -38,10 +38,19 @@ enum AutoDownloadPolicy {
       );
 }
 
+/// the device between [light] and [dark].
+///
+/// a reader who switches their phone at sunset actually wants. Dim is never
+/// picked by it: the platform knows two brightnesses, and dim is the app's
+/// own third look, so it stays a choice made by hand.
 enum AppThemeMode {
   light,
   dim,
-  dark;
+  dark,
+  system;
+
+  /// Whether the device, not the reader, decides between light and dark.
+  bool get followsDevice => this == AppThemeMode.system;
 
   static AppThemeMode fromName(String? name) => AppThemeMode.values
       .firstWhere((v) => v.name == name, orElse: () => AppThemeMode.dark);

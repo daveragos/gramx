@@ -20,6 +20,8 @@ import 'package:gramx/features/compose/presentation/widgets/poll_composer_sheet.
 import 'package:gramx/features/compose/presentation/widgets/compose_remote_preview.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_target_sheet.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/app/widgets/pill_button.dart';
 
 /// Writing a post.
 ///
@@ -265,25 +267,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       return;
     }
 
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.composeDiscardTitle),
-        content: const Text(AppStrings.composeDiscardBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.composeDiscardCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              AppStrings.composeDiscardConfirm,
-              style: TextStyle(color: AppColors.error),
-            ),
-          ),
-        ],
-      ),
+    final discard = await showAppDialog<bool>(
+      context,
+      title: AppStrings.composeDiscardTitle,
+      body: AppStrings.composeDiscardBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.composeDiscardConfirm,
+          value: true,
+          isPrimary: true,
+          isDestructive: true,
+        ),
+        AppDialogAction.cancel(AppStrings.composeDiscardCancel),
+      ],
     );
 
     if (discard == true && mounted) Navigator.of(context).pop();
@@ -454,33 +450,11 @@ class _ComposeHeader extends StatelessWidget {
             onPressed: onClose,
           ),
           const Spacer(),
-          FilledButton(
+          PillButton(
+            label: AppStrings.composePost,
+            compact: true,
+            isBusy: isSending,
             onPressed: canPost ? onPost : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              disabledBackgroundColor:
-                  AppColors.accent.withValues(alpha: 0.4),
-              foregroundColor: Colors.white,
-              disabledForegroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xl,
-                vertical: AppSpacing.sm,
-              ),
-              shape: const StadiumBorder(),
-            ),
-            child: isSending
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    AppStrings.composePost,
-                    style: AppTypography.button(color: Colors.white),
-                  ),
           ),
         ],
       ),

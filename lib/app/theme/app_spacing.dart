@@ -18,4 +18,8 @@ abstract class AppSpacing {
   static const double mediaRadius = 16.0;
   static const double mediaBorderWidth = 0.5;
   static const double mediaGap = 2.0;
+
+  /// A radius larger than any button is tall, which is what makes every
+  /// button a pill whatever its height.
+  static const double pillRadius = 999.0;
 }

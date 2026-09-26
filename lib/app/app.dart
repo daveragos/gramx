@@ -15,10 +15,19 @@ class GramXApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(routerProvider);
 
+    // "Use device setting" hands the choice to MaterialApp, which already
+    // watches the platform's brightness and swaps between the two themes on
+    // its own. A chosen look is passed as both, so the platform has nothing
+    // to switch between.
+    final followsDevice = themeMode.followsDevice;
+    final chosen = AppTheme.getTheme(themeMode);
+
     return MaterialApp.router(
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.getTheme(themeMode),
+      theme: followsDevice ? AppTheme.light() : chosen,
+      darkTheme: followsDevice ? AppTheme.dark() : chosen,
+      themeMode: followsDevice ? ThemeMode.system : ThemeMode.light,
       routerConfig: router,
       // gramX writes every string of its own in `core/l10n/app_strings.dart`
       // and ships English only. These delegates are for the strings it does

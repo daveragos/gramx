@@ -6,6 +6,7 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
 
 /// Writing a poll.
 ///
@@ -100,22 +101,19 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
       return;
     }
 
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text(AppStrings.pollComposeDiscardTitle),
-        content: const Text(AppStrings.pollComposeDiscardBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(AppStrings.composeDiscardCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(AppStrings.composeDiscardConfirm),
-          ),
-        ],
-      ),
+    final discard = await showAppDialog<bool>(
+      context,
+      title: AppStrings.pollComposeDiscardTitle,
+      body: AppStrings.pollComposeDiscardBody,
+      actions: const [
+        AppDialogAction(
+          label: AppStrings.composeDiscardConfirm,
+          value: true,
+          isPrimary: true,
+          isDestructive: true,
+        ),
+        AppDialogAction.cancel(AppStrings.composeDiscardCancel),
+      ],
     );
 
     if (discard == true && mounted) Navigator.pop(context);
