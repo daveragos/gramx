@@ -1,11 +1,38 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/activity/data/activity_repository.dart';
 import 'package:gramx/features/activity/domain/activity_item.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 import '../support/td_fixtures.dart';
+
+/// Records what is asked of it and answers everything with Ok.
+class _RecordingTdlib implements TdlibService {
+  final List<td.TdFunction> asked = [];
+  final _updates = StreamController<td.TdObject>.broadcast();
+
+  @override
+  Stream<td.TdObject> get updatesStream => _updates.stream;
+
+  @override
+  Future<td.TdObject> sendRequest(
+    td.TdFunction function, {
+    String? extraId,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    asked.add(function);
+    return const td.Ok();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
 
 ChatSummary _chat(
   int id, {
@@ -225,6 +252,39 @@ void main() {
       );
 
       expect(ActivityRepository.previewOf(message), 'look at this');
+    });
+  });
+
+  // The bell counts unread mentions and reactions, and only Telegram can
+  // take them off it. Seeing the list is what does so — for exactly the
+  // chats the list asked about, and without touching any chat's read cursor.
+  group('ActivityRepository.markSeen', () {
+    test('acknowledges each kind in each chat that had it', () async {
+      final tdlib = _RecordingTdlib();
+      final repository = ActivityRepository(tdlib, ChatCache(tdlib));
+
+      await repository.markSeen([
+        _chat(1, mentions: 2),
+        _chat(2, reactions: 1),
+        _chat(3, mentions: 1, reactions: 1),
+        _chat(4),
+      ]);
+
+      final mentions = tdlib.asked.whereType<td.ReadAllChatMentions>();
+      final reactions = tdlib.asked.whereType<td.ReadAllChatReactions>();
+      expect(mentions.map((r) => r.chatId), [1, 3]);
+      expect(reactions.map((r) => r.chatId), [2, 3]);
+      // Nothing else — in particular nothing that moves a read cursor.
+      expect(tdlib.asked, hasLength(4));
+    });
+
+    test('a chat with nothing waiting is not touched', () async {
+      final tdlib = _RecordingTdlib();
+      final repository = ActivityRepository(tdlib, ChatCache(tdlib));
+
+      await repository.markSeen([_chat(1), _chat(2)]);
+
+      expect(tdlib.asked, isEmpty);
     });
   });
 }

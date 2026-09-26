@@ -200,7 +200,10 @@ class NotificationService {
       await _cancel(id);
     }
 
-    final chatTitle = _chatCache.chat(update.chatId)?.title ?? '';
+    final chat = _chatCache.chat(update.chatId);
+    final chatTitle = chat?.title ?? '';
+    final chatType = chat?.type;
+    final isChannel = chatType is td.ChatTypeSupergroup && chatType.isChannel;
 
     for (final notification in update.addedNotifications) {
       final mapped = NotificationMapper.map(
@@ -208,6 +211,7 @@ class NotificationService {
         groupId: update.notificationGroupId,
         chatId: update.chatId,
         chatTitle: chatTitle,
+        isChannelPost: isChannel,
       );
       if (mapped == null) continue;
 

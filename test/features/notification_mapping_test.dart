@@ -45,6 +45,29 @@ void main() {
       expect(mapped.id, 7);
     });
 
+    // Every notification used to open a chat screen, so a channel's new post
+    // opened the channel as a conversation with a composer under it.
+    test('a channel post opens the post, not a chat', () {
+      final mapped = NotificationMapper.map(
+        _notification(
+          td.NotificationTypeNewMessage(
+            message: TdFixtures.chatMessage(
+              id: 5 << 20,
+              chatId: -100700,
+              senderUserId: 9,
+            ),
+            showPreview: true,
+          ),
+        ),
+        groupId: 4,
+        chatId: -100700,
+        chatTitle: 'News',
+        isChannelPost: true,
+      );
+
+      expect(mapped!.route, '/post/-100700_${5 << 20}');
+    });
+
     // Your own message arriving on this device is not news. Telegram sends the
     // group anyway so every client can keep its counts in step.
     test('an outgoing message is not a notification', () {

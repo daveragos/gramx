@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
-import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
@@ -20,15 +19,38 @@ import 'package:gramx/features/guest/presentation/widgets/guest_bookmarks_placeh
 /// anatomy is the post card's: an avatar in a left gutter, everything else in
 /// the right column, hairline separators, no rounding.
 ///
-/// **Reached from the drawer and from the bell in the feed header, not from
-/// Channels there; that stays as it is.
-class ActivityScreen extends ConsumerWidget {
+/// **A pushed page, with a back arrow.** It is reached from the bell in the
+/// feed header and from the drawer, and it sits on top of whatever the reader
+/// was doing — so it has a real `AppBar`, not the feed's sliding chrome. The
+/// sliding chrome watched every scroll under it for the header to retire on,
+/// and the tab strip's own horizontal swipe counted: switching to Mentions
+/// slid the header and the tabs off the top of the screen and left the list
+/// filling the page with no way back but the system gesture.
+class ActivityScreen extends ConsumerStatefulWidget {
   static const route = '/activity';
 
   const ActivityScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
+}
+
+class _ActivityScreenState extends ConsumerState<ActivityScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A lit bell means something happened since the list was last built, so
+    // the list is rebuilt. A dark one means the last list is still the right
+    // answer — everything in it has been acknowledged, and asking again would
+    // answer with nothing at all, which is not what somebody who just read it
+    // came back to see.
+    if (ref.read(activityBadgeProvider) > 0) {
+      ref.invalidate(activityFeedProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // A guest has no account, so nothing can mention or react to them.
     if (!ref.watch(readerCapabilitiesProvider).canBookmark) {
       return const GuestBookmarksPlaceholder();
@@ -44,52 +66,108 @@ class ActivityScreen extends ConsumerWidget {
 
     final activity = ref.watch(activityFeedProvider);
 
-    return ChromeScaffold(
-      header: const ChromeHeaderRow(title: AppStrings.activityTitle),
-      body: (context, topPadding, bottomPadding) => RefreshIndicator(
-        color: AppColors.accent,
-        onRefresh: () async => ref.invalidate(activityFeedProvider),
-        child: activity.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.accent),
+    // tab is a filter over it, so switching costs nothing.
+    return DefaultTabController(
+      length: _ActivityTab.values.length,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          // The way back. `AppBar` draws it because this route was pushed;
+          // the tooltip is the framework's own, so a screen reader says "Back".
+          leading: BackButton(
+            color: primary,
+            onPressed: () => context.pop(),
           ),
-          error: (error, _) => _Message(
-            topPadding: topPadding,
-            title: AppStrings.activityErrorTitle,
-            body: AppStrings.activityError(error),
-            primary: primary,
-            secondary: secondary,
+          title: Text(
+            AppStrings.activityTitle,
+            style: AppTypography.heading(color: primary),
           ),
-          data: (items) {
-            if (items.isEmpty) {
-              return _Message(
-                topPadding: topPadding,
-                title: AppStrings.activityEmptyTitle,
-                body: AppStrings.activityEmptyBody,
-                primary: primary,
-                secondary: secondary,
-              );
-            }
+          bottom: TabBar(
+            indicatorColor: AppColors.accent,
+            labelColor: primary,
+            unselectedLabelColor: secondary,
+            dividerColor: borderColor,
+            dividerHeight: 0.5,
+            tabs: [
+              for (final tab in _ActivityTab.values) Tab(text: tab.label),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            for (final tab in _ActivityTab.values)
+              RefreshIndicator(
+                color: AppColors.accent,
+                onRefresh: () async => ref.invalidate(activityFeedProvider),
+                child: activity.when(
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppColors.accent),
+                  ),
+                  error: (error, _) => _Message(
+                    title: AppStrings.activityErrorTitle,
+                    body: AppStrings.activityError(error),
+                    primary: primary,
+                    secondary: secondary,
+                  ),
+                  data: (all) {
+                    final items = tab.filter(all);
+                    if (items.isEmpty) {
+                      return _Message(
+                        title: AppStrings.activityEmptyTitle,
+                        body: AppStrings.activityEmptyBody,
+                        primary: primary,
+                        secondary: secondary,
+                      );
+                    }
 
-            return ListView.separated(
-              padding: EdgeInsets.only(
-                top: topPadding,
-                bottom: bottomPadding + AppSpacing.xxl,
+                    return ListView.separated(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color: borderColor,
+                      ),
+                      itemBuilder: (context, index) => _ActivityRow(
+                        item: items[index],
+                        primary: primary,
+                        secondary: secondary,
+                      ),
+                    );
+                  },
+                ),
               ),
-              itemCount: items.length,
-              separatorBuilder: (_, _) =>
-                  Divider(height: 1, thickness: 0.5, color: borderColor),
-              itemBuilder: (context, index) => _ActivityRow(
-                item: items[index],
-                primary: primary,
-                secondary: secondary,
-              ),
-            );
-          },
+          ],
         ),
       ),
     );
   }
+}
+
+/// The three tabs, each a filter over the one loaded list.
+enum _ActivityTab {
+  all,
+  mentions,
+  reactions;
+
+  String get label => switch (this) {
+    _ActivityTab.all => AppStrings.activityTabAll,
+    _ActivityTab.mentions => AppStrings.activityTabMentions,
+    _ActivityTab.reactions => AppStrings.activityTabReactions,
+  };
+
+  /// Mentions and replies are both "somebody addressed you", which is what
+  List<ActivityItem> filter(List<ActivityItem> items) => switch (this) {
+    _ActivityTab.all => items,
+    _ActivityTab.mentions => [
+      for (final item in items)
+        if (item.kind != ActivityKind.reaction) item,
+    ],
+    _ActivityTab.reactions => [
+      for (final item in items)
+        if (item.kind == ActivityKind.reaction) item,
+    ],
+  };
 }
 
 /// One thing that happened.
@@ -192,14 +270,12 @@ class _ActivityRow extends StatelessWidget {
 }
 
 class _Message extends StatelessWidget {
-  final double topPadding;
   final String title;
   final String body;
   final Color primary;
   final Color secondary;
 
   const _Message({
-    required this.topPadding,
     required this.title,
     required this.body,
     required this.primary,
@@ -210,7 +286,7 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) {
     // Scrollable so pull-to-refresh still works with nothing in the list.
     return ListView(
-      padding: EdgeInsets.only(top: topPadding + AppSpacing.xxxl),
+      padding: const EdgeInsets.only(top: AppSpacing.xxxl),
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),

@@ -21,6 +21,7 @@ import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
+import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 
 /// The tabs in the bottom bar, in order.
 ///
@@ -360,6 +361,7 @@ class _TabIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (tab == ShellTab.home) return _HomeIcon(icon: icon);
     if (tab != ShellTab.messages) return Icon(icon);
 
     return Consumer(
@@ -375,6 +377,59 @@ class _TabIcon extends StatelessWidget {
             label: Text(AppStrings.messagesUnreadBadge(count)),
             backgroundColor: AppColors.accent,
             child: child,
+          ),
+        );
+      },
+      child: Icon(icon),
+    );
+  }
+}
+
+///
+/// The "N new posts" pill already says so on the feed itself; the dot is for
+/// the reader on another tab, who otherwise has no way to know the feed has
+/// moved on without going to look. A dot rather than a count — the count is
+/// on the pill, and two numbers for one fact is one too many.
+class _HomeIcon extends StatelessWidget {
+  final IconData icon;
+
+  const _HomeIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        // The "All" tab's pending, not the raw arrivals: a post from a muted
+        // channel is held like any other and then filtered out of every tab,
+        // and a dot for a post nobody will be shown is a dot that lies.
+        final waiting = ref.watch(
+          pendingPostsForFolderProvider('All').select((p) => p.isNotEmpty),
+        );
+        if (!waiting) return child!;
+
+        return Semantics(
+          label: AppStrings.homeNewPostsSemantics,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              child!,
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

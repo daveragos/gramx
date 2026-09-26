@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gramx/features/activity/data/activity_repository.dart';
@@ -18,10 +20,22 @@ final activityBadgeProvider = Provider<int>((ref) {
 ///
 /// A `FutureProvider` rather than a stream: this is built when the screen is
 /// opened and refreshed when the reader pulls, because each build spends
-/// requests. Invalidate it to refresh.
+/// requests. Invalidate it to refresh — [ActivityScreen] does so on open when
+/// the bell says there is something new, and otherwise shows the last list.
+///
+/// **Loading it is also seeing it.** Once the list is built the chats it asked
+/// about are acknowledged, which is what takes the count off the bell. The
+/// list itself stays as loaded: the acknowledgement does not rebuild this
+/// provider, so what the reader is looking at does not vanish under them.
+/// Only the next load — a pull, or a reopen with the bell lit again — answers
+/// with just what is new since.
 final activityFeedProvider = FutureProvider<List<ActivityItem>>((ref) async {
   // Read, not watched. Watching would rebuild — and re-request — every time any
-  // chat's unread count moved, which in a busy account is constantly.
+  // chat's unread count moved, which in a busy account is constantly — and
+  // marking seen below moves exactly those counts.
   final chats = ref.read(chatListProvider);
-  return ref.read(activityRepositoryProvider).load(chats);
+  final repository = ref.read(activityRepositoryProvider);
+  final items = await repository.load(chats);
+  unawaited(repository.markSeen(chats));
+  return items;
 });

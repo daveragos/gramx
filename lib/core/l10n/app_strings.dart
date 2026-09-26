@@ -372,6 +372,10 @@ abstract class AppStrings {
 
   // ── Activity ───────────────────────────────────────────────────────────────
   static const activityTitle = 'Activity';
+  static const activityTabAll = 'All';
+  static const activityTabMentions = 'Mentions';
+  static const activityTabReactions = 'Reactions';
+  static const homeNewPostsSemantics = 'Home, new posts waiting';
   static const drawerActivity = 'Activity';
   static const activityEmptyTitle = 'Nothing has happened';
   static const activityEmptyBody =

@@ -114,6 +114,40 @@ class ActivityRepository {
     return items;
   }
 
+  /// Tells Telegram the reader has seen what [load] just showed them.
+  ///
+  /// The bell counts unread mentions and reactions, and Telegram only clears
+  /// those when the message itself is viewed inside its chat — so the count
+  /// sat on the bell after the reader had looked straight at the list. This
+  /// is the missing half: one `readAllChatMentions` and one
+  /// `readAllChatReactions` per chat the list asked about, which moves the
+  /// mention and reaction markers and **nothing else** — the chat's own read
+  /// cursor stays where it was, so nothing here marks a conversation read.
+  ///
+  /// Same plan, same cap, same trigger as [load]: only chats the update stream
+  /// said had something, at most [ActivityPlan.maxChats] of them, and only
+  /// because the screen was opened by hand.
+  Future<void> markSeen(List<ChatSummary> chats) async {
+    for (final query in ActivityPlan.queriesFor(chats)) {
+      if (query.wantsMentions) {
+        await _acknowledge(td.ReadAllChatMentions(chatId: query.chatId));
+      }
+      if (query.wantsReactions) {
+        await _acknowledge(td.ReadAllChatReactions(chatId: query.chatId));
+      }
+    }
+  }
+
+  Future<void> _acknowledge(td.TdFunction request) async {
+    try {
+      await _tdlib.sendRequest(request);
+    } catch (e) {
+      // A chat that would not take the acknowledgement keeps its count, and
+      // the bell stays honest about it. Nothing else depends on this.
+      debugPrint('[Activity] $request failed: $e');
+    }
+  }
+
   Future<List<ActivityItem>> _search(
     int chatId,
     td.SearchMessagesFilter filter,

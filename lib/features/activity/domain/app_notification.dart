@@ -24,6 +24,10 @@ class AppNotification {
   /// Telegram's own "do not make a sound" flag for this one.
   final bool isSilent;
 
+  /// Whether this is a post in a broadcast channel rather than a message in a
+  /// conversation. The two open in different places.
+  final bool isChannelPost;
+
   final DateTime at;
 
   const AppNotification({
@@ -35,10 +39,14 @@ class AppNotification {
     required this.body,
     required this.at,
     this.isSilent = false,
+    this.isChannelPost = false,
   });
 
-  /// What tapping it opens.
-  String get route => '/chat/$chatId';
+  /// What tapping it opens: the post itself for a channel, where a chat
+  /// screen would put a composer under somebody else's broadcast, and the
+  /// conversation for everything else.
+  String get route =>
+      isChannelPost ? '/post/${chatId}_$messageId' : '/chat/$chatId';
 
   @override
   bool operator ==(Object other) => other is AppNotification && other.id == id;
@@ -67,6 +75,7 @@ abstract class NotificationMapper {
     required int groupId,
     required int chatId,
     required String chatTitle,
+    bool isChannelPost = false,
   }) {
     final type = notification.type;
 
@@ -77,6 +86,7 @@ abstract class NotificationMapper {
         groupId: groupId,
         chatId: chatId,
         chatTitle: chatTitle,
+        isChannelPost: isChannelPost,
       ),
       td.NotificationTypeNewPushMessage() => _fromPush(
         notification,
@@ -84,6 +94,7 @@ abstract class NotificationMapper {
         groupId: groupId,
         chatId: chatId,
         chatTitle: chatTitle,
+        isChannelPost: isChannelPost,
       ),
       // A call and a new secret chat are both things gramX cannot open. A
       // notification whose tap goes nowhere is worse than no notification.
@@ -97,6 +108,7 @@ abstract class NotificationMapper {
     required int groupId,
     required int chatId,
     required String chatTitle,
+    bool isChannelPost = false,
   }) {
     final message = type.message;
     if (message.isOutgoing) return null;
@@ -113,6 +125,7 @@ abstract class NotificationMapper {
       body: bodyOfMessage(message),
       isSilent: notification.isSilent,
       at: DateTime.fromMillisecondsSinceEpoch(notification.date * 1000),
+      isChannelPost: isChannelPost,
     );
   }
 
@@ -122,6 +135,7 @@ abstract class NotificationMapper {
     required int groupId,
     required int chatId,
     required String chatTitle,
+    bool isChannelPost = false,
   }) {
     if (type.isOutgoing) return null;
 
@@ -137,6 +151,7 @@ abstract class NotificationMapper {
           : '${type.senderName}: $content',
       isSilent: notification.isSilent,
       at: DateTime.fromMillisecondsSinceEpoch(notification.date * 1000),
+      isChannelPost: isChannelPost,
     );
   }
 

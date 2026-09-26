@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
+import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 
 /// T17-15: the bottom bar rode up on top of the keyboard.
 ///
@@ -60,7 +62,13 @@ void main() {
   Widget host() => ProviderScope(
     // The messages tab badges itself from the live chat list, which would
     // reach for a TDLib client this test has no use for.
-    overrides: [unreadChatCountProvider.overrideWith((ref) => 0)],
+    overrides: [
+      unreadChatCountProvider.overrideWith((ref) => 0),
+      // The Home icon watches for waiting posts; this test is about the
+      // bars, so the real notifier — which listens to the sync service and
+      // would drag TDLib into the test — is stood down.
+      pendingPostsProvider.overrideWith(_NoPendingPosts.new),
+    ],
     child: MaterialApp.router(routerConfig: shellRouter()),
   );
 
@@ -101,4 +109,9 @@ void main() {
       expect(scaffold.resizeToAvoidBottomInset, isNot(false));
     }
   });
+}
+
+class _NoPendingPosts extends PendingPostsNotifier {
+  @override
+  List<Post> build() => const [];
 }
