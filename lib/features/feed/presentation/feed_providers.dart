@@ -32,68 +32,61 @@ Map<int, int> narrowCursors(Map<int, int> cursors, Set<int>? allowedChatIds) {
   };
 }
 
-/// Removes posts the reader has already finished with.
+/// Leaves out every post the reader has already read.
 ///
-/// A post is dropped only when *both* are true: it was on screen before the
-/// refresh ([seenBefore]) and it counts as read. That pairing matters —
+/// "Read" is Telegram's read cursor, which also moves when the reader gets
+/// through a post in another Telegram app, **or** this app's own record
+/// ([readHere]). The cursor alone was not enough: a post read seconds ago came
+/// straight back, because its acknowledgement was still queued. A post this
+/// account sent counts as read; the mapper marks it so.
 ///
-/// * filtering on read alone would empty the feed on a cold start, since
-///   everything older than the read cursor is read;
-/// * filtering on seen alone would drop unread posts the reader deliberately
-///   scrolled past to come back to.
-///
-/// "Counts as read" means Telegram's cursor **or** this app's own record
-/// ([readHere]). Trusting only the cursor meant a post read seconds ago came
-/// straight back on refresh, because the acknowledgement was still queued —
-/// and being handed back what you just finished is the opposite of what the
-/// gesture asks for.
-///
-/// New posts and posts still unread always survive.
-List<Post> dropAlreadyRead(
-  List<Post> posts,
-  Set<String> seenBefore, {
-  Set<String> readHere = const {},
-}) {
-  if (seenBefore.isEmpty) return posts;
-  return posts
-      .where(
-        (p) =>
-            !((p.isRead || readHere.contains(p.id)) &&
-                seenBefore.contains(p.id)),
-      )
-      .toList();
-}
-
-/// The ids a refresh retires: everything the reader had already finished with.
-///
-/// [dropAlreadyRead] takes them out of the freshly fetched page, but that page
-/// is not the only thing that fills the feed — the backfill, the unread sweep
-/// and pagination all merge into it a moment later, and they answer from
-/// TDLib's history with no idea a refresh just happened. So a pull emptied the
-/// read posts out and then watched them file straight back in, which is the
-/// old feed "coming back on".
-///
-/// Remembering *which* ids went, rather than re-deriving "read" at each merge,
-/// is what keeps that fix from also hiding the read posts a reader has never
-/// seen: those are ordinary history and belong in the feed.
-Set<String> retiredPostIds(
-  List<Post> previous, {
-  Set<String> readHere = const {},
-}) {
-  return {
-    for (final post in previous)
-      if (post.isRead || readHere.contains(post.id)) post.id,
-  };
-}
-
-/// Drops anything a refresh retired. See [retiredPostIds].
-List<Post> withoutRetired(List<Post> posts, Set<String> retired) {
-  if (retired.isEmpty || posts.isEmpty) return posts;
+/// Everything that fills the feed passes through this — a launch, a refresh,
+/// the backfill, the unread sweep, pagination — which is what stops a launch
+/// from opening on the posts the reader went through last time.
+List<Post> unreadOnly(List<Post> posts, {Set<String> readHere = const {}}) {
+  if (posts.isEmpty) return posts;
   final kept = [
     for (final post in posts)
-      if (!retired.contains(post.id)) post,
+      if (!post.isRead && !readHere.contains(post.id)) post,
   ];
   return kept.length == posts.length ? posts : kept;
+}
+
+/// Merges [incoming] into [current], newest first, taking [incoming]'s copy
+/// of any post both hold.
+///
+/// For a later stage of the same fetch, whose cards are fuller than the ones
+/// they replace: a headline card has no name for the channel a post was
+/// forwarded from and no excerpt for the post it replies to. Contrast
+/// [mergePostsNewestFirst], where the copy already on screen wins.
+List<Post> replacePostsNewestFirst(List<Post> current, List<Post> incoming) {
+  if (incoming.isEmpty) return current;
+  final replacing = {for (final post in incoming) post.id: post};
+  return [
+    for (final post in current)
+      if (!replacing.containsKey(post.id)) post,
+    ...replacing.values,
+  ]..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+}
+
+/// Narrows pagination cursors to channels that can still have unread posts
+/// older than what is loaded.
+///
+/// A channel qualifies only if it has something unread and its read cursor
+/// sits below its oldest loaded post. Paging any other channel reaches back
+/// into history that is all read, and so all turned away by [unreadOnly] —
+/// requests spent on every scroll to the bottom for nothing to show.
+Map<int, int> cursorsWithUnreadBehind(
+  Map<int, int> cursors,
+  td.Chat? Function(int chatId) chatOf,
+) {
+  return {
+    for (final entry in cursors.entries)
+      if (chatOf(entry.key) case final chat?
+          when chat.unreadCount > 0 &&
+              chat.lastReadInboxMessageId < entry.value)
+        entry.key: entry.value,
+  };
 }
 
 /// Merges [incoming] posts into [current], newest first.
@@ -149,22 +142,31 @@ final backlogIdsProvider = NotifierProvider<BacklogIdsNotifier, List<String>>(
 
 /// Stateful feed notifier that supports appending older posts (pagination)
 /// and full refresh without destroying state.
+///
+/// Only unread posts enter it. Whatever fills the feed goes through [_admit],
+/// which turns away anything already read — see [unreadOnly]. Posts read
+/// *during* a session stay where they are until the next launch or refresh,
+/// so nothing disappears from under the reader.
 class FeedNotifier extends AsyncNotifier<List<Post>> {
   final Map<int, int> _oldestMessageIds = {};
+
+  /// Unread posts per channel the local pass found, so the backfill can skip
+  /// channels whose unread posts were all on disk already.
+  final Map<int, int> _heldLocally = {};
+
   bool _isLoadingMore = false;
   StreamSubscription<List<Post>>? _backfillSub;
 
-  /// Posts the last refresh took out of the feed, so nothing puts them back.
+  /// Moves on every rebuild and on dispose.
   ///
-  /// Everything that merges into the feed goes through [_admit], which is the
-  /// only reason a refresh sticks: the backfill and the unread sweep restart
-  /// right behind it and would otherwise re-deliver exactly what was dropped.
-  /// Cleared on the next refresh, and only then.
-  Set<String> _retired = const {};
-
-  /// Set on dispose. The background passes below outlive a rebuild, and
-  /// writing state after that throws.
-  bool _disposed = false;
+  /// The work a build starts outlives it — the fetch stages, the backlog
+  /// passes, the backfill — so each captures the generation it belongs to and
+  /// stops writing once that is no longer current. A flag set on dispose did
+  /// this before, but Riverpod keeps the notifier across rebuilds and disposes
+  /// on each one, so the flag stayed set: every build after the first painted
+  /// the headlines and went no further, and the feed stayed at one post per
+  /// channel until a pull to refresh.
+  int _generation = 0;
 
   @override
   Future<List<Post>> build() async {
@@ -181,6 +183,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
     final repo = ref.watch(feedRepositoryProvider);
     final syncService = ref.watch(syncServiceProvider);
+    final generation = _generation;
 
     final sub = syncService.livePostUpdates.listen((update) {
       if (update is LiveReactionsUpdate) {
@@ -206,7 +209,7 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
       }
     });
     ref.onDispose(() {
-      _disposed = true;
+      _generation++;
       sub.cancel();
       _backfillSub?.cancel();
     });
@@ -217,43 +220,63 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     // not be modified while another is building.
     Future.microtask(() => ref.read(feedWarmupProvider.notifier).start());
 
-    // The feed arrives in two stages, each painted as soon as it exists,
-    // because the alternative was a skeleton held for the sum of them. Both
+    _oldestMessageIds.clear();
+    _heldLocally.clear();
+
+    // The feed arrives in stages, each painted as soon as it exists, because
+    // the alternative was a skeleton held for the sum of them. All of them
     // come out of TDLib's own database — the same store Telegram's clients
     // open from — and nothing here keeps a copy of its own. Assigning `state`
     // inside `build` is what paints a stage; what `build` returns is the last.
-    //
-    // Stage 1 — one post per channel, from the chat list itself. Every chat
-    // TDLib loads arrives with its `lastMessage`, so this costs no request
-    // past the chat list and lands well before the histories do.
+    var posts = const <Post>[];
+
+    // Stage 1 — one post per channel with something unread, from the first
+    // page of the chat list. Costs no request past the chat list and lands
+    // well before any history does.
     try {
       final headlines = _admit(await repo.fetchHeadlinePosts());
-      if (_disposed) return headlines;
+      if (generation != _generation) return headlines;
       if (headlines.isNotEmpty) {
-        _updateOldestIds(headlines);
-        state = AsyncData(headlines);
+        posts = headlines;
+        _updateOldestIds(posts);
+        state = AsyncData(posts);
         StartupTrace.mark(
-          'feed painted from channel headlines (${headlines.length})',
+          'feed painted from channel headlines (${posts.length})',
         );
       }
     } catch (e) {
       debugPrint('[Feed] Headlines skipped: $e');
     }
 
-    // Stage 2 — the real thing: each channel's local history, names and
-    // excerpts resolved. It replaces the headlines, which it contains.
-    final posts = _admit(await repo.fetchFeedPosts());
-    if (posts.isNotEmpty) {
+    // Stage 2 — the unread posts TDLib holds on disk, the channels at the top
+    // of the list first. Each stage's cards replace the headline cards they
+    // cover, which lacked forwarded-from names and reply excerpts.
+    await for (final stage in repo.fetchUnreadLocalPosts()) {
+      if (generation != _generation) return posts;
+      _noteHeldLocally(stage);
+      final admitted = _admit(stage);
+      if (admitted.isEmpty) continue;
+      _updateOldestIds(admitted);
+      posts = replacePostsNewestFirst(posts, admitted);
+      state = AsyncData(posts);
       StartupTrace.mark('first feed posts (${posts.length})');
     }
-    _updateOldestIds(posts);
+    if (generation != _generation) return posts;
+
     // The mix has to be there in the first painted feed, not arrive twenty
     // seconds later while the reader is already scrolling. Both of these are
     // free: one reads what was just loaded, the other reads TDLib's own cache.
     _poolBacklogCandidates(posts);
-    _primeBacklogFromCache(repo);
-    _startBackfill(repo);
+    _primeBacklogFromCache(repo, generation);
+    _startBackfill(repo, generation);
     return posts;
+  }
+
+  /// Records how many unread posts per channel came off the disk.
+  void _noteHeldLocally(List<Post> stage) {
+    for (final post in stage) {
+      _heldLocally.update(post.chatId, (n) => n + 1, ifAbsent: () => 1);
+    }
   }
 
   /// Fills the mix from TDLib's cache, without waiting for the network.
@@ -262,10 +285,13 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// time the skeleton is on screen. It lands a beat after the first paint,
   /// which in practice is before the reader has finished looking at the top of
   /// the feed.
-  Future<void> _primeBacklogFromCache(FeedRepository repo) async {
+  Future<void> _primeBacklogFromCache(
+    FeedRepository repo,
+    int generation,
+  ) async {
     try {
       final cached = _admit(await repo.fetchCachedUnreadBacklog());
-      if (cached.isEmpty || _disposed) return;
+      if (cached.isEmpty || generation != _generation) return;
 
       ref.read(backlogIdsProvider.notifier).add(orderBacklogIds(cached));
       final current = state.value ?? [];
@@ -284,10 +310,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// Deliberately last: it shares the request budget with the backfill, and
   /// what's new matters more than what's owed. Failures are silent by design —
   /// a backlog that doesn't arrive costs a blend, not the feed.
-  Future<void> _sweepUnread(FeedRepository repo) async {
+  Future<void> _sweepUnread(FeedRepository repo, int generation) async {
     try {
       final backlog = _admit(await repo.fetchUnreadBacklog());
-      if (backlog.isEmpty || _disposed) return;
+      if (backlog.isEmpty || generation != _generation) return;
 
       // Round-robin across channels, so a channel sitting on a week of unread
       // doesn't take every backlog slot in a row.
@@ -304,26 +330,29 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     }
   }
 
-  /// Fills the feed in behind the first paint.
+  /// Fetches, behind the first paint, the unread posts that were not on disk.
   ///
-  /// A cold start only volunteers one post per channel (plus whatever is cached
-  /// locally), so real history arrives here — throttled, one channel at a time,
-  /// merged as it lands rather than in one batch at the end.
-  void _startBackfill(FeedRepository repo) {
+  /// Throttled, one channel at a time, merged as each lands rather than in one
+  /// batch at the end. Channels the local pass already covered are skipped, so
+  /// when everything unread was on the phone this asks the server for nothing
+  /// and finishes at once.
+  void _startBackfill(FeedRepository repo, int generation) {
     _backfillSub?.cancel();
-    _backfillSub = repo.backfillRecentHistory().listen(
-      _mergeBackfilled,
-      onError: (Object e) {
-        debugPrint('[Feed] Backfill error: $e');
-        ref.read(feedWarmupProvider.notifier).finish();
-      },
-      onDone: () {
-        // Whatever the feed has by now is what it has: an empty list from here
-        // on genuinely means empty.
-        ref.read(feedWarmupProvider.notifier).finish();
-        _sweepUnread(repo);
-      },
-    );
+    _backfillSub = repo
+        .backfillRecentHistory(heldLocally: Map.of(_heldLocally))
+        .listen(
+          _mergeBackfilled,
+          onError: (Object e) {
+            debugPrint('[Feed] Backfill error: $e');
+            ref.read(feedWarmupProvider.notifier).finish();
+          },
+          onDone: () {
+            // Whatever the feed has by now is what it has: an empty list from
+            // here on genuinely means caught up.
+            ref.read(feedWarmupProvider.notifier).finish();
+            if (generation == _generation) _sweepUnread(repo, generation);
+          },
+        );
   }
 
   /// Adds posts we don't already have, leaving existing entries untouched so
@@ -366,11 +395,11 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(merged);
   }
 
-  /// Everything that arrives after a refresh passes through here.
-  ///
-  /// One gate rather than a check at each of the five call sites: the whole
-  /// bug was that one of them did not have it.
-  List<Post> _admit(List<Post> posts) => withoutRetired(posts, _retired);
+  /// Everything that fills the feed passes through here. See [unreadOnly].
+  List<Post> _admit(List<Post> posts) => unreadOnly(
+    posts,
+    readHere: ref.read(optimisticPostUpdatesProvider.notifier).readPostIds,
+  );
 
   /// Track the oldest messageId per channel for cursor-based pagination.
   void _updateOldestIds(List<Post> posts) {
@@ -388,18 +417,27 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// scrolling to the bottom of a three-channel folder tab paged *every*
   /// subscription and then filtered almost all of it away — so the visible list
   /// barely grew and the scroll listener fired again immediately.
+  ///
+  /// Only channels that can still hold unread posts further back are paged;
+  /// see [cursorsWithUnreadBehind].
   Future<void> loadMore({Set<int>? allowedChatIds}) async {
     if (_isLoadingMore || _oldestMessageIds.isEmpty) return;
 
-    final cursors = narrowCursors(_oldestMessageIds, allowedChatIds);
+    final cursors = cursorsWithUnreadBehind(
+      narrowCursors(_oldestMessageIds, allowedChatIds),
+      ref.read(chatCacheProvider).chat,
+    );
     if (cursors.isEmpty) return;
 
     _isLoadingMore = true;
     try {
       final repo = ref.read(feedRepositoryProvider);
-      final olderPosts = _admit(await repo.fetchOlderPosts(cursors));
+      final older = await repo.fetchOlderPosts(cursors);
+      // The frontier moves past everything the page reached, read or not, so
+      // the next scroll asks for what lies beyond it instead of the same page.
+      _updateOldestIds(older);
+      final olderPosts = _admit(older);
       if (olderPosts.isNotEmpty) {
-        _updateOldestIds(olderPosts);
         final current = state.value ?? [];
         final merged = mergePostsNewestFirst(current, olderPosts);
         if (!identical(merged, current)) state = AsyncData(merged);
@@ -412,42 +450,37 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   /// Full refresh: re-fetch from scratch (for pull-to-refresh).
   ///
-  /// Posts the reader already finished are dropped — pulling for new material
-  /// and being handed back what you just read is the opposite of what the
-  /// gesture asks for. See [dropAlreadyRead] for exactly which ones go.
+  /// Posts the reader finished since the last fetch go, because [_admit] turns
+  /// read posts away: pulling for new material and being handed back what you
+  /// just read is the opposite of what the gesture asks for.
   Future<void> refresh() async {
     _backfillSub?.cancel();
     // The blend is fixed between refreshes; this is the moment it is allowed
     // to change, which is what "stays until you refresh" means.
     ref.read(backlogIdsProvider.notifier).clear();
-    final previous = state.value ?? const <Post>[];
-    final seenBefore = previous.map((p) => p.id).toSet();
-
     _oldestMessageIds.clear();
+    _heldLocally.clear();
+    final generation = _generation;
+
     state = const AsyncLoading();
     final repo = ref.read(feedRepositoryProvider);
-    final readHere = ref
-        .read(optimisticPostUpdatesProvider.notifier)
-        .readPostIds;
-    // Named before the fetch so a failed refresh cannot leave half a rule in
-    // place: either the whole pull happened or none of it did.
-    final retiring = retiredPostIds(previous, readHere: readHere);
-    state = await AsyncValue.guard(() async {
-      final fetched = await repo.fetchFeedPosts();
-      final posts = dropAlreadyRead(fetched, seenBefore, readHere: readHere);
-      // Whatever the fetch itself dropped joins the list: the server can know
-      // a post was read on another device when this session still had it
-      // marked unread.
-      final kept = posts.map((p) => p.id).toSet();
-      _retired = {
-        ...retiring,
-        for (final post in fetched)
-          if (!kept.contains(post.id)) post.id,
-      };
+    final result = await AsyncValue.guard(() async {
+      var posts = const <Post>[];
+      await for (final stage in repo.fetchUnreadLocalPosts()) {
+        _noteHeldLocally(stage);
+        posts = mergePostsNewestFirst(posts, _admit(stage));
+      }
       _updateOldestIds(posts);
       return posts;
     });
-    if (state.hasValue) _startBackfill(repo);
+    // A rebuild during the pull owns the feed now; this answer is stale.
+    if (generation != _generation) return;
+    state = result;
+    if (!result.hasValue) return;
+
+    _poolBacklogCandidates();
+    _primeBacklogFromCache(repo, generation);
+    _startBackfill(repo, generation);
   }
 
   /// Optimistically toggle bookmark on a post without re-fetching the feed.

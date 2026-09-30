@@ -26,7 +26,8 @@ class FeedRepository {
   /// How many posts we aim to hold per channel in the merged feed.
   static const int postsPerChannel = 30;
 
-  /// Channels the throttled backfill will fetch real history for, busiest first.
+  /// Channels with unread posts the throttled backfill will fetch real history
+  /// for, most recently active first.
   ///
   /// Telegram caps `GetChatHistory` at roughly 30 requests per 30 seconds
   /// sustained, so this number and [backfillThrottle] are a matched pair. Don't
@@ -121,76 +122,131 @@ class FeedRepository {
     return list;
   }
 
+  /// Whether [message] is one the reader has not read yet.
+  ///
+  /// The same rule the mapper uses for `Post.isRead`, applied before mapping
+  /// so a read message costs nothing: the feed never shows one, so there is no
+  /// point building its card. A post this account sent is its own reader.
+  static bool isUnreadIn(td.Chat chat, td.Message message) =>
+      !message.isOutgoing && message.id > chat.lastReadInboxMessageId;
+
+  /// How many of a channel's newest messages can be unread.
+  static int unreadWanted(td.Chat chat) =>
+      chat.unreadCount < postsPerChannel ? chat.unreadCount : postsPerChannel;
+
+  /// Subscribed channels with anything unread, most recently active first.
+  List<td.Chat> _channelsWithUnread() => [
+    for (final chat in _chatCache.channels)
+      if (chat.unreadCount > 0) chat,
+  ];
+
   /// One post per channel, from what the update stream already delivered.
   ///
-  /// The first stage of a cold start's feed. Every chat TDLib loads arrives
-  /// with its `lastMessage`, so once the chat list is in, this costs no
-  /// request at all — no history, no name lookups, no reply excerpts — and
-  /// can be on screen while [fetchFeedPosts] is still asking for the rest.
+  /// The first stage of a launch's feed. Every chat TDLib loads arrives with
+  /// its `lastMessage`, so once the first page of the chat list is in, this
+  /// costs no request at all — no history, no name lookups, no reply excerpts —
+  /// and can be on screen while [fetchUnreadLocalPosts] is still reading. Only
+  /// a last message the reader has not read counts.
+  ///
   /// A card built here may lack the name of a channel it was forwarded from;
-  /// the full pass replaces it a moment later with one that has it.
+  /// the local pass replaces it a moment later with one that has it.
   Future<List<Post>> fetchHeadlinePosts() async {
-    await _chatCache.ensureLoaded();
+    await _chatCache.ensureFirstPage();
     final channelChats = _chatCache.channels;
     final messagesByChatId = <int, List<td.Message>>{
       for (final chat in channelChats)
-        if (chat.lastMessage != null) chat.id: [chat.lastMessage!],
+        if (chat.lastMessage case final last? when isUnreadIn(chat, last))
+          chat.id: [last],
     };
     if (messagesByChatId.isEmpty) return [];
     return _buildPosts(messagesByChatId, channelChats, quick: true);
   }
 
-  /// Builds the merged feed with **no per-channel network requests**.
+  /// The unread posts TDLib already holds on disk, in two stages.
   ///
-  /// Two cheap phases: the chat cache's `lastMessage` (already delivered by the
-  /// update stream, so free) and a local-only history read (never touches the
-  /// server). Real history for the busiest channels arrives afterwards via
-  /// [backfillRecentHistory], which is throttled.
+  /// Never reaches the server: every read is `onlyLocal`, so none of it
+  /// counts against the request budget. Real history for channels whose unread
+  /// posts are not on disk arrives afterwards via [backfillRecentHistory].
   ///
-  /// This deliberately does not call `GetChat` or a networked `GetChatHistory`
-  /// per channel. Doing so over a 200-channel list is an instant account-global
-  /// FLOOD_WAIT.
-  Future<List<Post>> fetchFeedPosts() async {
-    await _chatCache.ensureLoaded();
-    final channelChats = _chatCache.channels;
-    if (channelChats.isEmpty) return [];
+  /// Only channels with something unread are read at all, and only as far back
+  /// as their unread count reaches. A read post never enters the feed, so
+  /// reading thirty of them per channel across four hundred channels — which
+  /// is what this used to do — was seconds of work to throw away.
+  ///
+  /// The first stage is the [firstStageChannels] most recently active of those,
+  /// out of the first page of the chat list: the posts at the top of the feed.
+  /// It is built and yielded before the rest of the list is waited for, and
+  /// the rest follows in stages of the same size. Each yield carries only its
+  /// own stage's posts.
+  Stream<List<Post>> fetchUnreadLocalPosts() async* {
+    await _chatCache.ensureFirstPage();
+    final done = <int>{};
 
-    for (final chat in channelChats) {
+    final top = _channelsWithUnread().take(firstStageChannels).toList();
+    done.addAll(top.map((chat) => chat.id));
+    if (top.isNotEmpty) yield await _unreadLocalStage(top);
+
+    await _chatCache.ensureLoaded();
+    final rest = [
+      for (final chat in _channelsWithUnread())
+        if (!done.contains(chat.id)) chat,
+    ];
+    // In stages of the same size, so the feed grows while the rest is read
+    // rather than sitting on its first screen until every channel is done.
+    for (var start = 0; start < rest.length; start += firstStageChannels) {
+      yield await _unreadLocalStage(
+        rest.skip(start).take(firstStageChannels).toList(),
+      );
+    }
+  }
+
+  /// How many channels one local stage covers.
+  static const int firstStageChannels = 20;
+
+  Future<List<Post>> _unreadLocalStage(List<td.Chat> chats) async {
+    for (final chat in chats) {
       _syncService.downloadChatAvatar(chat);
     }
 
-    final messagesByChatId = <int, List<td.Message>>{};
-
-    // Phase 1 — one free post per channel, straight off the update stream.
-    for (final chat in channelChats) {
-      final last = chat.lastMessage;
-      if (last != null) messagesByChatId[chat.id] = [last];
-    }
-
-    // Phase 2 — whatever TDLib already has on disk.
-    //
     // A few channels at a time, with a frame let through between each batch.
     // Asked for all at once, a hundred channels' local histories came back as
-    // one burst of a few thousand message objects to build on the UI thread —
-    // right after the headlines had painted, which is when the reader first
-    // tried to touch the screen and found it frozen. Local reads are fast, so
-    // the batches cost little time; they just stop costing every frame.
-    for (var start = 0; start < channelChats.length; start += localReadBatch) {
-      final batch = channelChats.skip(start).take(localReadBatch).toList();
-      final localHistories = await Future.wait(
-        batch.map((chat) => _localHistory(chat.id, limit: postsPerChannel)),
+    // one burst of a few thousand message objects to build on the UI thread,
+    // right when the reader first tries to touch the screen.
+    final messagesByChatId = <int, List<td.Message>>{};
+
+    // A channel with one unread post needs no read at all: that post is its
+    // last message, which came with the chat list. Most channels with
+    // anything unread are like this, so most of the reads go.
+    final toRead = <td.Chat>[];
+    for (final chat in chats) {
+      final last = chat.lastMessage;
+      if (chat.unreadCount == 1 && last != null && isUnreadIn(chat, last)) {
+        messagesByChatId[chat.id] = [last];
+      } else {
+        toRead.add(chat);
+      }
+    }
+
+    for (var start = 0; start < toRead.length; start += localReadBatch) {
+      final batch = toRead.skip(start).take(localReadBatch).toList();
+      final histories = await Future.wait(
+        batch.map((chat) => _localHistory(chat.id, limit: unreadWanted(chat))),
       );
       for (var i = 0; i < batch.length; i++) {
-        final chatId = batch[i].id;
-        messagesByChatId[chatId] = _dedupeMessages([
-          ...?messagesByChatId[chatId],
-          ...localHistories[i],
-        ]);
+        final chat = batch[i];
+        final unread = [
+          for (final message in [?chat.lastMessage, ...histories[i]])
+            if (isUnreadIn(chat, message)) message,
+        ];
+        if (unread.isNotEmpty) {
+          messagesByChatId[chat.id] = _dedupeMessages(unread);
+        }
       }
       await yieldToUi();
     }
 
-    return _buildPosts(messagesByChatId, channelChats);
+    if (messagesByChatId.isEmpty) return const [];
+    return _buildPosts(messagesByChatId, chats);
   }
 
   /// How many channels' local histories are read at once. Small enough that
@@ -200,49 +256,59 @@ class FeedRepository {
   /// How many messages [_buildPosts] maps before letting a frame through.
   static const int mapYieldEvery = 60;
 
-  /// Fetches real history for the busiest channels, one request at a time.
+  /// Fetches unread history TDLib does not have on disk, one channel at a time.
   ///
-  /// Yields the growing post list after each channel so the feed fills in
-  /// progressively instead of stalling on a batch. Throttled to
-  /// [backfillThrottle] and abandoned on the first rate-limit — the penalty for
-  /// overrunning is applied to the user's Telegram account, not to this app.
-  Stream<List<Post>> backfillRecentHistory() async* {
-    final channelChats = _chatCache.channels;
-    if (channelChats.isEmpty) return;
+  /// [heldLocally] is how many unread posts per channel the local pass already
+  /// found. A channel whose unread posts were all on disk is skipped, so a
+  /// launch where everything is on the phone asks the server for nothing.
+  ///
+  /// Yields each channel's posts on their own as they arrive — only the new
+  /// ones, never the whole list so far, which rebuilt every earlier channel's
+  /// cards again at each step. Throttled to [backfillThrottle] and abandoned on
+  /// the first rate-limit: the penalty for overrunning is applied to the
+  /// user's Telegram account, not to this app.
+  Stream<List<Post>> backfillRecentHistory({
+    Map<int, int> heldLocally = const {},
+  }) async* {
+    final targets = [
+      for (final chat in _channelsWithUnread())
+        if ((heldLocally[chat.id] ?? 0) < unreadWanted(chat)) chat,
+    ].take(backfillTopChannels).toList();
 
-    final targets = channelChats.take(backfillTopChannels).toList();
-    final messagesByChatId = <int, List<td.Message>>{};
-    var produced = false;
+    for (var i = 0; i < targets.length; i++) {
+      if (i > 0) await Future<void>.delayed(backfillThrottle);
+      final chat = targets[i];
 
-    for (final chat in targets) {
+      List<td.Message> unread = const [];
       try {
         final res = await _tdlib.sendRequest(
           td.GetChatHistory(
             chatId: chat.id,
             fromMessageId: 0,
             offset: 0,
-            limit: postsPerChannel,
+            limit: unreadWanted(chat),
             onlyLocal: false,
           ),
         );
-        if (res is td.Messages && res.messages.isNotEmpty) {
-          messagesByChatId[chat.id] = _dedupeMessages(res.messages);
-          produced = true;
+        if (res is td.Messages) {
+          unread = [
+            for (final message in res.messages)
+              if (isUnreadIn(chat, message)) message,
+          ];
         }
       } on TdlibRequestException catch (e) {
         if (e.isFloodWait) {
           debugPrint('[FeedRepo] Backfill stopped — rate limited: $e');
-          break;
+          return;
         }
         debugPrint('[FeedRepo] Backfill skipped ${chat.id}: $e');
       } catch (e) {
         debugPrint('[FeedRepo] Backfill skipped ${chat.id}: $e');
       }
 
-      if (produced) {
-        yield await _buildPosts(messagesByChatId, targets);
+      if (unread.isNotEmpty) {
+        yield await _buildPosts({chat.id: _dedupeMessages(unread)}, [chat]);
       }
-      await Future<void>.delayed(backfillThrottle);
     }
   }
 

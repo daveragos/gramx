@@ -75,7 +75,7 @@ abstract class AppStrings {
   static const feedErrorTitle = 'Something went wrong';
   static const feedCaughtUpTitle = "You're all caught up";
   static const feedCaughtUpBody =
-      'Posts you have read are cleared on refresh. New ones will appear here.';
+      "Posts you've read don't come back. New ones will appear here.";
   static const feedPressBackAgain = pressBackAgainToExit;
   static const feedCommentsDisabled = 'Comments are disabled for this channel.';
   static const feedOriginalChannelUnavailable =

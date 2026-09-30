@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+
+import '../support/td_fixtures.dart';
 
 Post post(
   String id, {
@@ -29,80 +32,113 @@ Post post(
 }
 
 void main() {
-  group('dropAlreadyRead', () {
-    // Pulling for new material and being handed back what you just read is the
-    // opposite of what the gesture asks for.
-    test('drops posts that were on screen and are now read', () {
-      final fetched = [
+  // The reported fault: every launch opened on the posts the reader went
+  // through the time before, because a launch kept read posts and only a
+  // refresh dropped them.
+  group('unreadOnly', () {
+    test('drops posts Telegram counts as read', () {
+      final posts = [
         post('-1_1', minutesAgo: 10, isRead: true),
-        post('-1_2', minutesAgo: 5, isRead: false),
+        post('-1_2', minutesAgo: 5),
       ];
 
-      final kept = dropAlreadyRead(fetched, {'-1_1', '-1_2'});
-
-      expect(kept.map((p) => p.id), ['-1_2']);
+      expect(unreadOnly(posts).map((p) => p.id), ['-1_2']);
     });
 
-    // The reported bug: a post finished seconds before the refresh came
-    // straight back, because the acknowledgement was still queued and
-    // Telegram's cursor had not moved yet.
-    test('drops posts this app marked read, before Telegram agrees', () {
-      final fetched = [
-        post('-1_1', minutesAgo: 10, isRead: false),
-        post('-1_2', minutesAgo: 5, isRead: false),
-      ];
+    // The acknowledgement is still queued, so Telegram's cursor has not
+    // caught up yet. This app's own record is what knows.
+    test('drops posts read here before Telegram agrees', () {
+      final posts = [post('-1_1', minutesAgo: 10), post('-1_2', minutesAgo: 5)];
 
-      final kept = dropAlreadyRead(
-        fetched,
-        {'-1_1', '-1_2'},
-        readHere: {'-1_1'},
-      );
-
-      expect(kept.map((p) => p.id), ['-1_2']);
+      expect(unreadOnly(posts, readHere: {'-1_1'}).map((p) => p.id), ['-1_2']);
     });
 
-    test('a post read here but never on screen still survives', () {
-      final fetched = [post('-1_1', minutesAgo: 10)];
+    test('hands back the same list when nothing is read', () {
+      final posts = [post('-1_1', minutesAgo: 10), post('-1_2', minutesAgo: 5)];
 
-      expect(
-        dropAlreadyRead(fetched, const {}, readHere: {'-1_1'}),
-        hasLength(1),
-      );
+      expect(identical(unreadOnly(posts), posts), isTrue);
     });
 
-    // Filtering on "read" alone would empty the feed on a cold start —
-    // everything older than the read cursor is read.
-    test('keeps read posts that were never on screen', () {
-      final fetched = [post('-1_1', minutesAgo: 10, isRead: true)];
-
-      expect(dropAlreadyRead(fetched, const {}), hasLength(1));
-      expect(dropAlreadyRead(fetched, {'-9_9'}), hasLength(1));
-    });
-
-    // Filtering on "seen" alone would drop unread posts the reader
-    // deliberately scrolled past to come back to.
-    test('keeps unread posts even if they were on screen', () {
-      final fetched = [post('-1_1', minutesAgo: 10, isRead: false)];
-
-      expect(dropAlreadyRead(fetched, {'-1_1'}), hasLength(1));
-    });
-
-    test('new posts always survive', () {
-      final fetched = [
-        post('-1_1', minutesAgo: 10, isRead: true),
-        post('-1_9', minutesAgo: 1, isRead: false),
-      ];
-
-      expect(dropAlreadyRead(fetched, {'-1_1'}).map((p) => p.id), ['-1_9']);
-    });
-
-    test('can legitimately empty the feed when everything is read', () {
-      final fetched = [
+    test('can empty the feed when everything is read', () {
+      final posts = [
         post('-1_1', minutesAgo: 10, isRead: true),
         post('-1_2', minutesAgo: 5, isRead: true),
       ];
 
-      expect(dropAlreadyRead(fetched, {'-1_1', '-1_2'}), isEmpty);
+      expect(unreadOnly(posts), isEmpty);
+    });
+  });
+
+  // A headline card is built before the names of forwarded-from channels and
+  // the excerpts of replied-to posts are looked up; the local pass that
+  // follows has them, and must not lose to the card it improves on.
+  group('replacePostsNewestFirst', () {
+    test('takes the incoming copy of a post both hold', () {
+      final current = [post('-1_2', minutesAgo: 5)];
+      final fuller = post('-1_2', minutesAgo: 5, reactions: {'👍': 3});
+
+      final merged = replacePostsNewestFirst(current, [fuller]);
+
+      expect(merged, hasLength(1));
+      expect(merged.single.reactions, {'👍': 3});
+    });
+
+    test('keeps what only the current list has, newest first', () {
+      final current = [
+        post('-1_2', minutesAgo: 5),
+        post('-2_7', minutesAgo: 30),
+      ];
+      final incoming = [
+        post('-1_2', minutesAgo: 5),
+        post('-3_1', minutesAgo: 1),
+      ];
+
+      final merged = replacePostsNewestFirst(current, incoming);
+
+      expect(merged.map((p) => p.id), ['-3_1', '-1_2', '-2_7']);
+    });
+
+    test('nothing incoming changes nothing', () {
+      final current = [post('-1_2', minutesAgo: 5)];
+
+      expect(
+        identical(replacePostsNewestFirst(current, const []), current),
+        isTrue,
+      );
+    });
+  });
+
+  // Paging a channel whose older history is all read fetches a page the
+  // unread rule then throws away, on every scroll to the bottom.
+  group('cursorsWithUnreadBehind', () {
+    td.Chat channel(int id, {required int unread, required int lastRead}) =>
+        TdFixtures.chat(
+          id: id,
+          unreadCount: unread,
+        ).copyWith(lastReadInboxMessageId: lastRead);
+
+    test('keeps a channel whose read cursor is behind its oldest post', () {
+      final chats = {-1: channel(-1, unread: 40, lastRead: 100)};
+
+      expect(cursorsWithUnreadBehind({-1: 150}, (id) => chats[id]), {-1: 150});
+    });
+
+    test('drops a channel read past its oldest loaded post', () {
+      final chats = {-1: channel(-1, unread: 3, lastRead: 150)};
+
+      expect(cursorsWithUnreadBehind({-1: 120}, (id) => chats[id]), isEmpty);
+    });
+
+    // A channel this account runs: its posts are its own, so nothing in it is
+    // ever unread, however far behind the inbox cursor sits.
+    test('drops a channel with nothing unread', () {
+      final chats = {-1: channel(-1, unread: 0, lastRead: 0)};
+
+      expect(cursorsWithUnreadBehind({-1: 120}, (id) => chats[id]), isEmpty);
+    });
+
+    test('drops a channel the cache does not know', () {
+      expect(cursorsWithUnreadBehind({-1: 120}, (_) => null), isEmpty);
     });
   });
 
@@ -185,61 +221,6 @@ void main() {
       final merged = mergePostsNewestFirst(current, incoming);
 
       expect(merged.map((p) => p.id), ['-2_2', '-1_10', '-2_1', '-1_9']);
-    });
-  });
-
-  // The reported fault: a pull dropped the read posts, and a moment later the
-  // whole old feed was back. Nothing put them back deliberately — the backfill
-  // and the unread sweep simply restart behind a refresh and re-deliver
-  // history, with no idea one had just happened.
-  group('retiredPostIds', () {
-    test('names the posts a refresh finished with', () {
-      final retired = retiredPostIds([
-        post('-100_1', minutesAgo: 30, isRead: true),
-        post('-100_2', minutesAgo: 20),
-        post('-100_3', minutesAgo: 10, isRead: true),
-      ]);
-
-      expect(retired, {'-100_1', '-100_3'});
-    });
-
-    // The acknowledgement is still queued when the pull happens, so Telegram's
-    // own cursor has not caught up yet. This app's record is what knows.
-    test('counts a post read here but not yet acknowledged', () {
-      final retired = retiredPostIds(
-        [post('-100_1', minutesAgo: 30)],
-        readHere: {'-100_1'},
-      );
-
-      expect(retired, {'-100_1'});
-    });
-
-    test('an unread post is never retired', () {
-      expect(retiredPostIds([post('-100_1', minutesAgo: 5)]), isEmpty);
-    });
-  });
-
-  group('withoutRetired', () {
-    test('drops exactly what the refresh retired', () {
-      final kept = withoutRetired(
-        [post('-100_1', minutesAgo: 30), post('-100_2', minutesAgo: 20)],
-        {'-100_1'},
-      );
-
-      expect(kept.map((p) => p.id), ['-100_2']);
-    });
-
-    // A post the reader has never seen is ordinary history, whether or not
-    // Telegram counts it as read. Filtering on "read" at merge time instead of
-    // on the remembered ids would have hidden all of it.
-    test('leaves everything else alone, read or not', () {
-      final posts = [
-        post('-100_1', minutesAgo: 30, isRead: true),
-        post('-100_2', minutesAgo: 20),
-      ];
-
-      expect(identical(withoutRetired(posts, const {}), posts), isTrue);
-      expect(withoutRetired(posts, {'-100_9'}), hasLength(2));
     });
   });
 }

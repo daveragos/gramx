@@ -172,10 +172,11 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               child: const FeedSkeleton(),
             );
           }
-          // An empty feed after a refresh means the reader finished
-          // everything, which is a different message from "this folder has
-          // nothing in it".
-          final caughtUp = _hasLoadedOnce;
+          // The feed holds unread posts only, so an empty one from an
+          // account that follows channels means the reader finished
+          // everything — on this launch, or before it. That is a different
+          // message from "this folder has nothing in it".
+          final caughtUp = _hasLoadedOnce || channelsKnown;
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xxl),
