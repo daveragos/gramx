@@ -98,6 +98,14 @@ class ChatCacheState {
     return list;
   }
 
+  /// Whether [channels] would be non-empty, without building it.
+  ///
+  /// Asked once per chat update while the list loads — thousands of times on
+  /// an account with a long chat list — so it stops at the first channel
+  /// rather than filtering and sorting every chat to learn one bit.
+  bool get hasChannels =>
+      chats.values.any((c) => isChannel(c) && isSubscribed(c));
+
   /// Everything that is a conversation rather than a broadcast: private chats,
   /// bot chats, basic groups, non-broadcast supergroups and secret chats. Most
   /// recent first.
@@ -662,6 +670,9 @@ class ChatCache {
   /// Every cached chat that is a broadcast channel, most recently active first.
   List<td.Chat> get channels => _state.channels;
 
+  /// Whether any subscribed channel is cached. See [ChatCacheState.hasChannels].
+  bool get hasChannels => _state.hasChannels;
+
   /// Every cached chat, most recently active first — including groups and
   /// private chats, which the forward picker offers as destinations.
   List<td.Chat> get allChats => _state.allChats;
@@ -861,12 +872,12 @@ class ChannelsKnownNotifier extends Notifier<bool> {
     final cache = ref.watch(chatCacheProvider);
 
     final sub = cache.changes.listen((_) {
-      final known = cache.channels.isNotEmpty;
+      final known = cache.hasChannels;
       if (known != state) state = known;
     });
     ref.onDispose(sub.cancel);
 
-    return cache.channels.isNotEmpty;
+    return cache.hasChannels;
   }
 }
 
