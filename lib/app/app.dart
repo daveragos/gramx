@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/app/launch_reveal.dart';
 import 'package:gramx/app/router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_theme.dart';
@@ -29,6 +30,9 @@ class GramXApp extends ConsumerWidget {
       darkTheme: followsDevice ? AppTheme.dark() : chosen,
       themeMode: followsDevice ? ThemeMode.system : ThemeMode.light,
       routerConfig: router,
+      // Above every route, so the launch screen's mark stays put while the
+      // router decides, and the app opens through it. See LaunchReveal.
+      builder: (context, child) => LaunchReveal(child: child!),
       // gramX writes every string of its own in `core/l10n/app_strings.dart`
       // and ships English only. These delegates are for the strings it does
       // *not* write — the text selection menu, the date picker, the semantics

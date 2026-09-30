@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:gramx/app/launch_reveal.dart';
 import 'package:gramx/app/splash_screen.dart';
 import 'package:gramx/app/theme/brand_assets.dart';
 import 'package:gramx/app/widgets/brand_mark.dart';
@@ -57,19 +60,89 @@ void main() {
   _glyphTests();
 
   group('the splash screen', () {
-    testWidgets('carries the animated mark and the wordmark', (tester) async {
+    // LaunchReveal draws the mark above every route; the splash is the black
+    // behind it. A mark here as well would be a second one to line up.
+    testWidgets('draws nothing of its own', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
 
-      expect(find.byType(BrandMark), findsOneWidget);
-      expect(find.text(AppStrings.appName), findsOneWidget);
+      expect(find.byType(BrandMark), findsNothing);
+      expect(find.byType(Image), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+  });
+
+  // Android's launch screen and the app's first frame have to draw the same
+  // picture in the same place, or the mark jumps at the handover. They are
+  // two files, a PNG under android/ and the numbers in LaunchMark, and nothing
+  // but this would notice them drifting apart.
+  group('the launch mark', () {
+    Future<ui.Image> decode(Uint8List bytes) async {
+      final codec = await ui.instantiateImageCodec(bytes);
+      return (await codec.getNextFrame()).image;
+    }
+
+    Future<Rect> opaqueBounds(ui.Image image) async {
+      final data = await image.toByteData();
+      final pixels = data!.buffer.asUint8List();
+      var left = image.width, top = image.height, right = -1, bottom = -1;
+      for (var y = 0; y < image.height; y++) {
+        for (var x = 0; x < image.width; x++) {
+          if (pixels[(y * image.width + x) * 4 + 3] == 0) continue;
+          left = math.min(left, x);
+          right = math.max(right, x);
+          top = math.min(top, y);
+          bottom = math.max(bottom, y);
+        }
+      }
+      return Rect.fromLTRB(
+        left.toDouble(),
+        top.toDouble(),
+        right + 1.0,
+        bottom + 1.0,
+      );
+    }
+
+    testWidgets('is the visible part of the still artwork', (tester) async {
+      await tester.runAsync(() async {
+        final bytes = await rootBundle.load(BrandAssets.markStatic);
+        final image = await decode(bytes.buffer.asUint8List());
+
+        expect(await opaqueBounds(image), LaunchMark.source);
+      });
     });
 
-    // The mark's own motion replaced it. Two things moving on a screen that is
-    // deliberately almost nothing read as two separate waits.
-    testWidgets('has no spinner beside the mark', (tester) async {
-      await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
+    // 288 dp is the square Android 12 draws a launch icon without a
+    // background into.
+    testWidgets('is the size and place Android draws it', (tester) async {
+      await tester.runAsync(() async {
+        final file = File(
+          'android/app/src/main/res/drawable-nodpi/splash_mark.png',
+        );
+        final image = await decode(await file.readAsBytes());
+        final bounds = await opaqueBounds(image);
+        final dp = 288 / image.width;
 
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(image.width, image.height);
+        expect(bounds.height * dp, closeTo(LaunchMark.height, 0.5));
+        expect(bounds.width * dp, closeTo(LaunchMark.width, 0.5));
+        expect(bounds.center.dx * dp, closeTo(144, 0.5));
+        expect(bounds.center.dy * dp, closeTo(144, 0.5));
+      });
+    });
+
+    // The zoom is centred on the anchor, and only a solid panel grows to
+    // cover the screen.
+    testWidgets('opens from a solid part of the ribbon', (tester) async {
+      await tester.runAsync(() async {
+        final bytes = await rootBundle.load(BrandAssets.markStatic);
+        final image = await decode(bytes.buffer.asUint8List());
+        final data = await image.toByteData();
+        final source = LaunchMark.source;
+        final x = (source.left + source.width * LaunchMark.anchor.dx).floor();
+        final y = (source.top + source.height * LaunchMark.anchor.dy).floor();
+
+        expect(data!.getUint8((y * image.width + x) * 4 + 3), 255);
+      });
     });
   });
 }
