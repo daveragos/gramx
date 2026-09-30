@@ -8,6 +8,7 @@ import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_tracker.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 
 /// Drives read tracking and chat focus from what is actually on screen.
 ///
@@ -108,7 +109,10 @@ class FeedFocusController extends Notifier<String?> {
     // earlier session. Re-acking it spends a request to change nothing.
     final posts = ref.read(feedPostsProvider).value;
     final known = posts?.where((p) => p.id == postId).firstOrNull;
-    if (known != null && known.isRead) {
+    final seenBefore = ref
+        .read(seenPostsProvider.notifier)
+        .containsPost(postId);
+    if ((known != null && known.isRead) || seenBefore) {
       _tracker.markAlreadyRead(postId);
       return;
     }

@@ -7,6 +7,7 @@ import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_lifecycle.dart';
@@ -28,6 +29,10 @@ Future<ProviderContainer> bootstrap() async {
   // it buffers nothing, so anything emitted before this line is lost and those
   // channels never reach the feed. Order matters here.
   container.read(chatCacheProvider);
+
+  // Starts reading the record of seen posts off the disk, so it is in hand
+  // well before the feed's first stage waits on it.
+  container.read(seenPostsProvider);
 
   // Initialize TDLib Service and start Updates Isolate asynchronously.
   // We await this so auth state is available before the first frame renders.

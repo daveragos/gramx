@@ -7,6 +7,7 @@ import 'package:gramx/features/auth/presentation/auth_state_rules.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:handy_tdlib/api.dart' as td;
@@ -575,8 +576,10 @@ class AuthController extends Notifier<AuthState> {
     await db.delete(db.accounts).go();
 
     // Chats are account-scoped — a stale cache would leak the previous
-    // account's channels into the next sign-in's feed.
+    // account's channels into the next sign-in's feed, and the record of seen
+    // posts would hide the next account's.
     ref.read(chatCacheProvider).clear();
+    await ref.read(seenPostsProvider.notifier).clear();
 
     // The step moves before the request, so the router can act on it even if
     // the request never comes back.

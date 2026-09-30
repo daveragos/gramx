@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 
 /// Records read acknowledgements instead of sending them.
 ///
@@ -12,6 +13,14 @@ class _RecordingRepository implements FeedRepository {
 
   /// Error returned by the next call, then cleared — for testing the retry.
   String? nextError;
+
+  /// Chats whose first unread post the reader has not reached: nothing there
+  /// can be acknowledged yet.
+  final Set<int> blocked = {};
+
+  @override
+  Future<List<int>> readableRun(int chatId, Set<int> seen) async =>
+      blocked.contains(chatId) ? const [] : (seen.toList()..sort());
 
   @override
   Future<String?> markMessagesRead({
@@ -31,6 +40,9 @@ class _RecordingRepository implements FeedRepository {
 }
 
 void main() {
+  // The record of seen posts reaches for the documents directory.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('groupReadReceipts', () {
     // Read state in Telegram is a cursor per chat. Six posts of one channel are
     // one acknowledgement, not six requests through the same flood gate.
@@ -138,6 +150,34 @@ void main() {
       await queue.flush();
 
       expect(repo.calls, hasLength(1));
+    });
+
+    // Telegram's cursor marks everything below it read. A newer post seen
+    // above an older one the reader has not reached must not move it, or the
+    // older one is marked read unseen — and the feed never shows it.
+    test('sends nothing past a post the reader has not reached', () async {
+      final queue = container.read(readReceiptQueueProvider.notifier);
+      repo.blocked.add(-100111);
+      queue.add('-100111_12');
+      await queue.flush();
+
+      expect(repo.calls, isEmpty);
+      // Still remembered, so the feed keeps it out on the next launch.
+      expect(
+        container.read(seenPostsProvider.notifier).containsPost('-100111_12'),
+        isTrue,
+      );
+    });
+
+    test('forgets what an acknowledgement covered', () async {
+      final queue = container.read(readReceiptQueueProvider.notifier);
+      queue.add('-100111_10');
+      await queue.flush();
+
+      expect(
+        container.read(seenPostsProvider.notifier).idsIn(-100111),
+        isEmpty,
+      );
     });
 
     // The bug this queue exists for: a failed acknowledgement used to vanish

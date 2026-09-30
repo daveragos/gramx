@@ -10,10 +10,12 @@ import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/post_sender.dart';
+import 'package:gramx/features/feed/domain/seen_posts.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
@@ -1319,6 +1321,80 @@ class FeedRepository {
       messageIds: [messageId],
       forceRead: forceRead,
     );
+  }
+
+  /// The messages of [chatId] Telegram's read cursor can move over now: the
+  /// unbroken run above it the reader has seen, oldest first.
+  ///
+  /// Empty when the first unread message is one the reader has not seen, or
+  /// when some unread messages are not on the phone yet, so there is no telling
+  /// whether they were. Moving the cursor further would mark those read in
+  /// every Telegram app, and the feed would never show them. See
+  /// [readableUpTo] for what counts as passing.
+  ///
+  /// A chat the cache does not know gets [seen] back as it is: there is no
+  /// cursor to be careful of.
+  Future<List<int>> readableRun(int chatId, Set<int> seen) async {
+    final chat = _chatCache.chat(chatId);
+    if (chat == null) return seen.toList()..sort();
+    final cursor = chat.lastReadInboxMessageId;
+    if (!seen.any((id) => id > cursor)) return const [];
+
+    final unread = await _unreadMessages(chat);
+    if (unread == null) return const [];
+    final upTo = readableUpTo(cursor: cursor, unread: unread, seen: seen);
+    return [
+      for (final message in unread)
+        if (message.id > cursor && message.id <= upTo) message.id,
+    ];
+  }
+
+  /// Every message above [chat]'s read cursor, oldest first, or null if TDLib
+  /// does not hold them all on the phone.
+  Future<List<UnreadMessage>?> _unreadMessages(td.Chat chat) async {
+    final count = chat.unreadCount;
+    if (count == 0) return const [];
+    // One local read covers up to a hundred. Past that the reader has not
+    // seen what lies between anyway.
+    if (count >= 100) return null;
+
+    final cursor = chat.lastReadInboxMessageId;
+    final List<td.Message> messages;
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChatHistory(
+          chatId: chat.id,
+          fromMessageId: 0,
+          offset: 0,
+          limit: count + 1,
+          onlyLocal: true,
+        ),
+      );
+      if (res is! td.Messages) return null;
+      messages = res.messages;
+    } catch (e) {
+      debugPrint('[FeedRepo] Unread lookup failed for ${chat.id}: $e');
+      return null;
+    }
+
+    final above = [
+      for (final message in messages)
+        if (message.id > cursor) message,
+    ];
+    final reachedCursor = above.length < messages.length;
+    final incoming = above.where((m) => !m.isOutgoing).length;
+    if (!reachedCursor && incoming < count) return null;
+
+    return [
+      for (final message in above.reversed)
+        (
+          id: message.id,
+          albumId: message.mediaAlbumId.toInt(),
+          isShown:
+              !message.isOutgoing &&
+              MessageContentSupport.belongsInFeed(message.content),
+        ),
+    ];
   }
 
   /// Acknowledges messages as read, and reports what went wrong.

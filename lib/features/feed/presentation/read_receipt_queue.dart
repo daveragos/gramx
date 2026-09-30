@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 
 /// Groups post ids into one batch of message ids per chat.
 ///
@@ -88,8 +89,14 @@ class ReadReceiptQueue extends Notifier<void> {
     if (chatId != null) _openChats.add(chatId);
   }
 
-  /// Queues a post as read. Safe to call repeatedly for the same post.
+  /// Records that the reader has seen a post, and queues its chat for an
+  /// acknowledgement. Safe to call repeatedly for the same post.
+  ///
+  /// Remembered straight away, whatever Telegram is told: the post stays out
+  /// of the feed from the next launch on, even if its acknowledgement has to
+  /// wait for older posts the reader has not reached yet.
   void add(String postId) {
+    ref.read(seenPostsProvider.notifier).add(postId);
     _pending.add(postId);
     _flushTimer ??= Timer(flushDelay, flush);
   }
@@ -105,17 +112,30 @@ class ReadReceiptQueue extends Notifier<void> {
     _pending.clear();
 
     final repo = ref.read(feedRepositoryProvider);
-    for (final entry in batch.entries) {
-      await _send(repo, entry.key, entry.value, isRetry: false);
+    for (final chatId in batch.keys) {
+      await _send(repo, chatId, isRetry: false);
     }
   }
 
+  /// Moves [chatId]'s read cursor over what the reader has seen, and no
+  /// further.
+  ///
+  /// Telegram's read state is a cursor: acknowledging a post marks everything
+  /// before it read as well. The feed shows a channel's newest post first, so
+  /// acknowledging what was seen used to mark the older posts read before the
+  /// reader got to them — and the feed hides what is read, so they were never
+  /// shown. Only the unbroken run of seen posts above the cursor is sent; see
+  /// [FeedRepository.readableRun]. The rest stays unread, here and in every
+  /// other Telegram app, until the reader reaches it.
   Future<void> _send(
     FeedRepository repo,
-    int chatId,
-    List<int> messageIds, {
+    int chatId, {
     required bool isRetry,
   }) async {
+    final seen = ref.read(seenPostsProvider.notifier);
+    final messageIds = await repo.readableRun(chatId, seen.idsIn(chatId));
+    if (messageIds.isEmpty) return;
+
     final error = await repo.markMessagesRead(
       chatId: chatId,
       messageIds: messageIds,
@@ -123,7 +143,10 @@ class ReadReceiptQueue extends Notifier<void> {
       // reader is actually in, the open chat is the honest signal.
       forceRead: !_openChats.contains(chatId),
     );
-    if (error == null) return;
+    if (error == null) {
+      seen.settle(chatId, messageIds.last);
+      return;
+    }
 
     debugPrint(
       '[Read] chat $chatId × ${messageIds.length} failed: $error'
@@ -134,7 +157,7 @@ class ReadReceiptQueue extends Notifier<void> {
     // One retry, spaced past a short flood wait. Two would be a queue that
     // hammers a rate limit the user is already sitting behind.
     Future<void>.delayed(retryDelay, () {
-      _send(repo, chatId, messageIds, isRetry: true);
+      _send(repo, chatId, isRetry: true);
     });
   }
 }

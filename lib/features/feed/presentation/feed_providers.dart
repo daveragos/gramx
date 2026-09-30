@@ -11,6 +11,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
+import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -35,10 +36,11 @@ Map<int, int> narrowCursors(Map<int, int> cursors, Set<int>? allowedChatIds) {
 /// Leaves out every post the reader has already read.
 ///
 /// "Read" is Telegram's read cursor, which also moves when the reader gets
-/// through a post in another Telegram app, **or** this app's own record
-/// ([readHere]). The cursor alone was not enough: a post read seconds ago came
-/// straight back, because its acknowledgement was still queued. A post this
-/// account sent counts as read; the mapper marks it so.
+/// through a post in another Telegram app, **or** this app's record of what
+/// the reader has seen ([readHere]). The cursor only covers an unbroken run of
+/// seen posts, so a post seen above one the reader has not reached is known
+/// only to the record — see `SeenPosts`. A post this account sent counts as
+/// read; the mapper marks it so.
 ///
 /// Everything that fills the feed passes through this — a launch, a refresh,
 /// the backfill, the unread sweep, pagination — which is what stops a launch
@@ -223,6 +225,11 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _oldestMessageIds.clear();
     _heldLocally.clear();
 
+    // What the reader saw on earlier launches, read off the disk before
+    // anything is admitted — or the first stage would offer it again.
+    await ref.read(seenPostsProvider.notifier).ready;
+    if (generation != _generation) return const [];
+
     // The feed arrives in stages, each painted as soon as it exists, because
     // the alternative was a skeleton held for the sum of them. All of them
     // come out of TDLib's own database — the same store Telegram's clients
@@ -398,7 +405,10 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
   /// Everything that fills the feed passes through here. See [unreadOnly].
   List<Post> _admit(List<Post> posts) => unreadOnly(
     posts,
-    readHere: ref.read(optimisticPostUpdatesProvider.notifier).readPostIds,
+    readHere: {
+      ...ref.read(seenPostsProvider.notifier).postIds,
+      ...ref.read(optimisticPostUpdatesProvider.notifier).readPostIds,
+    },
   );
 
   /// Track the oldest messageId per channel for cursor-based pagination.
