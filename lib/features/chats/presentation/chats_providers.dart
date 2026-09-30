@@ -148,12 +148,18 @@ final visibleChatsProvider = Provider<List<ChatSummary>>((ref) {
 
 /// How many conversations have something unread — the number on the tab badge.
 ///
-/// Counted off the unfiltered list on purpose: a badge that changed when the
-/// reader picked a filter would be reporting on the filter rather than on their
-/// messages.
+/// Counted through the Messages tab's filter, which opens on Direct: on a
+/// Telegram account most unread chats are groups and bots, and a badge
+/// counting all of them said "you have messages" about things nobody sent the
+/// reader. Pick All, Groups or Bots on the tab and the badge counts those
+/// instead, so it always speaks for the list the tab shows. The search box is
+/// left out: typing a name is looking for one chat, not changing what counts.
 final unreadChatCountProvider = Provider<int>((ref) {
   if (!ref.watch(readerCapabilitiesProvider).canMessage) return 0;
-  return ChatListBuilder.unreadChatCount(ref.watch(chatListProvider));
+  return ChatListBuilder.unreadChatCount(
+    ref.watch(chatListProvider),
+    filter: ref.watch(chatFilterProvider),
+  );
 });
 
 /// One chat's row, for the conversation header.

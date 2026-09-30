@@ -964,11 +964,13 @@ abstract class TdFixtures {
     required int id,
     String title = 'The Group',
     int mainOrder = 100,
+    int unreadCount = 0,
     Map<String, dynamic>? lastMessage,
   }) => conversation(
     id: id,
     title: title,
     mainOrder: mainOrder,
+    unreadCount: unreadCount,
     lastMessage: lastMessage,
     type: {
       '@type': 'chatTypeSupergroup',

@@ -391,6 +391,44 @@ void main() {
       ];
       expect(ChatListBuilder.unreadChatCount(withMarked), 2);
     });
+
+    // Most unread chats on a Telegram account are groups and bots. The badge
+    // follows the Messages tab's filter, which opens on Direct.
+    test('the unread badge counts only what the filter shows', () {
+      final busy = [
+        ...rows,
+        _summary(
+          TdFixtures.groupChat(
+            id: -100300,
+            title: 'Loud Group',
+            mainOrder: 50,
+            unreadCount: 40,
+            lastMessage: TdFixtures.textMessageJson(id: 1, chatId: -100300),
+          ),
+        ),
+        _summary(
+          TdFixtures.conversation(
+            id: 6,
+            title: 'Noisy Bot',
+            mainOrder: 40,
+            unreadCount: 2,
+            lastMessage: TdFixtures.textMessageJson(id: 1, chatId: 6),
+          ),
+          users: {
+            6: TdFixtures.user(id: 6, firstName: 'Noisy Bot', isBot: true),
+          },
+        ),
+      ];
+
+      int count(ChatFilter filter) =>
+          ChatListBuilder.unreadChatCount(busy, filter: filter);
+
+      expect(count(ChatFilter.direct), 1);
+      expect(count(ChatFilter.groups), 1);
+      expect(count(ChatFilter.bots), 1);
+      expect(count(ChatFilter.all), 3);
+      expect(count(ChatFilter.unread), 3);
+    });
   });
 
   group('display names', () {

@@ -350,8 +350,19 @@ abstract class ChatListBuilder {
   /// The number on the tab badge: chats with something unread, not messages.
   ///
   /// three people are waiting, which is the number a reader can act on.
-  static int unreadChatCount(List<ChatSummary> rows) =>
-      rows.where((r) => r.unreadCount > 0 || r.isMarkedAsUnread).length;
+  ///
+  /// Only chats [filter] lets through count, so the badge speaks for the same
+  /// list the Messages tab opens on.
+  static int unreadChatCount(
+    List<ChatSummary> rows, {
+    ChatFilter filter = ChatFilter.all,
+  }) => rows
+      .where(
+        (r) =>
+            matchesFilter(r, filter) &&
+            (r.unreadCount > 0 || r.isMarkedAsUnread),
+      )
+      .length;
 
   static String? _usernameOf({td.User? user, td.Supergroup? supergroup}) {
     final names =
