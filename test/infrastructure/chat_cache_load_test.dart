@@ -147,6 +147,23 @@ void main() {
       expect(cache.isLoaded, isTrue);
     });
 
+    test('the next round arrives, and so does the end of the load', () async {
+      final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])
+        ..holdSecondPage = Completer<void>();
+      final cache = ChatCache(tdlib);
+      await cache.ensureFirstPage();
+      expect(cache.isLoading, isTrue);
+
+      final next = cache.nextRound();
+      tdlib.holdSecondPage!.complete();
+      await next;
+      await cache.ensureLoaded();
+
+      expect(cache.isLoading, isFalse);
+      // Nothing in flight: asking again does not wait.
+      await cache.nextRound();
+    });
+
     test('a load that fails still lets the first page go', () async {
       final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])
         ..signedIn = false;

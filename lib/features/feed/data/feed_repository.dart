@@ -175,28 +175,30 @@ class FeedRepository {
   ///
   /// The first stage is the [firstStageChannels] most recently active of those,
   /// out of the first page of the chat list: the posts at the top of the feed.
-  /// It is built and yielded before the rest of the list is waited for, and
-  /// the rest follows in stages of the same size. Each yield carries only its
-  /// own stage's posts.
+  /// The rest follows in stages of the same size, each page of the chat list
+  /// as it lands. Each yield carries only its own stage's posts.
   Stream<List<Post>> fetchUnreadLocalPosts() async* {
     await _chatCache.ensureFirstPage();
     final done = <int>{};
 
-    final top = _channelsWithUnread().take(firstStageChannels).toList();
-    done.addAll(top.map((chat) => chat.id));
-    if (top.isNotEmpty) yield await _unreadLocalStage(top);
-
-    await _chatCache.ensureLoaded();
-    final rest = [
-      for (final chat in _channelsWithUnread())
-        if (!done.contains(chat.id)) chat,
-    ];
-    // In stages of the same size, so the feed grows while the rest is read
-    // rather than sitting on its first screen until every channel is done.
-    for (var start = 0; start < rest.length; start += firstStageChannels) {
-      yield await _unreadLocalStage(
-        rest.skip(start).take(firstStageChannels).toList(),
-      );
+    // What the chat list holds so far, then again each time another round of
+    // it lands, until the whole list is in. Later rounds hold less recently
+    // active channels, whose posts belong further down anyway.
+    while (true) {
+      final wholeList = !_chatCache.isLoading;
+      final fresh = [
+        for (final chat in _channelsWithUnread())
+          if (done.add(chat.id)) chat,
+      ];
+      // In stages, so the feed grows while the rest is read rather than
+      // sitting on its first screen until every channel is done.
+      for (var start = 0; start < fresh.length; start += firstStageChannels) {
+        yield await _unreadLocalStage(
+          fresh.skip(start).take(firstStageChannels).toList(),
+        );
+      }
+      if (wholeList) return;
+      await _chatCache.nextRound();
     }
   }
 

@@ -590,9 +590,15 @@ class ChatCache {
   final _changesController = StreamController<void>.broadcast();
 
   /// How many `LoadChats` rounds we are willing to issue. Each round pulls up to
-  /// [_loadChatsPageSize] more chats, so this caps us at 500 chats for 5
-  /// requests — versus 500 requests for the same coverage via `GetChat`.
-  static const int _maxLoadChatsRounds = 5;
+  /// [_loadChatsPageSize] more chats, so this caps us at 1,200 chats for 12
+  /// requests — versus 1,200 requests for the same coverage via `GetChat`.
+  ///
+  /// Five used to be enough only because two other `LoadChats` went out at
+  /// sign-in as well. Without them, an account with a long list of chats lost
+  /// its least active channels: they never reached the cache, so neither the
+  /// feed nor the channel list knew they existed. The rounds after the first
+  /// page run behind the first paint, so they cost the reader no wait.
+  static const int _maxLoadChatsRounds = 12;
   static const int _loadChatsPageSize = 100;
 
   /// TDLib's "nothing left to load" reply to `LoadChats`.
@@ -687,6 +693,22 @@ class ChatCache {
   /// between "no channels" and "not asked yet". See [ensureLoaded].
   bool get isLoaded => _loaded;
 
+  /// Whether a load of the main chat list is in flight.
+  bool get isLoading => _loading != null;
+
+  /// Resolves when the load in flight has settled its next round, or has
+  /// ended; at once if no load is in flight.
+  ///
+  /// For whoever wants the list a page at a time rather than all at the end:
+  /// the feed puts each page's channels on screen as the page lands.
+  Future<void> nextRound() {
+    final loading = _loading;
+    if (loading == null) return Future.value();
+    // The load ending counts too: the last round settles in the same moment,
+    // and a caller that asks just after it must not wait for one more.
+    return Future.any([_roundSettled.future, loading]);
+  }
+
   /// A chat's sort order within the main chat list, or 0 if it isn't in it.
   static int mainListOrder(td.Chat chat) => ChatCacheState.mainListOrder(chat);
 
@@ -741,14 +763,25 @@ class ChatCache {
   /// [ensureFirstPage].
   Completer<void>? _firstPage;
 
+  /// Completed, and replaced, each time a round settles. See [nextRound].
+  Completer<void> _roundSettled = Completer<void>();
+
+  void _settleRound() {
+    final settled = _roundSettled;
+    _roundSettled = Completer<void>();
+    settled.complete();
+  }
+
   Future<void> _load() async {
     final firstPage = _firstPage = Completer<void>();
     try {
       await _loadRounds(firstPage);
     } finally {
       // Whatever ended the load — the list running out, a failure, a flood
-      // wait — nobody waiting for the first page waits past it.
+      // wait — nobody waiting for the first page, or the next round, waits
+      // past it.
       if (!firstPage.isCompleted) firstPage.complete();
+      _settleRound();
     }
   }
 
@@ -789,6 +822,7 @@ class ChatCache {
         );
         firstPage.complete();
       }
+      _settleRound();
       // No new chats arrived; another round would return the same nothing.
       if (_state.chats.length == before) break;
     }
