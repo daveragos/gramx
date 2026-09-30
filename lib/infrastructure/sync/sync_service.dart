@@ -135,18 +135,6 @@ class SyncService {
     _updateSub = null;
   }
 
-  /// Trigger initial sync by loading chats.
-  Future<void> triggerInitialSync() async {
-    await waitForAuth();
-    try {
-      await _tdlib.sendRequest(
-        const td.LoadChats(chatList: td.ChatListMain(), limit: 100),
-      );
-    } catch (e) {
-      debugPrint('[Sync] LoadChats note: $e');
-    }
-  }
-
   /// Queue background file download in TDLib.
   Future<void> _downloadFile(int fileId, {int priority = 1}) async {
     if (fileId == 0) return;

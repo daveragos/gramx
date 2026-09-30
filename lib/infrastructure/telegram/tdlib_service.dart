@@ -616,12 +616,9 @@ class TdlibService {
       if (state is td.AuthorizationStateWaitPhoneNumber) {
         _updateStatus('Ready for authentication.');
       } else if (state is td.AuthorizationStateReady) {
+        // The chat list is loaded by ChatCache, which the auth controller
+        // starts once the account is known. See `_handleAuthReady`.
         _updateStatus('Authenticated with Telegram!');
-        try {
-          sendRequest(
-            const td.LoadChats(chatList: td.ChatListMain(), limit: 100),
-          );
-        } catch (_) {}
       }
     }
   }

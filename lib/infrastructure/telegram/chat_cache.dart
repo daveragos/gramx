@@ -711,13 +711,48 @@ class ChatCache {
     return _loading ??= _load().whenComplete(() => _loading = null);
   }
 
+  /// Resolves once the first page of the main chat list is in, while the rest
+  /// keeps loading behind it.
+  ///
+  /// The first page is the most recently active chats, which are the ones
+  /// whose posts sit at the top of the feed. Everything after it only reaches
+  /// further down, and on a long list the second round goes to the server:
+  /// waiting for every round held the feed's first paint back by two and a
+  /// half seconds on each launch, to add channels nobody would see before
+  /// scrolling.
+  ///
+  /// Starts [ensureLoaded] if nobody has, so asking for the first page never
+  /// leaves the rest of the list unasked for.
+  Future<void> ensureFirstPage() {
+    if (_loaded) return Future.value();
+    final whole = ensureLoaded();
+    final firstPage = _firstPage;
+    if (firstPage == null) return whole;
+    return Future.any([firstPage.future, whole]);
+  }
+
   /// True once the main list has been loaded in this session.
   bool _loaded = false;
 
   /// The load in flight, if one is.
   Future<void>? _loading;
 
+  /// Completed when the load in flight has its first page. See
+  /// [ensureFirstPage].
+  Completer<void>? _firstPage;
+
   Future<void> _load() async {
+    final firstPage = _firstPage = Completer<void>();
+    try {
+      await _loadRounds(firstPage);
+    } finally {
+      // Whatever ended the load — the list running out, a failure, a flood
+      // wait — nobody waiting for the first page waits past it.
+      if (!firstPage.isCompleted) firstPage.complete();
+    }
+  }
+
+  Future<void> _loadRounds(Completer<void> firstPage) async {
     var exhausted = false;
     for (var round = 0; round < _maxLoadChatsRounds; round++) {
       final before = _state.chats.length;
@@ -748,6 +783,12 @@ class ChatCache {
       }
 
       await _awaitQuiescence();
+      if (!firstPage.isCompleted) {
+        StartupTrace.mark(
+          'first page of the chat list (${_state.chats.length} chats)',
+        );
+        firstPage.complete();
+      }
       // No new chats arrived; another round would return the same nothing.
       if (_state.chats.length == before) break;
     }

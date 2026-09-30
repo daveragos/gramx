@@ -274,41 +274,85 @@ class AuthController extends Notifier<AuthState> {
     );
     try {
       final me = await _tdlib.sendRequest(const td.GetMe());
-      if (me is td.User) {
-        final db = ref.read(databaseProvider);
 
-        await (db.update(
-          db.accounts,
-        )).write(const AccountsCompanion(isActive: Value(false)));
+      // The splash waits on Telegram knowing who this is, and on nothing of
+      // this app's own. The account row is written a moment later, behind the
+      // first screen: everything that reads it watches the table, and the
+      // write held the splash up by a fifth of a second on every launch.
+      if (me is td.User) unawaited(_saveAccount(me));
 
-        final String? username =
-            (me.usernames?.activeUsernames != null &&
-                me.usernames!.activeUsernames.isNotEmpty)
-            ? me.usernames!.activeUsernames.first
-            : me.usernames?.editableUsername;
+      state = state.copyWith(step: AuthStep.authenticated);
+      StartupTrace.mark('account loaded, leaving the splash');
 
-        if (me.profilePhoto != null) {
-          try {
-            await _tdlib.sendRequest(
+      // Trigger background channel & feed sync
+      final syncService = ref.read(syncServiceProvider);
+      syncService.markAuthReady();
+      syncService.startListening();
+
+      // The chat list, through the cache's own load and nothing else. Two
+      // more `LoadChats` used to go out at this moment — one from the client
+      // when TDLib became ready, one from the sync service — and each pulls
+      // another hundred chats in, so the first page the feed paints from was
+      // three pages' worth of updates to decode. One page lands in about half
+      // the time, and the later rounds bring the rest.
+      unawaited(ref.read(chatCacheProvider).ensureLoaded());
+    } catch (e) {
+      state = state.copyWith(
+        step: AuthStep.error,
+        errorMessage: 'Failed to retrieve user profile: $e',
+      );
+    }
+  }
+
+  /// Records the signed-in account in the app's own database.
+  ///
+  /// One transaction, so the switch from the old active row to this one is
+  /// never seen half done — a watcher in between would find no account at all
+  /// and the drawer would blink to its signed-out state.
+  Future<void> _saveAccount(td.User me) async {
+    final photo = me.profilePhoto?.small;
+    if (photo != null) {
+      // Not awaited: this only asks TDLib to start fetching the picture.
+      unawaited(
+        _tdlib
+            .sendRequest(
               td.DownloadFile(
-                fileId: me.profilePhoto!.small.id,
+                fileId: photo.id,
                 priority: 1,
                 offset: 0,
                 limit: 0,
                 synchronous: false,
               ),
-            );
-          } catch (e) {
-            debugPrint('[Auth] Failed to request user avatar download: $e');
-          }
-        }
+            )
+            .then<void>(
+              (_) {},
+              onError: (Object e) => debugPrint(
+                '[Auth] Failed to request user avatar download: $e',
+              ),
+            ),
+      );
+    }
 
-        final avatarPathValue =
-            me.profilePhoto?.small.local.path.isNotEmpty == true
-            ? me.profilePhoto?.small.local.path
-            : (me.profilePhoto?.small.remote.id.isNotEmpty == true
-                  ? me.profilePhoto?.small.remote.id
-                  : me.profilePhoto?.small.id.toString());
+    final usernames = me.usernames;
+    final String? username = (usernames?.activeUsernames.isNotEmpty ?? false)
+        ? usernames!.activeUsernames.first
+        : usernames?.editableUsername;
+
+    final avatarPathValue = photo == null
+        ? null
+        : photo.local.path.isNotEmpty
+        ? photo.local.path
+        : photo.remote.id.isNotEmpty
+        ? photo.remote.id
+        : photo.id.toString();
+
+    final displayName = '${me.firstName} ${me.lastName}'.trim();
+    final db = ref.read(databaseProvider);
+    try {
+      await db.transaction(() async {
+        await db
+            .update(db.accounts)
+            .write(const AccountsCompanion(isActive: Value(false)));
 
         final existingAccount =
             await (db.select(db.accounts)
@@ -320,7 +364,7 @@ class AuthController extends Notifier<AuthState> {
             db.accounts,
           )..where((a) => a.id.equals(existingAccount.id))).write(
             AccountsCompanion(
-              displayName: Value('${me.firstName} ${me.lastName}'.trim()),
+              displayName: Value(displayName),
               username: Value(username),
               phoneNumber: Value(me.phoneNumber),
               avatarPath: Value(avatarPathValue),
@@ -334,7 +378,7 @@ class AuthController extends Notifier<AuthState> {
               .insert(
                 AccountsCompanion.insert(
                   telegramUserId: me.id.toString(),
-                  displayName: Value('${me.firstName} ${me.lastName}'.trim()),
+                  displayName: Value(displayName),
                   username: Value(username),
                   phoneNumber: Value(me.phoneNumber),
                   avatarPath: Value(avatarPathValue),
@@ -342,21 +386,9 @@ class AuthController extends Notifier<AuthState> {
                 ),
               );
         }
-      }
-
-      state = state.copyWith(step: AuthStep.authenticated);
-      StartupTrace.mark('account loaded, leaving the splash');
-
-      // Trigger background channel & feed sync
-      final syncService = ref.read(syncServiceProvider);
-      syncService.markAuthReady();
-      syncService.startListening();
-      syncService.triggerInitialSync();
+      });
     } catch (e) {
-      state = state.copyWith(
-        step: AuthStep.error,
-        errorMessage: 'Failed to retrieve user profile: $e',
-      );
+      debugPrint('[Auth] Could not save the account: $e');
     }
   }
 

@@ -17,6 +17,10 @@ class _ListTdlib implements TdlibService {
   int loadChatsCalls = 0;
   bool signedIn = true;
 
+  /// When set, the second `LoadChats` waits on it: a later page still on its
+  /// way from the server.
+  Completer<void>? holdSecondPage;
+
   _ListTdlib(this.chats);
 
   @override
@@ -32,6 +36,7 @@ class _ListTdlib implements TdlibService {
       loadChatsCalls++;
       if (!signedIn) throw const TdlibRequestException(401, 'Unauthorized');
       if (loadChatsCalls > 1) {
+        await holdSecondPage?.future;
         throw const TdlibRequestException(404, 'Not Found');
       }
       for (final chat in chats) {
@@ -110,6 +115,46 @@ void main() {
 
       expect(cache.isLoaded, isFalse);
       expect(cache.isEmpty, isTrue);
+    });
+  });
+
+  // The feed's first paint waited on every round of the chat list, and on a
+  // long list the second round goes to the server: two and a half seconds on
+  // each launch, spent on channels far below the top of the feed.
+  group('ChatCache.ensureFirstPage', () {
+    test('resolves while later pages are still loading', () async {
+      final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])
+        ..holdSecondPage = Completer<void>();
+      final cache = ChatCache(tdlib);
+
+      await cache.ensureFirstPage();
+
+      expect(cache.channels.length, 1);
+      expect(cache.isLoaded, isFalse);
+
+      tdlib.holdSecondPage!.complete();
+      await cache.ensureLoaded();
+      expect(cache.isLoaded, isTrue);
+    });
+
+    test('starts the whole load, and shares it', () async {
+      final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)]);
+      final cache = ChatCache(tdlib);
+
+      await Future.wait([cache.ensureFirstPage(), cache.ensureLoaded()]);
+
+      expect(tdlib.loadChatsCalls, 2);
+      expect(cache.isLoaded, isTrue);
+    });
+
+    test('a load that fails still lets the first page go', () async {
+      final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])
+        ..signedIn = false;
+      final cache = ChatCache(tdlib);
+
+      await cache.ensureFirstPage();
+
+      expect(cache.isLoaded, isFalse);
     });
   });
 }
