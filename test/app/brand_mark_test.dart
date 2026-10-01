@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -71,23 +70,28 @@ void main() {
     });
   });
 
-  // Android's launch screen and the app's first frame have to draw the same
-  // picture in the same place, or the mark jumps at the handover. They are
-  // two files, a PNG under android/ and the numbers in LaunchMark, and nothing
-  // but this would notice them drifting apart.
+  // The launch stops the drawing at LaunchMark.formedFrame and opens the app
+  // through that frame, so the numbers in LaunchMark have to describe it.
   group('the launch mark', () {
-    Future<ui.Image> decode(Uint8List bytes) async {
-      final codec = await ui.instantiateImageCodec(bytes);
-      return (await codec.getNextFrame()).image;
+    Future<ui.Image> frame(int index) async {
+      final bytes = await rootBundle.load(BrandAssets.markAnimation);
+      final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+      late ui.Image image;
+      for (var i = 0; i <= index; i++) {
+        image = (await codec.getNextFrame()).image;
+      }
+      return image;
     }
 
+    Future<Uint8List> pixels(ui.Image image) async =>
+        (await image.toByteData())!.buffer.asUint8List();
+
     Future<Rect> opaqueBounds(ui.Image image) async {
-      final data = await image.toByteData();
-      final pixels = data!.buffer.asUint8List();
+      final data = await pixels(image);
       var left = image.width, top = image.height, right = -1, bottom = -1;
       for (var y = 0; y < image.height; y++) {
         for (var x = 0; x < image.width; x++) {
-          if (pixels[(y * image.width + x) * 4 + 3] == 0) continue;
+          if (data[(y * image.width + x) * 4 + 3] == 0) continue;
           left = math.min(left, x);
           right = math.max(right, x);
           top = math.min(top, y);
@@ -102,31 +106,26 @@ void main() {
       );
     }
 
-    testWidgets('is the visible part of the still artwork', (tester) async {
+    testWidgets('is the finished ribbon of the drawing', (tester) async {
       await tester.runAsync(() async {
-        final bytes = await rootBundle.load(BrandAssets.markStatic);
-        final image = await decode(bytes.buffer.asUint8List());
+        final formed = await frame(LaunchMark.formedFrame);
 
-        expect(await opaqueBounds(image), LaunchMark.source);
+        expect(await opaqueBounds(formed), LaunchMark.source);
       });
     });
 
-    // 288 dp is the square Android 12 draws a launch icon without a
-    // background into.
-    testWidgets('is the size and place Android draws it', (tester) async {
+    // Stopping any earlier would open the app through a ribbon still
+    // changing shape.
+    testWidgets('is a frame the drawing has settled on', (tester) async {
       await tester.runAsync(() async {
-        final file = File(
-          'android/app/src/main/res/drawable-nodpi/splash_mark.png',
-        );
-        final image = await decode(await file.readAsBytes());
-        final bounds = await opaqueBounds(image);
-        final dp = 288 / image.width;
+        final formed = await pixels(await frame(LaunchMark.formedFrame));
+        final later = await pixels(await frame(LaunchMark.formedFrame + 15));
 
-        expect(image.width, image.height);
-        expect(bounds.height * dp, closeTo(LaunchMark.height, 0.5));
-        expect(bounds.width * dp, closeTo(LaunchMark.width, 0.5));
-        expect(bounds.center.dx * dp, closeTo(144, 0.5));
-        expect(bounds.center.dy * dp, closeTo(144, 0.5));
+        var difference = 0;
+        for (var i = 3; i < formed.length; i += 4) {
+          difference += (formed[i] - later[i]).abs();
+        }
+        expect(difference / (formed.length / 4), lessThan(1));
       });
     });
 
@@ -134,14 +133,13 @@ void main() {
     // cover the screen.
     testWidgets('opens from a solid part of the ribbon', (tester) async {
       await tester.runAsync(() async {
-        final bytes = await rootBundle.load(BrandAssets.markStatic);
-        final image = await decode(bytes.buffer.asUint8List());
-        final data = await image.toByteData();
+        final formed = await frame(LaunchMark.formedFrame);
+        final data = await pixels(formed);
         final source = LaunchMark.source;
         final x = (source.left + source.width * LaunchMark.anchor.dx).floor();
         final y = (source.top + source.height * LaunchMark.anchor.dy).floor();
 
-        expect(data!.getUint8((y * image.width + x) * 4 + 3), 255);
+        expect(data[(y * formed.width + x) * 4 + 3], 255);
       });
     });
   });

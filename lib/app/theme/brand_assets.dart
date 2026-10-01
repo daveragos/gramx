@@ -18,11 +18,6 @@ abstract class BrandAssets {
   /// holding all of them.
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
 
-  /// The mark, finished and still: the last frame of [markAnimation]. What
-  /// Android's launch screen shows and the app opens through — see
-  /// `LaunchReveal`.
-  static const String markStatic = 'assets/brand/gramx_mark_static.png';
-
   /// The mark as a flat glyph, for the feed header. Two of them, named for
   /// the surface they sit on: the brand draws the header with a monochrome
   /// mark — pale on the dark screen, grey on the

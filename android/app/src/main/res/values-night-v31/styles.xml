@@ -5,18 +5,15 @@
          defaults that colour came from the system theme, so a phone in light
          mode opened gramX on a white screen that cut to black.
 
-         The icon is the ribbon alone, not the launcher icon. The launcher
-         icon carries its own dark-grey background, which this screen draws
-         as a circle round the mark, and the ribbon inside it is smaller than
-         the one Flutter draws next — so the mark shrank, lost its circle and
-         jumped at the handover. splash_mark.png is the same artwork the
-         app's first frame draws, at the same size in the same place (see
-         LaunchReveal), on the same black: the handover is invisible, and the
-         mark is what opens into the app. -->
+         Black, and no icon. The app's first frame starts the mark drawing
+         itself from nothing (see LaunchReveal), so any icon here would have
+         to vanish for the drawing to begin: the launcher icon did, and the
+         mark shrank, lost its circle and jumped before drawing itself again.
+         Black is the drawing's own first frame, so the handover cannot be
+         seen. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blank</item>
         <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">

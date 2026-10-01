@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gramx/app/launch_reveal.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
@@ -18,11 +17,6 @@ Future<ProviderContainer> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final container = ProviderContainer();
-
-  // The mark the first frame draws, decoded while TDLib comes up rather than
-  // after it. Android's own launch screen shows until that frame, so nothing
-  // waits on this that was not already waiting.
-  final launchMark = LaunchMark.load();
 
   // Subscribe the chat mirror BEFORE TDLib starts polling. ChatCache replaces
   // the per-chat GetChat fan-out, and `updatesStream` is a broadcast stream —
@@ -75,6 +69,5 @@ Future<ProviderContainer> bootstrap() async {
     unawaited(notifications.start());
   }
 
-  await launchMark;
   return container;
 }

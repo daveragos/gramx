@@ -64,10 +64,36 @@ void main() {
 
     router.go('/home');
     await tester.pump();
+    // The ribbon finishes forming first; a test cannot decode the drawing, so
+    // this is the limit that lets the app open without it.
+    await tester.pump(LaunchMark.drawingLimit);
     await tester.pump(const Duration(seconds: 1));
 
     expect(_cover(), findsNothing);
     expect(find.text('feed'), findsOneWidget);
+  });
+
+  testWidgets('waits for the ribbon to finish forming', (tester) async {
+    final router = await pumpApp(tester);
+
+    router.go('/home');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(_cover(), findsWidgets);
+  });
+
+  testWidgets('with reduced motion, simply fades', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final router = await pumpApp(tester);
+
+    router.go('/home');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(_cover(), findsNothing);
   });
 
   // Nothing to tap until the app shows through, and everything after.
@@ -75,6 +101,7 @@ void main() {
     final router = await pumpApp(tester);
     router.go('/home');
     await tester.pump();
+    await tester.pump(LaunchMark.drawingLimit);
     await tester.pump(const Duration(milliseconds: 100));
 
     final ignoring = tester

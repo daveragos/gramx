@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,63 +18,58 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// The mark Android's launch screen shows, and where it shows it.
-///
-/// `android/app/src/main/res/drawable-nodpi/splash_mark.png` is cut from the
-/// same artwork to the same numbers: [source] of [BrandAssets.markStatic],
-/// [height] logical pixels tall, centred on black. Change one and the other
-/// has to follow, or the mark jumps at the handover.
+/// Where the launch draws the mark, and which frame of the drawing is the
+/// finished ribbon.
 abstract final class LaunchMark {
-  /// The ribbon's visible bounds inside the 276 × 429 artwork.
-  static const Rect source = Rect.fromLTRB(8, 71, 268, 358);
+  /// The first frame of [BrandAssets.markAnimation] where the ribbon has
+  /// finished forming, about 1.4 s in. The animation holds it for a second
+  /// before rolling the ribbon away; the launch stops here instead, and opens
+  /// the app through this frame.
+  static const int formedFrame = 79;
 
-  /// How tall the ribbon is on screen.
+  /// The finished ribbon's bounds inside the 276 × 429 animation canvas.
+  static const Rect source = Rect.fromLTRB(8, 68, 268, 348);
+
+  /// How tall the finished ribbon is on screen, centred.
   static const double height = 110;
 
   static double get width => height * source.width / source.height;
 
-  /// A point inside the front panel, as a fraction of the ribbon's bounds.
+  /// A point inside the front panel, as a fraction of [source].
   ///
   /// The zoom is centred here. The front panel is solid, so once it has grown
   /// past the edges of the screen it covers all of it; a centre anywhere else
   /// would open onto the gap between the two panels.
-  static const Offset anchor = Offset(0.35, 0.54);
+  static const Offset anchor = Offset(0.34, 0.55);
 
-  static ui.Image? _image;
-
-  /// The decoded artwork, or null if it could not be had.
-  static ui.Image? get image => _image;
-
-  /// Decodes the artwork. Awaited before the first frame, so that frame can
-  /// draw the mark Android's launch screen is showing.
-  static Future<void> load() async {
-    try {
-      final data = await rootBundle.load(BrandAssets.markStatic);
-      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-      _image = (await codec.getNextFrame()).image;
-    } catch (e) {
-      debugPrint('[Launch] Could not decode the mark: $e');
-    }
-  }
+  /// The longest the drawing may take to reach [formedFrame] before the app
+  /// opens without it. The drawing itself takes 1.4 s; this is for a decode
+  /// that never comes back, which must not keep the reader out of the app.
+  static const Duration drawingLimit = Duration(seconds: 3);
 }
 
-/// Carries Android's launch screen into the app, then opens the app through
-/// the mark.
+/// The launch: the mark draws itself, and the app opens through it.
 ///
-/// Android 12 and later hold a launch screen of their own until the first
-/// frame: [LaunchMark] on black. This covers the app from that first frame
-/// with exactly that picture, so the handover cannot be seen. While the app
-/// works out where to go, a sheen passes over the ribbon now and then. When
-/// the first screen has something on it, the ribbon dips, then grows towards
-/// the reader, and as it grows it stops being a picture and becomes a window:
-/// the black is cut away in the ribbon's shape, the screen beneath shows
-/// through, and by the time the ribbon is larger than the screen there is no
-/// black left.
+/// Android 12 and later hold a launch screen of their own until the app's
+/// first frame; gramX's is plain black, because the drawing starts from
+/// nothing and anything shown before it would have to vanish for the drawing
+/// to begin. From the first frame this covers the app in the same black and
+/// plays [BrandAssets.markAnimation] — a panel unfurling into the ribbon —
+/// up to [LaunchMark.formedFrame], where the ribbon is finished.
+///
+/// When the ribbon is finished and the first screen has something on it, the
+/// ribbon dips, then grows towards the reader, and as it grows it stops being
+/// a picture and becomes a window: the black is cut away in the ribbon's
+/// shape, the screen beneath shows through, and by the time the ribbon is
+/// larger than the screen there is no black left. If the app is not ready
+/// when the ribbon is, a sheen passes over it now and then while it waits.
 ///
 /// "Something on it" is the feed's first posts for a signed-in reader, with a
 /// short limit so a slow feed shows its own loading state rather than keeping
 /// the mark up. Anywhere else — the sign-in screen, a guest, a link that
-/// opened a post — opens as soon as the router has left the splash.
+/// opened a post — is ready as soon as the router has left the splash.
+///
+/// With reduced motion there is no drawing and no zoom: the black fades.
 class LaunchReveal extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -97,10 +95,19 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
     duration: const Duration(milliseconds: 720),
   );
 
+  /// Repaints the cover each time the drawing moves on a frame.
+  final ValueNotifier<ui.Image?> _frame = ValueNotifier(null);
+
+  _DrawingPlayer? _drawing;
+  Timer? _drawingLimit;
+
   GoRouterDelegate? _delegate;
-  Timer? _sheenDelay;
   Timer? _patience;
   ProviderSubscription<AsyncValue<List<Post>>>? _feed;
+
+  bool _started = false;
+  bool _formed = false;
+  bool _ready = false;
   bool _revealing = false;
   bool _done = false;
 
@@ -112,15 +119,10 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
     super.initState();
     _delegate = ref.read(routerProvider).routerDelegate..addListener(_check);
 
-    // Not straight away: a launch that is already decided opens before the
-    // sheen would have begun, and a sheen cut off halfway looks like a glitch.
-    _sheenDelay = Timer(const Duration(milliseconds: 300), () {
-      if (!_revealing) _sheen.repeat();
-    });
-
     _reveal.addStatusListener((status) {
       if (status != AnimationStatus.completed) return;
       _sheen.stop();
+      _stopDrawing();
       setState(() => _done = true);
     });
 
@@ -128,19 +130,68 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Here rather than in initState: whether to draw at all depends on the
+    // reduce-motion setting, which comes from the context.
+    if (_started) return;
+    _started = true;
+    _reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (_reduceMotion) {
+      _formed = true;
+    } else {
+      _startDrawing();
+    }
+  }
+
+  @override
   void dispose() {
     _delegate?.removeListener(_check);
-    _sheenDelay?.cancel();
     _patience?.cancel();
     _feed?.close();
+    _stopDrawing();
+    _frame.value?.dispose();
+    _frame.dispose();
     _sheen.dispose();
     _reveal.dispose();
     super.dispose();
   }
 
-  /// Opens the app once the router has decided where it is going.
+  void _startDrawing() {
+    _drawingLimit = Timer(LaunchMark.drawingLimit, _markFormed);
+    _drawing = _DrawingPlayer(
+      vsync: this,
+      onFrame: (image) {
+        _frame.value?.dispose();
+        _frame.value = image;
+      },
+      onFormed: () {
+        _stopDrawing();
+        _markFormed();
+      },
+    )..start();
+  }
+
+  void _stopDrawing() {
+    _drawingLimit?.cancel();
+    _drawing?.stop();
+    _drawing = null;
+  }
+
+  void _markFormed() {
+    if (_formed || !mounted) return;
+    _formed = true;
+    if (_ready) {
+      _open();
+    } else {
+      _sheen.repeat();
+    }
+  }
+
+  /// Notes that the app is ready once the router has decided where it is
+  /// going and, on the feed, once the feed has something to show.
   void _check() {
-    if (_revealing || !mounted) return;
+    if (_ready || !mounted) return;
     final configuration = _delegate?.currentConfiguration;
     if (configuration == null || configuration.isEmpty) return;
 
@@ -149,12 +200,22 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
 
     final waitsForFeed =
         path == ShellTab.home.path && !ref.read(isGuestModeProvider);
-    if (!waitsForFeed) return _open();
+    if (!waitsForFeed) return _markReady();
 
     _feed ??= ref.listenManual(feedPostsProvider, (_, next) {
-      if (next.value?.isNotEmpty ?? false) _open();
+      if (next.value?.isNotEmpty ?? false) _markReady();
     }, fireImmediately: true);
-    _patience ??= Timer(LaunchReveal.feedPatience, _open);
+    _patience ??= Timer(LaunchReveal.feedPatience, _markReady);
+  }
+
+  void _markReady() {
+    if (_ready || !mounted) return;
+    _ready = true;
+    _patience?.cancel();
+    _feed?.close();
+    _feed = null;
+    _delegate?.removeListener(_check);
+    if (_formed) _open();
   }
 
   /// Starts the reveal. No `setState`: this can run from the router's own
@@ -163,12 +224,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   void _open() {
     if (_revealing || !mounted) return;
     _revealing = true;
-    _sheenDelay?.cancel();
-    _patience?.cancel();
-    _feed?.close();
-    _feed = null;
-    _delegate?.removeListener(_check);
-
+    _sheen.stop();
     if (_reduceMotion) {
       _reveal.duration = const Duration(milliseconds: 200);
     }
@@ -195,7 +251,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
               child: ExcludeSemantics(
                 child: CustomPaint(
                   painter: _LaunchPainter(
-                    mark: LaunchMark.image,
+                    frame: _frame,
                     sheen: _sheen,
                     reveal: _reveal,
                     reduceMotion: _reduceMotion,
@@ -209,18 +265,135 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   }
 }
 
+/// Plays the mark drawing itself, on the clock rather than on the decoder.
+///
+/// An animated image widget decodes each frame only once the previous one is
+/// on screen, then waits for the next vsync to show it. While the app starts —
+/// the busiest second and a half it has — that came to about two vsyncs a
+/// frame, and the 1.4 s drawing took three seconds: slow motion. This decodes
+/// a few frames ahead instead, which the phone manages in under a second for
+/// the whole drawing, and on each vsync shows the frame the clock says is due,
+/// dropping any it is late for. A stall costs a frame, never the pace.
+///
+/// Stops at [LaunchMark.formedFrame], which it hands over and keeps: the
+/// launch draws that frame until the app has opened.
+class _DrawingPlayer {
+  final TickerProvider vsync;
+
+  /// Receives each frame to show, and owns it from then on.
+  final void Function(ui.Image image) onFrame;
+
+  /// Called once the finished ribbon has been shown, or if the drawing cannot
+  /// be played at all.
+  final VoidCallback onFormed;
+
+  _DrawingPlayer({
+    required this.vsync,
+    required this.onFrame,
+    required this.onFormed,
+  });
+
+  /// Frames decoded ahead of the one on screen.
+  static const int _lookahead = 3;
+
+  final ListQueue<({ui.Image image, int index, Duration at})> _queue =
+      ListQueue();
+  ui.Codec? _codec;
+  Ticker? _ticker;
+  int _decoded = 0;
+  Duration _nextAt = Duration.zero;
+  bool _decoding = false;
+  bool _stopped = false;
+
+  Future<void> start() async {
+    try {
+      final data = await rootBundle.load(BrandAssets.markAnimation);
+      _codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('[Launch] Could not play the mark: $e');
+      if (!_stopped) onFormed();
+      return;
+    }
+    if (_stopped) return;
+    await _fill();
+    if (_stopped) return;
+    _ticker = vsync.createTicker(_tick)..start();
+  }
+
+  Future<void> _fill() async {
+    final codec = _codec;
+    if (_decoding || codec == null) return;
+    _decoding = true;
+    try {
+      while (!_stopped &&
+          _queue.length < _lookahead &&
+          _decoded <= LaunchMark.formedFrame) {
+        final frame = await codec.getNextFrame();
+        if (_stopped) {
+          frame.image.dispose();
+          break;
+        }
+        _queue.add((image: frame.image, index: _decoded, at: _nextAt));
+        _nextAt += frame.duration;
+        _decoded++;
+      }
+    } catch (e) {
+      debugPrint('[Launch] The mark stopped playing: $e');
+      if (!_stopped) {
+        stop();
+        onFormed();
+      }
+    } finally {
+      _decoding = false;
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    ({ui.Image image, int index, Duration at})? due;
+    while (_queue.isNotEmpty && _queue.first.at <= elapsed) {
+      // Late for this one: the next is due as well, so it is skipped.
+      due?.image.dispose();
+      due = _queue.removeFirst();
+    }
+    if (due != null) {
+      onFrame(due.image);
+      if (due.index >= LaunchMark.formedFrame) {
+        stop();
+        onFormed();
+        return;
+      }
+    }
+    _fill();
+  }
+
+  void stop() {
+    if (_stopped) return;
+    _stopped = true;
+    _ticker?.dispose();
+    _ticker = null;
+    for (final frame in _queue) {
+      frame.image.dispose();
+    }
+    _queue.clear();
+    _codec?.dispose();
+    _codec = null;
+  }
+}
+
 class _LaunchPainter extends CustomPainter {
-  final ui.Image? mark;
+  /// The drawing's current frame: the whole 276 × 429 canvas, of which
+  /// [LaunchMark.source] is the finished ribbon.
+  final ValueListenable<ui.Image?> frame;
   final Animation<double> sheen;
   final Animation<double> reveal;
   final bool reduceMotion;
 
   _LaunchPainter({
-    required this.mark,
+    required this.frame,
     required this.sheen,
     required this.reveal,
     required this.reduceMotion,
-  }) : super(repaint: Listenable.merge([sheen, reveal]));
+  }) : super(repaint: Listenable.merge([frame, sheen, reveal]));
 
   /// The share of the reveal spent on the dip, before the zoom.
   static const double _dip = 0.2;
@@ -237,19 +410,18 @@ class _LaunchPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
+    final t = reveal.value;
+
+    if (reduceMotion) {
+      canvas.drawRect(bounds, Paint()..color = _black(1 - t));
+      return;
+    }
+
     final home = Rect.fromCenter(
       center: bounds.center,
       width: LaunchMark.width,
       height: LaunchMark.height,
     );
-    final t = reveal.value;
-
-    if (reduceMotion) {
-      final opacity = 1 - t;
-      canvas.drawRect(bounds, Paint()..color = _black(opacity));
-      _drawMark(canvas, home, opacity);
-      return;
-    }
 
     var scale = 1.0;
     var markOpacity = 1.0;
@@ -283,52 +455,60 @@ class _LaunchPainter extends CustomPainter {
       home.left + home.width * LaunchMark.anchor.dx,
       home.top + home.height * LaunchMark.anchor.dy,
     );
-    final rect = Rect.fromLTRB(
+    final ribbon = Rect.fromLTRB(
       anchor.dx + (home.left - anchor.dx) * scale,
       anchor.dy + (home.top - anchor.dy) * scale,
       anchor.dx + (home.right - anchor.dx) * scale,
       anchor.dy + (home.bottom - anchor.dy) * scale,
     );
+    // The whole canvas, placed so that its finished ribbon lands on [ribbon].
+    final pixel = ribbon.height / LaunchMark.source.height;
+    final image = frame.value;
+    final canvasRect = image == null
+        ? Rect.zero
+        : Rect.fromLTWH(
+            ribbon.left - LaunchMark.source.left * pixel,
+            ribbon.top - LaunchMark.source.top * pixel,
+            image.width * pixel,
+            image.height * pixel,
+          );
 
     // The black, with the ribbon cut out of it once the zoom has begun.
     canvas.saveLayer(bounds, _plain);
     canvas.drawRect(bounds, Paint()..color = _black(veilOpacity));
-    final image = mark;
     if (zooming && image != null) {
-      canvas.drawImageRect(
+      _drawFrame(
+        canvas,
         image,
-        LaunchMark.source,
-        rect,
-        Paint()
-          ..blendMode = BlendMode.dstOut
-          ..filterQuality = FilterQuality.low,
+        canvasRect,
+        Paint()..blendMode = BlendMode.dstOut,
       );
     }
     canvas.restore();
 
-    if (markOpacity > 0) {
-      _drawMark(canvas, rect, markOpacity);
-      if (!zooming && t == 0) _drawSheen(canvas, rect);
+    if (image != null && markOpacity > 0) {
+      _drawFrame(
+        canvas,
+        image,
+        canvasRect,
+        Paint()..color = Color.fromRGBO(0, 0, 0, markOpacity),
+      );
+      if (t == 0) _drawSheen(canvas, image, canvasRect, ribbon);
     }
   }
 
-  void _drawMark(Canvas canvas, Rect rect, double opacity) {
-    final image = mark;
-    if (image == null || opacity <= 0) return;
+  static void _drawFrame(Canvas canvas, ui.Image image, Rect to, Paint paint) {
     canvas.drawImageRect(
       image,
-      LaunchMark.source,
-      rect,
-      Paint()
-        ..color = Color.fromRGBO(0, 0, 0, opacity)
-        ..filterQuality = FilterQuality.low,
+      Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+      to,
+      paint..filterQuality = FilterQuality.low,
     );
   }
 
   /// A band of light across the ribbon, kept to the ribbon's own shape.
-  void _drawSheen(Canvas canvas, Rect rect) {
-    final image = mark;
-    if (image == null || sheen.value == 0) return;
+  void _drawSheen(Canvas canvas, ui.Image image, Rect canvasRect, Rect ribbon) {
+    if (sheen.value == 0) return;
 
     // The sweep takes the first part of each cycle; the rest is a pause.
     const sweep = 0.55;
@@ -336,29 +516,25 @@ class _LaunchPainter extends CustomPainter {
     if (phase >= 1) return;
     final travel = Curves.easeInOut.transform(phase);
 
-    final band = rect.width * 0.45;
-    final x = ui.lerpDouble(rect.left - band, rect.right + band, travel)!;
-    final shader = LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Colors.white.withValues(alpha: 0),
-        Colors.white.withValues(alpha: 0.38),
-        Colors.white.withValues(alpha: 0),
-      ],
-      stops: const [0.0, 0.5, 1.0],
-    ).createShader(Rect.fromLTWH(x - band, rect.top, band * 2, rect.height));
+    final band = ribbon.width * 0.45;
+    final x = ui.lerpDouble(ribbon.left - band, ribbon.right + band, travel)!;
+    final shader =
+        LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0.38),
+            Colors.white.withValues(alpha: 0),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        ).createShader(
+          Rect.fromLTWH(x - band, ribbon.top, band * 2, ribbon.height),
+        );
 
-    canvas.saveLayer(rect, _plain);
-    canvas.drawRect(rect, Paint()..shader = shader);
-    canvas.drawImageRect(
-      image,
-      LaunchMark.source,
-      rect,
-      Paint()
-        ..blendMode = BlendMode.dstIn
-        ..filterQuality = FilterQuality.low,
-    );
+    canvas.saveLayer(ribbon, _plain);
+    canvas.drawRect(ribbon, Paint()..shader = shader);
+    _drawFrame(canvas, image, canvasRect, Paint()..blendMode = BlendMode.dstIn);
     canvas.restore();
   }
 
@@ -366,5 +542,5 @@ class _LaunchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_LaunchPainter oldDelegate) =>
-      oldDelegate.mark != mark || oldDelegate.reduceMotion != reduceMotion;
+      oldDelegate.frame != frame || oldDelegate.reduceMotion != reduceMotion;
 }
