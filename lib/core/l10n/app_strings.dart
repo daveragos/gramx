@@ -467,6 +467,11 @@ abstract class AppStrings {
       'What is stored, and what leaves your phone';
   static const settingsTerms = 'Terms of Service';
   static const settingsTermsBody = 'What this app is, and what it is not';
+  static const settingsLicenses = 'Open-source licenses';
+  static const settingsLicensesBody =
+      "gramX's license and the libraries it uses";
+  static const appLegalese =
+      'Copyright 2026 Dawit (RaGoose)\nApache License 2.0';
   static const settingsVersion = 'Version';
 
   // ── Notifications ──────────────────────────────────────────────────────────
@@ -563,8 +568,7 @@ abstract class AppStrings {
       "You haven't subscribed to any channels yet. Add public Telegram channels "
       'to build your custom feed.';
   static const onboardingLogIn = 'Log in with Telegram';
-  static const authTagline =
-      'Your Telegram channels, as one timeline.';
+  static const authTagline = 'Your Telegram channels, as one timeline.';
   static const authContinueWithPhone = 'Continue with Phone Number';
   static const authLogInWithQr = 'Log in via QR Code';
   static const authGeneratingQr = 'Generating QR…';

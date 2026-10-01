@@ -504,6 +504,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
           ListTile(
+            leading: Icon(Icons.description_outlined, color: primaryColor),
+            title: Text(
+              AppStrings.settingsLicenses,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            subtitle: Text(
+              AppStrings.settingsLicensesBody,
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+            trailing: Icon(Icons.chevron_right, color: secondaryColor),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: AppStrings.appName,
+              applicationVersion: AppStrings.appVersionValue,
+              applicationLegalese: AppStrings.appLegalese,
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, color: borderColor),
+          ListTile(
             leading: Icon(Icons.info_outline, color: primaryColor),
             title: Text(
               AppStrings.settingsVersion,

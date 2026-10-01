@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/app/app_license.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/activity/data/notification_service.dart';
@@ -15,6 +16,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 /// Initializes services before running the app.
 Future<ProviderContainer> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerAppLicense();
 
   final container = ProviderContainer();
 
