@@ -14,6 +14,7 @@ import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/domain/user_profile.dart';
+import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/widgets/block_user.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
@@ -222,6 +223,12 @@ class _Body extends ConsumerWidget {
                       semanticLabel: AppStrings.a11yVerified,
                     ),
                   ],
+                  // Where Telegram puts it, and in the form they chose: their
+                  // emoji status, or Premium's star if they have none.
+                  if (profile.isPremium) ...[
+                    const SizedBox(width: 4),
+                    PremiumMark(emojiStatusId: profile.emojiStatusId, size: 20),
+                  ],
                 ],
               ),
               if (profile.username != null)
@@ -246,10 +253,7 @@ class _Body extends ConsumerWidget {
 
         // Badges say things the name cannot: software rather than a person,
         // somebody already in your contacts. Each is a fact, none is a control.
-        if (profile.isBot ||
-            profile.isPremium ||
-            profile.isContact ||
-            profile.groupsInCommon > 0)
+        if (profile.isBot || profile.isContact || profile.groupsInCommon > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.postPadding,
@@ -263,11 +267,6 @@ class _Body extends ConsumerWidget {
               children: [
                 if (profile.isBot)
                   _Badge(label: AppStrings.profileBotBadge, color: secondary),
-                if (profile.isPremium)
-                  _Badge(
-                    label: AppStrings.profilePremiumBadge,
-                    color: secondary,
-                  ),
                 if (profile.isContact)
                   _Badge(
                     label: AppStrings.profileContactBadge,

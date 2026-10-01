@@ -36,6 +36,10 @@ class UserProfile {
 
   final bool isVerified;
   final bool isPremium;
+
+  /// The custom emoji a Premium account shows in place of the Premium star,
+  /// while it has one in force. See `ChatListBuilder.emojiStatusOf`.
+  final int? emojiStatusId;
   final bool isBot;
   final bool isContact;
 
@@ -71,6 +75,7 @@ class UserProfile {
     this.avatarColorHex,
     this.isVerified = false,
     this.isPremium = false,
+    this.emojiStatusId,
     this.isBot = false,
     this.isContact = false,
     this.isDeleted = false,
@@ -94,6 +99,7 @@ class UserProfile {
       other.avatarColorHex == avatarColorHex &&
       other.isVerified == isVerified &&
       other.isPremium == isPremium &&
+      other.emojiStatusId == emojiStatusId &&
       other.isBot == isBot &&
       other.isContact == isContact &&
       other.isDeleted == isDeleted &&
@@ -115,6 +121,7 @@ class UserProfile {
     avatarColorHex,
     isVerified,
     isPremium,
+    emojiStatusId,
     isBot,
     isContact,
     isDeleted,

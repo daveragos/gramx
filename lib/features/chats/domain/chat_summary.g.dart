@@ -37,6 +37,8 @@ _ChatSummary _$ChatSummaryFromJson(Map<String, dynamic> json) => _ChatSummary(
   unreadReactionCount: (json['unreadReactionCount'] as num?)?.toInt() ?? 0,
   isMuted: json['isMuted'] as bool? ?? false,
   isVerified: json['isVerified'] as bool? ?? false,
+  isPremium: json['isPremium'] as bool? ?? false,
+  emojiStatusId: (json['emojiStatusId'] as num?)?.toInt(),
   isRequest: json['isRequest'] as bool? ?? false,
   presence:
       $enumDecodeNullable(_$ChatPresenceEnumMap, json['presence']) ??
@@ -73,6 +75,8 @@ Map<String, dynamic> _$ChatSummaryToJson(
   'unreadReactionCount': instance.unreadReactionCount,
   'isMuted': instance.isMuted,
   'isVerified': instance.isVerified,
+  'isPremium': instance.isPremium,
+  'emojiStatusId': instance.emojiStatusId,
   'isRequest': instance.isRequest,
   'presence': _$ChatPresenceEnumMap[instance.presence]!,
   'mainListOrder': instance.mainListOrder,

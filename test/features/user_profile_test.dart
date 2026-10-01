@@ -51,6 +51,15 @@ void main() {
   });
 
   group('UserProfileMapper', () {
+    test("carries a Premium account's emoji status", () {
+      final profile = UserProfileMapper.from(
+        TdFixtures.user(id: 9, isPremium: true, emojiStatusId: 5551),
+      );
+
+      expect(profile.isPremium, isTrue);
+      expect(profile.emojiStatusId, 5551);
+    });
+
     test('reads the plain user record without a full one', () {
       final profile = UserProfileMapper.from(
         TdFixtures.user(

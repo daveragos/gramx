@@ -7,6 +7,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_send_state_icon.dart';
 
 /// One conversation in the messages list.
@@ -236,6 +237,13 @@ class _TitleRow extends StatelessWidget {
               if (chat.isVerified) ...[
                 const SizedBox(width: AppSpacing.xs),
                 const Icon(Icons.verified, color: AppColors.verified, size: 15),
+              ],
+              // Premium's own star, not the person's emoji status: a column of
+              // animated emoji beside the names is a list nobody can scan. The
+              // status belongs to the views about one person.
+              if (chat.isPremium) ...[
+                const SizedBox(width: AppSpacing.xs),
+                const PremiumStar(size: 15),
               ],
               // A bot is a private chat in Telegram's model, so nothing about
               // the row says so by itself — and the difference between a person

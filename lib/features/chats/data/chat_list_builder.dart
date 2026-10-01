@@ -190,6 +190,9 @@ abstract class ChatListBuilder {
       unreadReactionCount: chat.unreadReactionCount,
       isMuted: isMuted(chat.notificationSettings),
       isVerified: user?.isVerified ?? supergroup?.isVerified ?? false,
+      // Your own notes are not a person, Premium or not.
+      isPremium: !isSaved && (user?.isPremium ?? false),
+      emojiStatusId: isSaved ? null : emojiStatusOf(user),
       isRequest: isRequest(chat),
       // "online" about yourself, in your own notes, says nothing.
       presence: isSaved ? ChatPresence.unknown : presenceOf(user),
@@ -345,6 +348,23 @@ abstract class ChatListBuilder {
     if (row.title.toLowerCase().contains(needle)) return true;
     final username = row.username;
     return username != null && username.toLowerCase().contains(needle);
+  }
+
+  /// The custom emoji [user] shows instead of the Premium star, or null when
+  /// they have none, it has expired, or they are not Premium.
+  ///
+  /// TDLib documents the status as Premium-only, and it can carry an expiry:
+  /// a status set "for an hour" stays on the record after the hour is up.
+  static int? emojiStatusOf(td.User? user, {DateTime? now}) {
+    final status = user?.emojiStatus;
+    if (user == null || !user.isPremium || status == null) return null;
+    if (status.customEmojiId == 0) return null;
+    final expires = status.expirationDate;
+    if (expires != 0) {
+      final at = (now ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
+      if (expires <= at) return null;
+    }
+    return status.customEmojiId;
   }
 
   /// The number on the tab badge: chats with something unread, not messages.

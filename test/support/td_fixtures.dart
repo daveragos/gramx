@@ -1001,11 +1001,20 @@ abstract class TdFixtures {
     bool isDeleted = false,
     bool isVerified = false,
     bool isPremium = false,
+    int? emojiStatusId,
+    int emojiStatusExpires = 0,
     bool isContact = false,
     String phoneNumber = '',
     int? profilePhotoFileId,
     Map<String, dynamic>? status,
   }) => td.User.fromJson(<String, dynamic>{
+    'emoji_status': emojiStatusId == null
+        ? null
+        : {
+            '@type': 'emojiStatus',
+            'custom_emoji_id': emojiStatusId.toString(),
+            'expiration_date': emojiStatusExpires,
+          },
     '@type': 'user',
     'id': id,
     'first_name': firstName,

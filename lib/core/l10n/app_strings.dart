@@ -128,6 +128,7 @@ abstract class AppStrings {
   static const a11yReact = 'React to this post';
   static const a11yUnread = 'Unread';
   static const a11yVerified = 'Verified channel';
+  static const a11yPremium = 'Telegram Premium';
   static const a11yChannelPhotoTile = 'Photo — open the post it came from';
   static const a11yChannelVideoTile = 'Video — open the post it came from';
   static const a11yPinnedPost = 'Pinned post';
@@ -1241,7 +1242,6 @@ abstract class AppStrings {
   static const profileUserDeleted = 'This account was deleted.';
   static const profileMessageAction = 'Message';
   static const profileBotBadge = 'Bot';
-  static const profilePremiumBadge = 'Premium';
   static const profileContactBadge = 'In your contacts';
   static const profileBioHeading = 'Bio';
   static const profilePhoneHeading = 'Phone';

@@ -40,6 +40,7 @@ abstract class UserProfileMapper {
       avatarColorHex: TdlibMappers.avatarColorFor(user.id),
       isVerified: user.isVerified,
       isPremium: user.isPremium,
+      emojiStatusId: ChatListBuilder.emojiStatusOf(user),
       isBot: user.type is td.UserTypeBot,
       isContact: user.isContact,
       isDeleted: user.type is td.UserTypeDeleted,

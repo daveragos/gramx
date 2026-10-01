@@ -453,6 +453,62 @@ void main() {
       );
     });
   });
+
+  group('premium', () {
+    final now = DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000);
+
+    ChatSummary person(td.User user) => _summary(
+      _withMessage(id: user.id, title: 'Ada', mainOrder: 1),
+      users: {user.id: user},
+    );
+
+    test('a Premium account is marked, with its emoji status', () {
+      final row = person(
+        TdFixtures.user(id: 9, isPremium: true, emojiStatusId: 5551),
+      );
+
+      expect(row.isPremium, isTrue);
+      expect(row.emojiStatusId, 5551);
+    });
+
+    test('anyone else is not', () {
+      final row = person(TdFixtures.user(id: 9));
+
+      expect(row.isPremium, isFalse);
+      expect(row.emojiStatusId, isNull);
+    });
+
+    // A status set "for an hour" stays on the record once the hour is up.
+    test('an expired emoji status is no status', () {
+      final user = TdFixtures.user(
+        id: 9,
+        isPremium: true,
+        emojiStatusId: 5551,
+        emojiStatusExpires: 1700000000 - 60,
+      );
+
+      expect(ChatListBuilder.emojiStatusOf(user, now: now), isNull);
+    });
+
+    test('a status that has not expired yet holds', () {
+      final user = TdFixtures.user(
+        id: 9,
+        isPremium: true,
+        emojiStatusId: 5551,
+        emojiStatusExpires: 1700000000 + 60,
+      );
+
+      expect(ChatListBuilder.emojiStatusOf(user, now: now), 5551);
+    });
+
+    // Telegram documents the status as Premium-only; a lapsed subscription
+    // can leave one behind.
+    test('a status without Premium is ignored', () {
+      final user = TdFixtures.user(id: 9, emojiStatusId: 5551);
+
+      expect(ChatListBuilder.emojiStatusOf(user), isNull);
+    });
+  });
 }
 
 /// A conversation with something in it.

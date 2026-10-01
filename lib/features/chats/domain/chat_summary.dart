@@ -128,6 +128,16 @@ abstract class ChatSummary with _$ChatSummary {
     @Default(false) bool isMuted,
     @Default(false) bool isVerified,
 
+    /// A Telegram Premium account. The row shows Premium's own star for it,
+    /// never [emojiStatusId]: a list of animated emoji down the side of the
+    /// names is a list nobody can scan.
+    @Default(false) bool isPremium,
+
+    /// The custom emoji a Premium account shows in place of the star, while it
+    /// has one that has not expired. For the conversation header, which is
+    /// about this one person; see [isPremium] for why the row ignores it.
+    int? emojiStatusId,
+
     /// A chat from somebody not in the reader's contacts — Telegram raises its
     /// "report / add / block" bar for these. It is the nearest thing Telegram
     @Default(false) bool isRequest,

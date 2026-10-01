@@ -20,6 +20,7 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/domain/message_place.dart';
 import 'package:gramx/features/chats/domain/message_schedule.dart';
+import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
@@ -1894,6 +1895,13 @@ class _ConversationAppBar extends StatelessWidget
                           Icons.verified,
                           color: AppColors.verified,
                           size: 14,
+                        ),
+                      ],
+                      if (summary?.isPremium ?? false) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        PremiumMark(
+                          emojiStatusId: summary!.emojiStatusId,
+                          size: 16,
                         ),
                       ],
                     ],

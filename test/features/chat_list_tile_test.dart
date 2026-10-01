@@ -8,16 +8,23 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_list_tile.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_bubble.dart';
+import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
+import 'package:gramx/features/feed/presentation/custom_emoji_provider.dart';
+import 'package:gramx/features/feed/presentation/widgets/custom_emoji_span.dart';
 
 ChatSummary row({
   MessageSendState? sendState,
   String? affiliation,
   int? affiliationId,
+  bool isPremium = false,
+  int? emojiStatusId,
 }) => ChatSummary(
   chatId: 7,
   title: 'Ada',
   kind: ChatKind.direct,
   preview: 'on my way',
+  isPremium: isPremium,
+  emojiStatusId: emojiStatusId,
   previewSendState: sendState,
   affiliatedChannelId: affiliationId,
   affiliatedChannelTitle: affiliation,
@@ -28,6 +35,61 @@ void main() {
   Widget host(Widget child) => ProviderScope(
     child: MaterialApp(home: Scaffold(body: child)),
   );
+
+  // The row draws Premium's own star whatever the person's emoji status is:
+  // a column of animated emoji beside the names is a list nobody can scan.
+  group('the Premium mark on a row', () {
+    testWidgets('is the star, never the emoji status', (tester) async {
+      await tester.pumpWidget(
+        host(
+          ChatListTile(
+            chat: row(isPremium: true, emojiStatusId: 5551),
+            onTap: () {},
+          ),
+        ),
+      );
+
+      expect(find.byType(PremiumStar), findsOneWidget);
+      expect(find.byType(CustomEmojiGlyph), findsNothing);
+    });
+
+    testWidgets('is absent without Premium', (tester) async {
+      await tester.pumpWidget(host(ChatListTile(chat: row(), onTap: () {})));
+
+      expect(find.byType(PremiumStar), findsNothing);
+    });
+  });
+
+  group('the Premium mark on a detail view', () {
+    Widget detail(Widget child) => ProviderScope(
+      overrides: [customEmojiProvider.overrideWith(_NoEmoji.new)],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
+
+    testWidgets("is the person's emoji status when they have one", (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        detail(const PremiumMark(emojiStatusId: 5551, size: 16)),
+      );
+
+      final glyph = tester.widget<CustomEmojiGlyph>(
+        find.byType(CustomEmojiGlyph),
+      );
+      expect(glyph.customEmojiId, 5551);
+      // The star stands in while the artwork is on its way.
+      expect(find.byType(PremiumStar), findsOneWidget);
+    });
+
+    testWidgets('is the star when they have none', (tester) async {
+      await tester.pumpWidget(
+        detail(const PremiumMark(emojiStatusId: null, size: 16)),
+      );
+
+      expect(find.byType(CustomEmojiGlyph), findsNothing);
+      expect(find.byType(PremiumStar), findsOneWidget);
+    });
+  });
 
   group('the delivery tick on a row', () {
     testWidgets('is absent for a message from the other side', (tester) async {
@@ -266,4 +328,13 @@ void main() {
       expect(jumped, 1);
     });
   });
+}
+
+/// Resolves no custom emoji and asks TDLib for nothing.
+class _NoEmoji extends CustomEmojiNotifier {
+  @override
+  Map<int, CustomEmoji> build() => const {};
+
+  @override
+  void request(Iterable<int> ids) {}
 }

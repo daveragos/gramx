@@ -19,11 +19,17 @@ class CustomEmojiGlyph extends ConsumerWidget {
   final String fallbackText;
   final double size;
 
+  /// Drawn instead of [fallbackText] while the artwork is missing. For an
+  /// emoji that stands in for a mark rather than a character, such as an
+  /// emoji status standing in for the Premium star.
+  final Widget? fallback;
+
   const CustomEmojiGlyph({
     super.key,
     required this.customEmojiId,
     required this.fallbackText,
     required this.size,
+    this.fallback,
   });
 
   @override
@@ -59,7 +65,7 @@ class CustomEmojiGlyph extends ConsumerWidget {
   }
 
   Widget _fallback() =>
-      Text(fallbackText, style: TextStyle(fontSize: size * 0.9));
+      fallback ?? Text(fallbackText, style: TextStyle(fontSize: size * 0.9));
 }
 
 class _LottieGlyph extends StatefulWidget {
