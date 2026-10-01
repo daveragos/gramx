@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Where the brand artwork lives, and which piece of it a given surface wants.
 ///
-/// The launcher icons are not here — those are platform resources under
-/// `android/app/src/main/res` and `ios/Runner/Assets.xcassets`, built from the
-/// same delivery but never loaded through Flutter. These are the places the app
-/// draws its own mark: the icon, framed, the mark animating, and the flat
-/// glyph in the feed header.
+/// The launcher icons are Android resources under `android/app/src/main/res`
+/// and are not loaded through Flutter.
 abstract class BrandAssets {
   /// The mark drawing itself, about three seconds a loop. Played by
   /// `MarkPlayer`, which keeps to the file's own timing when the app is busy.
