@@ -1,19 +1,27 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:gramx/app/theme/brand_assets.dart';
+import 'package:gramx/app/widgets/mark_player.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 
 /// The gramX mark, animating. Used wherever the app is busy and has nothing
-/// yet to show: the splash, and the connecting screen behind sign-in.
+/// yet to show: the connecting screen behind sign-in, and the feed while the
+/// first channels arrive.
 ///
-/// Nothing here drives the animation. The asset is an animated WebP whose own
-/// loop count is infinite, so `Image` plays it and keeps playing it — which is
-/// also why a test must never `pumpAndSettle` through this widget.
+/// Played by [MarkPlayer], on the clock, and looped. An animated `Image` played
+/// it before, and both screens are ones where the app is working hard — that
+/// player fell to about half speed exactly when the mark was on screen.
 ///
-/// Both screens that draw it are on the cold-start path, and the second gets
-/// the frames the first already decoded: `ImageCache` is keyed by the asset, so
-/// the handover costs nothing.
-class BrandMark extends StatelessWidget {
+/// Draws nothing until the first frame is decoded, at its full size, so what
+/// sits under it does not move when the mark arrives — and nothing at all if
+/// the file cannot be played: this sits on a screen that is already only a
+/// holding pattern, and a broken-image glyph there would say something about
+/// the app that is not true. A test must never `pumpAndSettle` through this
+/// widget: it loops.
+class BrandMark extends StatefulWidget {
   /// The side of the square the mark is drawn into. The artwork is portrait, so
   /// it fits to the height and leaves the width short of this.
   final double size;
@@ -21,22 +29,72 @@ class BrandMark extends StatelessWidget {
   const BrandMark({super.key, this.size = 96});
 
   @override
+  State<BrandMark> createState() => _BrandMarkState();
+}
+
+class _BrandMarkState extends State<BrandMark>
+    with SingleTickerProviderStateMixin {
+  final ValueNotifier<ui.Image?> _frame = ValueNotifier(null);
+  late final MarkPlayer _player = MarkPlayer(
+    asset: BrandAssets.markAnimation,
+    vsync: this,
+    onFrame: (image) {
+      // The painter reads the notifier when it paints, so the frame it
+      // replaces is no longer drawn and can go now.
+      _frame.value?.dispose();
+      _frame.value = image;
+    },
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _player.start();
+  }
+
+  @override
+  void dispose() {
+    _player.stop();
+    _frame.value?.dispose();
+    _frame.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Image.asset(
-        BrandAssets.markAnimation,
-        fit: BoxFit.contain,
-        semanticLabel: AppStrings.appName,
-        // Nothing if it fails. This sits on a screen that is already only a
-        // holding pattern; a broken-image glyph there would say something about
-        // the app that isn't true. The box above keeps its size either way, so
-        // the wordmark under it does not move.
-        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+    return Semantics(
+      label: AppStrings.appName,
+      image: true,
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: CustomPaint(painter: _FramePainter(_frame)),
       ),
     );
   }
+}
+
+/// Draws the current frame, fitted inside the box and centred.
+class _FramePainter extends CustomPainter {
+  final ValueListenable<ui.Image?> frame;
+
+  _FramePainter(this.frame) : super(repaint: frame);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final image = frame.value;
+    if (image == null) return;
+    paintImage(
+      canvas: canvas,
+      rect: Offset.zero & size,
+      image: image,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.low,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FramePainter oldDelegate) => oldDelegate.frame != frame;
 }
 
 /// The mark, flat and still, at a given height. The feed header's wordmark.

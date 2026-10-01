@@ -8,14 +8,14 @@ import 'package:flutter/material.dart';
 /// draws its own mark: the icon, framed, the mark animating, and the flat
 /// glyph in the feed header.
 abstract class BrandAssets {
-  /// The mark drawing itself: roughly three seconds, and the file's own loop
-  /// count is infinite, so nothing has to drive it.
+  /// The mark drawing itself, about three seconds a loop. Played by
+  /// `MarkPlayer`, which keeps to the file's own timing when the app is busy.
   ///
   /// Animated WebP rather than the Lottie the designer also delivered. That
   /// export is not vector — it is 178 full-frame PNGs base64'd into the JSON,
   /// 3.3 MB on disk and around 84 MB of bitmaps once decoded. This is the same
-  /// animation at 338 KB, and Flutter decodes it a frame at a time instead of
-  /// holding all of them.
+  /// animation at 338 KB, decoded a few frames at a time instead of holding
+  /// all of them.
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
 
   /// The mark as a flat glyph, for the feed header. Two of them, named for

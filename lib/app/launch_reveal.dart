@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,6 +11,7 @@ import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/router.dart';
 import 'package:gramx/app/splash_screen.dart';
 import 'package:gramx/app/theme/brand_assets.dart';
+import 'package:gramx/app/widgets/mark_player.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -98,7 +96,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   /// Repaints the cover each time the drawing moves on a frame.
   final ValueNotifier<ui.Image?> _frame = ValueNotifier(null);
 
-  _DrawingPlayer? _drawing;
+  MarkPlayer? _drawing;
   Timer? _drawingLimit;
 
   GoRouterDelegate? _delegate;
@@ -159,13 +157,18 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
 
   void _startDrawing() {
     _drawingLimit = Timer(LaunchMark.drawingLimit, _markFormed);
-    _drawing = _DrawingPlayer(
+    _drawing = MarkPlayer(
+      asset: BrandAssets.markAnimation,
       vsync: this,
+      stopAt: LaunchMark.formedFrame,
+      // The app opens when the ribbon is finished, so the drawing keeps to
+      // time through start-up's stalls, dropping frames rather than pausing.
+      maxLag: const Duration(seconds: 2),
       onFrame: (image) {
         _frame.value?.dispose();
         _frame.value = image;
       },
-      onFormed: () {
+      onStopped: () {
         _stopDrawing();
         _markFormed();
       },
@@ -262,121 +265,6 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
           ),
       ],
     );
-  }
-}
-
-/// Plays the mark drawing itself, on the clock rather than on the decoder.
-///
-/// An animated image widget decodes each frame only once the previous one is
-/// on screen, then waits for the next vsync to show it. While the app starts —
-/// the busiest second and a half it has — that came to about two vsyncs a
-/// frame, and the 1.4 s drawing took three seconds: slow motion. This decodes
-/// a few frames ahead instead, which the phone manages in under a second for
-/// the whole drawing, and on each vsync shows the frame the clock says is due,
-/// dropping any it is late for. A stall costs a frame, never the pace.
-///
-/// Stops at [LaunchMark.formedFrame], which it hands over and keeps: the
-/// launch draws that frame until the app has opened.
-class _DrawingPlayer {
-  final TickerProvider vsync;
-
-  /// Receives each frame to show, and owns it from then on.
-  final void Function(ui.Image image) onFrame;
-
-  /// Called once the finished ribbon has been shown, or if the drawing cannot
-  /// be played at all.
-  final VoidCallback onFormed;
-
-  _DrawingPlayer({
-    required this.vsync,
-    required this.onFrame,
-    required this.onFormed,
-  });
-
-  /// Frames decoded ahead of the one on screen.
-  static const int _lookahead = 3;
-
-  final ListQueue<({ui.Image image, int index, Duration at})> _queue =
-      ListQueue();
-  ui.Codec? _codec;
-  Ticker? _ticker;
-  int _decoded = 0;
-  Duration _nextAt = Duration.zero;
-  bool _decoding = false;
-  bool _stopped = false;
-
-  Future<void> start() async {
-    try {
-      final data = await rootBundle.load(BrandAssets.markAnimation);
-      _codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-    } catch (e) {
-      debugPrint('[Launch] Could not play the mark: $e');
-      if (!_stopped) onFormed();
-      return;
-    }
-    if (_stopped) return;
-    await _fill();
-    if (_stopped) return;
-    _ticker = vsync.createTicker(_tick)..start();
-  }
-
-  Future<void> _fill() async {
-    final codec = _codec;
-    if (_decoding || codec == null) return;
-    _decoding = true;
-    try {
-      while (!_stopped &&
-          _queue.length < _lookahead &&
-          _decoded <= LaunchMark.formedFrame) {
-        final frame = await codec.getNextFrame();
-        if (_stopped) {
-          frame.image.dispose();
-          break;
-        }
-        _queue.add((image: frame.image, index: _decoded, at: _nextAt));
-        _nextAt += frame.duration;
-        _decoded++;
-      }
-    } catch (e) {
-      debugPrint('[Launch] The mark stopped playing: $e');
-      if (!_stopped) {
-        stop();
-        onFormed();
-      }
-    } finally {
-      _decoding = false;
-    }
-  }
-
-  void _tick(Duration elapsed) {
-    ({ui.Image image, int index, Duration at})? due;
-    while (_queue.isNotEmpty && _queue.first.at <= elapsed) {
-      // Late for this one: the next is due as well, so it is skipped.
-      due?.image.dispose();
-      due = _queue.removeFirst();
-    }
-    if (due != null) {
-      onFrame(due.image);
-      if (due.index >= LaunchMark.formedFrame) {
-        stop();
-        onFormed();
-        return;
-      }
-    }
-    _fill();
-  }
-
-  void stop() {
-    if (_stopped) return;
-    _stopped = true;
-    _ticker?.dispose();
-    _ticker = null;
-    for (final frame in _queue) {
-      frame.image.dispose();
-    }
-    _queue.clear();
-    _codec?.dispose();
-    _codec = null;
   }
 }
 
