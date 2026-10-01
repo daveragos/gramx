@@ -12,18 +12,15 @@ import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// The route a tapped notification wants opened.
-///
-/// Parked in a provider rather than pushed, for the same reason a deep link is:
-/// a tap can wake the app from cold, which happens before there is a navigator.
+/// The route a tapped notification wants opened. Held in a provider because a
+/// tap can cold-start the app before there is a navigator.
 class PendingNotificationRoute extends Notifier<String?> {
   @override
   String? build() => null;
 
   void offer(String route) => state = route;
 
-  /// Takes the pending route, leaving nothing behind — so a rebuild between
-  /// the read and the clear cannot open it twice.
+  /// Reads and clears the pending route in one step, so it can't open twice.
   String? take() {
     final pending = state;
     state = null;
@@ -36,27 +33,16 @@ final pendingNotificationRouteProvider =
       PendingNotificationRoute.new,
     );
 
-/// Draws the notifications TDLib decides on.
-///
-/// **The division of labour matters here.** TDLib decides *what* is worth
-/// notifying about: it applies the reader's per-chat mute settings, their scope
-/// settings, and — the part no local implementation could do — it takes a
-/// notification down when the reader reads that message on another device. It
-/// simply has no way to put one on the screen. That is all this is.
-///
-/// One consequence is worth stating: **TDLib generates no notification groups
-/// until it is told how many to keep.** `notification_group_count_max` defaults
-/// to zero, so a client that never sets it receives `updateNotificationGroup`
-/// exactly never — which looks like the update stream being broken rather than
-/// an option being unset.
+/// Shows the notifications TDLib decides on; TDLib applies mute settings and
+/// removes ones read elsewhere. TDLib sends no `updateNotificationGroup` until
+/// `notification_group_count_max` is set, since it defaults to zero.
 class NotificationService {
   /// How many chats can have notifications up at once, and how many each may
   /// carry. TDLib's own ceiling for both is 25.
   static const int groupCountMax = 10;
   static const int groupSizeMax = 10;
 
-  /// The Android channel. Named after what it carries, because this is a
-  /// string the reader reads in their own system settings.
+  /// The Android notification channel.
   static const String androidChannelId = 'gramx_messages';
 
   final TdlibService _tdlib;
@@ -78,9 +64,7 @@ class NotificationService {
     FlutterLocalNotificationsPlugin? plugin,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
-  /// Sets up the plugin, tells TDLib to start generating groups, and listens.
-  ///
-  /// Safe to call more than once.
+  /// Sets up the plugin, enables TDLib notifications and listens. Idempotent.
   Future<void> start() async {
     if (_started) return;
     _started = true;
@@ -100,8 +84,7 @@ class NotificationService {
         const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
           iOS: DarwinInitializationSettings(
-            // Asked for explicitly below, on a screen that has explained what
-            // it is for — not silently at launch.
+            // Requested from Settings via requestPermission, not at launch.
             requestAlertPermission: false,
             requestBadgePermission: false,
             requestSoundPermission: false,
@@ -129,17 +112,13 @@ class NotificationService {
     }
   }
 
-  /// Turns TDLib's notification machinery on.
-  ///
-  /// Without this it emits nothing at all — see the class comment.
+  /// Turns TDLib's notifications on. Without this it emits none.
   Future<void> _enableTdlibNotifications() async {
     await _setIntOption('notification_group_count_max', groupCountMax);
     await _setIntOption('notification_group_size_max', groupSizeMax);
   }
 
-  /// Turns it off again, which is what a reader switching notifications off
-  /// should get: no groups generated, rather than groups generated and thrown
-  /// away here.
+  /// Turns TDLib's notifications off, so no groups are generated at all.
   Future<void> disableTdlibNotifications() async {
     await _setIntOption('notification_group_count_max', 0);
     await _plugin.cancelAll();
@@ -159,12 +138,7 @@ class NotificationService {
     }
   }
 
-  /// Asks for permission to post notifications.
-  ///
-  /// Android 13+ requires it and refuses silently otherwise; iOS has always
-  /// required it. Called from Settings, where the reader has just asked for
-  /// this — never at launch, where a permission dialog with no context is the
-  /// one every reader declines.
+  /// Asks for notification permission (required on Android 13+), from Settings.
   Future<bool> requestPermission() async {
     try {
       if (Platform.isAndroid) {
@@ -195,9 +169,8 @@ class NotificationService {
   }
 
   Future<void> _applyGroup(td.UpdateNotificationGroup update) async {
-    // Removals first: a group that both loses and gains notifications in one
-    // update is Telegram replacing what is on screen, and showing the new one
-    // before cancelling the old leaves both up for a frame.
+    // Removals first, so a replaced notification and its successor are never
+    // on screen together.
     for (final id in update.removedNotificationIds) {
       _groupOfNotification.remove(id);
       await _cancel(id);
@@ -236,8 +209,7 @@ class NotificationService {
             channelDescription: AppStrings.notificationsChannelBody,
             importance: Importance.high,
             priority: Priority.high,
-            // One stack per chat, which is how Telegram groups them and how
-            // Android expects them.
+            // One stack per chat.
             groupKey: 'chat_${notification.chatId}',
             silent: notification.isSilent,
             playSound: !notification.isSilent,
@@ -268,10 +240,8 @@ class NotificationService {
     _ref.read(pendingNotificationRouteProvider.notifier).offer(route);
   }
 
-  /// The route a notification tapped while the app was closed asked for.
-  ///
-  /// The plugin holds it from before Dart was running, so it has to be asked
-  /// for rather than waited on.
+  /// Picks up a notification tap that launched the app. The plugin received it
+  /// before Dart was running, so it has to be queried.
   Future<void> collectLaunchTap() async {
     try {
       final details = await _plugin.getNotificationAppLaunchDetails();

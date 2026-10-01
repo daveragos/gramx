@@ -10,8 +10,7 @@ class FolderRepository {
 
   List<td.ChatFolderInfo> _cachedFolders = [];
 
-  /// Ceiling on chats read from one folder. Folders are small in practice; this
-  /// only stops a pathological one from becoming a long loop.
+  /// Upper bound on chats read from one folder.
   static const int _folderChatLimit = 200;
 
   FolderRepository(this._tdlib, this._chatCache) {
@@ -27,16 +26,11 @@ class FolderRepository {
     return _tdlib.chatFolders;
   }
 
-  /// The channel chat ids inside a folder.
-  ///
-  /// Resolves each id through [ChatCache] rather than calling `GetChat` per
-  /// chat. That fan-out ran once per folder tab, so a handful of folders
-  /// multiplied straight into the request budget.
+  /// The channel chat ids inside a folder, resolved through [ChatCache] to
+  /// avoid a `GetChat` per chat.
   Future<List<int>> getFolderChannelChatIds(int folderId) async {
-    // The cache is what resolves each id below, and it is filled by the update
-    // stream — so this has to wait for it. Reading too early returned nothing,
-    // and a FutureProvider caches that nothing forever: every folder looked
-    // empty and every folder tab disappeared.
+    // Wait for the cache to fill; an early empty result would be cached by
+    // the FutureProvider and hide every folder tab.
     await _chatCache.ensureLoaded();
 
     final chatList = td.ChatListFolder(chatFolderId: folderId);
@@ -58,8 +52,7 @@ class FolderRepository {
       final channelIds = <int>[];
       for (final chatId in res.chatIds) {
         final chat = _chatCache.chat(chatId);
-        // A cache miss means "we don't know", not "not a channel". Keeping the
-        // id errs towards showing the folder, which is the recoverable mistake.
+        // Keep ids the cache doesn't know, erring towards showing the folder.
         if (chat == null || ChatCacheState.isChannel(chat)) {
           channelIds.add(chatId);
         }
@@ -71,12 +64,8 @@ class FolderRepository {
     }
   }
 
-  /// Whether folder [folderId] filters to unread chats rather than holding a
-  /// fixed list of them.
-  ///
-  /// Such a folder's resolved chat list legitimately goes to zero the moment
-  /// everything in it has been read — that is the filter working, not an
-  /// empty folder, and its tab must not disappear along with it.
+  /// Whether folder [folderId] shows only unread chats. Such a folder empties
+  /// when everything is read, but its tab should stay.
   Future<bool> folderExcludesRead(int folderId) async {
     try {
       final res = await _tdlib.sendRequest(

@@ -37,21 +37,13 @@ class AuthSelectionPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
       child: Column(
         children: [
-          // The welcome and the two buttons are one block, centred together.
-          // Pushing them apart with spacers left a hand's width of nothing in
-          // the middle of the screen and the buttons stranded at the bottom.
           Expanded(
             child: Center(
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // The launcher icon itself, so the screen introduces the
-                    // app with the artwork somebody just tapped. Unframed: it
-                    // carries its own shape, and a border around it never
-                    // lined up. The variant is picked for the surface — the
-                    // icon on its own ground would vanish into a screen of
-                    // the same colour.
+                    // The launcher icon variant that stands out on this theme.
                     Image.asset(
                       BrandAssets.appIconFor(theme.brightness),
                       width: 88,
@@ -149,9 +141,7 @@ class AuthSelectionPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
-                    // The third way in. Below the two real sign-ins and styled
-                    // plainly, because it is the lesser thing: a guest reads
-                    // public channels and nothing else.
+                    // Plainer: a guest can only read public channels.
                     const _BrowseAsGuestButton(),
                   ],
                 ),
@@ -169,10 +159,7 @@ class AuthSelectionPage extends StatelessWidget {
   }
 }
 
-/// Enters guest mode and lets the router take the reader into the shell.
-///
-/// A `ConsumerWidget` of its own so [AuthSelectionPage] can stay a plain
-/// `StatelessWidget` — it takes its controller as a parameter and has no `ref`.
+/// Enters guest mode and opens the shell.
 class _BrowseAsGuestButton extends ConsumerWidget {
   const _BrowseAsGuestButton();
 
@@ -189,17 +176,9 @@ class _BrowseAsGuestButton extends ConsumerWidget {
         TextButton(
           onPressed: () {
             ref.read(settingsProvider.notifier).setGuestMode(true);
-            // Navigate explicitly. Leaving this to the redirect did not work
-            // and could not have: `authRedirect` returns null for a guest —
-            // "stay put" — because a guest has to be *allowed* to sit on the
-            // sign-in screen to stop being one. So the flag alone moved nobody.
-            //
-            // It also broke the second time round in a way the first hid: a
-            // guest who came back here from the banner already has the flag
-            // set, so `setGuestMode(true)` changed nothing, the notifier never
-            // fired, and the redirect was never even re-evaluated. `go` rather
-            // than `push`, so the shell replaces the sign-in screen instead of
-            // burying it underneath.
+            // Navigate explicitly: `authRedirect` lets a guest stay on the
+            // sign-in screen, and a returning guest already has the flag set,
+            // so no redirect would fire. `go` replaces the sign-in screen.
             context.go(ShellTab.home.path);
           },
           child: Text(

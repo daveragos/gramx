@@ -13,13 +13,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 
 void main() {
   group('the brand mark animation', () {
-    // The file is the designer's export, and nothing else in the app would
-    // notice if it stopped being readable — the widget swallows a failed load
-    // so the splash never shows a broken glyph. This is the check that would.
-    //
-    // It also pins the two properties that make it play on its own: more than
-    // one frame, and a repetition count the framework reads as "forever". A
-    // still image loads perfectly well and would sit there.
+    // The widget hides a failed load, so this checks the asset decodes, has
+    // several frames and loops forever.
     testWidgets('is a moving image that loops by itself', (tester) async {
       final bytes = await rootBundle.load(BrandAssets.markAnimation);
       final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
@@ -40,9 +35,7 @@ void main() {
       handle.dispose();
     });
 
-    // It draws nothing until the first frame is decoded, which is the moment
-    // the splash exists to fill. Laying out a zero-sized box there would move
-    // the wordmark once the mark arrived.
+    // Otherwise the layout would shift when the first frame decodes.
     testWidgets('holds its size before the first frame arrives', (
       tester,
     ) async {
@@ -59,8 +52,7 @@ void main() {
   _glyphTests();
 
   group('the splash screen', () {
-    // LaunchReveal draws the mark above every route; the splash is the black
-    // behind it. A mark here as well would be a second one to line up.
+    // LaunchReveal draws the mark above every route.
     testWidgets('draws nothing of its own', (tester) async {
       await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
 
@@ -70,8 +62,8 @@ void main() {
     });
   });
 
-  // The launch stops the drawing at LaunchMark.formedFrame and opens the app
-  // through that frame, so the numbers in LaunchMark have to describe it.
+  // The launch opens the app through LaunchMark.formedFrame, so LaunchMark's
+  // numbers must match that frame.
   group('the launch mark', () {
     Future<ui.Image> frame(int index) async {
       final bytes = await rootBundle.load(BrandAssets.markAnimation);
@@ -114,8 +106,6 @@ void main() {
       });
     });
 
-    // Stopping any earlier would open the app through a ribbon still
-    // changing shape.
     testWidgets('is a frame the drawing has settled on', (tester) async {
       await tester.runAsync(() async {
         final formed = await pixels(await frame(LaunchMark.formedFrame));
@@ -145,9 +135,7 @@ void main() {
   });
 }
 
-/// The header glyph follows the theme: pale on the dark screen and grey on
-/// the light one, because a pale mark on an off-white header would be the one
-/// thing on the row you could not see.
+/// The header glyph is pale on a dark theme and grey on a light one.
 void _glyphTests() {
   group('the header glyph', () {
     Future<String> assetShown(WidgetTester tester, ThemeData theme) async {

@@ -3,8 +3,7 @@ import 'package:gramx/app/widgets/sliding_chrome.dart';
 
 void main() {
   group('applyScrollDelta', () {
-    // The point of the fraction: the header travels with the content that
-    // pushed it out, rather than snapping away once a threshold is passed.
+    // The header moves with the content instead of snapping at a threshold.
     test('moves one-to-one with the scroll', () {
       final next = applyScrollDelta(
         current: const ChromeOffset(),
@@ -51,8 +50,6 @@ void main() {
       expect(back.hidden, 0.0);
     });
 
-    // Bouncing past the top with the header still retired would leave the app
-    // looking like it had lost its navigation.
     test('the top of the list always shows the chrome', () {
       final next = applyScrollDelta(
         current: const ChromeOffset(hidden: 1),
@@ -95,8 +92,7 @@ void main() {
   });
 
   group('chromeTiedOpacity', () {
-    // The "N new posts" pill belongs to the header: it must not linger over
-    // the reading surface once the header has started leaving.
+    // The "N new posts" pill leaves as soon as the header starts to.
     test('fully visible while the header is', () {
       expect(chromeTiedOpacity(0), 1.0);
     });
@@ -112,9 +108,8 @@ void main() {
   });
 
   group('tabIsMoving', () {
-    // Each tab reserves the header's height at the top of its list, so landing
-    // on one with the header retired shows a band of empty space. The chrome
-    // has to come back as the swipe starts, not once it lands.
+    // Each tab reserves space for the header, so it must return as a swipe
+    // starts.
     test('a drag counts from the first pixel', () {
       expect(
         tabIsMoving(position: 0.04, index: 0, indexIsChanging: false),

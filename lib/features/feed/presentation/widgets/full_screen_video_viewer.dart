@@ -11,12 +11,8 @@ import 'package:gramx/features/feed/presentation/widgets/media_viewer_chrome.dar
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// Full-screen video playback.
-///
-/// Opens immediately, whether or not the file is on disk yet. A video the user
-/// tapped should never be answered with "downloading, please wait" and no
-/// screen — the viewer shows the poster frame straight away and fills in a real
-/// progress bar while TDLib fetches the file.
+/// Full-screen video playback. Opens immediately, showing the poster frame
+/// and download progress until the file is ready.
 class FullScreenVideoViewer extends ConsumerStatefulWidget {
   /// Local file, if it has already been downloaded.
   final String? videoPath;
@@ -27,21 +23,14 @@ class FullScreenVideoViewer extends ConsumerStatefulWidget {
   /// Poster frame shown while the video is still arriving.
   final String? thumbnailPath;
 
-  /// A guest post's video lives at a `t.me` URL rather than behind a TDLib file
-  /// id. Carried so the viewer can fetch it through the guest cache — passing
-  /// only an already-resolved path meant a video the grid had not cached yet
-  /// opened onto "unavailable" and stayed there.
+  /// A guest post's `t.me` video URL, fetched through the guest cache.
   final String? remoteUrl;
 
-  /// Whether Telegram flagged the video as streamable.
-  ///
-  /// Only a `faststart`-muxed video can play from a prefix; anything else has
-  /// its index at the end of the file, so a player given the first megabyte
-  /// finds nothing to play. Those fall back to downloading in full.
+  /// Whether Telegram flagged the video as streamable. Only a
+  /// `faststart`-muxed video can play from a prefix; others download in full.
   final bool supportsStreaming;
 
-  /// The post this video belongs to, so the viewer can carry its identity and
-  /// actions rather than stranding the reader on a bare black screen.
+  /// The post this video belongs to, for the viewer's header and actions.
   final Post? post;
 
   const FullScreenVideoViewer({
@@ -104,9 +93,7 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
 
     final fileId = widget.fileId;
     if (fileId == null || fileId == 0) {
-      // No TDLib file — a guest video. Fetch it through the guest cache and
-      // play the file that lands. There is no streaming path here: t.me serves
-      // the whole file, and gramX has no prefix to play from.
+      // A guest video: fetch the whole file through the guest cache.
       final url = widget.remoteUrl;
       if (url != null && url.isNotEmpty) {
         _fetchGuestVideo(url);
@@ -117,16 +104,13 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
       return;
     }
 
-    // Not on disk yet. If Telegram says the video can be streamed, play it
-    // through the loopback file server instead of waiting for the download —
-    // that is the difference between "starts now" and "starts in a minute".
+    // Not on disk yet: stream through the loopback file server if possible.
     if (widget.supportsStreaming) {
       _startStreaming(fileId);
       return;
     }
 
-    // Otherwise ask for the whole thing at viewer priority: this is the file
-    // the user is actively waiting on, so it outranks background prefetching.
+    // Otherwise download in full, ahead of background prefetching.
     ref
         .read(syncServiceProvider)
         .downloadFileWithPriority(fileId, priority: 32);
@@ -158,11 +142,8 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     }
   }
 
-  /// Plays from the loopback server, falling back to the download path.
-  ///
-  /// The fallback matters: streaming depends on a local socket, a Range-aware
-  /// player and a prefix arriving in time. If any of that fails the reader
-  /// should get their video a little later, not an error.
+  /// Plays from the loopback server, falling back to a full download if
+  /// streaming fails.
   Future<void> _startStreaming(int fileId) async {
     if (_isInitialized || _startedPlayback) return;
     _startedPlayback = true;
@@ -254,11 +235,9 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
 
   @override
   Widget build(BuildContext context) {
-    // Start playback the moment the download lands, without the user tapping
-    // again — they already asked for this video once.
+    // Starts playback once the download lands. The path also feeds the
+    // "open with" button, so it is read even during playback.
     final fileId = widget.fileId;
-    // The file on disk, once there is one. Also what the "open with" button
-    // hands out, which is why it is read even when playback is already going.
     String? downloadedPath = widget.videoPath;
     if (fileId != null && fileId != 0) {
       final download = ref.watch(fileDownloadProgressProvider(fileId)).value;
@@ -319,7 +298,7 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     );
   }
 
-  /// under the video.
+  /// Scrubber, play/pause, elapsed time and mute.
   Widget _buildScrubber() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -388,9 +367,6 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
 }
 
 /// The poster frame and progress shown while a video is still downloading.
-///
-/// A real thumbnail plus a determinate bar tells the reader what they're
-/// waiting for and how long is left; a bare spinner tells them neither.
 class _LoadingPoster extends StatelessWidget {
   final String? thumbnailPath;
   final double? progress;

@@ -11,27 +11,14 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/guest/presentation/widgets/guest_banner.dart';
 
-/// The guest's feed: every added public channel, newest first.
+/// The guest's feed: posts from every added public channel, newest first.
 ///
-/// Plainly chronological, unlike the signed-in feed. That feed weaves unread
-/// backlog into the new posts, and "unread" is a property of a Telegram
-/// account — a guest has none, so there is nothing to weave and no cadence to
-/// keep. Nothing here is marked read, either: see `ReaderCapabilities`.
-///
-/// No "N new posts" pill and no live updates. `t.me/s/` is a page, not a
-/// stream; the only way to learn something arrived is to ask again, which is
-/// what pulling to refresh does.
-///
-/// What the screen owes the reader, and did not use to give them:
-///
-/// * **The posts stay put while it refreshes.** It drew a full-screen spinner
-///   over `AsyncLoading`, so every pull threw the feed away and rebuilt it.
-/// * **A failure says so.** A channel that could not be read was swallowed, so
-///   a feed that failed outright showed "Nothing here yet — add a channel" to
-///   someone who had added four.
-/// * **It goes back further than one page.** See [GuestFeedNotifier.loadMore].
+/// Purely chronological, with no unread state and no live updates, since
+/// `t.me/s/` is a static page; pull to refresh fetches again. Posts stay on
+/// screen during a refresh, failures are shown, and older pages load on
+/// scroll (see [GuestFeedNotifier.loadMore]).
 class GuestFeedScreen extends ConsumerWidget {
-  /// How close to the bottom asks for the next page.
+  /// Distance from the bottom at which the next page is requested.
   static const double _loadMoreThreshold = 300;
 
   const GuestFeedScreen({super.key});
@@ -45,9 +32,8 @@ class GuestFeedScreen extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    // The value, not the loading flag, decides what is drawn: Riverpod keeps
-    // the previous data on an in-flight rebuild, which is what lets a refresh
-    // leave the reader's place in the list alone.
+    // Drawn from the value, which Riverpod keeps during a refresh, so the
+    // scroll position survives.
     final feed = feedAsync.value ?? GuestFeed.empty;
     final isFirstLoad = feedAsync.isLoading && feedAsync.value == null;
 
@@ -65,8 +51,7 @@ class GuestFeedScreen extends ConsumerWidget {
       body: (context, topPadding, bottomPadding) {
         return RefreshIndicator(
           color: AppColors.accent,
-          // The list starts under the header, so without this the spinner
-          // animates behind it and the pull looks like it did nothing.
+          // Keeps the spinner below the header.
           edgeOffset: topPadding,
           onRefresh: () async {
             ref.invalidate(guestFeedProvider);
@@ -78,8 +63,8 @@ class GuestFeedScreen extends ConsumerWidget {
                   notification.metrics.pixels >=
                       notification.metrics.maxScrollExtent -
                           _loadMoreThreshold) {
-                // Guarded inside the notifier: this fires on every frame near
-                // the bottom, and `t.me/s/` rate-limits the whole client.
+                // Fires every frame near the bottom; the notifier guards it,
+                // since `t.me/s/` rate-limits the client.
                 ref.read(guestFeedProvider.notifier).loadMore();
               }
               return false;
@@ -128,8 +113,7 @@ class GuestFeedScreen extends ConsumerWidget {
           delegate: SliverChildBuilderDelegate(
             (context, index) => PostCard(
               post: feed.posts[index],
-              // No PostVisibilityReporter: there is no account to acknowledge
-              // a read against.
+              // No read tracking for guests.
               onTap: () => context.push('/post/${feed.posts[index].id}'),
             ),
             childCount: feed.posts.length,
@@ -141,9 +125,8 @@ class GuestFeedScreen extends ConsumerWidget {
       ];
     }
 
-    // Still fetching, and nothing has landed yet. Says which channel it is on:
-    // each one is its own request with a 15-second timeout, so a bare spinner
-    // over four channels is a minute of no information at all.
+    // First load: shows which channel is being fetched, since each request
+    // can take up to 15 seconds.
     if (isFirstLoad || feed.isFilling) {
       return [
         SliverFillRemaining(
@@ -167,9 +150,7 @@ class GuestFeedScreen extends ConsumerWidget {
       ];
     }
 
-    // Every channel failed, or the list itself could not be read. Either way
-    // the reader has channels and no posts, and the reason is the only useful
-    // thing on screen.
+    // Every channel failed, or the list couldn't be read: show the reason.
     if (feed.hasFailedEntirely || error != null) {
       return [
         SliverFillRemaining(
@@ -210,7 +191,7 @@ class GuestFeedScreen extends ConsumerWidget {
   }
 }
 
-/// What sits under the last post: progress, or the end of the road.
+/// Shown under the last post: loading progress or the end of the feed.
 class _Footer extends StatelessWidget {
   final GuestFeed feed;
   final Color secondary;
@@ -282,11 +263,7 @@ class _Line extends StatelessWidget {
   }
 }
 
-/// A quiet line above the feed when some channels came back and some did not.
-///
-/// Above rather than instead of the posts: a partial feed is still a feed, and
-/// throwing away three channels because the fourth timed out would be worse
-/// than saying so.
+/// A line above the feed naming channels that failed while others loaded.
 class _FailureStrip extends StatelessWidget {
   final List<GuestChannelFailure> failures;
   final Color secondary;

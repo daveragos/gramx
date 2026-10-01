@@ -4,16 +4,11 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 
-/// Takes a conversation off the list: leaves a group, deletes a one-to-one
-/// chat. Returns whether it went.
+/// Leaves a group or deletes a one-to-one chat after confirming, and returns
+/// whether it succeeded. "Delete for both" is offered only where Telegram
+/// allows it.
 ///
-/// Both confirm first, because neither can be undone — a private group needs a
-/// new invite to rejoin, and a deleted chat's history is gone from this
-/// account. "Delete for both" is offered only where Telegram says it would
-/// work, the same rule message deletion follows.
-///
-/// [context] must outlive the sheet or menu this is called from, since the
-/// answer comes back after that has closed; pass the navigator's.
+/// [context] must outlive the calling sheet or menu; pass the navigator's.
 Future<bool> confirmAndRemoveChat(
   BuildContext context,
   ChatsRepository repository, {

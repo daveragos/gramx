@@ -15,16 +15,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Channel {
 
- String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; bool get isJoined;/// Whether Telegram will produce statistics for this channel.
-///
-/// `SupergroupFullInfo.canGetStatistics`, which is true only for somebody
-/// who administers the channel and only once it is past a member threshold
-/// Telegram sets. It decides whether the Analytics entry exists at all —
-/// the alternative was a menu item that opens onto an error, which is the
-/// inert control the hard rules forbid.
-///
-/// False whenever full info was not fetched, and always false for a guest
-/// channel: it costs no request to answer "no".
+ String get id; int get chatId; String get title; String? get username; String? get description; String? get avatarUrl; int? get avatarFileId; String? get avatarColor; int get subscriberCount; bool get isVerified; bool get isFavorite; bool get isMuted; bool get isHidden; bool get isJoined;/// Whether Telegram offers statistics (`canGetStatistics`), which it does
+/// only for admins of large enough channels. Decides whether Analytics is
+/// shown. False when full info wasn't fetched, and always for a guest.
  bool get canViewStatistics; DateTime? get lastPostAt;
 /// Create a copy of Channel
 /// with the given fields replaced by the non-null parameter values.
@@ -251,16 +244,9 @@ class _Channel implements Channel {
 @override@JsonKey() final  bool isMuted;
 @override@JsonKey() final  bool isHidden;
 @override@JsonKey() final  bool isJoined;
-/// Whether Telegram will produce statistics for this channel.
-///
-/// `SupergroupFullInfo.canGetStatistics`, which is true only for somebody
-/// who administers the channel and only once it is past a member threshold
-/// Telegram sets. It decides whether the Analytics entry exists at all —
-/// the alternative was a menu item that opens onto an error, which is the
-/// inert control the hard rules forbid.
-///
-/// False whenever full info was not fetched, and always false for a guest
-/// channel: it costs no request to answer "no".
+/// Whether Telegram offers statistics (`canGetStatistics`), which it does
+/// only for admins of large enough channels. Decides whether Analytics is
+/// shown. False when full info wasn't fetched, and always for a guest.
 @override@JsonKey() final  bool canViewStatistics;
 @override final  DateTime? lastPostAt;
 

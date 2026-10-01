@@ -12,9 +12,7 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
-// ---------------------------------------------------------------------------
-// Auth step enum — each value maps to a distinct UI page.
-// ---------------------------------------------------------------------------
+/// A step of sign-in, each with its own page.
 enum AuthStep {
   /// TDLib is still initializing or connecting to Telegram servers.
   loading,
@@ -34,16 +32,13 @@ enum AuthStep {
   /// QR code display page.
   waitQrCode,
 
-  /// Fully authenticated — redirect to home.
+  /// Signed in; the router moves on to home.
   authenticated,
 
   /// An unrecoverable or connection error occurred.
   error,
 }
 
-// ---------------------------------------------------------------------------
-// Immutable auth state.
-// ---------------------------------------------------------------------------
 class AuthState {
   final AuthStep step;
   final String? phoneNumber;
@@ -91,9 +86,7 @@ class AuthState {
   }
 }
 
-// ---------------------------------------------------------------------------
-// AuthController — drives the login and connection workflow.
-// ---------------------------------------------------------------------------
+/// Drives sign-in and the connection to Telegram.
 class AuthController extends Notifier<AuthState> {
   late TdlibService _tdlib;
   StreamSubscription? _authSub;
@@ -117,10 +110,8 @@ class AuthController extends Notifier<AuthState> {
       _timeoutTimer?.cancel();
     });
 
-    // Start a timeout monitor for connection
     _startConnectionTimeout();
 
-    // Check cached state
     final cached = _tdlib.currentAuthState;
     if (cached != null) {
       final resolved = _tdlibStateToStep(cached);
@@ -136,16 +127,9 @@ class AuthController extends Notifier<AuthState> {
     );
   }
 
-  /// Return back to login method selection step
-  /// Leaves a sign-in attempt and returns to the method chooser.
-  ///
-  /// Painting a different page was not enough. TDLib owns the authorization
-  /// state and keeps announcing it — a QR link refreshes every few seconds —
-  /// so the reader was put straight back on the page they had just left. There
-  /// is no TDLib call that cancels a pending attempt: `logOut` destroys the
-  /// local database and needs a network connection, and neither QR nor phone
-  /// may be requested from a QR state at all. So the attempt is left standing
-  /// and simply stops driving the screen.
+  /// Leaves a sign-in attempt and returns to the method chooser. TDLib can't
+  /// cancel a pending attempt and keeps re-announcing its state, so the
+  /// attempt stays open and just stops driving the screen.
   void goBackToSelection() {
     _stayAtChooser = true;
     state = state.copyWith(
@@ -168,30 +152,20 @@ class AuthController extends Notifier<AuthState> {
     });
   }
 
-  /// The last authorization state TDLib announced.
-  ///
-  /// The controller's own step is what the reader is looking at; this is what
-  /// TDLib will actually accept a request in. The two diverge whenever someone
-  /// backs out of a sign-in method, and every rule below depends on knowing
-  /// which is which.
+  /// The last authorization state TDLib announced. Differs from the visible
+  /// step after the user backs out of a sign-in method.
   td.AuthorizationState? _lastTdState;
 
-  /// True when the reader deliberately came back to the method chooser.
-  ///
-  /// TDLib re-announces the state it is holding — a QR link is refreshed every
-  /// few seconds — and each announcement used to move the UI back onto the page
-  /// they had just left. Cleared as soon as they pick a method again.
+  /// Set when the user goes back to the method chooser, so TDLib's repeated
+  /// state updates don't move the screen. Cleared when a method is picked.
   bool _stayAtChooser = false;
 
   /// Whether the client has already been restarted after TDLib closed it.
   /// Reset once a healthy state arrives, so a later close gets its own retry.
   bool _restartedAfterClose = false;
 
-  /// Whether TDLib is holding a QR code open.
-  ///
-  /// It is the one authorization state with no way out: `requestQrCode` and
-  /// `setAuthenticationPhoneNumber` both refuse to run in it, by TDLib's own
-  /// documentation. Anything that needs to leave has to restart the client.
+  /// Whether TDLib is holding a QR code open. TDLib refuses QR and phone
+  /// requests in that state, so leaving it takes a client restart.
   bool get _isShowingQr =>
       _lastTdState is td.AuthorizationStateWaitOtherDeviceConfirmation;
 
@@ -218,9 +192,7 @@ class AuthController extends Notifier<AuthState> {
     _timeoutTimer?.cancel();
     _lastTdState = tdState;
 
-    // The two with side effects stay here; the rest is a pure decision — see
-    // resolveAuthState, which is where the "it keeps sending me back to the QR
-    // page" bug lived.
+    // States with side effects; the rest go through resolveAuthState.
     if (tdState is td.AuthorizationStateReady) {
       _stayAtChooser = false;
       _restartedAfterClose = false;
@@ -233,12 +205,8 @@ class AuthController extends Notifier<AuthState> {
     if (tdState is td.AuthorizationStateClosed) {
       _stayAtChooser = false;
 
-      // Closing is what TDLib does after a log out, so on the next launch this
-      // is the *expected* state — not a failure to show someone alongside a
-      // button offering to wipe their data. A fresh client on the same
-      // database comes back at "waiting for a phone number", which is the
-      // sign-in screen. One attempt: if it closes again, something is really
-      // wrong and the error is the honest answer.
+      // Expected after a log out: restart once, which reopens at sign-in.
+      // A second close in a row is an error.
       if (!_restartedAfterClose) {
         _restartedAfterClose = true;
         state = const AuthState(
@@ -276,26 +244,18 @@ class AuthController extends Notifier<AuthState> {
     try {
       final me = await _tdlib.sendRequest(const td.GetMe());
 
-      // The splash waits on Telegram knowing who this is, and on nothing of
-      // this app's own. The account row is written a moment later, behind the
-      // first screen: everything that reads it watches the table, and the
-      // write held the splash up by a fifth of a second on every launch.
+      // In the background, so the splash waits only on GetMe.
       if (me is td.User) unawaited(_saveAccount(me));
 
       state = state.copyWith(step: AuthStep.authenticated);
       StartupTrace.mark('account loaded, leaving the splash');
 
-      // Trigger background channel & feed sync
       final syncService = ref.read(syncServiceProvider);
       syncService.markAuthReady();
       syncService.startListening();
 
-      // The chat list, through the cache's own load and nothing else. Two
-      // more `LoadChats` used to go out at this moment — one from the client
-      // when TDLib became ready, one from the sync service — and each pulls
-      // another hundred chats in, so the first page the feed paints from was
-      // three pages' worth of updates to decode. One page lands in about half
-      // the time, and the later rounds bring the rest.
+      // The only `LoadChats` at sign-in. Each one pulls in another hundred
+      // chats, so extra calls here slow the feed's first paint.
       unawaited(ref.read(chatCacheProvider).ensureLoaded());
     } catch (e) {
       state = state.copyWith(
@@ -305,11 +265,8 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Records the signed-in account in the app's own database.
-  ///
-  /// One transaction, so the switch from the old active row to this one is
-  /// never seen half done — a watcher in between would find no account at all
-  /// and the drawer would blink to its signed-out state.
+  /// Records the signed-in account in the app's database, in one transaction
+  /// so watchers never see a moment with no active account.
   Future<void> _saveAccount(td.User me) async {
     final photo = me.profilePhoto?.small;
     if (photo != null) {
@@ -393,14 +350,8 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Opens the phone-number page, restarting the client first if a QR is in
-  /// the way.
-  ///
-  /// TDLib will not accept `setAuthenticationPhoneNumber` while it is holding
-  /// a QR code open, and offers no way to cancel one — so the only route from
-  /// a QR back to a phone number is a fresh client. That is safe here and only
-  /// here: nobody is signed in yet, so the local data being cleared is an
-  /// empty database.
+  /// Opens the phone-number page, restarting the client first if TDLib is
+  /// holding a QR code (safe, as no account is signed in yet).
   Future<void> selectPhoneLogin() async {
     _stayAtChooser = false;
 
@@ -414,8 +365,7 @@ class AuthController extends Notifier<AuthState> {
       statusMessage: 'Switching to phone sign-in…',
     );
     await resetSession();
-    // The reset lands on WaitPhoneNumber, which puts the chooser back up; go
-    // straight to the page they asked for.
+    // The restart lands on the chooser, so go straight to the phone page.
     state = const AuthState(step: AuthStep.waitPhoneNumber);
   }
 
@@ -456,13 +406,8 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  /// Shows a QR code to scan, asking TDLib for one only if it isn't already
-  /// holding one open.
-  ///
-  /// `requestQrCodeAuthentication` refuses to run while a QR is already
-  /// pending — TDLib answers "Call to requestQrCodeAuthentication unexpected",
-  /// which is what the "Refresh QR code" button produced every time. TDLib
-  /// refreshes the link itself; there is nothing to ask for.
+  /// Shows a QR code, requesting one only if TDLib isn't already holding one
+  /// (it rejects a second request and refreshes the link itself).
   Future<void> requestQrLogin() async {
     _stayAtChooser = false;
 
@@ -556,15 +501,8 @@ class AuthController extends Notifier<AuthState> {
     await _tdlib.resetSession();
   }
 
-  /// Ends the session, locally first.
-  ///
-  /// The old order made the local state wait on the round trip, and set the
-  /// step back to `authenticated` if it failed — so a `LogOut` that hung (it
-  /// needs a network connection) left the app sitting in `loading` inside the
-  /// shell, showing a signed-out feed with a "log in" button and no way to the
-  /// sign-in screen. Someone who asked to be logged out is logged out here
-  /// whatever the network does; the request is still sent, and its failure is
-  /// reported rather than reversing the decision.
+  /// Signs out locally first and then tells Telegram, so a slow or failed
+  /// `LogOut` request can't leave the app stuck half signed in.
   Future<void> logout() async {
     state = const AuthState(
       step: AuthStep.loading,
@@ -575,9 +513,7 @@ class AuthController extends Notifier<AuthState> {
     await db.delete(db.bookmarkEntries).go();
     await db.delete(db.accounts).go();
 
-    // Chats are account-scoped — a stale cache would leak the previous
-    // account's channels into the next sign-in's feed, and the record of seen
-    // posts would hide the next account's.
+    // Chats and seen posts are per account.
     ref.read(chatCacheProvider).clear();
     await ref.read(seenPostsProvider.notifier).clear();
 

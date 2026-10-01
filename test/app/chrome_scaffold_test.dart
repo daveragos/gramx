@@ -45,8 +45,7 @@ void main() {
     await tester.pumpWidget(harness(tester));
     expect(offsetOf(tester).hidden, 0);
 
-    // Mid-drag, with the finger still down: the whole point of the change is
-    // that the chrome is partway out here rather than already gone.
+    // Mid-drag, the chrome is partway out rather than already gone.
     final gesture = await tester.startGesture(
       tester.getCenter(find.byType(ListView)),
     );

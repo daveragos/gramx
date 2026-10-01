@@ -30,8 +30,7 @@ void main() {
   });
 
   group('storage key', () {
-    // Changing this would orphan every existing encrypted database, with no way
-    // to recover it short of a wipe.
+    // Changing this would orphan every existing encrypted database.
     test('is pinned', () {
       expect(DatabaseKeyStore.storageKey, 'tdlib_db_encryption_key');
     });

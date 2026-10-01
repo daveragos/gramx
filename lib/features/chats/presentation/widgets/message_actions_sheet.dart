@@ -14,30 +14,17 @@ import 'package:gramx/features/chats/presentation/widgets/forward_message_sheet.
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/edit_text_dialog.dart';
 
-/// What the reader chose from [MessageActionsSheet], for the screen to carry
-/// out.
+/// An action chosen in [MessageActionsSheet], for the screen to carry out.
 enum MessageAction { reply, forward, edit, pin, select, delete }
 
-/// A choice, and what Telegram said was allowed when it was made — delete
-/// needs to know whether "for everyone" is on offer.
+/// The chosen action plus the message's rights, which delete needs to know
+/// whether "for everyone" is allowed.
 typedef MessageActionChoice = ({MessageAction action, MessageActions rights});
 
-/// What can be done with one message, on a long press.
-///
-/// Every row here is gated on what Telegram says is actually possible for this
-/// message, asked once when the sheet opens (`getMessageProperties`, an offline
-/// request). A Delete that Telegram would refuse, or an Edit on somebody else's
-/// message, is the styled-but-inert control the hard rules forbid — so the row
-/// is absent rather than present and failing.
-///
-/// **The sheet chooses; the screen acts.** Every row used to close the sheet
-/// and then go on using the sheet's own context and `ref` — for a dialog, a
-/// chat picker, a request. Those were gone by the time the dialog answered, so
-/// Forward, Edit, Pin and Delete all ended in `if (!context.mounted) return`
-/// or a disposed `ref`, and did nothing at all. Now the sheet only answers
-/// *which*, and [runMessageAction] does the work with the conversation
-/// screen's context, which outlives it. Copy and a reaction stay here: both
-/// finish before the sheet closes.
+/// Long-press actions for one message, limited to what the offline
+/// `getMessageProperties` allows. The sheet returns the choice and
+/// [runMessageAction] does the work, since the sheet's context is gone once
+/// it closes. Copy and reactions finish first, so they run here.
 class MessageActionsSheet extends ConsumerWidget {
   final int chatId;
   final ChatMessage message;
@@ -78,9 +65,7 @@ class MessageActionsSheet extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Absent until Telegram answers, and absent for good if it offers
-          // none — a chat can genuinely disallow reactions, and an empty strip
-          // of nothing is worse than no strip.
+          // Hidden while loading and when the chat allows no reactions.
           if (reactions.value?.isNotEmpty ?? false)
             _ReactionStrip(
               emojis: reactions.value!,
@@ -95,9 +80,7 @@ class MessageActionsSheet extends ConsumerWidget {
               },
             ),
           actions.when(
-            // A spinner rather than a default set of rows: the alternative is
-            // showing every action and hiding the ones Telegram refuses a beat
-            // later, which is a menu that changes under a moving thumb.
+            // A spinner, so rows don't disappear under the user's thumb.
             loading: () => const Padding(
               padding: EdgeInsets.all(AppSpacing.xxl),
               child: CircularProgressIndicator(color: AppColors.accent),
@@ -155,9 +138,6 @@ class _ActionList extends StatelessWidget {
               );
             },
           ),
-        // `canForward` was fetched from Telegram and then never used, which
-        // left a message with no way out of the chat it was in — while the
-        // feed has had a forward picker all along.
         if (actions.canForward)
           ListTile(
             leading: const Icon(Icons.forward_rounded),
@@ -170,11 +150,6 @@ class _ActionList extends StatelessWidget {
             title: const Text(AppStrings.chatActionEdit),
             onTap: () => choose(MessageAction.edit),
           ),
-        // A pinned message is already reachable from the header banner and was
-        // the one thing about it nobody could change from inside gramX. The row
-        // flips with the message rather than asserting one direction, the way
-        // every other toggle in this app does — and unpinning needs no
-        // confirmation, because it takes nothing away that cannot be put back.
         if (actions.canPin)
           ListTile(
             leading: Icon(
@@ -189,9 +164,7 @@ class _ActionList extends StatelessWidget {
             ),
             onTap: () => choose(MessageAction.pin),
           ),
-        // The way into selection mode. Deliberately not a second gesture:
-        // long-press is already taken by this menu, and a chat with two
-        // long-press meanings is a chat where neither is discoverable.
+        // Enters selection mode, since long press already opens this sheet.
         ListTile(
           leading: const Icon(Icons.checklist_rounded),
           title: const Text(AppStrings.chatActionSelect),
@@ -214,11 +187,8 @@ class _ActionList extends StatelessWidget {
   }
 }
 
-/// Carries out a forward, an edit, a pin or a delete chosen from the sheet.
-///
-/// [context] and [ref] are the conversation screen's, which are still there
-/// when the dialogs these open have answered. Reply and select change the
-/// screen's own state, so the screen handles those itself.
+/// Carries out a forward, edit, pin or delete using the conversation screen's
+/// [context] and [ref]. The screen handles reply and select itself.
 Future<void> runMessageAction(
   MessageActionChoice choice,
   BuildContext context,
@@ -239,8 +209,7 @@ Future<void> runMessageAction(
   MessageAction.reply || MessageAction.select => Future<void>.value(),
 };
 
-/// Pins or unpins, asking first only in the direction that is visible to
-/// everybody else in the chat.
+/// Pins or unpins the message. Only pinning asks for confirmation.
 Future<void> _togglePin(
   BuildContext context,
   WidgetRef ref,
@@ -275,9 +244,7 @@ Future<void> _togglePin(
       );
   if (!context.mounted) return;
 
-  // The banner reads its own provider, which has no update to listen to —
-  // `updateMessageIsPinned` moves the bubble's state, not the cached
-  // "what is pinned in this chat" answer — so it is refreshed by hand.
+  // `updateMessageIsPinned` doesn't refresh the pinned banner's provider.
   if (ok) ref.invalidate(pinnedMessageProvider(chatId));
 
   ScaffoldMessenger.of(context).showSnackBar(
@@ -329,8 +296,7 @@ Future<void> _edit(
   final updated = await EditTextDialog.show(
     context,
     initialText: message.text ?? '',
-    // A photo's or a file's words are its caption, and a caption may be
-    // emptied; a text message may not.
+    // A caption may be emptied; a text message may not.
     allowsEmpty: message.media.isNotEmpty,
   );
   if (updated == null || !context.mounted) return;
@@ -347,9 +313,7 @@ Future<void> _edit(
   );
 }
 
-/// Deleting is irreversible, so it asks — and it asks *who for*, because
-/// "delete for me" and "delete for everyone" are different acts and Telegram
-/// offers both.
+/// Confirms a delete, offering "for me" and "for everyone" as allowed.
 Future<void> _confirmDelete(
   BuildContext context,
   WidgetRef ref,
@@ -395,8 +359,7 @@ Future<void> _confirmDelete(
 
 /// The quick-reaction row across the top of the sheet.
 class _ReactionStrip extends StatelessWidget {
-  /// How many of the chat's allowed reactions to offer. Telegram allows dozens;
-  /// a row of dozens is a scroll, not a choice.
+  /// How many of the chat's allowed reactions to show.
   static const int _visibleCount = 6;
 
   final List<String> emojis;

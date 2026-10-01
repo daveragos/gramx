@@ -19,34 +19,19 @@ class TextEntityRenderer extends StatelessWidget {
   /// Clamp the rendered text to this many lines. Null renders in full.
   final int? maxLines;
 
-  /// Colour for links, mentions, hashtags — anything this renderer styles as
-  /// tappable.
-  ///
-  /// except one: an outgoing message bubble, which *is* that blue. A mention
-  /// rendered in accent on accent is invisible, so the bubble passes its own
-  /// foreground colour instead.
+  /// Colour for links, mentions and hashtags. Defaults to the accent; an
+  /// outgoing bubble, which is accent-coloured, passes its foreground colour.
   final Color? linkColor;
 
-  /// Called when an `@name` is tapped, instead of this widget deciding.
-  ///
-  /// The default assumes a mention is a *channel* and pushes the channel screen
-  /// — which is right in a feed, where every mention is one, and wrong in a
-  /// conversation, where most are people. Resolving which reaches Telegram, and
-  /// `core/` must not; so the caller that can, does.
+  /// Called when an `@name` is tapped. Without it the mention opens as a
+  /// channel, which is wrong in a chat where most mentions are people.
   final ValueChanged<String>? onMentionTap;
 
-  /// Called when a hashtag is tapped.
-  ///
-  /// Supplied by the caller rather than handled here: `core/` must not reach
-  /// into a feature's providers. Null leaves hashtags styled as plain text, so
-  /// they never look tappable when they aren't.
+  /// Called when a hashtag is tapped. Null renders hashtags as plain text.
   final ValueChanged<String>? onHashtagTap;
 
-  /// Whether a long press selects text. On by default, and off in a chat
-  /// bubble: there the long press is the way into the message's actions —
-  /// reply, edit, forward, delete — and a selectable field swallowed it, so
-  /// holding the words of a message opened the system's Copy/Share bar and
-  /// nothing of this app's. The bubble's own menu has "Copy text".
+  /// Whether a long press selects text. Off in chat bubbles, where a long
+  /// press opens the message actions.
   final bool selectable;
 
   const TextEntityRenderer({
@@ -81,7 +66,6 @@ class TextEntityRenderer extends StatelessWidget {
           : Text(text, style: defaultStyle);
     }
 
-    // Sort entities by offset ascending.
     final sortedEntities = List<TextEntity>.from(entities)
       ..sort((a, b) => a.offset.compareTo(b.offset));
 
@@ -89,12 +73,11 @@ class TextEntityRenderer extends StatelessWidget {
     int currentIndex = 0;
 
     for (final entity in sortedEntities) {
-      // Prevent index out of bounds
+      // Skip entities that overlap the previous one or fall outside the text.
       if (entity.offset < currentIndex || entity.offset > text.length) {
         continue;
       }
 
-      // Add preceding plain text
       if (entity.offset > currentIndex) {
         spans.add(
           TextSpan(
@@ -108,23 +91,19 @@ class TextEntityRenderer extends StatelessWidget {
       final safeEnd = entityEnd > text.length ? text.length : entityEnd;
       final entityText = text.substring(entity.offset, safeEnd);
 
-      // Apply entity-specific styling
       spans.add(_buildEntitySpan(context, entity, entityText, defaultStyle));
 
       currentIndex = safeEnd;
     }
 
-    // Add remaining plain text
     if (currentIndex < text.length) {
       spans.add(
         TextSpan(text: text.substring(currentIndex), style: defaultStyle),
       );
     }
 
-    // Clamped text is drawn with Text, not SelectableText. A selectable field
-    // with a line limit keeps the rest of the post inside its own scroll view,
-    // so a collapsed post could be scrolled through without ever expanding it —
-    // and it clips rather than ellipsizing. Text does neither.
+    // Clamped text uses Text, not SelectableText: a selectable field with a
+    // line limit scrolls internally and clips instead of ellipsizing.
     if (maxLines != null) {
       return Text.rich(
         TextSpan(children: spans),
@@ -147,12 +126,8 @@ class TextEntityRenderer extends StatelessWidget {
     final accentStyle = baseStyle.copyWith(
       color: linkColor ?? AppColors.accent,
       fontWeight: FontWeight.w500,
-      // Set explicitly in both directions, so no inherited underline leaks in.
-      //
-      // On a coloured bubble the link and the body text are the same colour, so
-      // weight alone would have to carry "this is tappable" — and weight alone
-      // is not enough. The underline is what keeps it legible there, and it is
-      // drawn only when a caller has overridden the colour for that reason.
+      // Set in both directions so no inherited underline leaks in. A caller's
+      // link colour can match the body text, so the underline marks links.
       decoration: linkColor == null
           ? TextDecoration.none
           : TextDecoration.underline,
@@ -181,9 +156,7 @@ class TextEntityRenderer extends StatelessWidget {
           style: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
         );
       case TextEntityType.code:
-        // A background on a TextSpan paints tight against the glyphs with no
-        // padding and no corners, which is why inline code read as unstyled
-        // text with a grey smear behind it. A real chip is the fix.
+        // TextSpan backgrounds hug the glyphs, so inline code is a chip.
         return WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: InlineCodeChip(text: entityText, style: baseStyle),
@@ -220,8 +193,7 @@ class TextEntityRenderer extends StatelessWidget {
             ..onTap = () => _handleMentionTap(context, entityText),
         );
       case TextEntityType.mentionName:
-        // Telegram gives a user id rather than a username here, and this app
-        // has no user profile screen — so it is coloured, not tappable.
+        // A user id with no profile screen to open: coloured, not tappable.
         return TextSpan(text: entityText, style: accentStyle);
       case TextEntityType.emailAddress:
         return TextSpan(
@@ -244,11 +216,9 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.botCommand:
       case TextEntityType.bankCardNumber:
       case TextEntityType.mediaTimestamp:
-        // Real marks Telegram applies, but nothing in this app acts on them.
-        // Styled plainly rather than dressed up as links that go nowhere.
+        // Nothing acts on these, so they are not styled as links.
         return TextSpan(text: entityText, style: baseStyle);
       case TextEntityType.hashtag:
-        // Only render as a link when something will actually happen.
         if (onHashtagTap == null) {
           return TextSpan(text: entityText, style: baseStyle);
         }
@@ -268,9 +238,7 @@ class TextEntityRenderer extends StatelessWidget {
         if (emojiId == null) {
           return TextSpan(text: entityText, style: baseStyle);
         }
-        // Draws the real artwork once it resolves, and the plain character
-        // until then. The old version appended a gold star to every one, which
-        // made a post full of premium emoji unreadable.
+        // The custom emoji once it resolves, the plain character until then.
         return WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: CustomEmojiGlyph(
@@ -288,7 +256,7 @@ class TextEntityRenderer extends StatelessWidget {
     try {
       final uri = normalizeUrl(rawUrl);
 
-      // In-app handling for Telegram t.me links
+      // Telegram links open in the app.
       if (uri.host == 't.me' ||
           uri.host == 'telegram.me' ||
           uri.host == 'www.t.me') {
@@ -342,14 +310,8 @@ class TextEntityRenderer extends StatelessWidget {
   }
 }
 
-/// Hidden text, until it is tapped.
-///
-/// Telegram's spoiler: the words are there, covered. The cover used to be a
-/// flat grey bar with nothing on it, which on a card read as a picture that
-/// had failed to load — a channel that hides a line of metadata behind one
-/// looked broken in every post. The cover now says what it is, with an eye
-/// and, where there is room, a word, and it takes the surface colour the rest
-/// of the card's boxes use rather than a grey from nowhere.
+/// Telegram's spoiler: text under a cover until tapped. The cover shows an eye
+/// (and a word, when it fits) so it doesn't look like an image that failed.
 class SpoilerWidget extends StatefulWidget {
   final String text;
   final TextStyle style;
@@ -372,8 +334,7 @@ class _SpoilerWidgetState extends State<SpoilerWidget> {
     final hintColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    // A word fits on a cover that spans most of a line; a short spoiler gets
-    // the eye alone, which is still a sign that something is under it.
+    // Only a cover spanning most of a line has room for the word.
     final showsWord = widget.text.length > 24;
 
     return Semantics(
@@ -460,10 +421,7 @@ class InlineCodeChip extends StatelessWidget {
   }
 }
 
-/// A fenced code block: full width, scrollable sideways, copyable.
-///
-/// Code does not wrap — wrapping it is what made pasted snippets unreadable —
-/// so the block scrolls horizontally instead.
+/// A fenced code block: full width, copyable, scrolling sideways.
 class CodeBlock extends StatelessWidget {
   final String text;
   final String? language;
@@ -550,12 +508,8 @@ class CodeBlock extends StatelessWidget {
   }
 }
 
-/// A quoted passage — Telegram's block quote, drawn the way it draws it.
-///
-/// Collapses when it is long, on the same rule the post body uses. Without
-/// this a quoted wall of text was rendered whole: the post's own "Show more"
-/// could not clamp it, because a quote is a widget inside the paragraph rather
-/// than more lines of it, and `maxLines` does not reach inside a widget.
+/// Telegram's block quote. Collapses on the same rule as the post body, since
+/// the post's `maxLines` does not reach inside a widget span.
 class QuoteBlock extends StatefulWidget {
   final String text;
   final TextStyle style;
@@ -572,8 +526,7 @@ class _QuoteBlockState extends State<QuoteBlock> {
   @override
   void didUpdateWidget(QuoteBlock oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A recycled card showing a different post must not inherit this one's
-    // expanded state.
+    // A recycled card showing a different post starts collapsed.
     if (oldWidget.text != widget.text) _expanded = false;
   }
 

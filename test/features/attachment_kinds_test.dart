@@ -35,8 +35,7 @@ void main() {
     test('only a spoiler-able kind offers the toggle', () {
       expect(of(ComposeMediaKind.photo).canSpoiler, isTrue);
       expect(of(ComposeMediaKind.video).canSpoiler, isTrue);
-      // Telegram has no spoiler for these, so offering one would be a control
-      // that changes nothing.
+      // Telegram has no spoiler for these.
       expect(of(ComposeMediaKind.document).canSpoiler, isFalse);
       expect(of(ComposeMediaKind.voiceNote).canSpoiler, isFalse);
     });
@@ -80,9 +79,7 @@ void main() {
       );
     });
 
-    // TDLib's rule, and the reason count alone is not enough: documents group
-    // only with documents, and asking for a mixed album is refused with an
-    // error that names no file.
+    // TDLib groups documents only with documents and rejects mixed albums.
     test('a photo and a file are two messages, not an album', () {
       expect(
         ComposeMessages.isAlbum(
@@ -138,9 +135,7 @@ void main() {
       expect(content.duration, 5);
     });
 
-    // A round note is square, and `length` is the side Telegram centre-crops
-    // to. Taking the *shorter* side is what a centre crop actually leaves —
-    // the longer one would declare a size the file does not have.
+    // Telegram centre-crops a round note to a square of side `length`.
     test('a round note declares its shorter side as its length', () {
       final content =
           build(of(ComposeMediaKind.videoNote)) as td.InputMessageVideoNote;

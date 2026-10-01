@@ -11,25 +11,15 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 import 'package:gramx/features/stats/presentation/stats_providers.dart';
 import 'package:gramx/features/stats/presentation/widgets/stat_chart.dart';
 
-/// A titled chart, which fetches itself when it is looked at.
-///
-/// **This is where the request rule for this screen lives.** TDLib sends most
-/// graphs as a token rather than as data, so resolving them all when the
-/// statistics reply lands would be ten requests for ten charts on a screen
-/// that shows three of them without scrolling — the same fault as loading a
-/// channel's four tabs on open. A card asks for
-/// its own graph the first time it is **visible**, and `StatGraphLoads` makes
-/// sure it asks once however many times it crosses the viewport edge.
-///
-/// Visibility rather than `build` is deliberate twice over: a list builds
-/// items ahead of what is on screen, and a side effect in `build` is against
-/// the hard rules anyway.
+/// A titled chart that loads its graph the first time it becomes visible,
+/// rather than in `build`, since lists build items ahead of the screen.
+/// `StatGraphLoads` ensures each token is requested once.
 class StatSection extends ConsumerWidget {
   final int chatId;
   final String title;
   final StatGraphSource source;
 
-  /// Distinguishes this card's visibility key from every other one on screen.
+  /// Makes this card's visibility key unique on screen.
   final String slug;
 
   const StatSection({
@@ -50,8 +40,7 @@ class StatSection extends ConsumerWidget {
         ? ref.watch(statGraphsProvider(chatId))
         : null;
 
-    // A pending graph stands in for whatever came back for its token — which
-    // may itself be "Telegram has no data for this".
+    // A pending graph shows whatever its token resolved to.
     final resolved = switch (source) {
       StatGraphPending(:final token) => loads?[token] ?? source,
       _ => source,
@@ -105,9 +94,8 @@ class StatSection extends ConsumerWidget {
   }
 }
 
-/// A chart that has nothing to draw, said in a sentence rather than as an
-/// empty frame — a gridded box with no line in it reads as a channel with no
-/// activity, which is a claim about the channel rather than about the data.
+/// A message in place of a chart with nothing to draw, since an empty frame
+/// would read as no activity.
 class _Message extends StatelessWidget {
   final String text;
 

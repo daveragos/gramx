@@ -1,27 +1,17 @@
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// Which graphs have been asked for, which are in flight, and which came back.
+/// Tracks which lazy stat graphs are in flight and which have resolved.
 ///
-/// The pure half of lazy chart loading, split out for the same reason as
-/// `ChatCacheState` and `ConversationState`: every rule here has a wrong answer
-/// that costs a TDLib request, and a request per rebuild aimed at an account
-/// with a rate limit is not a bug that shows up in a screenshot.
-///
-/// The rules, all of which a test can reach:
-///
-/// - a token is requested **once**, however many times the chart is scrolled
-///   past — a `CustomScrollView` builds and unbuilds a card freely;
-/// - a token already in flight is not requested again;
-/// - a token that came back — including one that came back unusable — is never
-///   re-requested, because "Telegram has no graph for this" is an answer.
+/// Each token is requested at most once, however often its card is rebuilt
+/// while scrolling. A resolved token is never re-requested, even when it came
+/// back unusable, since that is Telegram's answer.
 class StatGraphLoads {
   final Map<String, StatGraphSource> resolved;
   final Set<String> inFlight;
 
   const StatGraphLoads({this.resolved = const {}, this.inFlight = const {}});
 
-  /// True when this token needs a `getStatisticalGraph` and does not have one
-  /// on the way.
+  /// True when this token needs a `getStatisticalGraph` call.
   bool shouldRequest(String token) =>
       !resolved.containsKey(token) && !inFlight.contains(token);
 

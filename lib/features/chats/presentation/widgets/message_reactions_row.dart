@@ -5,13 +5,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 
-/// The reaction chips under a message.
-///
-/// Reactions on a message work exactly as they do on a post — one tap adds or
-/// removes yours — so the affordance is the same one: a chip that fills in when
-/// it is your own. Kept separate from the feed's `ReactionControl` because that
-/// one lives on a post's action bar with a count and a picker, and a message's
-/// reactions sit loose under the bubble.
+/// The reaction chips under a message. Tapping one toggles the user's own
+/// reaction, which is shown tinted.
 class MessageReactionsRow extends StatelessWidget {
   final Map<String, int> reactions;
   final Set<String> chosen;
@@ -79,7 +74,7 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: onTap != null,
-      // "Your reaction" is carried by a tint, so it is said out loud too.
+      // The tint alone marks the user's reaction, so the label says it too.
       label: isChosen ? '$emoji $count, your reaction' : '$emoji $count',
       child: GestureDetector(
         onTap: onTap,

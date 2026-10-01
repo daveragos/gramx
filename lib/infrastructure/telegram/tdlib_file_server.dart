@@ -11,36 +11,20 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 /// Serves a TDLib file over loopback HTTP so a video can start before it has
 /// finished downloading.
 ///
-/// **Why a server at all.** `video_player` takes a file path or a URL; it
-/// cannot be handed a growing buffer. A local HTTP server that answers Range
-/// requests is the seam between "TDLib has the first two megabytes" and "the
-/// player wants bytes 0–65535", and it is how Telegram's own clients stream.
+/// `video_player` needs a path or URL, so a local server answering Range
+/// requests bridges it to a partially downloaded file. The file is read
+/// directly from disk (TDLib documents `ReadFilePart` as slower than that) and
+/// TDLib is only used to steer which part downloads next. Only
+/// `[downloadOffset, downloadOffset + downloadedPrefixSize)` is valid while a
+/// download is running.
 ///
-/// **Why not `ReadFilePart`.** That is the obvious call, and TDLib's own
-/// documentation rules it out here: it is *"intended to be used only if the
-/// application has no direct access to TDLib's file system, because it is
-/// usually slower than a direct read from the file."* gramX runs TDLib
-/// in-process with the file sitting at `file.local.path`, so every byte would
-/// take a round trip through the TDLib request queue and a JSON envelope for
-/// no reason. This reads the partial file directly and uses TDLib only to
-/// steer *which* part is being fetched.
-///
-/// **How a partial read is made safe.** `LocalFile` reports `downloadOffset`
-/// and `downloadedPrefixSize`: only `[downloadOffset, downloadOffset +
-/// downloadedPrefixSize)` is real, and everything outside it may be garbage or
-/// absent. So a request seeks TDLib with `DownloadFile(offset:)`, waits for the
-/// prefix to cover the byte it wants, reads what is there, and waits again.
-///
-/// **Security.** Bound to loopback on an ephemeral port, and every URL carries
-/// a per-launch random token. Without the token another app on the device
-/// could walk file ids and pull the reader's media off a plain local port.
+/// Bound to loopback, and every URL carries a per-launch random token so other
+/// apps on the device can't fetch media by file id.
 class TdlibFileServer {
   final TdlibService _tdlib;
 
   /// How long a request waits for the prefix to advance before giving up.
-  ///
-  /// Generous: a stalled connection is the common case and killing the
-  /// response makes the player report a hard failure rather than buffering.
+  /// Long, because ending the response early makes the player fail hard.
   static const Duration stallTimeout = Duration(seconds: 30);
 
   /// Largest slice handed to the player in one write.
@@ -49,9 +33,8 @@ class TdlibFileServer {
   HttpServer? _server;
   late final String _token = _makeToken();
 
-  /// One in-flight range per file. TDLib has a single download offset per
-  /// file, so two overlapping requests would fight over where it is pointing
-  /// and each would see the other's bytes go missing.
+  /// One in-flight range per file, since TDLib has a single download offset
+  /// per file and overlapping requests would fight over it.
   final Map<int, Future<void>> _inFlight = {};
 
   TdlibFileServer(this._tdlib);
@@ -66,8 +49,7 @@ class TdlibFileServer {
     final existing = _server;
     if (existing != null) return existing;
 
-    // Loopback only. Binding to anything else would put the reader's media on
-    // the local network.
+    // Loopback only, so media is never exposed on the local network.
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _server = server;
     server.listen(
@@ -104,9 +86,8 @@ class TdlibFileServer {
       await _serve(request, fileId);
     } catch (e) {
       debugPrint('[FileServer] file $fileId failed: $e');
-      // The headers are usually already out by the time anything fails, so
-      // there is nothing to say but "stop" — the player treats a truncated
-      // body as a stall and retries the range.
+      // Headers are usually sent by now, so just close. The player treats a
+      // truncated body as a stall and retries the range.
       try {
         await response.close();
       } catch (_) {}
@@ -162,8 +143,8 @@ class TdlibFileServer {
       return;
     }
 
-    // Point TDLib at the byte the player actually asked for. Without this a
-    // seek past the downloaded prefix would wait for the whole file.
+    // Point TDLib at the requested byte so a seek past the downloaded prefix
+    // doesn't wait for the whole file.
     await _startDownload(fileId, offset: start);
 
     var position = start;
@@ -198,18 +179,13 @@ class TdlibFileServer {
   }
 
   /// Waits until [offset] is inside the downloaded prefix, or the file is done.
-  ///
-  /// Returns null on timeout or if the download died — the caller ends the
-  /// response, which the player reads as a stall and retries.
+  /// Returns null on timeout or failure.
   Future<td.File?> _awaitBytesAt(int fileId, int offset) async {
     final now = await _getFile(fileId);
     if (now != null && _availableAt(now, offset) > 0) return now;
 
-    // The timeout has to be on the stream, not checked inside the loop: the
-    // loop body only runs when an update arrives, so a connection that goes
-    // away entirely would leave this awaiting a stream that has gone quiet —
-    // and the response never closes, which the player shows as a frozen frame
-    // rather than a stall it could retry.
+    // The timeout is on the stream so it fires even when no updates arrive at
+    // all; otherwise the response never closes and the player freezes.
     try {
       return await _tdlib.fileUpdates
           .where((u) => u.file.id == fileId)
@@ -227,9 +203,6 @@ class TdlibFileServer {
   }
 
   /// Bytes readable from [offset], given what TDLib says it holds.
-  ///
-  /// Only `[downloadOffset, downloadOffset + downloadedPrefixSize)` is real
-  /// while a download is in flight; a completed file is real throughout.
   static int _availableAt(td.File file, int offset) {
     final local = file.local;
     if (local.path.isEmpty) return 0;
@@ -271,9 +244,7 @@ class TdlibFileServer {
     }
   }
 
-  /// `/<token>/<fileId>`, or null if the token is wrong or the path is not one
-  /// of ours. The token is the only thing standing between this port and any
-  /// other app on the device.
+  /// Parses `/<token>/<fileId>`, or returns null if the token or path is wrong.
   int? _fileIdOf(Uri uri) {
     final segments = uri.pathSegments;
     if (segments.length != 2) return null;
@@ -302,12 +273,8 @@ class ByteRange {
   const ByteRange({required this.start, this.end, required this.isPartial});
 }
 
-/// Parses `Range: bytes=<start>-<end>`.
-///
-/// Pure and public so the awkward forms are testable without a socket: no
-/// header at all, an open-ended range, and the suffix form (`bytes=-500`,
-/// meaning the *last* 500 bytes) which ExoPlayer does use and which is easy to
-/// read backwards.
+/// Parses `Range: bytes=<start>-<end>`, including open-ended ranges and the
+/// suffix form (`bytes=-500` means the last 500 bytes), which ExoPlayer sends.
 ByteRange parseRange(String? header, {required int totalSize}) {
   if (header == null || !header.startsWith('bytes=')) {
     return ByteRange(start: 0, end: totalSize - 1, isPartial: false);

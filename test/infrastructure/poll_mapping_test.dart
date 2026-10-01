@@ -66,10 +66,8 @@ td.Message pollMessage({required bool isClosed, bool isQuiz = false}) {
 
 void main() {
   group('polls', () {
-    // A closed poll was reported as showing "unsupported message". Polls of
-    // every shape map to a real poll here, closed included — so a card that
-    // still says unsupported is TDLib itself sending `messageUnsupported`,
-    // which the mapper now logs by type name.
+    // Polls of every shape map to a poll; an unsupported card means TDLib sent
+    // `messageUnsupported`.
     test('a closed poll is a poll, not unsupported content', () {
       final post = TdlibMappers.mapMessageToPost(
         pollMessage(isClosed: true),
@@ -125,9 +123,7 @@ void main() {
       expect(post.text, MessageContentSupport.unsupportedLabel);
     });
 
-    // Content with a name is not the same as content we can't represent: a
-    // location is a known thing, and sending the reader to Telegram for it
-    // would be pretending we failed.
+    // A location is known content, so it gets a label, not the Telegram link.
     test('named-but-undrawn content is labelled, not flagged', () {
       final json = TdFixtures.textMessageJson(id: 102, chatId: -1001);
       json['content'] = {

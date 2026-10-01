@@ -10,9 +10,6 @@ import '../support/td_fixtures.dart';
 
 void main() {
   group('a location in a conversation', () {
-    // Before this, `messageLocation` fell through to the feed's label — the
-    // words "📍 Location" with the coordinates thrown away, so the one thing a
-    // location is for could not be done with it.
     test('carries its coordinates rather than a label', () {
       final message = ChatMessageMapper.map(
         TdFixtures.locationMessage(id: 1, chatId: 9),
@@ -52,8 +49,7 @@ void main() {
       ).place!;
 
       expect(still.isLive, isTrue);
-      // Saying "live" over something that stopped moving hours ago is the
-      // failure this separates out.
+      // An expired live location is not live.
       expect(still.isLiveNow, isFalse);
     });
 
@@ -79,7 +75,6 @@ void main() {
       expect(place.geoUri, 'geo:51.5,-0.12');
     });
 
-    // A venue arrives named rather than as a dropped pin with numbers under it.
     test('a venue carries its name as a query', () {
       const place = MessagePlace(
         latitude: 51.5,

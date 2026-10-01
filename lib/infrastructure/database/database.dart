@@ -18,10 +18,8 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (m, from, to) async {
-        // v4 only adds a column. Additive rather than the drop-and-recreate
-        // below, because a bookmark is now a thing on the reader's Telegram
-        // account rather than a local note — throwing the rows away would
-        // leave the mirrors in Saved Messages with nothing pointing at them.
+        // v4 only adds a column. Bookmark rows are kept because they point at
+        // their copies in Saved Messages.
         if (from >= 3) {
           await m.addColumn(bookmarkEntries, bookmarkEntries.savedMessageId);
           return;

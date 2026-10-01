@@ -14,23 +14,14 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// The Media tab: a square grid of every photo and video in the channel.
-///
-/// A grid rather than a column of cards, because a column of cards is what the
-/// Posts tab already is — the reason to have this tab at all is seeing a
-/// channel's pictures at a glance.
-///
-/// Tapping a tile opens the post. Not the viewer directly: a picture pulled out
-/// of a channel's history without its caption is often meaningless, and the
-/// post's own grid opens the viewer from there.
+/// The Media tab: a grid of the channel's photos and videos. A tap opens the
+/// tile's post, so its caption is shown too.
 class ChannelMediaGrid extends StatelessWidget {
   final List<Post> posts;
 
   const ChannelMediaGrid({super.key, required this.posts});
 
-  /// Flattens posts to their visual media, keeping the post each tile came
-  /// from so a tap knows where to go. An album is several tiles, as it should
-  /// be — it is several pictures.
+  /// Flattens posts to photo and video tiles, keeping each tile's post.
   static List<({Post post, MediaItem item})> tilesFor(List<Post> posts) {
     return [
       for (final post in posts)
@@ -76,9 +67,7 @@ class _MediaTile extends ConsumerWidget {
         ? AppColors.darkSurfaceVariant
         : Colors.grey.shade200;
 
-    // Thumbnail first: a grid of full-resolution photos is a lot of decoding
-    // for tiles this size, and the minithumbnail covers the gap before the
-    // file lands.
+    // The thumbnail suits this tile size; the minithumbnail shows first.
     final path = resolveMediaPath(
       ref,
       fileId: item.thumbnailFileId ?? item.fileId,

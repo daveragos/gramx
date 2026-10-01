@@ -23,9 +23,6 @@ class AuthTopBar extends StatelessWidget {
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
-      // Just the way back. The app says its name once, under its own icon,
-      // where someone is actually looking — a wordmark above that repeats it
-      // is furniture.
       child: SizedBox(
         height: 48,
         child: showBack
@@ -33,8 +30,7 @@ class AuthTopBar extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   icon: const Icon(Icons.arrow_back_rounded),
-                  // Leaves the attempt standing but stops it driving the
-                  // screen — see AuthController.goBackToSelection.
+                  // See AuthController.goBackToSelection.
                   onPressed: () => controller.goBackToSelection(),
                   tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 ),

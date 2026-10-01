@@ -5,15 +5,7 @@ import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
-/// One of Telegram's per-kind send permissions.
-///
-/// Telegram does not have a single "may write here" flag: a group can allow
-/// photos and forbid voice messages, and each of those is its own bit on
-/// `chatPermissions`. Naming them as a type is what lets one function answer
-/// for all of them without six near-identical copies.
-/// One kind of thing a chat may or may not take. [stickers] covers GIFs too:
-/// Telegram files both under one permission, "other messages", alongside
-/// games and inline bots.
+/// A per-kind send permission. [stickers] also covers GIFs.
 enum ChatSendRight {
   photos,
   videos,
@@ -25,71 +17,35 @@ enum ChatSendRight {
 }
 
 /// The chat map and the rules for folding TDLib updates into it.
-///
-/// Pure state with no I/O, so the folding logic — which is where the subtle
-/// cold-start bugs live — is testable without a TDLib client.
 class ChatCacheState {
   final Map<int, td.Chat> chats = {};
 
-  /// Supergroup records keyed by supergroup id (not chat id).
-  ///
-  /// TDLib volunteers these through `UpdateSupergroup`, and they carry the
-  /// member count, verified flag and username that the channel list shows — so
-  /// mirroring them removes a `GetSupergroup` per channel.
+  /// Supergroups from `UpdateSupergroup`, keyed by supergroup id, not chat id.
   final Map<int, td.Supergroup> supergroups = {};
 
-  /// User records keyed by user id.
-  ///
-  /// TDLib volunteers these through `UpdateUser` for every user it loads a chat
-  /// for, so a private chat's name, username, verified flag, bot-ness and
-  /// online status are all already here — mirroring them is what lets the chat
-  /// list draw without a `GetUser` per row, which would be the same per-chat
-  /// fan-out the request budget forbids.
+  /// Users from `UpdateUser`, so the chat list needs no `GetUser` per row.
   final Map<int, td.User> users = {};
 
-  /// Full user records, keyed by user id.
-  ///
-  /// What TDLib has volunteered — `UpdateUserFullInfo` arrives for users the
-  /// client has loaded fully, which happens when a profile or a conversation
-  /// is opened — plus what `AffiliationPrefetcher` has asked for one row at a
-  /// time as the messages list is scrolled. **Nothing here ever asks for
-  /// one**, and nothing asks for the whole list's worth at once: a
-  /// `GetUserFullInfo` per row of the chat list, all together, is the
-  /// per-chat fan-out the request budget exists to forbid. Anything read from
-  /// this map has to be optional in the UI for that reason.
+  /// Full user records from `UpdateUserFullInfo` and `AffiliationPrefetcher`.
+  /// Never fetched for a whole list, so entries are optional in the UI.
   final Map<int, td.UserFullInfo> userFullInfos = {};
 
-  /// Secret chat records keyed by **secret chat id**, not chat id.
-  ///
-  /// TDLib volunteers these through `UpdateSecretChat`, and they carry the one
-  /// thing a `td.Chat` does not: the state. A secret chat is *pending* until
-  /// the other device comes online and the key exchange finishes, and messages
-  /// sent into a pending one are refused — so a client that cannot tell pending
-  /// from ready offers a composer that silently fails.
+  /// Secret chats keyed by secret chat id. They hold the pending or ready
+  /// state, which `td.Chat` lacks.
   final Map<int, td.SecretChat> secretChats = {};
 
-  /// `UpdateChatLastMessage` can arrive before the `UpdateNewChat` that
-  /// introduces its chat. Stash those and flush them when the chat lands,
-  /// otherwise the newest post of a channel is silently dropped on cold start.
+  /// Last-message updates that arrived before their chat's `UpdateNewChat`.
   final Map<int, td.UpdateChatLastMessage> pendingLastMessages = {};
 
   /// Every cached chat, most recently active first.
-  ///
-  /// Includes groups and private chats, which the feed ignores but the forward
-  /// picker needs — and they are already here, so listing them costs nothing.
   List<td.Chat> get allChats {
     final list = chats.values.toList();
     list.sort((a, b) => mainListOrder(b).compareTo(mainListOrder(a)));
     return list;
   }
 
-  /// Broadcast channels the user is actually subscribed to, most recent first.
-  ///
-  /// Membership matters as much as type here. TDLib emits `UpdateNewChat` for
-  /// *any* chat it learns about, not just ones the user joined — resolving a
-  /// forwarded post's origin, or searching public channels, both pull strangers
-  /// into the cache. Without the [isSubscribed] check their posts end up in the
-  /// feed, which is how a channel nobody follows starts appearing in it.
+  /// Subscribed broadcast channels, most recent first. TDLib also sends
+  /// `UpdateNewChat` for chats the user is not in, such as search results.
   List<td.Chat> get channels {
     final list = chats.values
         .where((c) => isChannel(c) && isSubscribed(c))
@@ -98,17 +54,11 @@ class ChatCacheState {
     return list;
   }
 
-  /// Whether [channels] would be non-empty, without building it.
-  ///
-  /// Asked once per chat update while the list loads — thousands of times on
-  /// an account with a long chat list — so it stops at the first channel
-  /// rather than filtering and sorting every chat to learn one bit.
+  /// Whether [channels] would be non-empty, stopping at the first match.
   bool get hasChannels =>
       chats.values.any((c) => isChannel(c) && isSubscribed(c));
 
-  /// Everything that is a conversation rather than a broadcast: private chats,
-  /// bot chats, basic groups, non-broadcast supergroups and secret chats. Most
-  /// recent first.
+  /// Private, bot, group and secret chats, most recent first.
   List<td.Chat> get conversations {
     final list = chats.values
         .where((c) => isConversation(c) && isSubscribed(c))
@@ -117,15 +67,14 @@ class ChatCacheState {
     return list;
   }
 
-  /// Whether a chat belongs in the messages list. Pure, so the rule is testable
-  /// without a client.
+  /// Whether a chat belongs in the messages list.
   static bool isConversation(td.Chat chat) {
     final type = chat.type;
     if (type is td.ChatTypePrivate) return true;
     if (type is td.ChatTypeBasicGroup) return true;
     if (type is td.ChatTypeSecret) return true;
     if (type is td.ChatTypeSupergroup) return !type.isChannel;
-    // Anything a future TDLib adds: not ours to draw.
+    // Unknown chat types are not shown.
     return false;
   }
 
@@ -137,11 +86,6 @@ class ChatCacheState {
   }
 
   /// Whether a secret chat's key exchange has finished.
-  ///
-  /// The state lives on the `SecretChat` record, not on the `Chat`, and it is
-  /// the difference between a composer that works and one that is refused: a
-  /// chat stays *pending* until the other device comes online, which can be
-  /// hours.
   static bool isSecretChatReady(td.SecretChat? secret) =>
       secret?.state is td.SecretChatStateReady;
 
@@ -152,10 +96,7 @@ class ChatCacheState {
     return users[type.userId];
   }
 
-  /// Whether the user is a member of this chat.
-  ///
-  /// A chat list position is the signal: TDLib places a chat in Main or Archive
-  /// only for chats the user is in. A chat merely resolved by id has none.
+  /// Whether the user is in this chat, judged by its chat list positions.
   static bool isSubscribed(td.Chat chat) => chat.positions.isNotEmpty;
 
   /// A chat's sort order within the main chat list, or 0 if it isn't in it.
@@ -171,19 +112,7 @@ class ChatCacheState {
     return type is td.ChatTypeSupergroup && type.isChannel;
   }
 
-  /// Chats this account can actually post into.
-  ///
-  /// The forward picker used to list every chat in the cache, which is mostly
-  /// broadcast channels the reader only subscribes to — picking one failed, or
-  /// silently did nothing. The rules mirror Telegram's own:
-  ///
-  /// * private chats and saved messages always work;
-  /// * a group works if members may send messages, or if you run it;
-  /// * a channel only works if you can post to it, which means being its
-  ///   creator or an admin with posting rights.
-  ///
-  /// Chats the user is not in are excluded outright — they are in the cache
-  /// only because something resolved them by id.
+  /// Subscribed chats this account can post into, for the forward picker.
   List<td.Chat> get forwardTargets {
     final list = chats.values
         .where((c) => isSubscribed(c) && canPostIn(c, supergroupForChat(c)))
@@ -192,20 +121,17 @@ class ChatCacheState {
     return list;
   }
 
-  /// Whether a message can be sent into [chat]. Pure, so the rules are testable.
+  /// Whether a message can be sent into [chat]. Groups need member send
+  /// rights or admin rights; channels need posting rights.
   static bool canPostIn(td.Chat chat, td.Supergroup? supergroup) {
     final type = chat.type;
 
     if (type is td.ChatTypePrivate) return true;
-    // A secret chat takes messages only once its key exchange has finished.
-    // Before that Telegram refuses the send, so the composer must not offer
-    // one. `canPostIn` has no secret chat record to consult — the forward
-    // picker deliberately still excludes them, because a forwarded channel post
-    // cannot go into one at all.
+    // There is no secret chat record here to check readiness, and channel
+    // posts cannot be forwarded into a secret chat anyway.
     if (type is td.ChatTypeSecret) return false;
 
-    // Basic groups: the cache holds no BasicGroup record, so the chat's
-    // default permissions are all there is to go on.
+    // The cache holds no BasicGroup record, so use the chat's permissions.
     if (type is td.ChatTypeBasicGroup) {
       return chat.permissions.canSendBasicMessages;
     }
@@ -219,28 +145,16 @@ class ChatCacheState {
     return false;
   }
 
-  /// Whether one kind of thing may be sent into [chat]. Pure, so the rules are
-  /// testable.
-  ///
-  /// Telegram permissions media by *kind*, and a group can permit one and
-  /// forbid the next — photos allowed, voice messages not, is a common setting.
-  /// So this is one function with a right rather than a bool per control, and
-  /// it is held here rather than at the repositories that ask, because a second
-  /// copy is how the composer and the conversation come to disagree about which
-  /// buttons belong.
-  ///
-  /// A private chat allows everything except a poll, which Telegram takes only
-  /// in a chat with a bot. A channel is an admin question. A group is the
-  /// chat's own permission, or admin rights over it.
+  /// Whether one kind of content may be sent into [chat]. Private chats allow
+  /// everything but polls, channels need admin posting rights, and groups use
+  /// the chat's permission for that kind or admin rights.
   static bool canSendIn(
     td.Chat chat,
     td.Supergroup? supergroup,
     ChatSendRight right,
   ) {
     final type = chat.type;
-    // A secret chat takes every media kind and no poll — TDLib's own line is
-    // that polls cannot be sent to secret chats. Whether it is *ready* is a
-    // separate question, asked by the screen through [isSecretChatReady].
+    // Polls cannot be sent to secret chats.
     if (type is td.ChatTypeSecret) return right != ChatSendRight.polls;
     if (type is td.ChatTypePrivate) return right != ChatSendRight.polls;
 
@@ -263,19 +177,11 @@ class ChatCacheState {
   }
 
   /// Whether a poll may be sent into [chat].
-  ///
-  /// Kept as its own name because it is asked from two features and reads
-  /// better than the general form at those call sites.
   static bool canSendPollsIn(td.Chat chat, td.Supergroup? supergroup) =>
       canSendIn(chat, supergroup, ChatSendRight.polls);
 
-  /// Whether this account may change the chat's auto-delete timer.
-  ///
-  /// A one-to-one chat always may — the timer is a property both people share
-  /// and either may set. Anywhere else it is an admin power, and the specific
-  /// right Telegram checks is the one to delete messages, because that is what
-  /// the timer does on everybody's behalf. A member of a group who tapped it
-  /// would get a refusal, so the menu is absent for them instead.
+  /// Whether this account may change the chat's auto-delete timer. Always in
+  /// a private chat; elsewhere it needs the admin right to delete messages.
   static bool canSetAutoDeleteIn(td.Chat chat, td.Supergroup? supergroup) {
     final type = chat.type;
     if (type is td.ChatTypePrivate) return true;
@@ -297,7 +203,7 @@ class ChatCacheState {
     return false;
   }
 
-  /// Folds one update in. Returns true if anything actually changed.
+  /// Folds one update in. Returns true if anything changed.
   bool apply(td.TdObject update) {
     switch (update) {
       case td.UpdateNewChat():
@@ -333,19 +239,14 @@ class ChatCacheState {
       case td.UpdateChatReadInbox():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        // The cursor matters as much as the count: a post counts as read when
-        // its id is behind `lastReadInboxMessageId`. Folding in only the count
-        // left every post read during a session still looking unread, so a
-        // refresh handed the reader back what they had just finished.
+        // Keep the read cursor too; a post at or behind it is read.
         chats[update.chatId] = existing.copyWith(
           unreadCount: update.unreadCount,
           lastReadInboxMessageId: update.lastReadInboxMessageId,
         );
         return true;
 
-      // The state of an end-to-end chat, which lives nowhere else. Mirrored so
-      // the composer can tell "waiting for them to come online" from "ready",
-      // and so closing one is reflected without a refetch.
+      // Secret chat state is only available from this update.
       case td.UpdateSecretChat():
         secretChats[update.secretChat.id] = update.secretChat;
         return true;
@@ -374,25 +275,20 @@ class ChatCacheState {
         users[update.user.id] = update.user;
         return true;
 
-      // Free when it arrives, never requested from here. It carries the
-      // personal chat a user pins to their profile, which is what the chat
-      // list shows beside their name.
+      // Never requested from here. Carries the personal chat a user pins to
+      // their profile, which the chat list shows beside their name.
       case td.UpdateUserFullInfo():
         userFullInfos[update.userId] = update.userFullInfo;
         return true;
 
-      // Presence changes constantly and for people the reader is not looking
-      // at, so it folds into the existing record rather than replacing it —
-      // an UpdateUserStatus carries the status and nothing else.
+      // Carries only the status, so it is merged into the existing record.
       case td.UpdateUserStatus():
         final existing = users[update.userId];
         if (existing == null) return false;
         users[update.userId] = existing.copyWith(status: update.status);
         return true;
 
-      // The outbox cursor is what turns a sent tick into a read one. Without
-      // it every message this account sends stays "sent" for the session,
-      // however long ago the other side read it.
+      // The outbox cursor turns a sent tick into a read one.
       case td.UpdateChatReadOutbox():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -409,9 +305,7 @@ class ChatCacheState {
         );
         return true;
 
-      // A chat marked unread by hand carries no count, so a list reading only
-      // unreadCount draws it as read — which is the opposite of what the
-      // reader asked for when they marked it.
+      // A chat marked unread by hand has no unread count.
       case td.UpdateChatIsMarkedAsUnread():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -420,9 +314,7 @@ class ChatCacheState {
         );
         return true;
 
-      // The chat's auto-delete timer, which either side can change from any
-      // client. Mirrored so the sheet that sets it opens showing what is
-      // actually set rather than what it was when the chat was first cached.
+      // Either side can change the auto-delete timer from any device.
       case td.UpdateChatMessageAutoDeleteTime():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -431,9 +323,7 @@ class ChatCacheState {
         );
         return true;
 
-      // Whether this chat has messages waiting to be sent. The header's
-      // "Scheduled" row is drawn from it, so a chat with nothing queued offers
-      // no way into an empty screen.
+      // The header's "Scheduled" row is drawn from this.
       case td.UpdateChatHasScheduledMessages():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -450,9 +340,7 @@ class ChatCacheState {
         );
         return true;
 
-      // The other half of the same fact, and it was arriving on this stream
-      // already with nowhere to go. It is what lets the Activity screen know
-      // which chats to ask about without a request per chat.
+      // Tells the Activity screen which chats to query.
       case td.UpdateChatUnreadReactionCount():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -461,9 +349,7 @@ class ChatCacheState {
         );
         return true;
 
-      // Blocking is read off the chat, so a block made here or on another
-      // device has to land on it — otherwise the profile's Block button would
-      // keep offering what had already been done.
+      // Keeps block state current, including blocks made on other devices.
       case td.UpdateChatBlockList():
         final existing = chats[update.chatId];
         if (existing == null) return false;
@@ -475,13 +361,11 @@ class ChatCacheState {
         ).copyWith(blockList: update.blockList);
         return true;
 
-      // The action bar is how Telegram says "this is somebody you don't know",
-      // which is what the Requests filter is built on.
+      // The action bar marks a stranger's chat; the Requests filter uses it.
       case td.UpdateChatActionBar():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        // Dismissing it, adding the person, or blocking them all clear it
-        // with a null. See [withCleared].
+        // Dismissing, adding or blocking clears it with a null.
         chats[update.chatId] = withCleared(
           existing,
           'action_bar',
@@ -492,9 +376,7 @@ class ChatCacheState {
       case td.UpdateChatDraftMessage():
         final existing = chats[update.chatId];
         if (existing == null) return false;
-        // Sending clears the draft with a null. Kept, it came back into the
-        // composer the next time the chat was opened — the message the reader
-        // had already sent, waiting to be sent again. See [withCleared].
+        // Sending clears the draft with a null. See [withCleared].
         chats[update.chatId] =
             withCleared(
               existing,
@@ -530,14 +412,10 @@ class ChatCacheState {
     ).copyWith(lastMessage: pending.lastMessage, positions: pending.positions);
   }
 
-  /// [chat] with one field set to null, when [when] is true.
-  ///
-  /// TDLib's generated `copyWith` reads a null argument as "keep what was
-  /// there", so an update that *clears* a field — an unblock, a dismissed
-  /// action bar, a draft sent, a photo removed — was silently ignored and the
-  /// cache went on reporting the old value. Clearing is rare next to setting,
-  /// so a round trip through TDLib's own JSON is the plain fix; everything
-  /// else still goes through `copyWith`.
+  /// [chat] with one field set to null, when [when] is true. TDLib's
+  /// generated `copyWith` treats null as "keep the old value", so
+  /// clearing a field (an unblock, a sent draft, a removed photo) goes through
+  /// a JSON round trip instead.
   @visibleForTesting
   static td.Chat withCleared(
     td.Chat chat,
@@ -556,7 +434,7 @@ class ChatCacheState {
     final merged = current
         .where((p) => p.list.runtimeType != incoming.list.runtimeType)
         .toList();
-    // order 0 means "not in this list" — drop it rather than store a dead entry.
+    // Order 0 means the chat is not in this list.
     if (incoming.order != 0) merged.add(incoming);
     return merged;
   }
@@ -571,41 +449,25 @@ class ChatCacheState {
   }
 }
 
-/// Live in-memory mirror of the chats TDLib has loaded, built entirely from the
-/// update stream.
-///
-/// This is the load-bearing piece of the cold-start request budget. `LoadChats`
-/// costs **one** request no matter how many chats it loads, and TDLib then
-/// volunteers each chat through `UpdateNewChat` — including `lastMessage`, which
-/// is a free first post per channel. The alternative (`GetChat` per chat) is a
-/// per-channel fan-out that earns an account-global FLOOD_WAIT.
+/// In-memory mirror of the chats TDLib has loaded, built from the update
+/// stream. One `LoadChats` makes TDLib send every chat through
+/// `UpdateNewChat`; a `GetChat` per chat would trigger FLOOD_WAIT.
 class ChatCache {
   final TdlibService _tdlib;
 
-  /// The reducer state. Split out from the service so the update-folding logic
-  /// can be tested without a live TDLib client.
   final ChatCacheState _state = ChatCacheState();
 
   StreamSubscription<td.TdObject>? _sub;
   final _changesController = StreamController<void>.broadcast();
 
-  /// How many `LoadChats` rounds we are willing to issue. Each round pulls up to
-  /// [_loadChatsPageSize] more chats, so this caps us at 1,200 chats for 12
-  /// requests — versus 1,200 requests for the same coverage via `GetChat`.
-  ///
-  /// Five used to be enough only because two other `LoadChats` went out at
-  /// sign-in as well. Without them, an account with a long list of chats lost
-  /// its least active channels: they never reached the cache, so neither the
-  /// feed nor the channel list knew they existed. The rounds after the first
-  /// page run behind the first paint, so they cost the reader no wait.
+  /// The most `LoadChats` rounds to issue, at [_loadChatsPageSize] chats each.
   static const int _maxLoadChatsRounds = 12;
   static const int _loadChatsPageSize = 100;
 
   /// TDLib's "nothing left to load" reply to `LoadChats`.
   static const int _chatListExhaustedCode = 404;
 
-  /// Ceiling on the emergency `GetChat` recovery path. Deliberately small —
-  /// this is a bug-recovery route, not a loading strategy.
+  /// Cap on the `GetChat` fallback in [_recoverFromMissedUpdates].
   static const int _recoveryChatLimit = 50;
 
   ChatCache(this._tdlib) {
@@ -638,113 +500,72 @@ class ChatCache {
   /// The user record behind a private chat, if TDLib has volunteered it.
   td.User? userForChat(td.Chat chat) => _state.userForChat(chat);
 
-  /// The mirrored user and supergroup records, for the pure builders that map a
-  /// page of chats or messages at once. Handed over whole rather than looked up
-  /// per row, because a lookup per row through this class is the shape that
-  /// turns into a request per row the moment somebody adds a fallback to it.
+  /// Users by id, for the pure builders that map a page at once.
   Map<int, td.User> get usersById => _state.users;
 
-  /// Full user records TDLib has volunteered. See [ChatCacheState.userFullInfos]
-  /// — reading this never costs a request, and it is often empty.
+  /// Full user records already cached; often empty.
   Map<int, td.UserFullInfo> get userFullInfosById => _state.userFullInfos;
 
-  /// Every cached chat, keyed by id. Handed over whole for the pure builders,
-  /// which resolve one chat's reference to another — a person's channel, say —
-  /// without a lookup, and therefore without a `GetChat`, per row.
+  /// Every cached chat by id, for resolving references without `GetChat`.
   Map<int, td.Chat> get chatsById => _state.chats;
 
   Map<int, td.Supergroup> get supergroupsById => _state.supergroups;
 
   td.User? user(int userId) => _state.users[userId];
 
-  /// Files a full user record fetched elsewhere.
-  ///
-  /// The profile screen pays one `GetUserFullInfo` when somebody opens a
-  /// profile, and TDLib does not always follow that with an
-  /// `UpdateUserFullInfo`. Handing it over here is what lets the chat list show
-  /// that person's channel afterwards without ever asking for one itself —
-  /// see [ChatSummary.affiliatedChannelId].
+  /// Stores a full user record fetched elsewhere, since TDLib does not always
+  /// send `UpdateUserFullInfo` after a `GetUserFullInfo`.
   void rememberUserFullInfo(int userId, td.UserFullInfo info) {
     _state.userFullInfos[userId] = info;
     _changesController.add(null);
   }
 
-  /// Private chats, bot chats and groups — everything that is a conversation
-  /// rather than a broadcast. See [ChatCacheState.conversations].
+  /// Private chats, bot chats and groups. See [ChatCacheState.conversations].
   List<td.Chat> get conversations => _state.conversations;
 
-  /// Every cached chat that is a broadcast channel, most recently active first.
+  /// Subscribed broadcast channels, most recently active first.
   List<td.Chat> get channels => _state.channels;
 
-  /// Whether any subscribed channel is cached. See [ChatCacheState.hasChannels].
+  /// Whether any subscribed channel is cached.
   bool get hasChannels => _state.hasChannels;
 
-  /// Every cached chat, most recently active first — including groups and
-  /// private chats, which the forward picker offers as destinations.
+  /// Every cached chat, most recently active first.
   List<td.Chat> get allChats => _state.allChats;
 
-  /// Chats this account can forward a post into. See
-  /// [ChatCacheState.forwardTargets].
+  /// Chats this account can forward a post into.
   List<td.Chat> get forwardTargets => _state.forwardTargets;
 
   bool get isEmpty => _state.chats.isEmpty;
 
-  /// Whether the main chat list has been loaded this session — the difference
-  /// between "no channels" and "not asked yet". See [ensureLoaded].
+  /// Whether the main chat list has been loaded this session, which tells "no
+  /// channels" apart from "not loaded yet". See [ensureLoaded].
   bool get isLoaded => _loaded;
 
   /// Whether a load of the main chat list is in flight.
   bool get isLoading => _loading != null;
 
-  /// Resolves when the load in flight has settled its next round, or has
-  /// ended; at once if no load is in flight.
-  ///
-  /// For whoever wants the list a page at a time rather than all at the end:
-  /// the feed puts each page's channels on screen as the page lands.
+  /// Resolves when the load in flight settles its next round or ends, or at
+  /// once if nothing is loading. Lets the feed show channels page by page.
   Future<void> nextRound() {
     final loading = _loading;
     if (loading == null) return Future.value();
-    // The load ending counts too: the last round settles in the same moment,
-    // and a caller that asks just after it must not wait for one more.
+    // The load ending also counts as the last round settling.
     return Future.any([_roundSettled.future, loading]);
   }
 
   /// A chat's sort order within the main chat list, or 0 if it isn't in it.
   static int mainListOrder(td.Chat chat) => ChatCacheState.mainListOrder(chat);
 
-  /// Asks TDLib to load the main chat list into memory, then waits for the
-  /// resulting updates to settle.
-  ///
-  /// Costs at most [_maxLoadChatsRounds] requests total, regardless of how many
-  /// chats the user has. Returns as soon as the cache stops growing.
-  ///
-  /// **Once per session, shared by everyone who asks.** Three repositories call
-  /// this on the way to the first feed — channels, folders, posts — and each
-  /// rebuilds when the first channel lands, so a cold start used to run the
-  /// whole load five or six times over, back to back, every run paying its own
-  /// `LoadChats` round trips and its own settle wait. That was most of the gap
-  /// between the splash and the first post. Now the first caller runs it, the
-  /// rest wait on the same future, and once the list is known everybody after
-  /// that returns immediately. A load that found nothing is not remembered:
-  /// before sign-in every request fails, and the next caller must try again.
-  /// [clear] forgets it too, because the next account has its own list.
+  /// Loads the main chat list and waits for the updates to settle, once per
+  /// session, with concurrent callers sharing one future. An empty result is
+  /// not remembered, and [clear] resets it for the next account.
   Future<void> ensureLoaded() {
     if (_loaded) return Future.value();
     return _loading ??= _load().whenComplete(() => _loading = null);
   }
 
-  /// Resolves once the first page of the main chat list is in, while the rest
-  /// keeps loading behind it.
-  ///
-  /// The first page is the most recently active chats, which are the ones
-  /// whose posts sit at the top of the feed. Everything after it only reaches
-  /// further down, and on a long list the second round goes to the server:
-  /// waiting for every round held the feed's first paint back by two and a
-  /// half seconds on each launch, to add channels nobody would see before
-  /// scrolling.
-  ///
-  /// Starts [ensureLoaded] if nobody has, so asking for the first page never
-  /// leaves the rest of the list unasked for.
+  /// Resolves once the first page (the most recently active chats) is in,
+  /// while the rest keeps loading. Starts [ensureLoaded] if needed.
   Future<void> ensureFirstPage() {
     if (_loaded) return Future.value();
     final whole = ensureLoaded();
@@ -753,14 +574,11 @@ class ChatCache {
     return Future.any([firstPage.future, whole]);
   }
 
-  /// True once the main list has been loaded in this session.
   bool _loaded = false;
 
-  /// The load in flight, if one is.
   Future<void>? _loading;
 
-  /// Completed when the load in flight has its first page. See
-  /// [ensureFirstPage].
+  /// Completed when the load in flight has its first page.
   Completer<void>? _firstPage;
 
   /// Completed, and replaced, each time a round settles. See [nextRound].
@@ -777,9 +595,7 @@ class ChatCache {
     try {
       await _loadRounds(firstPage);
     } finally {
-      // Whatever ended the load — the list running out, a failure, a flood
-      // wait — nobody waiting for the first page, or the next round, waits
-      // past it.
+      // Release anyone waiting, however the load ended.
       if (!firstPage.isCompleted) firstPage.complete();
       _settleRound();
     }
@@ -797,7 +613,7 @@ class ChatCache {
           ),
         );
       } on TdlibRequestException catch (e) {
-        // 404 means the list is fully loaded — the expected exit, not a failure.
+        // 404 means the list is fully loaded, which is the expected exit.
         if (e.code == _chatListExhaustedCode) {
           exhausted = true;
           break;
@@ -823,28 +639,22 @@ class ChatCache {
         firstPage.complete();
       }
       _settleRound();
-      // No new chats arrived; another round would return the same nothing.
+      // No new chats arrived, so another round would add nothing.
       if (_state.chats.length == before) break;
     }
 
     if (_state.chats.isEmpty) await _recoverFromMissedUpdates();
 
-    // Known, or known to be empty: TDLib said so with a 404. An empty answer
-    // for any other reason — signed out, offline, rate limited — is a guess,
-    // and the next caller asks again.
+    // Only a 404 proves the list is empty. An empty result for any other
+    // reason (signed out, offline, rate limited) is retried by the next caller.
     _loaded = exhausted || _state.chats.isNotEmpty;
     if (_loaded) {
       StartupTrace.mark('chat list loaded (${_state.chats.length} chats)');
     }
   }
 
-  /// Last resort when the update stream told us nothing.
-  ///
-  /// The cache being empty after [ensureLoaded] means we missed the
-  /// `UpdateNewChat` burst — a bug, not a normal state, so it is logged loudly.
-  /// Recovery is capped at [_recoveryChatLimit] chats: enough to leave the user
-  /// with a working feed, small enough that a regression here can't turn into
-  /// the fan-out this class exists to remove.
+  /// Last resort when the cache is still empty after loading, meaning the
+  /// `UpdateNewChat` burst was missed. Capped at [_recoveryChatLimit] chats.
   Future<void> _recoverFromMissedUpdates() async {
     debugPrint(
       '[ChatCache] Empty after LoadChats — update stream was missed. '
@@ -866,7 +676,7 @@ class ChatCache {
         } on TdlibRequestException catch (e) {
           if (e.isFloodWait) break;
         } catch (_) {
-          // Skip this chat; a partial recovery still beats an empty feed.
+          // Skip this chat; a partial recovery is better than none.
         }
       }
       _notify();
@@ -875,14 +685,8 @@ class ChatCache {
     }
   }
 
-  /// Waits until the cache stops growing, or until we run out of patience.
-  ///
-  /// `LoadChats` can answer before every one of its updates has been folded
-  /// in, so the reply alone is not the signal — the cache going quiet is.
-  /// Quiet means [settle] without a change. This used to poll every 120 ms and
-  /// insist on two empty polls, which put a quarter of a second on every round
-  /// even when the updates had all landed before the reply did, which with the
-  /// receiver isolate is the usual case: they travel the same queue, in order.
+  /// Waits until the cache has had no change for [settle], or until [limit].
+  /// `LoadChats` can reply before all of its updates have been folded in.
   Future<void> _awaitQuiescence({
     Duration settle = const Duration(milliseconds: 80),
     Duration limit = const Duration(milliseconds: 1500),
@@ -905,7 +709,7 @@ class ChatCache {
     if (!_changesController.isClosed) _changesController.add(null);
   }
 
-  /// Drops every cached chat. Call on logout — chats are account-scoped.
+  /// Drops every cached chat. Call on logout, since chats are per account.
   void clear() {
     _state.clear();
     _loaded = false;
@@ -919,28 +723,17 @@ class ChatCache {
   }
 }
 
-/// Riverpod provider for [ChatCache].
-///
-/// Kept alive for the life of the container: the cache is only correct if it has
-/// been listening since before the first `UpdateNewChat`, so letting it be
-/// disposed and rebuilt would silently lose chats.
+/// Kept alive for the life of the container: the cache must be listening
+/// before the first `UpdateNewChat`, so a rebuild would lose chats.
 final chatCacheProvider = Provider<ChatCache>((ref) {
   final cache = ChatCache(ref.watch(tdlibServiceProvider));
   ref.onDispose(cache.dispose);
   return cache;
 });
 
-/// Whether the cache knows about any subscribed channel yet.
-///
-/// The answer to "what are this account's channels" is empty for a moment
-/// after signing in, while `LoadChats` is still arriving — and a
-/// `FutureProvider` that asked during that moment cached the emptiness for the
-/// rest of the session. That is why the feed said "no posts" and folder tabs
-/// vanished until the app was restarted.
-///
-/// Anything that would answer "nothing" from an unfilled cache watches this
-/// and is rebuilt once, when the first channel lands. Synchronous on purpose:
-/// a warm start reads `true` immediately and costs no extra rebuild.
+/// Whether the cache knows about any subscribed channel yet. Providers that
+/// would otherwise cache the empty list seen just after sign-in watch this and
+/// rebuild when the first channel lands.
 class ChannelsKnownNotifier extends Notifier<bool> {
   @override
   bool build() {

@@ -49,10 +49,8 @@ ChatSummary _chat(
 );
 
 void main() {
-  // This is the budget argument for the whole screen. A list of everything
-  // that has happened to you is a request per chat over the whole chat list,
-  // which the request budget forbids — unless something already knows which chats
-  // have anything in them. The update stream does, for free.
+  // Only chats the update stream reports as having unread mentions or
+  // reactions are queried, rather than every chat.
   group('ActivityPlan.queriesFor', () {
     test('a chat with nothing waiting is never asked about', () {
       final queries = ActivityPlan.queriesFor([
@@ -80,7 +78,6 @@ void main() {
       expect(byChat[1]!.requestCount, 1);
     });
 
-    // An account in fifty busy groups should cost the same as any other.
     test('the number of chats asked is capped', () {
       final chats = [
         for (var i = 0; i < ActivityPlan.maxChats + 20; i++)
@@ -90,8 +87,6 @@ void main() {
       expect(ActivityPlan.queriesFor(chats), hasLength(ActivityPlan.maxChats));
     });
 
-    // When the cap bites it should keep the chats the reader most likely
-    // cares about, which is the ones that have moved most recently.
     test('the cap keeps the most recent chats', () {
       final chats = [
         for (var i = 0; i < ActivityPlan.maxChats + 5; i++)
@@ -103,7 +98,7 @@ void main() {
       ];
 
       final kept = ActivityPlan.queriesFor(chats).map((q) => q.chatId).toSet();
-      // The newest is the highest index; the oldest five are the ones dropped.
+      // The newest has the highest index.
       expect(kept, contains(ActivityPlan.maxChats + 4));
       expect(kept, isNot(contains(0)));
     });
@@ -157,9 +152,7 @@ void main() {
       expect(item.preview, 'hey @me look at this');
     });
 
-    // Telegram carries both facts on one message. The reply pointer is the
-    // more specific of the two, so it wins — "replied to you" says more than
-    // "mentioned you" about the same event.
+    // The reply is the more specific of the two.
     test('a mention that is also a reply is a reply', () {
       final item = ActivityRepository.itemFor(
         message(replyTo: 99),
@@ -182,8 +175,7 @@ void main() {
       expect(item.kind, ActivityKind.reaction);
     });
 
-    // One message can be both a mention of you and a reaction to you, and
-    // those are two things that happened rather than one row.
+    // A mention and a reaction on one message are two rows.
     test('the id separates the kinds on one message', () {
       final mention = ActivityRepository.itemFor(
         message(),
@@ -211,8 +203,7 @@ void main() {
       );
 
       expect(item.senderName, isNull);
-      // The colour still has to follow something, or every unnamed row is the
-      // same colour.
+      // Otherwise every unnamed row would share a colour.
       expect(item.senderColorSeed, -100500);
     });
   });
@@ -229,8 +220,6 @@ void main() {
       expect(ActivityRepository.previewOf(message), 'first line second line');
     });
 
-    // A photo somebody tagged you under still happened. An empty row would
-    // say nothing at all about it.
     test('a photo with no caption still says something', () {
       final message = TdFixtures.photoMessage(
         id: 1,
@@ -253,9 +242,8 @@ void main() {
     });
   });
 
-  // The bell counts unread mentions and reactions, and only Telegram can
-  // take them off it. Seeing the list is what does so — for exactly the
-  // chats the list asked about, and without touching any chat's read cursor.
+  // Viewing the list clears unread mentions and reactions for the chats it
+  // queried, without moving any read cursor.
   group('ActivityRepository.markSeen', () {
     test('acknowledges each kind in each chat that had it', () async {
       final tdlib = _RecordingTdlib();
@@ -272,7 +260,7 @@ void main() {
       final reactions = tdlib.asked.whereType<td.ReadAllChatReactions>();
       expect(mentions.map((r) => r.chatId), [1, 3]);
       expect(reactions.map((r) => r.chatId), [2, 3]);
-      // Nothing else — in particular nothing that moves a read cursor.
+      // Nothing else, and nothing that moves a read cursor.
       expect(tdlib.asked, hasLength(4));
     });
 

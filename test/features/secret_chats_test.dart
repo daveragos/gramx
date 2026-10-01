@@ -30,8 +30,7 @@ void main() {
       expect(state.secretChatFor(TdFixtures.privateChat(id: 7)), isNull);
     });
 
-    // The distinction the composer turns on: pending means the other device has
-    // not finished the key exchange, and Telegram refuses anything sent then.
+    // While pending (key exchange unfinished), Telegram refuses sends.
     test('ready and pending are told apart', () {
       final ready = TdFixtures.secretChatUpdate(userId: 42).secretChat;
       final pending = TdFixtures.secretChatUpdate(
@@ -41,14 +40,11 @@ void main() {
 
       expect(ChatCacheState.isSecretChatReady(ready), isTrue);
       expect(ChatCacheState.isSecretChatReady(pending), isFalse);
-      // No record at all is not ready either — a chat TDLib has not described
-      // must not be treated as one that is set up.
+      // No record means TDLib has not described the chat yet.
       expect(ChatCacheState.isSecretChatReady(null), isFalse);
     });
 
-    // A forwarded channel post cannot go into a secret chat at all, which is
-    // why the forward picker still excludes them even now that the chat list
-    // shows them.
+    // Channel posts cannot be forwarded into a secret chat.
     test('a secret chat is still not a forward destination', () {
       expect(
         ChatCacheState.canPostIn(
@@ -97,8 +93,7 @@ void main() {
       expect(summary.isSecretPending, isTrue);
     });
 
-    // No record yet is pending, not ready: a row that claimed a chat was set up
-    // before TDLib said so would offer a composer Telegram refuses.
+    // Not ready until TDLib says so, since Telegram refuses sends before then.
     test('with no record yet it is pending', () {
       final summary = ChatListBuilder.summaryFor(
         TdFixtures.secretChat(id: -900, userId: 42),

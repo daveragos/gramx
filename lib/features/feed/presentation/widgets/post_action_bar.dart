@@ -19,18 +19,13 @@ class PostActionBar extends ConsumerWidget {
   final VoidCallback onReplyTap;
   final VoidCallback onShareTap;
 
-  /// One extra control at the end of the row, for a surface that has an action
-  /// the feed card does not — the media viewer's "open with". It rides in the
-  /// bar rather than floating over the picture, which is the difference
-  /// between a control that is available and one that is in the way.
+  /// An extra control at the end of the row, such as the media viewer's
+  /// "open with".
   final Widget? trailing;
 
-  /// Opens this post's analytics, on the one surface where there are any.
-  ///
-  /// Null everywhere else, and that is the whole point: the view count went
-  /// from a button to a plain figure precisely because it looked
-  /// pressable and did nothing. It becomes a control again only where Telegram
-  /// says the numbers exist — see `StatsRepository.canViewPostStats` — which is
+  /// Opens the post's statistics. Set only where Telegram reports they exist
+  /// (see `StatsRepository.canViewPostStats`); otherwise the view count is a
+  /// plain figure.
   final VoidCallback? onViewsTap;
 
   const PostActionBar({
@@ -59,17 +54,13 @@ class PostActionBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // A guest has no Telegram account, so reacting, bookmarking, forwarding
-    // and commenting have nothing to act on. Rather than render controls that
-    // do nothing — the exact bug the "every control does something" rule
-    // exists for — the counts stay and the actions become a prompt to sign in.
+    // A guest can't act on posts, so the counts stay and the actions prompt
+    // them to sign in.
     final can = ref.watch(readerCapabilitiesProvider);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Reply Button. The preview page carries no comments at all, so for a
-        // guest this is a count of a thread they cannot open.
         can.canComment
             ? PostActionButton(
                 icon: Icons.chat_bubble_outline,
@@ -86,8 +77,6 @@ class PostActionBar extends ConsumerWidget {
                 semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
               ),
 
-        // Forward. Now genuinely forwards the message rather than copying a
-        // link, which is what the count beside it has always meant.
         can.canForward
             ? PostActionButton(
                 icon: Icons.repeat,
@@ -104,10 +93,8 @@ class PostActionBar extends ConsumerWidget {
                 semanticLabel: AppStrings.a11yForward,
               ),
 
-        // Reaction. Tap toggles your own choice, long press picks a new one
-        // — the same control comments use, so the two can't drift apart.
-        // Reactions the preview page reported are still worth showing — they
-        // are part of what the post looks like. They just aren't pressable.
+        // Tap toggles the user's reaction, long press picks another. Guests
+        // see the counts without being able to react.
         can.canReact
             ? ReactionControl(
                 post: post,
@@ -121,9 +108,7 @@ class PostActionBar extends ConsumerWidget {
                 semanticLabel: AppStrings.a11yReactionsReadOnly,
               ),
 
-        // View count. A plain figure by default — it was rendered as a button
-        // with no onTap once, so it looked pressable and wasn't. Where the
-        // post's analytics genuinely open, it is a button again.
+        // View count: a button only where statistics can be opened.
         onViewsTap != null
             ? PostActionButton(
                 icon: Icons.bar_chart,
@@ -140,7 +125,6 @@ class PostActionBar extends ConsumerWidget {
                 semanticLabel: AppStrings.a11yViews,
               ),
 
-        // Bookmark & Share Row
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -188,10 +172,7 @@ class PostActionBar extends ConsumerWidget {
   }
 }
 
-/// A read-only figure in the action bar.
-///
-/// Deliberately not a [PostActionButton]: an icon that responds to touch but
-/// changes nothing is worse than one that plainly doesn't.
+/// A read-only figure in the action bar, with no touch feedback.
 class PostStat extends StatelessWidget {
   final IconData icon;
   final int count;
@@ -235,7 +216,7 @@ class PostActionButton extends StatelessWidget {
   final Color activeColor;
   final VoidCallback? onTap;
 
-  /// Spoken description. Icon-only controls are unreachable without one.
+  /// Screen reader label for the icon-only control.
   final String? semanticLabel;
 
   const PostActionButton({

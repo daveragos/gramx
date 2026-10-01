@@ -10,11 +10,8 @@ import 'package:gramx/features/channels/presentation/widgets/channel_media_grid.
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 
-/// Answers tab pages from a script instead of Telegram, and counts the calls.
-///
-/// The count is the point of most of this file: four of the five tabs are a
-/// networked `SearchChatMessages`, so "how many requests did opening a channel
-/// spend" is a correctness question, not a performance one.
+/// Answers tab pages from a script and counts the calls, since four of the
+/// five tabs are a networked `SearchChatMessages`.
 class _RecordingMediaRepository implements ChannelMediaRepository {
   final List<({int chatId, ChannelTab tab, int fromMessageId})> calls = [];
 
@@ -60,8 +57,6 @@ MediaItem _media(String id, MediaType type) => MediaItem(id: id, type: type);
 
 void main() {
   group('ChannelMediaRepository.filterFor', () {
-    // Each tab is one TDLib filter, and getting the mapping wrong shows the
-    // reader someone else's content under the wrong heading.
     test('maps every tab to the filter it means', () {
       expect(
         ChannelMediaRepository.filterFor(ChannelTab.media),
@@ -81,9 +76,7 @@ void main() {
       );
     });
 
-    // Posts is the channel's plain history, already served by
-    // channelPostsProvider. Searching for it would spend a networked request
-    // to get back what is loaded.
+    // Posts is the plain history, already served by channelPostsProvider.
     test('the Posts tab has no filter, because it is not a search', () {
       expect(ChannelMediaRepository.filterFor(ChannelTab.posts), isNull);
       expect(ChannelTab.posts.isHistory, isTrue);
@@ -115,11 +108,8 @@ void main() {
     const mediaKey = ChannelTabKey('-1001', ChannelTab.media);
     const filesKey = ChannelTabKey('-1001', ChannelTab.files);
 
-    // The tabs are swipeable, which means `TabBarView` now builds the
-    // *adjacent* tab's body while a swipe is in flight. That body reads its
-    // tab's state — so reading must stay free, or swiping past a tab would
-    // fetch it, and the budget rule above would be broken by a gesture rather
-    // than by a tap.
+    // `TabBarView` builds the adjacent tab during a swipe, so reading state
+    // must not fetch.
     test('reading a tab\'s state is not what fetches it', () {
       container.read(channelTabPostsProvider(mediaKey));
       container.read(channelTabPostsProvider(filesKey));
@@ -128,16 +118,13 @@ void main() {
     });
 
     test('a swipe settling on one tab fetches only that one', () async {
-      // What `_onTabChanged` does once `indexIsChanging` clears: exactly one
-      // `ensureLoaded`, for the index that settled.
+      // What `_onTabChanged` does once `indexIsChanging` clears.
       await notifier.ensureLoaded(filesKey, -1001);
 
       expect(repo.calls.map((c) => c.tab), [ChannelTab.files]);
     });
 
-    // The budget rule. Five tabs fetched on open would be four networked
-    // searches per channel visited, for content nobody asked to see — the same
-    // shape of mistake as the cold-start fan-out this app once had.
+    // Tabs load only when selected.
     test('a tab that has not been selected costs no request', () async {
       expect(repo.calls, isEmpty);
       expect(notifier.stateFor(mediaKey).hasFetched, isFalse);
@@ -164,9 +151,8 @@ void main() {
     });
 
     test('the Posts tab is never searched', () async {
-      // ChannelTab.posts has no filter, so even if the screen asked, the
-      // repository answers empty rather than spending a request. The screen
-      // also guards on isHistory; this is the second line of defence.
+      // ChannelTab.posts has no filter, so the repository answers empty
+      // without a request.
       final page = await repo.fetchTabPage(-1001, ChannelTab.posts);
       expect(page.posts, isEmpty);
       expect(page.isExhausted, isTrue);
@@ -196,9 +182,7 @@ void main() {
         ]);
       });
 
-      // The guard exists because pagination hangs off a scroll listener, which
-      // fires on every frame near the bottom of a list. Without it that is a
-      // networked request per frame, aimed at an account with a rate limit.
+      // Pagination is driven by a scroll listener that fires every frame.
       test('an exhausted tab stops asking', () async {
         container = build(
           pages: [
@@ -248,7 +232,6 @@ void main() {
       expect(state.hasFetched, isTrue);
     });
 
-    // Without this a refresh stacks a second copy of every tab under the first.
     test('reset drops one channel and leaves the others', () async {
       await notifier.ensureLoaded(mediaKey, -1001);
       await notifier.ensureLoaded(
@@ -294,8 +277,6 @@ void main() {
       expect(ChannelTab.voice.layout, ChannelTabLayout.cards);
     });
 
-    // An album is several pictures, so it is several tiles — collapsing it to
-    // one would hide the rest of the album from the tab that exists to show it.
     test('the grid flattens albums into one tile each', () {
       final tiles = ChannelMediaGrid.tilesFor([
         _post(

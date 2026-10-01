@@ -11,8 +11,7 @@ class ComposeStickerSet {
   final int id;
   final String title;
 
-  /// File id of the set's thumbnail, or of its first cover when it has none —
-  /// some sets ship no thumbnail and would otherwise draw as a blank square.
+  /// File id of the set's thumbnail, or of its first cover when it has none.
   final int? iconFileId;
 
   const ComposeStickerSet({
@@ -32,25 +31,18 @@ class ComposeStickerSet {
   int get hashCode => Object.hash(id, title, iconFileId);
 }
 
-/// The account's own sticker and GIF collections.
+/// The account's sticker and GIF collections.
 ///
-/// **Every call here is bounded and user-driven, and one of them would be a
-/// fan-out if it were not deferred.** `GetInstalledStickerSets` returns set
-/// *info* — a title, a thumbnail and up to five covers — not the stickers. The
-/// stickers of a set arrive only from `GetStickerSet`, one request per set, so
-/// loading every installed set up front is a request per set for content
-/// nobody asked to see. That is the same shape as the channel-profile tabs, and
-/// it gets the same rule: **a set is fetched only when the reader opens it**,
-/// and cached after.
+/// `GetInstalledStickerSets` returns only set info, and each set's stickers
+/// need a separate `GetStickerSet`. A set is fetched only when the user opens
+/// it, to avoid one request per installed set.
 class StickerRepository {
   final TdlibService _tdlib;
 
   StickerRepository(this._tdlib);
 
-  /// The account's saved GIFs.
-  ///
-  /// One request. TDLib keeps this list locally and refreshes it through
-  /// `updateSavedAnimations`, so it is cheap and stays current.
+  /// The account's saved GIFs. TDLib keeps this list locally and updates it
+  /// through `updateSavedAnimations`.
   Future<List<ComposeRemoteMedia>> savedGifs() async {
     try {
       final res = await _tdlib.sendRequest(const td.GetSavedAnimations());
@@ -62,23 +54,18 @@ class StickerRepository {
     }
   }
 
-  /// Stickers the account has starred. One request.
+  /// The account's favourite stickers.
   Future<List<ComposeRemoteMedia>> favoriteStickers() =>
       _stickers(const td.GetFavoriteStickers(), 'GetFavoriteStickers');
 
-  /// Stickers the account has sent lately. One request.
-  ///
-  /// `isAttached: false` is the meaningful half — true would return stickers
-  /// stuck onto photos, which is a different feature entirely.
+  /// Recently sent stickers. `isAttached: true` would return stickers
+  /// attached to photos instead.
   Future<List<ComposeRemoteMedia>> recentStickers() => _stickers(
     const td.GetRecentStickers(isAttached: false),
     'GetRecentStickers',
   );
 
-  /// The sets the account has installed — titles and icons only.
-  ///
-  /// One request for the whole strip. Deliberately does **not** touch the
-  /// stickers inside them; see the class comment.
+  /// The installed sets, titles and icons only. See the class comment.
   Future<List<ComposeStickerSet>> installedSets() async {
     try {
       final res = await _tdlib.sendRequest(
@@ -102,7 +89,7 @@ class StickerRepository {
     }
   }
 
-  /// The stickers in one set. **One request, and only when a set is opened.**
+  /// The stickers in one set, fetched when the set is opened.
   Future<List<ComposeRemoteMedia>> stickerSet(int setId) async {
     try {
       final res = await _tdlib.sendRequest(td.GetStickerSet(setId: setId));
@@ -128,9 +115,7 @@ class StickerRepository {
     }
   }
 
-  /// Flattens TDLib's sticker into what the composer carries.
-  ///
-  /// Pure, so the mapping is testable without a client.
+  /// Maps a TDLib sticker to [ComposeRemoteMedia].
   static ComposeRemoteMedia stickerToMedia(td.Sticker sticker) =>
       ComposeRemoteMedia(
         fileId: sticker.sticker.id,

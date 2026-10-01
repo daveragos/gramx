@@ -15,17 +15,11 @@ import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// The whole chat list, rebuilt when the cache changes.
+/// The whole chat list, rebuilt from the cache with no TDLib requests.
 ///
-/// **The recompute is debounced, and that is load-bearing** — the same lesson
-/// `ComposeTargetsNotifier` records. Building this list filters and sorts every
-/// cached chat and allocates a [ChatSummary] per survivor, while
-/// `ChatCache.changes` fires once per *chat update*, and the sync after signing
-/// in delivers hundreds of them in a burst. Recomputing on each is hundreds of
-/// sorts on the UI thread, which freezes the first frame after sign-in.
-///
-/// Costs no TDLib requests at any point: every field comes from the cache the
-/// update stream already fills.
+/// Rebuilds are debounced: `ChatCache.changes` fires once per chat update, and
+/// the sync after sign-in sends hundreds in a burst, which would otherwise
+/// freeze the UI thread.
 class ChatListNotifier extends Notifier<List<ChatSummary>> {
   /// How long a burst of chat updates settles before the list is rebuilt.
   static const Duration settleWindow = Duration(milliseconds: 250);
@@ -42,15 +36,13 @@ class ChatListNotifier extends Notifier<List<ChatSummary>> {
       _settle?.cancel();
       _settle = Timer(settleWindow, () {
         final next = current();
-        // ChatSummary has value equality, so a burst that changed nothing
-        // relevant is not a new state — otherwise the list would rebuild under
-        // the reader's thumb.
+        // Skip bursts that changed nothing visible.
         if (!listEquals(next, state)) state = next;
       });
     });
 
-    // Riverpod fires onDispose on a rebuild too, so this is also what stops a
-    // pending recompute from the previous dependencies landing on the new one.
+    // Also runs on rebuild, so a pending recompute can't land on new
+    // dependencies.
     ref.onDispose(() {
       _settle?.cancel();
       _settle = null;
@@ -60,14 +52,8 @@ class ChatListNotifier extends Notifier<List<ChatSummary>> {
     return current();
   }
 
-  /// Acknowledges every unread conversation.
-  ///
-  /// The one place in this feature that touches more than one chat, and it is
-  /// still bounded and user-driven: it is the "Mark all as read" menu item, it
-  /// runs over chats with something unread rather than over the whole list, and
-  /// it stops on the first flood wait rather than pushing through it. Read
-  /// state is written to every client this account owns, so it is spaced the
-  /// same way the feed's backfill is.
+  /// Marks every unread conversation read, for the "Mark all as read" menu
+  /// item. Spaced out, and stops at the first error (such as a flood wait).
   Future<int> markAllRead() async {
     final repository = ref.read(chatsRepositoryProvider);
     final unread = [
@@ -81,8 +67,7 @@ class ChatListNotifier extends Notifier<List<ChatSummary>> {
         await repository.setMarkedAsUnread(row.chatId, value: false);
       }
       if (row.unreadCount > 0) {
-        // One request per chat, not per unread message: the read cursor moves
-        // to the highest id it is given, so the last message covers the rest.
+        // One request per chat: marking the newest message read covers the rest.
         final error = await repository.markChatRead(row.chatId);
         if (error != null) break;
       }
@@ -92,9 +77,7 @@ class ChatListNotifier extends Notifier<List<ChatSummary>> {
     return done;
   }
 
-  /// Spacing between chats in [markAllRead]. Same order as the feed's backfill
-  /// throttle: enough that a hundred chats cannot become a hundred requests in
-  /// a second.
+  /// Spacing between chats in [markAllRead], to stay under rate limits.
   static const Duration _markAllSpacing = Duration(milliseconds: 120);
 }
 
@@ -102,12 +85,8 @@ final chatListProvider = NotifierProvider<ChatListNotifier, List<ChatSummary>>(
   ChatListNotifier.new,
 );
 
-/// Which filter the header pill is showing. See [ChatFilter].
-///
-/// Opens on **Direct**, not All. gramX is a channel reader with a messages
-/// tab, and on a Telegram account the "all" list is mostly bots and groups —
-/// the people in it were buried under them. Direct is the list a reader
-/// means when they say "my messages"; All is one tap away in the pill.
+/// The filter shown in the chat list header. Starts on [ChatFilter.direct],
+/// since most chats on a typical account are bots and groups.
 class ChatFilterNotifier extends Notifier<ChatFilter> {
   @override
   ChatFilter build() => ChatFilter.direct;
@@ -119,11 +98,8 @@ final chatFilterProvider = NotifierProvider<ChatFilterNotifier, ChatFilter>(
   ChatFilterNotifier.new,
 );
 
-/// What is typed in the chat list's search box.
-///
-/// Not debounced, and it does not need to be: it filters rows already in
-/// memory and issues no request, so a keystroke costs a rebuild and nothing
-/// else. The debounce rule is about requests.
+/// What is typed in the chat list's search box. Not debounced, since it only
+/// filters rows in memory.
 class ChatSearchQueryNotifier extends Notifier<String> {
   @override
   String build() => '';
@@ -146,14 +122,9 @@ final visibleChatsProvider = Provider<List<ChatSummary>>((ref) {
   );
 });
 
-/// How many conversations have something unread — the number on the tab badge.
-///
-/// Counted through the Messages tab's filter, which opens on Direct: on a
-/// Telegram account most unread chats are groups and bots, and a badge
-/// counting all of them said "you have messages" about things nobody sent the
-/// reader. Pick All, Groups or Bots on the tab and the badge counts those
-/// instead, so it always speaks for the list the tab shows. The search box is
-/// left out: typing a name is looking for one chat, not changing what counts.
+/// How many conversations have something unread, for the tab badge. Counts
+/// through the selected filter (but not the search box), so it matches the
+/// list the tab shows.
 final unreadChatCountProvider = Provider<int>((ref) {
   if (!ref.watch(readerCapabilitiesProvider).canMessage) return 0;
   return ChatListBuilder.unreadChatCount(
@@ -162,28 +133,20 @@ final unreadChatCountProvider = Provider<int>((ref) {
   );
 });
 
-/// One chat's row, for the conversation header.
-///
-/// Watches the list rather than the cache directly, so the header's title,
-/// avatar and presence come from exactly the same place the list's do and
-/// cannot disagree with it.
+/// One chat's row, for the conversation header. Read from the list so the
+/// header and the list always agree.
 final chatSummaryProvider = Provider.family<ChatSummary?, int>((ref, chatId) {
   for (final row in ref.watch(chatListProvider)) {
     if (row.chatId == chatId) return row;
   }
-  // Not in the conversation list — a chat opened by id before the cache knew
-  // it, which the repository can still describe.
+  // Not in the list, e.g. a chat opened by id before the cache knew it.
   return ref
       .watch(chatsRepositoryProvider)
       .summary(chatId, selfUserId: ref.watch(selfUserIdProvider));
 });
 
-/// Bumped when the Messages tab is re-tapped.
-///
-/// A counter rather than a flag, so two consecutive taps are two requests. The
-/// feed's [FeedScrollToTopNotifier] is the same shape and exists for the same
-/// reason: re-tapping the tab you are already on means "take me back to the
-/// top", and `goBranch` alone only resets the branch's route stack.
+/// Bumped when the Messages tab is re-tapped, to scroll back to the top. A
+/// counter so that every tap is a new request.
 class ChatsScrollToTopNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -196,34 +159,24 @@ final chatsScrollToTopProvider =
       ChatsScrollToTopNotifier.new,
     );
 
-/// The raw TDLib update stream, for the conversation notifier.
-///
-/// Exposed as a provider so the notifier depends on a stream rather than on
-/// [TdlibService] itself — the "widgets never call TdlibService directly" rule
-/// applies to notifiers too, and this keeps the seam narrow enough to fake.
+/// The raw TDLib update stream, for the conversation notifier. A provider so
+/// tests can fake the stream without a [TdlibService].
 final chatUpdatesProvider = Provider<Stream<td.TdObject>>((ref) {
   return ref.watch(tdlibServiceProvider).updatesStream;
 });
 
-/// This account's Telegram contacts, for the contact picker.
-///
-/// One `GetContacts` when the picker opens, and nothing after it — the user
-/// records behind the ids are already in [ChatCache], put there by the
-/// `UpdateUser` stream, so there is no per-contact lookup. Auto-disposed, so
-/// closing the picker forgets the list rather than holding a copy of somebody's
-/// address book for the session.
+/// This account's Telegram contacts, for the contact picker. One `GetContacts`
+/// request; the users themselves are already in [ChatCache]. Auto-disposed so
+/// the list isn't kept after the picker closes.
 final contactsProvider = FutureProvider.autoDispose<List<UserProfile>>((
   ref,
 ) async {
   return ref.watch(chatsRepositoryProvider).contacts();
 });
 
-/// One chat's queue of messages waiting to be sent.
-///
-/// One `GetChatScheduledMessages` when the screen opens. Telegram holds the
-/// queue server-side and sends it whether or not this app is running, so there
-/// is nothing local to read it from and nothing that keeps it current — the
-/// screen invalidates this after any change it makes.
+/// One chat's scheduled messages, fetched once with
+/// `GetChatScheduledMessages`. Nothing keeps it current, so the screen
+/// invalidates it after each change it makes.
 final scheduledMessagesProvider = FutureProvider.autoDispose
     .family<List<ChatMessage>, int>((ref, chatId) async {
       return ref.watch(chatsRepositoryProvider).scheduledMessages(chatId);

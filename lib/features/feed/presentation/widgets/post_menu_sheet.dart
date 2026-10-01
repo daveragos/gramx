@@ -18,17 +18,8 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// What the "…" on a post card opens.
-///
-/// report — and gramX had the same actions scattered across the channel page,
-/// the action bar and the Channels tab. Here they are in the one place a
-/// reader looks for them. Every row is something Telegram can actually do to
-/// this post; "not interested" and "report" are not offered because Telegram
-/// has no feed to teach and no per-post report from a client like this one.
-///
-/// **The sheet chooses; the caller acts.** Each row hands back a choice and
-/// the work happens with the card's own context, which is still there after
-/// the sheet has gone.
+/// The options in the "…" menu on a post card. The sheet returns a choice and
+/// the caller acts on it with the card's context, which outlives the sheet.
 enum PostMenuChoice { edit, mute, copyLink, openInTelegram, leaveChannel }
 
 abstract class PostMenuSheet {
@@ -44,14 +35,12 @@ abstract class PostMenuSheet {
       chatId: post.chatId,
       username: post.channelUsername,
     );
-    // A guest post is a page, not a chat: there is nothing to leave.
+    // A guest post has no chat to leave.
     final isSynthetic = GuestPostMapper.isSynthetic(post.chatId);
     final canLeave = can.canJoin && !isSynthetic;
 
-    // Whether this account may rewrite the post — its own channel, or one
-    // it edits for. Asked of Telegram rather than guessed, the same
-    // `getMessageProperties` the conversation's long-press menu uses, so an
-    // Edit row is only ever offered where the edit will be taken.
+    // Whether this account can edit the post, from Telegram's
+    // `getMessageProperties`.
     final canEdit =
         can.canMessage &&
         !isSynthetic &&
@@ -123,11 +112,8 @@ abstract class PostMenuSheet {
     }
   }
 
-  /// Rewrites the post's words — its text, or its caption when it is media.
-  ///
-  /// The feed card and the post screen both take the new words at once, from
-  /// the same override reactions use; nothing is refetched for an edit
-  /// Telegram has already accepted.
+  /// Edits the post's text or caption. The new text is applied through the
+  /// same local override reactions use, without a refetch.
   static Future<void> _edit(
     BuildContext context,
     WidgetRef ref,
@@ -214,8 +200,8 @@ abstract class PostMenuSheet {
     }
   }
 
-  /// Leaves the channel, asking first — the same asymmetry the channel page
-  /// keeps: joining is one tap to undo, leaving a private channel is not.
+  /// Leaves the channel after confirming, since leaving a private channel
+  /// can't be undone with one tap.
   static Future<void> _leave(
     BuildContext context,
     WidgetRef ref,

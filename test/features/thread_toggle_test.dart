@@ -13,10 +13,8 @@ Post post(int messageId, {int? replyTo}) => Post(
   replyToMessageId: replyTo,
 );
 
-/// Every post in a thread is a reply to the one before it, and a reply already
-/// draws what it answers — as a passage above it, or as a quote card under its
-/// own words. So a thread hiding exactly one post offers to reveal a post that
-/// is on screen anyway.
+/// A reply already draws what it answers, so a thread hiding just one post has
+/// nothing new to reveal.
 void main() {
   group('FeedThread.hasEarlierToBeShown', () {
     test('a lone post has nothing behind it', () {
@@ -53,8 +51,7 @@ void main() {
       expect(thread.hasEarlierToBeShown, isTrue);
     });
 
-    /// The card always shows the newest post, threaded or not — a thread
-    /// surfaces because of its newest message.
+    /// A thread surfaces by its newest message, so the card always shows it.
     test('the newest post is the card either way', () {
       final two = FeedThread(root: post(1), replies: [post(2, replyTo: 1)]);
       final three = FeedThread(

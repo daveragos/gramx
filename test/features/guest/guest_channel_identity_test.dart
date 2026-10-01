@@ -1,16 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/guest/data/guest_channel_store.dart';
 
-/// The guest feed spun forever on the home screen, and this is the seam that
-/// caused it.
-///
-/// Fetching a channel's page records its ETag back onto the channel row. The
-/// feed watched those rows, so finishing a fetch published new state, which
-/// restarted the feed, which fetched again — a loop pointed at Telegram that
-/// never settled and never painted a post.
-///
-/// Two things stop it, and both are checked here: a row that has not really
-/// changed compares equal, and the feed's dependency is membership only.
+/// A fetch writes its ETag back onto the channel row, and the feed watches the
+/// rows. These tests keep that from becoming a refetch loop: an unchanged row
+/// compares equal, and the feed depends only on which channels exist.
 void main() {
   GuestChannel channel({String? etag, String title = 'Ragoose Dumps'}) =>
       GuestChannel(
@@ -29,9 +22,7 @@ void main() {
       );
     });
 
-    // Without this the "did anything change?" guard is an identity check, which
-    // is always false for a freshly built row — so every fetch counted as a
-    // change and the loop ran.
+    // Value equality, so a freshly built but identical row is not a change.
     test('recording the same validator again is not a change', () {
       final before = channel(etag: 'W/"abc"');
       final after = before.copyWith(etag: 'W/"abc"');
@@ -47,8 +38,8 @@ void main() {
       expect(channel(title: 'Renamed'), isNot(channel()));
     });
 
-    // copyWith takes null to mean "leave it alone", so a fetch that returns no
-    // validator must not silently erase the one already stored.
+    // copyWith treats null as "keep", so a fetch without a validator keeps the
+    // stored one.
     test('copyWith with nothing set changes nothing', () {
       final before = channel(etag: 'W/"abc"');
       expect(before.copyWith(), before);
@@ -56,9 +47,8 @@ void main() {
   });
 
   group('the feed key', () {
-    // What guestChannelKeysProvider produces. A String, so Riverpod's
-    // value comparison can see that nothing changed — two lists with equal
-    // contents are never `==`, and that difference is the whole fix.
+    // What guestChannelKeysProvider produces: a String, because two lists with
+    // equal contents are not `==` and Riverpod would see a change.
     String keyFor(List<GuestChannel> channels) =>
         channels.map((c) => c.username).join(',');
 

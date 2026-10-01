@@ -2,21 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The hard rule: no user-facing string as a literal
-/// in a widget. It belongs in `core/l10n/app_strings.dart`.
-///
-/// The rule was written down and then broken twelve times, in some of the most
-/// visible places in the app — the sign-in screen, the QR page, three error
-/// screens that printed a raw exception at the reader. It broke quietly because
-/// nothing was checking, so this checks.
-///
-/// Deliberately a source scan rather than a widget test: the fault is a literal
-/// reaching a build method at all, which no rendering test can see.
+/// No user-facing string literals in widgets; they belong in
+/// `core/l10n/app_strings.dart`. A source scan, since rendering can't tell.
 void main() {
   /// Widget parameters that put their argument on screen.
-  ///
-  /// `Text(` is the obvious one. The rest are the places a literal hid last
-  /// time — a hint, a label, a tooltip are all read by somebody.
   final onScreen = RegExp(
     r"""(\bText\(\s*(const\s+)?|"""
     r"""\b(tooltip|hintText|labelText|semanticLabel|helperText):\s*(const\s+)?)"""
@@ -25,11 +14,9 @@ void main() {
 
   /// Files exempt from the rule, each for a stated reason.
   const exempt = <String, String>{
-    // The one place strings are *supposed* to be literals.
     'lib/core/l10n/app_strings.dart': 'the string table itself',
     'lib/core/l10n/legal_text.dart': 'the legal documents, verbatim',
-    // `Text` here is `package:html`'s DOM text node, not Flutter's widget —
-    // the name collides and the scan cannot tell them apart.
+    // `Text` here is `package:html`'s DOM node, not Flutter's widget.
     'lib/features/guest/data/tme_page_parser.dart': 'html.Text, not a widget',
   };
 
@@ -48,7 +35,7 @@ void main() {
       final lines = file.readAsLinesSync();
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
-        // A doc comment describing a string is not a string on screen.
+        // Skip comments.
         if (line.trimLeft().startsWith('//')) continue;
         if (!onScreen.hasMatch(line)) continue;
         offenders.add('${file.path}:${i + 1}  ${line.trim()}');

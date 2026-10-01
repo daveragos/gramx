@@ -32,18 +32,14 @@ void main() {
       );
 
       expect(mapped, isNotNull);
-      // The chat, not the sender: in a group the chat is what the reader
-      // recognises, and the sender is named in the body instead.
+      // Titled with the chat; the sender is named in the body.
       expect(mapped!.title, 'Flutter Devs');
       expect(mapped.body, 'are you around?');
       expect(mapped.route, '/chat/-100500');
-      // TDLib's own id, so a removal it announces cancels exactly the one it
-      // means.
+      // TDLib's id, so a removal it announces cancels the right one.
       expect(mapped.id, 7);
     });
 
-    // Every notification used to open a chat screen, so a channel's new post
-    // opened the channel as a conversation with a composer under it.
     test('a channel post opens the post, not a chat', () {
       final mapped = NotificationMapper.map(
         _notification(
@@ -65,8 +61,7 @@ void main() {
       expect(mapped!.route, '/post/-100700_${5 << 20}');
     });
 
-    // Your own message arriving on this device is not news. Telegram sends the
-    // group anyway so every client can keep its counts in step.
+    // Telegram sends these so every device keeps its counts in step.
     test('an outgoing message is not a notification', () {
       final mapped = NotificationMapper.map(
         _notification(
@@ -88,8 +83,7 @@ void main() {
       expect(mapped, isNull);
     });
 
-    // A tap that goes nowhere is worse than no notification, and gramX cannot
-    // open a call or a secret chat.
+    // gramX can't open calls or secret chats, so a tap would go nowhere.
     test('a call is not something gramX can open, so it is not shown', () {
       final mapped = NotificationMapper.map(
         _notification(const td.NotificationTypeNewCall(callId: 1)),
@@ -168,8 +162,7 @@ void main() {
       );
     });
 
-    // The reader turned previews off in Telegram. Filling the gap in would
-    // undo a setting they chose on another device.
+    // Previews were turned off in Telegram, so none is filled in.
     test('a hidden push stays hidden', () {
       final body = NotificationMapper.bodyOfPush(
         const td.PushMessageContentHidden(isPinned: false),
@@ -193,9 +186,8 @@ void main() {
     });
   });
 
-  // Turning notifications on is also what asks the OS for permission, and a
-  // permission dialog nobody asked for is the one every reader declines —
-  // after which the app has to send them to their system settings to undo it.
+  // Turning notifications on asks the OS for permission, so it stays off until
+  // the user asks.
   group('the setting', () {
     test('defaults off', () {
       expect(const AppSettings().notificationsEnabled, isFalse);

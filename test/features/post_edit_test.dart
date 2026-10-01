@@ -16,9 +16,7 @@ Post _post({String? text, List<TextEntity> entities = const []}) => Post(
 );
 
 void main() {
-  // An edit the reader made shows at once, from the same override reactions
-  // use — refetching the post or the thread for it drops the screen to a
-  // spinner and loses their place.
+  // Edits show through the same overrides reactions use, without a refetch.
   group('an edited post', () {
     test('takes the new words', () {
       final edited = applyPostOverrides(_post(text: 'old'), {
@@ -27,8 +25,7 @@ void main() {
       expect(edited.text, 'new');
     });
 
-    // The entities described the old text and would point at the wrong
-    // characters in the new; the edit box is plain text, so plain it is.
+    // The old entities would point at the wrong characters in the new text.
     test('drops formatting that described the old words', () {
       final edited = applyPostOverrides(
         _post(

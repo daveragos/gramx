@@ -3,11 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 
-/// What somebody chose to add to what they are writing.
-///
-/// A poll is not a [ComposeMediaKind] — nothing is picked off the device and
-/// nothing is uploaded — so the sheet answers with this instead, and the two
-/// media rows carry the kind they mean.
+/// What the user chose to add. Separate from [ComposeMediaKind] because
+/// some choices, like a poll, pick nothing off the device.
 enum ComposeAttachChoice {
   photo,
   video,
@@ -15,20 +12,19 @@ enum ComposeAttachChoice {
   /// Any other file, through the platform's own document picker.
   document,
 
-  /// Record a round video message. Not a pick — it opens a camera.
+  /// Record a round video message with the camera.
   videoNote,
 
-  /// Write a poll. Only offered where Telegram will take one.
+  /// Write a poll.
   poll,
 
-  /// Send where this device is.
+  /// Send this device's location.
   location,
 
   /// Send one of the account's Telegram contacts.
   contact;
 
-  /// The media kind this choice picks off the device, or null for the choices
-  /// that produce a message some other way.
+  /// The media kind this choice picks off the device, or null.
   ComposeMediaKind? get mediaKind => switch (this) {
     ComposeAttachChoice.photo => ComposeMediaKind.photo,
     ComposeAttachChoice.video => ComposeMediaKind.video,
@@ -38,19 +34,11 @@ enum ComposeAttachChoice {
   };
 }
 
-/// What may be added to a post, a message or a comment.
-///
-/// Its own widget because three composers now ask the same question: a post, a
-/// message, and a comment. It was already written twice before the third one
-/// needed it, which is one time too many for a list of two rows.
+/// The attach sheet shared by the post, message and comment composers.
 abstract class ComposeMediaKindSheet {
-  /// [includePoll] is the caller's answer to "will Telegram take a poll here",
-  /// not a preference. A poll cannot be sent into a private chat at all, so the
-  /// row is absent there rather than present and refused on send.
-  /// Every `include` is the caller's answer to "will Telegram take one of
-  /// these here", not a preference — Telegram permissions media by kind, and a
-  /// group can allow photos and forbid voice messages. A row that is absent is
-  /// one that would have been refused.
+  /// Each `include` flag says whether Telegram accepts that kind in this chat.
+  /// Permissions are per kind (a group can allow photos but not polls), so a
+  /// row is left out rather than refused on send.
   static Future<ComposeAttachChoice?> show(
     BuildContext context, {
     bool includePoll = false,
@@ -61,8 +49,7 @@ abstract class ComposeMediaKindSheet {
   }) {
     return showModalBottomSheet<ComposeAttachChoice>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // Above the shell's bottom bar; see mute_sheet.dart.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) => SafeArea(

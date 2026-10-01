@@ -21,15 +21,8 @@ class CustomEmoji {
   bool get isReady => path != null && path!.isNotEmpty;
 }
 
-/// Resolves custom emoji ids to drawable stickers.
-///
-/// A message carries only an id per custom emoji; the artwork has to be fetched
-/// separately. They were previously rendered as the fallback character plus a
-/// gold star, which turns a post full of premium emoji into visual noise.
-///
-/// Ids are batched and cached for the session: `GetCustomEmojiStickers` takes a
-/// list, and the same emoji recurs constantly across a feed, so resolving each
-/// one once keeps this off the request budget.
+/// Resolves custom emoji ids to drawable stickers. A message carries only the
+/// id, so the artwork is fetched separately, in batches, once per session.
 class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
   /// TDLib caps one `GetCustomEmojiStickers` call at 200 ids.
   static const int maxIdsPerRequest = 200;
@@ -45,8 +38,7 @@ class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
 
   @override
   Map<int, CustomEmoji> build() {
-    // Custom emoji files arrive like any other download; watch for them so the
-    // glyph swaps in as soon as it is on disk.
+    // Swap the glyph in as soon as its file is on disk.
     _fileSub = ref.watch(tdlibServiceProvider).fileUpdates.listen(_onFileReady);
 
     ref.onDispose(() {
@@ -108,7 +100,7 @@ class CustomEmojiNotifier extends Notifier<Map<int, CustomEmoji>> {
       if (resolved.isNotEmpty) state = {...state, ...resolved};
     } catch (e) {
       debugPrint('[CustomEmoji] Could not resolve batch: $e');
-      // Allow a retry later rather than leaving these permanently unresolved.
+      // Allow a retry later.
       _requested.removeAll(batch);
     }
 

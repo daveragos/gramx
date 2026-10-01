@@ -8,16 +8,10 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 
-/// What the Messages tab shows a guest.
+/// What the Messages tab shows a guest, who has no account to message from.
 ///
-/// The tab stays rather than disappearing, for the reason
-/// `GuestBookmarksPlaceholder` records: `ShellTab` owns tab order *and* branch
-/// index, and `goBranch` addresses branches by index — dropping one at runtime
-/// would send every tab after it to the wrong screen.
-///
-/// So the tab is present and says what it is waiting for. A guest has no
-/// Telegram account, which for messages is not a permission problem but an
-/// identity one: there is nobody for a message to be from.
+/// The tab stays in place because `goBranch` addresses branches by index, and
+/// removing one would shift every tab after it.
 class GuestMessagesPlaceholder extends ConsumerWidget {
   const GuestMessagesPlaceholder({super.key});
 

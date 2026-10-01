@@ -4,9 +4,8 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 void main() {
   group('narrowCursors', () {
-    // Without this, scrolling to the bottom of a three-channel folder paged
-    // every subscription and filtered almost all of it away — so the visible
-    // list barely grew and the scroll listener fired again immediately.
+    // Paging channels outside the folder would fetch posts that are filtered
+    // out.
     test('keeps only the chats a folder shows', () {
       final cursors = {-1: 100, -2: 200, -3: 300};
 

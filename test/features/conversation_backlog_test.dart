@@ -11,9 +11,9 @@ import '../support/td_fixtures.dart';
 
 const int _chatId = -100700;
 
-/// Answers `GetChatHistory` the way TDLib does: newest first, walking back from
-/// `fromMessageId` (exclusive), and never more than [batchCap] at a time —
-/// TDLib routinely answers a page with fewer messages than were asked for.
+/// Answers `GetChatHistory` like TDLib: newest first, back from
+/// `fromMessageId` (exclusive), at most [batchCap] at a time, since TDLib often
+/// returns fewer messages than asked for.
 class _HistoryTdlib implements TdlibService {
   final List<int> ids;
   final int batchCap;
@@ -82,14 +82,12 @@ ChatsRepository _repository(_HistoryTdlib tdlib) =>
     ChatsRepository(tdlib, ChatCache(tdlib));
 
 void main() {
-  // The bug this replaced: an unread chat opened on a window *centred* on the
-  // read cursor — twenty unread messages and nothing after them. With more than
-  // that waiting, the newest messages were never loaded at all.
+  // An unread chat loads from the read cursor through to the newest message.
   group('opening an unread chat', () {
     test(
       'loads everything from the read line down to the newest message',
       () async {
-        // 200 messages; the reader stopped at 150, so 50 are unread.
+        // 200 messages, read up to 150, so 50 are unread.
         final ids = [for (var i = 1; i <= 200; i++) i];
         final tdlib = _HistoryTdlib(ids, batchCap: 40);
 
@@ -131,8 +129,7 @@ void main() {
       expect(tdlib.asked.length, lessThan(10));
     });
 
-    // A reply to something older than the page drew as a bare "Replying to".
-    // One request fetches every such target on the page.
+    // One request fetches every reply target older than the page.
     test('fetches what replies are answering, once per page', () async {
       final ids = [for (var i = 1; i <= 60; i++) i];
       final tdlib = _HistoryTdlib(ids, batchCap: 100)

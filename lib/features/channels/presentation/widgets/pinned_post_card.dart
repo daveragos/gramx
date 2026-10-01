@@ -10,16 +10,9 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
-/// The channel's pinned post, above the tab bar.
-///
-/// Above rather than inside a tab: it is the one post the channel itself is
-/// pointing at, and burying it under a tab the reader has to find first would
-/// same reason.
-///
-/// Not wrapped in a [PostVisibilityReporter]: the pinned post is usually old,
-/// it sits on screen for as long as the profile is open, and marking it read
-/// on a dwell would push that to every Telegram client the reader owns for a
-/// post they only scrolled past on the way to the tabs.
+/// The channel's pinned post, above the tab bar. Not wrapped in a
+/// [PostVisibilityReporter], since it stays on screen while the profile is
+/// open and would be marked read on every device.
 class PinnedPostCard extends ConsumerWidget {
   final Post post;
 

@@ -49,8 +49,7 @@ void main() {
         expect(updated.single.chosenReactions, {'🔥'});
         expect(updated.single.reactions['🔥'], 1);
 
-        // The bug: overrides were watched inside the future, so every tap
-        // re-ran the TDLib request and dropped the screen back to a spinner.
+        // A reaction must not re-run the TDLib fetch.
         expect(
           fetches,
           1,

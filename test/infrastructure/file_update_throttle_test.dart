@@ -2,15 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/infrastructure/telegram/file_update_throttle.dart';
 
-/// A download used to announce itself in a snackbar and then jump
-/// straight to a finished icon, with no progress in between — and the cause
-/// was one line in `TdlibService`, which broadcast **only completed** file
-/// updates to the UI. That filter was there for a reason: TDLib emits
-/// `UpdateFile` continuously while bytes arrive.
-///
-/// This is the rule that replaced it. It has exactly two ways to be wrong, and
-/// both of them are here: swallowing a terminal event, and letting the flood
-/// through.
+/// TDLib emits `UpdateFile` continuously while bytes arrive. The throttle must
+/// thin that flood without swallowing a terminal event.
 void main() {
   final start = DateTime(2026, 8, 30, 12);
 
@@ -54,8 +47,7 @@ void main() {
       expect(throttle.allow(fileId: 2, isCompleted: false, now: start), isTrue);
     });
 
-    // The one that matters: a dropped completion leaves a progress ring
-    // spinning over a file that has already arrived.
+    // A dropped completion would leave a progress ring spinning forever.
     test('a completed download always passes, however recent the last one', () {
       final throttle = FileUpdateThrottle();
 

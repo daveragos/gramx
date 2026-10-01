@@ -21,16 +21,9 @@ abstract class Channel with _$Channel {
     @Default(false) bool isHidden,
     @Default(true) bool isJoined,
 
-    /// Whether Telegram will produce statistics for this channel.
-    ///
-    /// `SupergroupFullInfo.canGetStatistics`, which is true only for somebody
-    /// who administers the channel and only once it is past a member threshold
-    /// Telegram sets. It decides whether the Analytics entry exists at all —
-    /// the alternative was a menu item that opens onto an error, which is the
-    /// inert control the hard rules forbid.
-    ///
-    /// False whenever full info was not fetched, and always false for a guest
-    /// channel: it costs no request to answer "no".
+    /// Whether Telegram offers statistics (`canGetStatistics`), which it does
+    /// only for admins of large enough channels. Decides whether Analytics is
+    /// shown. False when full info wasn't fetched, and always for a guest.
     @Default(false) bool canViewStatistics,
     DateTime? lastPostAt,
   }) = _Channel;

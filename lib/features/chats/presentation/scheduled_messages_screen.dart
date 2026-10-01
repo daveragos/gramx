@@ -12,17 +12,8 @@ import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 
-/// One chat's queue of messages waiting to be sent.
-///
-/// A screen rather than a section of the conversation, because a scheduled
-/// message is *not* in the conversation — Telegram keeps the queue separately,
-/// sends it whether or not this app is running, and neither side sees it in the
-/// history until it goes. Splicing them into the bubble list would put messages
-/// in the scrollback that nobody has been sent.
-///
-/// Reached from the header's overflow, and only in a chat that has some: the
-/// row is drawn from `chat.hasScheduledMessages`, which TDLib keeps current, so
-/// there is no way in to an empty screen.
+/// One chat's queue of scheduled messages. Kept out of the conversation
+/// because Telegram stores the queue separately from the history.
 class ScheduledMessagesScreen extends ConsumerWidget {
   final int chatId;
 
@@ -90,12 +81,7 @@ class _ScheduledRow extends ConsumerWidget {
 
   const _ScheduledRow({required this.chatId, required this.message});
 
-  /// When TDLib says a scheduled message goes.
-  ///
-  /// Telegram encodes "when they come online" as a send date of
-  /// [_whenOnlineSentinel] rather than as a flag, so a row showing the raw date
-  /// would read as a moment in 1970 — which is the one thing this has to not
-  /// do.
+  /// The send date Telegram uses to mean "when they come online".
   static const int _whenOnlineSentinel = 2147483646;
 
   String _whenLabel() {
@@ -164,15 +150,13 @@ class _ScheduledRow extends ConsumerWidget {
     final repository = ref.read(chatsRepositoryProvider);
 
     final ok = switch (action) {
-      // "Send now" is a reschedule to no schedule at all — TDLib reads a null
-      // scheduling state on this call as "send it".
+      // TDLib sends the message when the scheduling state is null.
       _ScheduledAction.sendNow => await repository.reschedule(
         chatId: chatId,
         messageId: message.messageId,
         schedule: MessageSchedule.now,
       ),
-      // Only for this account: a scheduled message has not reached anybody, so
-      // there is nobody to revoke it from.
+      // An unsent message has no other copies to revoke.
       _ScheduledAction.delete => await repository.deleteMessages(
         chatId: chatId,
         messageIds: [message.messageId],

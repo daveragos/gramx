@@ -18,9 +18,7 @@ void main() {
       expect(event!.chatId, -5);
     });
 
-    // `fromCache` means TDLib dropped it locally to save room — the message
-    // still exists for everybody. Folding that in as a deletion is how a
-    // scrollback develops holes.
+    // `fromCache` means TDLib evicted it locally; the message still exists.
     test('a cache eviction is not a deletion', () {
       expect(
         ChatEvents.map(
@@ -47,8 +45,7 @@ void main() {
       );
     });
 
-    // The id changes when Telegram accepts a message, and everything keyed on
-    // it has to move with it.
+    // The id changes when Telegram accepts a message.
     test('a successful send carries the id it replaces', () {
       final event =
           ChatEvents.map(
@@ -88,8 +85,7 @@ void main() {
   });
 
   group('reactions', () {
-    // Reactions reach a user client through interaction info and nowhere else
-    // — `updateMessageReactions` is documented bots-only.
+    // `updateMessageReactions` is documented as bots only.
     test('come from interaction info', () {
       final update = TdFixtures.interactionInfo(
         chatId: -5,
@@ -108,8 +104,7 @@ void main() {
       expect(event.chosen, {'❤️'});
     });
 
-    // Absent interaction info is the last reaction being taken back, which is
-    // an empty map rather than "no news".
+    // Missing interaction info means the last reaction was removed.
     test('no interaction info clears them', () {
       final event =
           ChatEvents.map(
@@ -138,9 +133,8 @@ void main() {
       );
     });
 
-    // The switch is exhaustive over a sealed class with no default, so a TDLib
-    // that adds an action fails the analyzer rather than reaching a reader as
-    // a blank line. This pins the one case that means "stopped".
+    // The switch over the sealed class has no default, so new TDLib actions
+    // fail analysis.
     test('a cancel means nobody is doing anything', () {
       expect(ChatEvents.describeAction(const td.ChatActionCancel()), isNull);
     });

@@ -12,22 +12,14 @@ class ConversationDateRow extends ConversationRow {
   const ConversationDateRow(this.date);
 }
 
-/// The "Unread messages" band, above the first message the reader has not seen.
-///
-/// Drawn once and only once, and its position is fixed for the visit: it marks
-/// where reading *started*, not where it has got to. Recomputing it as messages
-/// are acknowledged would slide it down the screen under the reader, which is
-/// the opposite of what a bookmark is for.
+/// The "Unread messages" band above the first unseen message. Its position is
+/// fixed for the visit, so it doesn't move as messages are marked read.
 class ConversationUnreadRow extends ConversationRow {
   const ConversationUnreadRow();
 }
 
 /// A message, with what the renderer needs to know about its neighbours.
-///
-/// Grouping is decided here rather than in the widget because it is a rule
-/// about the list, and a widget can only see itself. Getting it wrong is what
-/// makes a run of five messages from one person draw five avatars and five
-/// names down the side.
+/// Grouping is decided here because a widget can only see itself.
 class ConversationMessageRow extends ConversationRow {
   final ChatMessage message;
 
@@ -45,45 +37,27 @@ class ConversationMessageRow extends ConversationRow {
 }
 
 /// Turns a flat message list into the rows a conversation draws.
-///
-/// Pure, and worth a test on its own: the day boundary and the grouping window
-/// are two rules that are invisible when right and glaring when wrong.
 abstract class ConversationRows {
   /// How far apart two messages from the same sender can be and still be drawn
-  /// reply an hour later reads as part of the previous thought.
+  /// as one run.
   static const Duration groupWindow = Duration(minutes: 5);
 
-  /// Where the unread band sits, counted from the *newest* row.
-  ///
-  /// The screen draws these reversed, so this is the band's index in the list
-  /// as built — and it is what lets the screen scroll to a band that has not
-  /// been built yet. `ListView.builder` only builds near the viewport, so a
-  /// band fifty rows up the scrollback has no `BuildContext` at all and
-  /// `ensureVisible` has nothing to work with.
-  ///
-  /// Null when there is no band, which is the ordinary case for a chat opened
-  /// with nothing waiting in it.
+  /// The unread band's index counted from the newest row, or null. The
+  /// reversed list builds lazily, so the screen finds the band by index.
   static int? unreadRowFromNewest(List<ConversationRow> rows) {
     final index = rows.indexWhere((row) => row is ConversationUnreadRow);
     if (index < 0) return null;
     return rows.length - 1 - index;
   }
 
-  /// Builds the rows, oldest first.
-  ///
-  /// [messages] is expected in the order `ConversationState` keeps them —
-  /// ascending by message id, which for a chat is chronological.
-  ///
-  /// [firstUnreadMessageId] puts the unread band above that message. Null, or
-  /// an id not in [messages], simply means no band — which is the honest answer
-  /// for a chat opened with nothing waiting in it.
+  /// Builds the rows, oldest first, from messages in ascending id order.
+  /// [firstUnreadMessageId] puts the unread band above that message.
   static List<ConversationRow> build(
     List<ChatMessage> all, {
     int? firstUnreadMessageId,
   }) {
-    // A service message with nothing to say is left out entirely, rather than
-    // drawn as an empty line — and so is the date band of a day that had only
-    // those in it. See `ChatMessageMapper.serviceText`.
+    // Service messages with no text are dropped, along with the date band of a
+    // day that had only those. See `ChatMessageMapper.serviceText`.
     final messages = [
       for (final message in all)
         if (!message.isService || (message.text?.isNotEmpty ?? false)) message,
@@ -101,8 +75,7 @@ abstract class ConversationRows {
         currentDay = day;
       }
 
-      // Below the date band, above the message: the band says "from here on is
-      // new", and a date header belongs to the day rather than to the split.
+      // The unread band goes below the date band, directly above the message.
       if (!unreadBandDrawn && message.messageId == firstUnreadMessageId) {
         rows.add(const ConversationUnreadRow());
         unreadBandDrawn = true;
@@ -114,8 +87,7 @@ abstract class ConversationRows {
       rows.add(
         ConversationMessageRow(
           message,
-          // A message that opens a day always opens a run, whoever sent the last
-          // one yesterday.
+          // A new day always starts a new run.
           isFirstInGroup:
               previous == null ||
               dayOf(previous.sentAt) != day ||
@@ -131,16 +103,12 @@ abstract class ConversationRows {
     return rows;
   }
 
-  /// Midnight of the day a timestamp falls on, in local time — which is the
-  /// only sensible frame for "was this today", however the server stored it.
+  /// Local midnight of the day [time] falls on.
   static DateTime dayOf(DateTime time) =>
       DateTime(time.year, time.month, time.day);
 
-  /// Whether [later] continues [earlier]'s run.
-  ///
-  /// Same side of the conversation, same sender, close enough in time, and
-  /// neither of them a service notice — a "you were added to the group" line
-  /// between two messages breaks the run, because it is not part of it.
+  /// Whether [later] continues [earlier]'s run: same side, same sender, within
+  /// [groupWindow], and neither a service notice.
   static bool _sameRun(ChatMessage earlier, ChatMessage later) {
     if (earlier.isService || later.isService) return false;
     if (earlier.isOutgoing != later.isOutgoing) return false;

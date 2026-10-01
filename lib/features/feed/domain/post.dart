@@ -17,13 +17,9 @@ abstract class Post with _$Post {
     required String channelTitle,
     String? channelUsername,
 
-    /// The person who wrote this, when it was a person rather than a channel.
-    ///
-    /// Set for comments, which are messages in a channel's discussion group by
-    /// whoever left them. Null for a channel's own posts, where the channel is
-    /// the author and [channelId] already says who that is. It is what lets a
-    /// comment's avatar open a profile instead of the channel the thread
-    /// hangs off — see `PostSender`.
+    /// The user who wrote this, for comments in a discussion group. Null for a
+    /// channel's own posts. Lets a comment's avatar open a profile; see
+    /// `PostSender`.
     int? senderUserId,
     String? channelAvatarUrl,
     int? channelAvatarFileId,
@@ -48,38 +44,28 @@ abstract class Post with _$Post {
     String? forwardedFromUsername,
     String? forwardedFromChatId,
 
-    /// The original post's id in its own channel, when Telegram tells us.
-    /// Lets a forward link to the post itself rather than just the channel.
+    /// The original post's id in its channel, when Telegram provides it, so a
+    /// forward can link to the post rather than the channel.
     int? forwardedFromMessageId,
     String? replyToText,
 
-    /// Whether [replyToText] is a passage the writer *selected* out of the
-    /// message being answered, rather than that message's opening words.
-    ///
-    /// differently from a reply to a whole post: the span becomes its own
-    /// block above the reply on a thread connector, while a whole-post reply
-    /// is embedded in a quote card. So the two cannot share one field. TDLib
-    /// fills `replyTo.quote` only in the first case, and the mapper folds it
-    /// into [replyToText] alongside two other sources — this is what survives
-    /// that fold. See `ReplyPresentation`.
+    /// Whether [replyToText] is a span quoted from the replied-to message
+    /// rather than its opening words. TDLib sets `replyTo.quote` only for a
+    /// quote, and the two are drawn differently. See `ReplyPresentation`.
     @Default(false) bool replyToIsQuote,
     String? replyToAuthorTitle,
     int? replyToMessageId,
 
-    /// The chat the replied-to message lives in, when it isn't this one.
-    ///
-    /// Telegram lets a message reply across chats. Assuming the reply target
-    /// shares [chatId] sends the reader to a message id in the wrong chat,
-    /// which reports itself as "post not found" however reachable it is.
+    /// The chat of the replied-to message, when it isn't this one. Telegram
+    /// allows replies across chats.
     int? replyToChatId,
     String? replyToThumbnailUrl,
     int? replyToThumbnailFileId,
     @Default(false) bool hasDiscussionGroup,
     String? authorSignature,
 
-    /// Set when Telegram sent content this app cannot draw — the TDLib type
-    /// name, so the card can offer to open it in Telegram instead of showing a
-    /// dead sentence.
+    /// The TDLib type name of content this app can't draw, so the card can
+    /// offer to open it in Telegram.
     String? unsupportedKind,
     @Default([]) List<TextEntity> entities,
     @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? poll,

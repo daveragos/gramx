@@ -6,33 +6,18 @@ import 'package:gramx/features/activity/data/activity_repository.dart';
 import 'package:gramx/features/activity/domain/activity_item.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 
-/// The number on the bell.
-///
-/// Costs nothing: every term is already in the chat cache, pushed there by the
-/// update stream. It is deliberately *not* derived from the Activity list —
-/// that list costs requests and is only built when the screen is opened, and a
-/// badge nobody can see must never be the reason to spend one.
+/// The number on the bell, summed from the chat cache rather than the Activity
+/// list so the badge never costs a request.
 final activityBadgeProvider = Provider<int>((ref) {
   return ActivityPlan.badgeCount(ref.watch(chatListProvider));
 });
 
-/// Everything that has happened, newest first.
-///
-/// A `FutureProvider` rather than a stream: this is built when the screen is
-/// opened and refreshed when the reader pulls, because each build spends
-/// requests. Invalidate it to refresh — [ActivityScreen] does so on open when
-/// the bell says there is something new, and otherwise shows the last list.
-///
-/// **Loading it is also seeing it.** Once the list is built the chats it asked
-/// about are acknowledged, which is what takes the count off the bell. The
-/// list itself stays as loaded: the acknowledgement does not rebuild this
-/// provider, so what the reader is looking at does not vanish under them.
-/// Only the next load — a pull, or a reopen with the bell lit again — answers
-/// with just what is new since.
+/// The Activity list, newest first. Costs requests, so it refreshes only on
+/// invalidation. Loading marks the listed chats as seen, which clears the
+/// bell without rebuilding this list.
 final activityFeedProvider = FutureProvider<List<ActivityItem>>((ref) async {
-  // Read, not watched. Watching would rebuild — and re-request — every time any
-  // chat's unread count moved, which in a busy account is constantly — and
-  // marking seen below moves exactly those counts.
+  // Read, not watched: unread counts change constantly, and marking seen
+  // below changes them too.
   final chats = ref.read(chatListProvider);
   final repository = ref.read(activityRepositoryProvider);
   final items = await repository.load(chats);

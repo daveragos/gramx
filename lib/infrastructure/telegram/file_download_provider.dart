@@ -27,7 +27,7 @@ class FileDownloadProgressState {
   }
 }
 
-/// Reactive stream provider tracking real-time TDLib download progress for a fileId.
+/// TDLib download progress for a file id. Starts the download when watched.
 final fileDownloadProgressProvider =
     StreamProvider.family<FileDownloadProgressState, int>((ref, fileId) async* {
       if (fileId == 0) {
@@ -37,7 +37,6 @@ final fileDownloadProgressProvider =
 
       final tdlib = ref.watch(tdlibServiceProvider);
 
-      // 1. Query initial file state
       try {
         final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
         if (result is td.File) {
@@ -84,7 +83,6 @@ final fileDownloadProgressProvider =
         } catch (_) {}
       }
 
-      // 2. Stream real-time progress updates from TDLib update stream
       await for (final update in tdlib.fileUpdates) {
         if (update.file.id == fileId) {
           final file = update.file;
@@ -105,12 +103,9 @@ final fileDownloadProgressProvider =
       }
     });
 
-/// Reactive stream of TDLib download progress for a fileId that never starts
-/// or resumes a download itself — unlike [fileDownloadProgressProvider], which
-/// issues a `DownloadFile` the moment it's watched. Use this for media that
-/// must stay on-demand (audio, documents): the tap handler calls
-/// `downloadFileWithPriority` explicitly, and this stream just reflects the
-/// `UpdateFile` events that download produces.
+/// TDLib download progress for a file id, without starting a download
+/// (unlike [fileDownloadProgressProvider]). For on-demand media such as audio
+/// and documents, where the tap handler starts the download.
 final fileDownloadStatusProvider =
     StreamProvider.family<FileDownloadProgressState, int>((ref, fileId) async* {
       if (fileId == 0) {
@@ -162,7 +157,7 @@ final fileDownloadStatusProvider =
       }
     });
 
-/// Reactive provider that tracks a TDLib file download by its fileId and returns the completed local path.
+/// The local path of a TDLib file once its download completes.
 final fileDownloadProvider = StreamProvider.family<String?, int>((
   ref,
   fileId,
@@ -171,8 +166,8 @@ final fileDownloadProvider = StreamProvider.family<String?, int>((
   yield stateAsync.value?.localPath;
 });
 
-/// Async file existence check that doesn't block the UI thread.
-/// Use this instead of File.existsSync() in build methods.
+/// Async file existence check. Use instead of `File.existsSync()` in build
+/// methods.
 final fileExistsProvider = FutureProvider.family<bool, String>((
   ref,
   path,

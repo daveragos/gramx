@@ -7,8 +7,7 @@ void main() {
 
   setUp(() {
     container = ProviderContainer();
-    // Keep the debounced provider alive; an unlistened provider auto-disposes
-    // and would never see the follow-up keystrokes.
+    // Keep the provider listened, or it auto-disposes between keystrokes.
     container.listen(debouncedSearchQueryProvider, (_, _) {});
   });
 
@@ -33,8 +32,6 @@ void main() {
       expect(container.read(debouncedSearchQueryProvider), 't');
     });
 
-    // The regression this exists for: ten characters used to mean ten
-    // SearchPublicChats calls plus per-result lookups.
     test('a burst of keystrokes settles on the final query only', () async {
       type('f');
       type('fl');

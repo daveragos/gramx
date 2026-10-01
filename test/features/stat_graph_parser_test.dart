@@ -7,10 +7,8 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 
 import '../support/td_fixtures.dart';
 
-/// `statisticalGraphData.json_data` is a string inside a TDLib reply, so
-/// nothing in the bindings checks its shape and nothing in Telegram's
-/// documentation promises it. The point of these is that a change to it
-/// surfaces here rather than as an empty box on somebody's phone.
+/// `statisticalGraphData.json_data` is an unchecked JSON string, so these
+/// tests catch a change in its shape.
 void main() {
   group('StatGraphParser', () {
     test('reads the axis, the series, the names and the colours', () {
@@ -64,8 +62,7 @@ void main() {
       expect(graph!.lines.single.shape, StatGraphShape.line);
     });
 
-    // Telegram uses null for "no data that day", and on a count graph no data
-    // and none of it are the same thing to read.
+    // Telegram sends null for a day with no data, which reads as zero.
     test('a null sample is zero', () {
       final graph = StatGraphParser.parse(
         jsonEncode({
@@ -80,8 +77,7 @@ void main() {
       expect(graph!.lines.single.values, [0, 5]);
     });
 
-    // "In practice every column is the same length" is not a guarantee, and a
-    // longer y column would draw a point at a date that does not exist.
+    // A longer y column would draw a point at a date that does not exist.
     test('columns of different lengths are cut to the shortest', () {
       final graph = StatGraphParser.parse(
         jsonEncode({
@@ -127,8 +123,7 @@ void main() {
     });
 
     group('answers null rather than an empty chart', () {
-      // Null is drawn as "unavailable"; an empty StatGraph would be drawn as a
-      // channel with no activity, which is a claim about the channel.
+      // An empty graph would read as a channel with no activity.
       test('for text that is not JSON', () {
         expect(StatGraphParser.parse('not json'), isNull);
       });

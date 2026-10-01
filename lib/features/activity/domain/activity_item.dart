@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 /// What kind of thing happened.
-///
-/// Telegram has all three facts and keeps them in three different places; these
-/// are the names it knows them by.
 enum ActivityKind {
   /// Somebody wrote your `@name`.
   mention,
@@ -11,6 +8,7 @@ enum ActivityKind {
   /// Somebody replied to a message you sent.
   reply,
 
+  /// Somebody reacted to a message you sent.
   reaction,
 }
 
@@ -24,13 +22,10 @@ class ActivityItem {
   final int messageId;
   final String chatTitle;
 
-  /// True when opening this should go to the post screen rather than to a
-  /// conversation — a mention inside a channel's discussion thread is a post,
-  /// and a mention in a group is a chat.
+  /// Whether this opens the post screen (a channel thread) rather than a chat.
   final bool isChannelPost;
 
-  /// Who did it. Null when Telegram will not say — an anonymous admin, or a
-  /// reaction Telegram reports without a sender.
+  /// Who did it. Null when unknown, such as an anonymous admin.
   final String? senderName;
   final int? senderAvatarFileId;
   final int? senderColorSeed;
@@ -57,11 +52,8 @@ class ActivityItem {
     this.emoji,
   });
 
-  /// Stable identity, so the same event arriving twice is one row.
-  ///
-  /// Keyed on the kind as well as the message: one message can be both a
-  /// mention of you and a reply to you, and those are two things that
-  /// happened, not one.
+  /// Stable identity, so the same event arriving twice is one row. Includes
+  /// the kind, since one message can produce more than one event.
   String get id => '${kind.name}_${chatId}_$messageId';
 
   @override
@@ -71,11 +63,7 @@ class ActivityItem {
   int get hashCode => id.hashCode;
 }
 
-/// One chat's worth of questions to ask.
-///
-/// A chat with neither count is not asked about at all, which is the whole
-/// point: the counts arrive free on the update stream, so the request is only
-/// ever spent where there is known to be something to find.
+/// The searches to run in one chat, from its unread counts.
 @immutable
 class ActivityQuery {
   final int chatId;

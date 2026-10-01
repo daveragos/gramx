@@ -1,25 +1,11 @@
-/// How often one file's download progress is allowed through to the UI.
-///
-/// TDLib emits `UpdateFile` continuously while bytes arrive — often many times
-/// a second for a single download — and every one of them rebuilds whatever is
-/// watching it. That cost is the reason the update stream used to be filtered
-/// down to *completed* files only, which is in turn why a download in gramX
-/// showed no progress at all: a snackbar saying "downloading…", then a finished
-/// icon, and nothing in between.
-///
-/// A time gate per file is what makes real progress affordable. Pure, and its
-/// own class rather than three fields on the service, because the interesting
-/// part is a rule with two ways to be wrong — dropping a terminal event, or
-/// letting a flood through — and neither needs a TDLib client to test.
+/// Rate-limits each file's download progress updates, which TDLib can send
+/// many times a second.
 class FileUpdateThrottle {
   /// The minimum gap between two progress updates for the same file.
   final Duration interval;
 
-  /// Ceiling on how many files are tracked at once.
-  ///
-  /// An entry is dropped the moment its file completes, so this only ever
-  /// holds downloads that stalled or were abandoned. Clearing wholesale is
-  /// safe: the worst it costs is one un-throttled update per tracked file.
+  /// Cap on how many files are tracked. Completed files are removed, so this
+  /// only fills with stalled downloads.
   final int trackingLimit;
 
   final Map<int, DateTime> _lastEmit = {};
@@ -29,16 +15,11 @@ class FileUpdateThrottle {
     this.trackingLimit = 256,
   });
 
-  /// How many files are currently being timed. Exposed for the bound above.
+  /// How many files are currently tracked.
   int get trackedCount => _lastEmit.length;
 
-  /// Whether this update should reach the UI.
-  ///
-  /// A completed download always passes and forgets the file: that is the
-  /// event a listener *acts* on rather than draws, and dropping one would
-  /// leave a progress ring spinning over a file that had already arrived.
-  /// Everything else — including upload progress, which rides the same
-  /// update — waits its turn.
+  /// Whether this update should reach the UI. Completed downloads always
+  /// pass; everything else, including upload progress, is throttled.
   bool allow({
     required int fileId,
     required bool isCompleted,

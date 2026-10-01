@@ -38,8 +38,7 @@ void main() {
     child: MaterialApp(home: Scaffold(body: child)),
   );
 
-  // The row draws the check whatever the person's emoji status is: a column
-  // of animated emoji beside the names is a list nobody can scan.
+  // The row shows a check instead of the person's emoji status.
   group('the Premium mark on a row', () {
     testWidgets('is the check, never the emoji status', (tester) async {
       await tester.pumpWidget(
@@ -92,7 +91,7 @@ void main() {
         find.byType(CustomEmojiGlyph),
       );
       expect(glyph.customEmojiId, 5551);
-      // The check stands in while the artwork is on its way.
+      // The check shows while the artwork loads.
       expect(find.byType(PremiumCheck), findsOneWidget);
     });
 
@@ -161,8 +160,7 @@ void main() {
       expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
     });
 
-    // Shape alone carries the state, which is exactly the case a
-    // label is for.
+    // The tick's shape alone carries the state, so it needs a label.
     testWidgets('says what it means out loud', (tester) async {
       final semantics = tester.ensureSemantics();
 
@@ -175,10 +173,7 @@ void main() {
         ),
       );
 
-      // The row is a button, so it merges its subtree into one node — the
-      // tick's words are announced as part of the row rather than on their
-      // own, which is why this reads the merged label rather than looking for
-      // a node of its own.
+      // The row is a button and merges its subtree into one semantics node.
       expect(
         tester.getSemantics(find.byType(ChatListTile)).label,
         contains(AppStrings.chatStateRead),
@@ -190,13 +185,10 @@ void main() {
   group('the channel a person runs', () {
     testWidgets('is not drawn when there is none', (tester) async {
       await tester.pumpWidget(host(ChatListTile(chat: row(), onTap: () {})));
-      // One avatar on the row: the person's. No second one beside the name.
+      // Only the person's avatar.
       expect(find.byType(ChannelAvatar), findsOneWidget);
     });
 
-    // The picture and nothing else. A second name on the line competes with
-    // the person's own, and a megaphone says "channel" a third time when the
-    // avatar already looks like one.
     testWidgets('is the channel picture, not its name', (tester) async {
       await tester.pumpWidget(
         host(
@@ -212,8 +204,6 @@ void main() {
       expect(find.byIcon(Icons.campaign_rounded), findsNothing);
     });
 
-    // The name is still said out loud — it is a detail nobody needs at a
-    // glance, not one nobody needs at all.
     testWidgets('still names the channel to a screen reader', (tester) async {
       final semantics = tester.ensureSemantics();
       await tester.pumpWidget(
@@ -249,10 +239,8 @@ void main() {
     });
   });
 
-  // Two long presses on one row: the row's own opens the actions
-  // sheet, and the face opens a read-only look into the conversation. The
-  // innermost detector wins the arena, which is the whole reason this works —
-  // and the reason it is worth pinning.
+  // Long-pressing the row opens the actions sheet; long-pressing the avatar
+  // opens a peek. The innermost detector wins the gesture arena.
   group('holding the avatar peeks', () {
     testWidgets('fires the peek, not the row actions', (tester) async {
       var peeked = 0;
@@ -293,7 +281,7 @@ void main() {
         ),
       );
 
-      // The name, which is in the row's own column rather than on the face.
+      // The name is outside the avatar.
       await tester.longPress(find.text('Ada'));
       await tester.pumpAndSettle();
 
@@ -302,8 +290,7 @@ void main() {
     });
   });
 
-  // Telegram draws a reply as a quote: an accent bar down the left, the
-  // author in bold, the words indented behind it — a card inside the bubble.
+  // A reply names the person in one line instead of drawing a quote card.
   group('a reply is named, not quoted', () {
     ChatMessage reply({String? text}) => ChatMessage(
       id: '7_2',
@@ -333,8 +320,7 @@ void main() {
       expect(find.text('are you coming'), findsOneWidget);
     });
 
-    // Null when the replied-to message is older than the loaded page. The
-    // naming line alone is honest; inventing a preview is not.
+    // The preview is null when the replied message is not loaded.
     testWidgets('drops the preview rather than inventing one', (tester) async {
       await tester.pumpWidget(
         host(

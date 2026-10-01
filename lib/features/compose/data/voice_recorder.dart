@@ -11,40 +11,22 @@ import 'package:gramx/features/compose/domain/voice_waveform.dart';
 
 /// Why a recording could not start.
 enum VoiceRecordFailure {
-  /// The reader declined the microphone, or the OS did.
+  /// The user or the OS denied microphone access.
   noPermission,
 
   /// The platform refused for some other reason.
   unavailable,
 }
 
-/// Records a voice message.
-///
-/// Owns the platform recorder and the amplitude sampling, and hands back a
-/// [ComposeAttachment] the ordinary send path already knows how to upload —
-/// which is the point: a voice note is a file with a duration and a waveform,
-/// and everything after `stop()` is the same code that sends a photo.
-///
-/// **The waveform is captured while recording, not derived afterwards.**
-/// Telegram carries the bars with the message and every client draws what it
-/// is given, so a voice note sent without them is a flat grey bar for whoever
-/// receives it. Reading them back off the encoded file would mean decoding
-/// Opus on the phone; sampling the amplitude the recorder is already reporting
-/// costs nothing and is what the bars actually describe.
+/// Records a voice message as a [ComposeAttachment]. The waveform Telegram
+/// sends with it is sampled from the amplitude while recording, rather than
+/// decoded from the Opus file afterwards.
 class VoiceRecorder {
-  /// How often the amplitude is sampled.
-  ///
-  /// Ten a second: fine enough that a word is two or three bars, coarse enough
-  /// that a minute of speech is 600 samples rather than tens of thousands —
-  /// and [VoiceWaveform.downsample] takes it the rest of the way to the 100
-  /// Telegram draws.
+  /// How often the amplitude is sampled. [VoiceWaveform.downsample] reduces
+  /// the samples to the size Telegram uses.
   static const Duration sampleInterval = Duration(milliseconds: 100);
 
-  /// The longest voice message gramX will record.
-  ///
-  /// Not Telegram's limit — it has none worth naming — but a recorder that runs
-  /// until the phone fills up is a bug waiting for somebody to put their phone
-  /// in a pocket. Stops itself and keeps what it has, rather than discarding.
+  /// Maximum recording length, so a forgotten recording doesn't run on.
   static const Duration maxDuration = Duration(minutes: 10);
 
   final AudioRecorder _recorder;
@@ -57,8 +39,7 @@ class VoiceRecorder {
   DateTime? _startedAt;
   String? _path;
 
-  /// Amplitudes captured so far, newest last, already in Telegram's 0–31
-  /// range. What the composer draws live.
+  /// Amplitudes captured so far, newest last, in Telegram's 0 to 31 range.
   List<int> get liveWaveform => VoiceWaveform.fromDecibels(_decibels);
 
   bool get isRecording => _startedAt != null;
@@ -68,11 +49,8 @@ class VoiceRecorder {
       ? Duration.zero
       : DateTime.now().difference(_startedAt!);
 
-  /// Starts recording. Returns null on success, or why it could not.
-  ///
-  /// The microphone is asked for **here** — at the moment somebody taps the
-  /// record button — and nowhere else. A permission dialog at launch, with no
-  /// context for what it is about, is the one every reader declines.
+  /// Starts recording. Returns null on success, or the reason it failed.
+  /// Microphone permission is requested here, when the user starts recording.
   Future<VoiceRecordFailure?> start() async {
     if (isRecording) return null;
 
@@ -89,14 +67,10 @@ class VoiceRecorder {
 
       await _recorder.start(
         const RecordConfig(
-          // Opus in an OGG container is what `inputMessageVoiceNote` wants.
-          // Anything else is accepted by Telegram and then shown by every
-          // client as an audio *file* — a row with a filename — rather than as
-          // a voice message with a waveform and a play head.
+          // `inputMessageVoiceNote` expects Opus in OGG; other formats are
+          // shown as an audio file rather than a voice message.
           encoder: AudioEncoder.opus,
-          // Telegram's own voice settings. Mono at 48 kHz is what Opus is
-          // designed around, and a second channel doubles the size of a
-          // recording of one person talking for no gain.
+          // Mono at 48 kHz, matching Telegram's voice settings.
           numChannels: 1,
           sampleRate: 48000,
           bitRate: 32000,
@@ -118,12 +92,8 @@ class VoiceRecorder {
     }
   }
 
-  /// Stops and returns what was recorded, ready to send.
-  ///
-  /// Null when there is nothing worth sending: no recording running, the
-  /// platform gave back no file, or the file is empty. A zero-byte voice note
-  /// is accepted by Telegram and plays as silence, which is worse than nothing
-  /// having been sent.
+  /// Stops and returns the recording. Null when nothing was recorded or the
+  /// file is empty, which Telegram would otherwise send as silence.
   Future<ComposeAttachment?> stop() async {
     if (!isRecording) return null;
 
@@ -149,15 +119,14 @@ class VoiceRecorder {
       kind: ComposeMediaKind.voiceNote,
       width: 0,
       height: 0,
-      // At least a second. A recording of 800 ms reports zero, and a voice note
-      // whose duration is zero draws as an empty player in every client.
+      // At least a second; a zero duration draws as an empty player.
       durationSeconds: seconds < 1 ? 1 : seconds,
       sizeBytes: size,
       waveform: samples,
     );
   }
 
-  /// Stops and throws the recording away, file and all.
+  /// Stops and deletes the recording.
   Future<void> cancel() async {
     if (!isRecording) return;
     try {

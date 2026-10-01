@@ -57,9 +57,7 @@ td.File? imageOf(Map<String, dynamic> typeJson) =>
 
 void main() {
   group('linkPreviewImage', () {
-    // The reported bug: every link preview showed its picture except YouTube.
-    // YouTube arrives as an embedded player, whose thumbnail is a Photo rather
-    // than something hanging off a Video — a branch nothing looked at.
+    // Embedded players carry their thumbnail as a Photo, not on a Video.
     test('an embedded video player — a YouTube link — has its thumbnail', () {
       final image = imageOf({
         '@type': 'linkPreviewTypeEmbeddedVideoPlayer',
@@ -120,8 +118,7 @@ void main() {
       expect(image?.id, 8);
     });
 
-    // A player Telegram couldn't get a thumbnail for renders as a card with no
-    // banner, rather than a blank grey box where a picture never arrives.
+    // No thumbnail means a card with no banner, not an empty grey box.
     test('a player with no thumbnail has no image', () {
       final image = imageOf({
         '@type': 'linkPreviewTypeEmbeddedVideoPlayer',

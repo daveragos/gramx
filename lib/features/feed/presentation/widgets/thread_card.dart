@@ -10,12 +10,9 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
-/// One feed entry: a post, plus any follow-ups its channel posted in reply.
-///
-/// Collapsed by default. A channel that posts five related messages should take
-/// one slot in the feed, not five — otherwise it buries every other channel.
-/// Expanding keeps the replies inline and indented, so the relationship stays
-/// visible rather than requiring a trip to another screen.
+/// One feed entry: a post plus its channel's follow-ups in reply. Collapsed
+/// by default so a burst takes one slot; expanding shows the earlier posts
+/// inline and indented.
 class ThreadCard extends ConsumerStatefulWidget {
   final FeedThread thread;
 
@@ -56,8 +53,7 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
           ),
         );
 
-    // Indented under a rail, so earlier posts read as context for the one
-    // below rather than as new top-level cards.
+    // Earlier posts are indented as context for the newest.
     Widget contextCardFor(Post post) => Padding(
       padding: const EdgeInsets.only(left: AppSpacing.xl),
       child: DecoratedBox(
@@ -70,22 +66,16 @@ class _ThreadCardState extends ConsumerState<ThreadCard> {
       ),
     );
 
-    // A thread hiding one post is hiding a post the reply already shows, so
-    // the newest card stands on its own with no control under it. See
-    // FeedThread.hasEarlierToBeShown.
+    // See FeedThread.hasEarlierToBeShown.
     if (!thread.hasEarlierToBeShown) return cardFor(thread.latest);
 
-    // The toggle sits under the post and above the hairline that closes the
-    // feed item, so the whole thread — newest post, its history, the control
-    // that reveals it — reads as one block between two break lines.
+    // The toggle sits above the divider so the thread reads as one block.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The newest post is what surfaced this thread, so it is the card.
         cardFor(thread.latest, showDivider: false),
         if (_expanded)
-          // Newest first, matching the feed itself: reading downwards walks
-          // backwards through the thread.
+          // Newest first, like the feed.
           for (final post in thread.earlier.reversed) contextCardFor(post),
         _ThreadToggle(
           count: thread.earlier.length,

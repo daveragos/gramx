@@ -12,9 +12,8 @@ import 'package:gramx/features/guest/data/tme_preview_client.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 
-/// The rest of what a guest can do with their reading list: take back a
-/// removal, find a channel they added, and read further back than the one page
-/// `t.me/s/` puts in front of them.
+/// Undoing a removal, searching added channels, and paging back through a
+/// guest channel.
 void main() {
   GuestChannel channel(String username) => GuestChannel(
     username: username,
@@ -63,8 +62,7 @@ void main() {
       );
     });
 
-    // Undo is on a snackbar, which outlives the screen it came from. Tapping
-    // it after adding the same channel again must not double the row.
+    // Undo after re-adding the same channel must not duplicate the row.
     test(
       'does not add a second copy of a channel that is already back',
       () async {
@@ -109,9 +107,7 @@ void main() {
   });
 
   group('search', () {
-    // A guest cannot search Telegram's servers, so this category used to
-    // return an empty list for every query — a search tab that could only ever
-    // say "no results" for channels the reader had added themselves.
+    // A guest can't search Telegram's servers, but can search their own list.
     test('matches the channels a guest has added', () async {
       final container = keep(
         ProviderContainer(
@@ -174,9 +170,7 @@ void main() {
       );
     }
 
-    // A guest channel has no TDLib chat behind it, so this used to go to the
-    // repository, come back with nothing, and mark the channel exhausted —
-    // scrolling to the bottom of a guest channel simply stopped.
+    // A guest channel pages through t.me, not the TDLib repository.
     test('asks t.me for the page below the oldest post on screen', () async {
       final tme = ScriptedTme();
       final chatId = GuestPostMapper.syntheticChatId('alpha');
@@ -215,9 +209,8 @@ void main() {
       );
     });
 
-    // `isSynthetic` is a range check, and a post with no username cannot be
-    // asked for over the web preview at all. Both halves are required, or a
-    // real chat whose id happens to land in the range goes to the wrong place.
+    // Both the id range and a username are required, so a real chat whose id
+    // falls in the range is not sent to the web preview.
     test('a post with no username still goes to TDLib', () async {
       final tme = ScriptedTme();
       final repo = RecordingRepository();

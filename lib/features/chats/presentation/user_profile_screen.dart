@@ -21,17 +21,8 @@ import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/app/widgets/pill_button.dart';
 
-/// One person, in the shape the channel screen uses for a channel.
-///
-/// gramX has had somewhere to put a channel since the beginning and nowhere at
-/// all to put a person: a mention resolved to a conversation, an avatar in a
-/// group went nowhere, and a commenter's name was not a link to anything. This
-/// is that missing screen — who somebody is, what they say about themselves,
-/// the channel they run, and the one action that follows from all of it.
-///
-/// Deliberately not the settings profile screen with a different id in it.
-/// That one is *your* account and is mostly rows of your own details; this is
-/// somebody else's, and the only thing you can do here is write to them.
+/// Another user's profile, laid out like the channel screen: name, bio,
+/// personal channel and a button to message them.
 class UserProfileScreen extends ConsumerWidget {
   final int userId;
 
@@ -65,8 +56,7 @@ class UserProfileScreen extends ConsumerWidget {
   }
 }
 
-/// One person's profile. Auto-disposed, so leaving the screen drops it and
-/// coming back asks Telegram again rather than showing a stale bio.
+/// One user's profile. Auto-disposed so reopening the screen fetches it again.
 final userProfileProvider = FutureProvider.autoDispose
     .family<UserProfile?, int>((ref, userId) {
       return ref.watch(chatsRepositoryProvider).userProfile(userId);
@@ -77,12 +67,8 @@ class _Body extends ConsumerWidget {
 
   const _Body({required this.profile});
 
-  /// Opens an end-to-end chat with this person, asking first.
-  ///
-  /// The confirmation is not ceremony: a secret chat is a *different chat* with
-  /// the same person, its messages never reach the Telegram cloud, and it dies
-  /// with the device. Somebody who lands in one by a mis-tap and writes there
-  /// has written somewhere they will not find it again.
+  /// Opens a secret chat with this user after confirming. A secret chat is a
+  /// separate, device-only chat, so a mis-tap shouldn't land the user in one.
   Future<void> _startSecretChat(BuildContext context, WidgetRef ref) async {
     final confirmed = await showAppDialog<bool>(
       context,
@@ -128,8 +114,7 @@ class _Body extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
-        // The channel page's shape: a band, the avatar over its edge, and the
-        // controls on the row beneath, opposite the avatar.
+        // A colour band with the avatar overlapping its bottom edge.
         Stack(
           clipBehavior: Clip.none,
           children: [
@@ -159,8 +144,6 @@ class _Body extends ConsumerWidget {
           ],
         ),
 
-        // the screen is for. Stacked full-width buttons used to take a third
-        // of the screen to say the same two things.
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.postPadding,
@@ -186,8 +169,7 @@ class _Body extends ConsumerWidget {
                       context.push(ChatsScreen.routeFor(profile.chatId)),
                 ),
               ] else
-                // Keeps the avatar's overhang clear even with nothing to
-                // press, so the name does not climb into it.
+                // Keeps the name clear of the avatar's overhang.
                 const SizedBox(height: 32),
             ],
           ),
@@ -223,8 +205,7 @@ class _Body extends ConsumerWidget {
                       semanticLabel: AppStrings.a11yVerified,
                     ),
                   ],
-                  // Where Telegram puts it, and in the form they chose: their
-                  // emoji status, or the check if they have none.
+                  // The user's emoji status, or the Premium check without one.
                   if (PremiumMark.shows(
                     isPremium: profile.isPremium,
                     isVerified: profile.isVerified,
@@ -259,8 +240,6 @@ class _Body extends ConsumerWidget {
           ),
         ),
 
-        // Badges say things the name cannot: software rather than a person,
-        // somebody already in your contacts. Each is a fact, none is a control.
         if (profile.isBot || profile.isContact || profile.groupsInCommon > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -304,9 +283,7 @@ class _Body extends ConsumerWidget {
           _Section(
             heading: AppStrings.profileBioHeading,
             secondary: secondary,
-            // Telegram hands a bio over as bare text with no entities, exactly
-            // as it does a channel's description, so the links in it are
-            // re-derived the same way rather than left as grey prose.
+            // The bio has no entities from Telegram, so links are found locally.
             child: TextEntityRenderer(
               text: bio,
               entities: linkifyPlainText(bio),
@@ -330,8 +307,6 @@ class _Body extends ConsumerWidget {
             secondary: secondary,
           ),
 
-        // Who they speak for. The same fact the chat list shows beside their
-        // name, in the place there is room to say it properly.
         if (profile.personalChannelId case final channelId?)
           _Section(
             heading: AppStrings.profileChannelHeading,
@@ -375,9 +350,8 @@ class _Body extends ConsumerWidget {
   static const double _bannerHeight = 110;
   static const double _avatarRadius = 38;
 
-  /// A band in the person's own colour. Telegram gives an account no cover
-  /// photo, and their avatar colour is the one thing about them that is
-  /// already a colour.
+  /// The banner colour, tinted from the user's avatar colour since Telegram
+  /// accounts have no cover photo.
   static Color _bannerTint(String? hex, bool isDark) {
     Color? base;
     if (hex != null && hex.isNotEmpty) {
@@ -390,11 +364,8 @@ class _Body extends ConsumerWidget {
     );
   }
 
-  /// The "…" sheet: the two things you can do here besides write.
-  ///
-  /// Block's label is read when the sheet opens, not when the screen was
-  /// built — a block lands on the chat record, which this screen does not
-  /// watch, and a label read earlier went on saying "Block" after the block.
+  /// The "…" sheet. The block state is read when the sheet opens because this
+  /// screen doesn't watch the chat record it lives on.
   Future<void> _showMore(BuildContext context, WidgetRef ref) async {
     final repository = ref.read(chatsRepositoryProvider);
     final isBlocked = repository.isBlocked(profile.userId);
@@ -433,8 +404,7 @@ class _Body extends ConsumerWidget {
     }
   }
 
-  /// Telegram's own hedged answer about when somebody was last around. Null
-  /// where it will not say — a group, a bot, or a user it hasn't described.
+  /// The last-seen label, or null when Telegram gives no status.
   static String? _presenceLabel(UserProfile profile) =>
       switch (profile.presence) {
         ChatPresence.online => AppStrings.chatOnline,
@@ -483,8 +453,7 @@ class _Section extends StatelessWidget {
   }
 }
 
-/// A detail worth having in the clipboard. Long-press copies it — the same
-/// gesture the settings profile uses for the reader's own details.
+/// A profile detail that long-press copies to the clipboard.
 class _CopyableRow extends StatelessWidget {
   final String heading;
   final String value;

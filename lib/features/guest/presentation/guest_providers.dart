@@ -14,11 +14,8 @@ import 'package:gramx/features/guest/data/tme_preview_client.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 
-/// Whether the reader is browsing without a Telegram account.
-///
-/// Signing in wins: someone who has an account is not a guest even if the flag
-/// is still set from before, and leaving the flag to decide would show them a
-/// scraped feed instead of their own.
+/// Whether the user is browsing without a Telegram account. Being signed in
+/// overrides a leftover guest-mode flag.
 final isGuestModeProvider = Provider<bool>((ref) {
   final signedIn = ref.watch(
     authControllerProvider.select(
@@ -29,8 +26,7 @@ final isGuestModeProvider = Provider<bool>((ref) {
   return ref.watch(settingsProvider.select((s) => s.guestMode));
 });
 
-/// What the reader may do. Watched by every control that could write to
-/// Telegram — see [ReaderCapabilities] for why it is one object.
+/// What the user may do. See [ReaderCapabilities].
 final readerCapabilitiesProvider = Provider<ReaderCapabilities>((ref) {
   return ref.watch(isGuestModeProvider)
       ? ReaderCapabilities.guest
@@ -44,12 +40,8 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
     return ref.read(guestChannelStoreProvider).load();
   }
 
-  /// Resolves what the reader typed, then adds it.
-  ///
-  /// Returns null on success, or a reason to show them. Resolving before
-  /// adding is the point: a channel that cannot be read is a row that would
-  /// sit in their list doing nothing, and finding that out at add time is
-  /// better than finding it out as a permanently empty feed.
+  /// Resolves the typed channel and adds it, so an unreadable channel fails
+  /// here. Returns null on success, or a message to show.
   Future<String?> add(String input) async {
     final username = TmePreviewClient.parseUsername(input);
     if (username == null) return AppStrings.guestNotAUsername;
@@ -79,16 +71,12 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
         ]),
       TmeFetchUnavailable() => AppStrings.guestChannelNotPublic(username),
       TmeFetchFailure(:final message) => message,
-      // Nothing was sent, so nothing can have been unchanged.
+      // No validators were sent, so this shouldn't happen.
       TmeFetchNotModified() => AppStrings.guestChannelUnreadable(username),
     };
   }
 
-  /// Puts a removed channel back where it was.
-  ///
-  /// Undo restores the row itself — validators included — rather than
-  /// re-resolving the username, so taking back a mistap costs no request and
-  /// cannot fail differently from the original add.
+  /// Restores a removed channel at [index] without a new request.
   Future<void> restore(GuestChannel channel, int index) async {
     final existing = state.value ?? [];
     if (existing.any((c) => c.username == channel.username)) return;
@@ -122,10 +110,7 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
               title: title,
               avatarUrl: avatarUrl,
             );
-            // Only when something is genuinely different. Writing an identical
-            // row still publishes new state, and anything watching this list
-            // would refetch, write the same validators again, and go round —
-            // which is precisely the loop that made the guest feed spin.
+            // Only real changes, or watchers would refetch in a loop.
             if (updated != channel) changed = true;
             return updated;
           }()
@@ -136,10 +121,7 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
     if (changed) await _store(next);
   }
 
-  /// Forgets everything: the list, and the media cached for it.
-  ///
-  /// Leaving someone's browsing behind on disk after they have left guest mode
-  /// is not something they asked for.
+  /// Clears the channel list and its cached media.
   Future<void> clear() async {
     await ref.read(guestChannelStoreProvider).clear();
     await ref.read(guestMediaCacheProvider).clear();
@@ -158,27 +140,11 @@ final guestChannelsProvider =
       GuestChannelsNotifier.new,
     );
 
-/// Which channels are in the list, as one comparable value.
+/// The channel usernames as one string, so dependents rebuild when a channel
+/// is added or removed but not when a fetch writes back an ETag.
 ///
-/// The feed must rebuild when a channel is added or removed, and must *not*
-/// rebuild when a row is merely rewritten — fetching a page records its ETag
-/// back onto the row, so a feed that depended on the rows themselves refetched
-/// every time it finished fetching. That is an infinite loop pointed at
-/// Telegram, and it is what "the home page just kept loading" was.
-///
-/// A `String` rather than the list: Riverpod skips notifying dependents when
-/// the new value equals the old one, and two lists with the same contents are
-/// not `==` while two equal strings are.
-///
-/// **A plain `Provider`, and an `AsyncValue` rather than a `Future`.** It was a
-/// `FutureProvider`, which dependents could only reach by watching its
-/// `.future` — and a recomputed `FutureProvider` hands out a *new* future
-/// whether or not its value changed, so every ETag written back after a fetch
-/// still restarted the feed. That no longer ran forever, because the second
-/// pass wrote identical validators and stopped, but it did mean every channel
-/// was fetched exactly twice on every cold start, against an endpoint that
-/// rate-limits the whole client. `AsyncValue` compares by value, so an
-/// unchanged list is now genuinely no news.
+/// A plain `Provider` of `AsyncValue`, since a recomputed `FutureProvider`
+/// hands out a new future even when its value is unchanged.
 final guestChannelKeysProvider = Provider<AsyncValue<String>>((ref) {
   return ref
       .watch(guestChannelsProvider)
@@ -190,20 +156,14 @@ final guestChannelKeysProvider = Provider<AsyncValue<String>>((ref) {
 class GuestChannelFetch {
   final List<Post> posts;
 
-  /// Pass back as `before=` for the page above this one in age. Null when the
-  /// channel has nothing older.
+  /// The `before=` value for the next older page, or null at the end.
   final int? olderCursor;
 
   const GuestChannelFetch(this.posts, {this.olderCursor});
 }
 
 /// Fetches and maps one channel's newest page, recording its validators.
-///
-/// Shared by the per-channel provider and the merged feed so the 304 handling
-/// exists once. Throws [GuestFetchException] for anything the reader should be
-/// told about — including a channel that has gone private, which used to be
-/// swallowed as an empty result and read on screen as a channel that simply
-/// never posts.
+/// Throws [GuestFetchException] with a message to show.
 Future<GuestChannelFetch> fetchGuestChannelPage(
   Ref ref,
   GuestChannel channel,
@@ -233,9 +193,7 @@ Future<GuestChannelFetch> fetchGuestChannelPage(
         olderCursor: page.olderCursor,
       );
 
-    // Nothing changed since last time. There is no body to parse, and no
-    // cached posts to hand back either — so ask once more without the
-    // validators. One extra request, only when a refresh found nothing new.
+    // A 304 has no body and nothing is cached, so refetch unconditionally.
     case TmeFetchNotModified():
       final fresh = await client.fetchPage(channel.username);
       if (fresh is TmeFetchSuccess) {
@@ -258,11 +216,8 @@ Future<GuestChannelFetch> fetchGuestChannelPage(
   }
 }
 
-/// Fetches the page of posts older than [before].
-///
-/// Deliberately unconditional: the validators stored on a channel belong to its
-/// *newest* page, and sending them with a `before=` request would compare the
-/// wrong two documents. Nothing is recorded back for the same reason.
+/// Fetches the page of posts older than [before]. Sends no validators and
+/// records none, since the stored ones belong to the newest page.
 Future<GuestChannelFetch> fetchGuestOlderPage(
   Ref ref,
   String username, {
@@ -277,9 +232,7 @@ Future<GuestChannelFetch> fetchGuestOlderPage(
       GuestPostMapper.mapPage(page),
       olderCursor: page.olderCursor,
     ),
-    // A page that will not load is the end of what we can show, not an error
-    // worth taking the feed down for — the reader already has everything above
-    // it on screen.
+    // A failed older page ends paging without failing the feed.
     _ => const GuestChannelFetch([]),
   };
 }
@@ -289,9 +242,7 @@ final guestChannelPostsProvider = FutureProvider.family<List<Post>, String>((
   ref,
   username,
 ) async {
-  // Membership only, for the reason in guestChannelKeysProvider: this fetch
-  // records validators back onto the channel row, and watching the rows would
-  // make it restart itself.
+  // Watch membership only (see guestChannelKeysProvider).
   if (!ref.watch(guestChannelKeysProvider).hasValue) return const [];
 
   final channels = ref.read(guestChannelsProvider).value ?? const [];
@@ -318,14 +269,8 @@ class GuestChannelFailure {
   int get hashCode => Object.hash(username, message);
 }
 
-/// The guest feed, and everything the screen needs to be honest about it.
-///
-/// One value rather than a bare `List<Post>` plus side channels: a guest feed
-/// is assembled from several independent fetches, any of which can fail on its
-/// own, and a screen that only receives the posts cannot tell "no channels
-/// yet" from "all four channels failed" — which is why a failed refresh used
-/// to show the reader an invitation to add the channels they had already
-/// added.
+/// The guest feed's posts plus per-channel progress and failures, so the
+/// screen can tell "no channels yet" from "every channel failed".
 @immutable
 class GuestFeed {
   final List<Post> posts;
@@ -333,7 +278,7 @@ class GuestFeed {
   /// Channels whose last fetch failed. Empty on a clean feed.
   final List<GuestChannelFailure> failures;
 
-  /// How many channels have answered — successfully or not — out of [total].
+  /// How many channels have answered (successfully or not) out of [total].
   final int answered;
   final int total;
 
@@ -343,8 +288,7 @@ class GuestFeed {
   /// True when every channel has reached the end of its history.
   final bool exhausted;
 
-  /// False until the stored channel list has been read from disk. Nothing
-  /// about a feed is knowable before then — least of all whether it is empty.
+  /// False until the stored channel list has been read from disk.
   final bool ready;
 
   const GuestFeed({
@@ -362,14 +306,11 @@ class GuestFeed {
   /// True while channels are still being fetched for this pass.
   bool get isFilling => !ready || answered < total;
 
-  /// True when there is nothing to show and nothing left that could produce
-  /// something — the only case in which "add a channel" is the right thing to
-  /// say.
+  /// True when there is nothing to show and nothing still loading.
   bool get isEmpty =>
       ready && posts.isEmpty && failures.isEmpty && answered >= total;
 
-  /// True when every channel failed, so the screen owes the reader a reason
-  /// rather than an empty page.
+  /// True when every channel failed.
   bool get hasFailedEntirely =>
       posts.isEmpty && failures.isNotEmpty && !isFilling;
 
@@ -396,52 +337,24 @@ class GuestFeed {
   );
 }
 
-/// Every added channel's posts, merged newest first, arriving as they land.
-///
-/// The guest feed is plainly chronological. The signed-in feed weaves unread
-/// backlog into it, and "unread" is a property of a Telegram account — a guest
-/// has none, so there is nothing to weave.
-///
-/// **Why this is a notifier and not a `FutureProvider` over the whole list.**
-/// It was the latter, awaiting every channel in a `for` loop before returning
-/// anything, and that is exactly as slow as it sounds: each `t.me/s/` fetch is
-/// its own request with a 15-second timeout, so three channels on a bad
-/// connection was three quarters of a minute of spinner with nothing behind
-/// it. Worse, one slow channel held up every channel that had already
-/// answered. Now the first page to arrive is painted, and the rest fill in
-/// underneath it — the same shape as the signed-in feed's backfill.
+/// Every added channel's posts, merged newest first. Channels fill in as
+/// they arrive, so one slow channel doesn't hold up the rest.
 class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
-  /// How many channels are fetched at once.
-  ///
-  /// Bounded rather than unlimited: `t.me/s/` is one rate-limit bucket for the
-  /// whole client (see [TmePreviewClient]), and firing twenty requests at it
-  /// earns a 429 that costs more than the parallelism saved.
+  /// Channels fetched at once; `t.me/s/` rate-limits the whole client.
   static const int maxConcurrent = 4;
 
-  /// Which pass of this feed is current.
-  ///
-  /// Bumped when a build starts and again when one is torn down, so work
-  /// started under an earlier pass can see that it has been superseded and
-  /// drop what it collected instead of writing it into the new feed.
-  ///
-  /// **This replaces a `bool _disposed`, and that flag is the bug.** Riverpod
-  /// keeps the notifier instance across a rebuild *and* fires the previous
-  /// build's `onDispose` callbacks, so the flag latched true the first time a
-  /// channel was added and never went back — from then on every build fetched
-  /// `channels.first` and its workers exited immediately, because they test
-  /// that flag. Channels are stored newest first, so what the reader saw was
-  /// the last channel they added, alone, with the rest of their list missing.
+  /// The current build pass, bumped on build and teardown so stale work can
+  /// tell it was superseded. A counter, not a disposed flag, because Riverpod
+  /// reuses the notifier but still runs the old build's `onDispose`.
   int _generation = 0;
 
-  /// Posts by id, so a channel refetched at the top of the feed replaces its
-  /// own rows rather than doubling them.
+  /// Posts by id, so a refetched channel replaces its posts in place.
   final Map<String, Post> _posts = {};
   final List<GuestChannelFailure> _failures = [];
   final Set<String> _answered = {};
 
-  /// Where each channel's next `before=` page starts, and which channels have
-  /// run out of history. Survive a rebuild for channels that survive it, so a
-  /// refresh does not re-page ground the reader has already scrolled past.
+  /// Each channel's next `before=` cursor and which channels have no more
+  /// history. Kept across rebuilds for channels that remain.
   final Map<String, int> _cursors = {};
   final Set<String> _exhausted = {};
 
@@ -452,12 +365,9 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     final generation = ++_generation;
     ref.onDispose(() => _generation++);
 
-    // Membership only — see guestChannelKeysProvider. The rows themselves are
-    // read, not watched, so recording an ETag onto one does not restart this.
+    // Watch membership only (see guestChannelKeysProvider).
     if (!ref.watch(guestChannelKeysProvider).hasValue) {
-      // The stored list has not come off disk yet. Saying so is not the same
-      // as saying the reader has no channels, which is what an empty feed
-      // would have the screen announce.
+      // The stored list hasn't loaded yet; that is not the same as empty.
       return const GuestFeed(ready: false);
     }
 
@@ -465,18 +375,13 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     _channels = channels;
     _forgetChannelsNotIn(channels);
 
-    // Both describe *this* pass rather than the feed's contents: a refresh
-    // re-asks every channel, so who has answered and who failed start over
-    // while the posts already on screen stay where they are.
+    // Per-pass state; posts already on screen are kept.
     _answered.clear();
     _failures.clear();
 
     if (channels.isEmpty) return GuestFeed.empty;
 
-    // The first channel is awaited so the feed opens with real posts rather
-    // than an empty state it would have to take back a second later. Posts
-    // already on screen are kept meanwhile, so a pull-to-refresh does not
-    // collapse the list to one channel and grow it back.
+    // Await the first channel so the feed opens with posts.
     await _fetchChannel(channels.first, generation);
     if (generation != _generation) return GuestFeed.empty;
 
@@ -486,12 +391,8 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     return _snapshot();
   }
 
-  /// Loads the next page of older posts from every channel that has one.
-  ///
-  /// The guest feed used to be one page per channel and nothing beneath it —
-  /// roughly twenty posts, after which scrolling simply stopped. `t.me/s/`
-  /// pages backwards with `before=`, so there is history to give; this asks
-  /// every unexhausted channel for one page and merges the answers.
+  /// Loads one older page (`before=`) from every channel that has more
+  /// history, and merges the results.
   Future<void> loadMore() async {
     final generation = _generation;
     final current = state.value;
@@ -524,8 +425,7 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
           for (final post in page.posts) {
             _posts[post.id] = post;
           }
-          // No cursor, or a cursor that has stopped moving, both mean the same
-          // thing: there is nothing further back to ask for.
+          // A missing or non-advancing cursor means no more history.
           final next = page.olderCursor;
           if (page.posts.isEmpty || next == null || next >= before) {
             _exhausted.add(channel.username);
@@ -534,8 +434,7 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
           }
         } catch (e) {
           if (generation != _generation) return;
-          // A page that will not load costs that page. The reader keeps
-          // everything above it, and pulling to refresh tries again.
+          // Stop paging this channel; a refresh tries again.
           debugPrint('[Guest] paging ${channel.username} failed: $e');
           _exhausted.add(channel.username);
         }
@@ -550,11 +449,7 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     state = AsyncData(_snapshot());
   }
 
-  /// Re-fetches only the channels that failed, keeping the ones that worked.
-  ///
-  /// Retrying the whole feed would spend a request on every channel that
-  /// already answered, against a service that rate-limits the client as a
-  /// whole — so the retry is scoped to what actually needs it.
+  /// Re-fetches only the channels that failed, to spare the rate limit.
   Future<void> retryFailed() async {
     final generation = _generation;
     final failed = _failures.map((f) => f.username).toSet();
@@ -577,16 +472,12 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     if (rest.isNotEmpty) _fillRemaining(rest, generation);
   }
 
-  /// Fetches the rest in bounded parallel, publishing after each one.
-  ///
-  /// Not awaited by [build]: every one of these starts with a real request, so
-  /// by the time any of them writes `state` the build has long returned — a
-  /// provider must not be modified while it is building.
+  /// Fetches the rest with bounded parallelism, publishing after each one.
+  /// Not awaited by [build], since `state` must not change during a build.
   void _fillRemaining(List<GuestChannel> channels, int generation) {
     final queue = List<GuestChannel>.from(channels);
-    // Fixed before the loop starts: each `worker()` runs synchronously up to
-    // its first await, so reading `queue.length` inside the condition sees a
-    // queue that has already shrunk and starts one worker too few.
+    // Computed up front: each `worker()` dequeues synchronously before its
+    // first await, so `queue.length` shrinks during the loop.
     final workers = math.min(maxConcurrent, queue.length);
 
     Future<void> worker() async {
@@ -610,9 +501,7 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
       for (final post in page.posts) {
         _posts[post.id] = post;
       }
-      // Only when this channel has no cursor yet. The stored cursor tracks how
-      // far back the reader has paged; the newest page's cursor is above that,
-      // and letting it win would re-fetch pages already on screen.
+      // Keep an existing cursor; it tracks how far back the user has paged.
       final cursor = page.olderCursor;
       if (cursor != null && !_cursors.containsKey(channel.username)) {
         _cursors[channel.username] = cursor;
@@ -622,8 +511,7 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
       }
     } on GuestFetchException catch (e) {
       if (generation != _generation) return;
-      // One unreachable channel costs that channel, not the whole feed — but
-      // it is recorded rather than swallowed, so the screen can say which.
+      // Recorded per channel so the screen can name it.
       _failures.add(GuestChannelFailure(channel.username, e.message));
     } catch (e) {
       if (generation != _generation) return;
@@ -639,11 +527,8 @@ class GuestFeedNotifier extends AsyncNotifier<GuestFeed> {
     }
   }
 
-  /// Drops everything belonging to channels the reader has removed.
-  ///
-  /// Kept for the ones that remain, which is what makes a refresh feel like a
-  /// refresh: the posts stay on screen and are replaced in place as each
-  /// channel answers.
+  /// Drops state for removed channels. Remaining channels keep their posts
+  /// on screen through a refresh.
   void _forgetChannelsNotIn(List<GuestChannel> channels) {
     final names = channels.map((c) => c.username).toSet();
     final chatIds = names.map(GuestPostMapper.syntheticChatId).toSet();
@@ -674,7 +559,7 @@ final guestFeedProvider = AsyncNotifierProvider<GuestFeedNotifier, GuestFeed>(
   GuestFeedNotifier.new,
 );
 
-/// A failure worth showing the reader, as opposed to one worth swallowing.
+/// A guest fetch failure with a message to show the user.
 class GuestFetchException implements Exception {
   final String message;
   const GuestFetchException(this.message);

@@ -10,32 +10,20 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 
-/// Drives read tracking and chat focus from what is actually on screen.
-///
-/// Owns the timers and the TDLib side effects; the rules themselves live in
-/// [FeedFocusTracker] so they can be tested. State is the focused post id.
-///
-/// Two jobs, both of which the app previously got wrong:
-///
-/// * **Read tracking** — posts are marked read after a real dwell, not from
-///   `build()`. Flutter builds list items ahead of the viewport, so the old
-///   approach marked posts the user never saw and pushed that to every
-///   Telegram client they own.
-/// * **Chat focus** — TDLib only streams view and reaction counts for chats
-///   that are open, and the merged feed never opened one, so all the live-update
-///   plumbing sat idle. This opens the dominant-visible post's chat.
+/// Drives read tracking and chat focus from what is on screen, using the
+/// rules in [FeedFocusTracker]. Posts are marked read after a dwell, since
+/// Flutter builds items ahead of the viewport. The most visible post's chat
+/// is opened, since TDLib only streams live counts for open chats.
 class FeedFocusController extends Notifier<String?> {
-  /// How often settled dwells are checked. Fine-grained enough that the 500 ms
-  /// read dwell lands promptly, coarse enough not to be a per-frame wakeup.
+  /// How often settled dwells are checked.
   static const Duration tickInterval = Duration(milliseconds: 200);
 
   final FeedFocusTracker _tracker = FeedFocusTracker();
   Timer? _ticker;
   int? _openChatId;
 
-  /// Guards the late `OpenChat` confirmation: reading a provider after the
-  /// container is gone throws, and the reader leaving the feed while a request
-  /// is in flight is ordinary, not exceptional.
+  /// Guards the late `OpenChat` confirmation; reading a provider after
+  /// dispose throws.
   bool _disposed = false;
 
   @override
@@ -44,13 +32,11 @@ class FeedFocusController extends Notifier<String?> {
       _disposed = true;
       _ticker?.cancel();
       _ticker = null;
-      // Anything held back must go out now: the reader has left the feed, and
-      // a receipt that waits for a timer that will never fire is a lost read.
+      // Send anything held back now, since the queue's timer won't fire again.
       ref.read(readReceiptQueueProvider.notifier).flush();
 
       final chatId = _openChatId;
       if (chatId != null) {
-        // Fire-and-forget: the container is going away either way.
         ref.read(feedRepositoryProvider).closeChat(chatId);
         _openChatId = null;
       }
@@ -58,16 +44,15 @@ class FeedFocusController extends Notifier<String?> {
     return null;
   }
 
-  /// Reports how much of a post is on screen. Called by the visibility wrapper.
+  /// Reports how much of a post is on screen.
   void reportVisibility(String postId, double visibleFraction) {
     _tracker.onVisibilityChanged(postId, visibleFraction, DateTime.now());
     _ensureTicking();
   }
 
-  /// Stops tracking a post whose card has left the tree.
   void reportDisposed(String postId) => _tracker.onDisposed(postId);
 
-  /// Seeds posts Telegram already considers read so we never re-ack them.
+  /// Seeds posts Telegram already considers read so they aren't sent again.
   void seedAlreadyRead(Iterable<String> postIds) {
     for (final id in postIds) {
       _tracker.markAlreadyRead(id);
@@ -97,16 +82,13 @@ class FeedFocusController extends Notifier<String?> {
   }
 
   void _markRead(String postId) {
-    // A guest has no Telegram account to write a read cursor to, and the posts
-    // came off a public preview page rather than out of a chat. There is
-    // nothing to acknowledge and nowhere to send it.
+    // A guest has no account to mark anything read on.
     if (!ref.read(readerCapabilitiesProvider).canMarkRead) return;
 
     final chatId = _chatIdOf(postId);
     if (chatId == null) return;
 
-    // Telegram may already consider this read — from another client, or from an
-    // earlier session. Re-acking it spends a request to change nothing.
+    // Telegram may already consider this read.
     final posts = ref.read(feedPostsProvider).value;
     final known = posts?.where((p) => p.id == postId).firstOrNull;
     final seenBefore = ref
@@ -120,17 +102,13 @@ class FeedFocusController extends Notifier<String?> {
     ref.read(optimisticPostUpdatesProvider.notifier).markRead(postId);
     ref.read(feedPostsProvider.notifier).markReadOptimistic(postId);
 
-    // Queued rather than sent: a scroll through six posts of one channel is one
-    // acknowledgement, and the queue retries the ones that fail. Read state is
-    // the reader's, on every device they own — losing it to a flood wait is not
-    // acceptable, and it used to be silent.
+    // Queued so acks are batched per chat and retried on failure.
     ref.read(readReceiptQueueProvider.notifier).add(postId);
   }
 
-  /// Keeps at most one chat open, as TDLib expects.
+  /// Keeps at most one chat open.
   void _swapOpenChat(String? postId) {
-    // Guest posts carry a synthetic chat id that TDLib has never heard of, and
-    // there is no client to open it on anyway.
+    // Guest posts carry a synthetic chat id that TDLib doesn't know.
     if (!ref.read(readerCapabilitiesProvider).canMarkRead) return;
 
     final nextChatId = postId == null ? null : _chatIdOf(postId);
@@ -142,24 +120,19 @@ class FeedFocusController extends Notifier<String?> {
 
     _openChatId = nextChatId;
 
-    // Nothing counts as open until TDLib says so, and until then a read ack has
-    // to force the write-through. Clearing first is the whole point: the queue
-    // used to be told the new chat was open the instant `OpenChat` was
-    // dispatched, and receipts flushed inside that window were dropped by TDLib
-    // without an error to retry on.
+    // TDLib drops receipts for a chat before confirming it open, so until
+    // then a read ack forces the write.
     ref.read(readReceiptQueueProvider.notifier).setOpenChat(null);
     if (nextChatId == null) return;
 
     repo.openChat(nextChatId).then((opened) {
-      // The reader may have scrolled on while the request was in flight; a late
-      // confirmation must not claim a chat that is no longer focused.
+      // The user may have scrolled on while the request was in flight.
       if (_disposed || !opened || _openChatId != nextChatId) return;
       ref.read(readReceiptQueueProvider.notifier).setOpenChat(nextChatId);
     });
   }
 
-  /// Post ids are `"<chatId>_<messageId>"` — the format the router, the
-  /// bookmark table and the override map all key on.
+  /// Post ids are `"<chatId>_<messageId>"`.
   static int? _chatIdOf(String postId) {
     final separator = postId.indexOf('_');
     if (separator <= 0) return null;
@@ -173,10 +146,8 @@ class FeedFocusController extends Notifier<String?> {
 final feedFocusControllerProvider =
     NotifierProvider<FeedFocusController, String?>(FeedFocusController.new);
 
-/// Wraps a post card and reports how much of it is on screen.
-///
-/// Uses a stable key per post id so the detector survives list rebuilds; a
-/// changing key restarts the dwell and posts would never settle.
+/// Wraps a post card and reports how much of it is on screen. The key is
+/// stable per post, since a changing key would restart the dwell.
 class PostVisibilityReporter extends ConsumerStatefulWidget {
   final String postId;
   final Widget child;
@@ -194,8 +165,7 @@ class PostVisibilityReporter extends ConsumerStatefulWidget {
 
 class _PostVisibilityReporterState
     extends ConsumerState<PostVisibilityReporter> {
-  // `ref` is unusable by the time dispose() runs, so the notifier is captured
-  // while the widget is still mounted.
+  // `ref` is unusable in dispose(), so the notifier is captured here.
   late final FeedFocusController _controller;
 
   @override

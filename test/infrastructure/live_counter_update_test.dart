@@ -4,12 +4,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
-/// The regression this file exists for: `updateMessageReactions` is documented
-/// "for bots only" and never fires on a user client, so the *only* place a
-/// reader hears about a reaction is `updateMessageInteractionInfo`. That
-/// handler read the view and forward counts and walked past `reactions`, which
-/// is why gramX drew an empty reaction row under a post Telegram showed with
-/// ⭐1 ❤️5 🕊1 — and why an optimistic tap never got reconciled.
+/// `updateMessageReactions` is for bots only, so a user client learns about
+/// reactions from `updateMessageInteractionInfo`.
 void main() {
   group('mapCounterUpdate', () {
     test('interaction info carries reactions, not just view counts', () {
@@ -82,9 +78,8 @@ void main() {
       });
     });
 
-    // Taking back the last reaction arrives as an empty list, and it has to be
-    // distinguishable from "this update said nothing about reactions" — an
-    // empty map clears the row, a null leaves it alone.
+    // Removing the last reaction sends an empty list. An empty map clears the
+    // row, while null leaves it alone.
     test('no reactions on the message is an empty map, not null', () {
       final event =
           mapCounterUpdate(

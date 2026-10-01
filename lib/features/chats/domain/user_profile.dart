@@ -2,28 +2,17 @@ import 'package:flutter/foundation.dart';
 
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 
-/// Everything gramX knows about one person.
+/// Everything gramX knows about one person, assembled from TDLib's `User` and
+/// `UserFullInfo`.
 ///
-/// Lives in the `chats` feature rather than in one of its own, and that is a
-/// deliberate reading of the no-cross-feature-imports rule: a profile of a
-/// person is the other half of a conversation with them. It shares the
-/// presence enum, the display-name rule, the chat cache and the repository
-/// with the messages list, and a separate feature folder would have had to
-/// import all four across the boundary or duplicate them.
-///
-/// A plain immutable class rather than a Freezed model because nothing here is
-/// ever persisted or serialised — a profile is fetched, looked at, and thrown
-/// away. It is assembled from two TDLib objects: `User`, which the chat cache
-/// usually already holds, and `UserFullInfo`, which carries the bio, the
-/// number of groups in common, and the channel this person pins to their
-/// profile.
+/// Lives in `chats` because it shares the presence enum, chat cache and
+/// repository with conversations, and features don't import each other.
 @immutable
 class UserProfile {
   final int userId;
 
-  /// Where a conversation with this person lives. Same number as [userId] in
-  /// TDLib's model for a private chat, but they are different things and one
-  /// of them is what a route takes.
+  /// The private chat with this person. Numerically equal to [userId] in
+  /// TDLib, but routes take the chat id.
   final int chatId;
 
   final String displayName;
@@ -37,28 +26,27 @@ class UserProfile {
   final bool isVerified;
   final bool isPremium;
 
-  /// The custom emoji a Premium account shows in place of the Premium star,
-  /// while it has one in force. See `ChatListBuilder.emojiStatusOf`.
+  /// The custom emoji a Premium account shows in place of the Premium star.
+  /// See `ChatListBuilder.emojiStatusOf`.
   final int? emojiStatusId;
   final bool isBot;
   final bool isContact;
 
-  /// A deleted account. Rendered as such rather than as somebody with an empty
-  /// profile, which is what it otherwise looks like.
+  /// A deleted account, shown as such instead of as an empty profile.
   final bool isDeleted;
 
   /// Telegram's blurred answer about when they were last around.
   final ChatPresence presence;
 
-  /// The bio, as they wrote it. Null when there is none, or for a bot, which
-  /// puts its description somewhere else entirely.
+  /// The bio. Null when there is none, and for bots.
   final String? bio;
 
-  /// The phone number, when Telegram will give it — which is only for contacts
-  /// and people who have chosen to publish it.
+  /// The phone number. Telegram gives it only for contacts and people who
+  /// have made it public.
   final String? phoneNumber;
 
-  /// The channel this person pins to their profile. Telegram calls it a
+  /// The channel this person pins to their profile (Telegram's "personal
+  /// chat").
   final int? personalChannelId;
   final String? personalChannelTitle;
 

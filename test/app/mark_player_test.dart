@@ -18,8 +18,7 @@ class _HostState extends State<_Host> with SingleTickerProviderStateMixin {
 }
 
 void main() {
-  // Decoding happens for real, the clock is the test's: each step lets the
-  // decoder run, then moves the clock one vsync on.
+  // Each step lets the real decoder run, then advances the clock one vsync.
   Future<void> play(WidgetTester tester, bool Function() done) async {
     for (var i = 0; i < 400 && !done(); i++) {
       await tester.runAsync(
@@ -51,13 +50,11 @@ void main() {
     await play(tester, () => stopped);
 
     expect(stopped, isTrue);
-    // Frames it was late for are skipped, so at most the eleven up to the
-    // stop, and at least the one it stopped on.
+    // Late frames are skipped.
     expect(shown, inInclusiveRange(1, 11));
   });
 
-  // The connecting and syncing screens loop it for as long as they are up.
-  // The file has 149 frames, so frame 160 is only reached by going round.
+  // The file has 149 frames, so frame 160 is only reached by looping.
   testWidgets('goes round again after the last frame', (tester) async {
     await tester.pumpWidget(const _Host());
     final vsync = tester.state<_HostState>(find.byType(_Host));

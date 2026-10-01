@@ -1,9 +1,6 @@
-/// Conversions between TDLib's internal identifiers and the ones Telegram's
-/// public surfaces (t.me links, the Bot API) use.
-///
-/// TDLib does not hand out the numbers you see in a t.me URL. Message ids are
-/// shifted, and chat ids carry a type prefix. Anything that leaves the client
-/// has to convert first.
+/// Conversions between TDLib's identifiers and the public ones used in t.me
+/// links and the Bot API. TDLib message ids are shifted and chat ids carry a
+/// type prefix.
 abstract class TelegramIds {
   /// TDLib multiplies server message ids by 2^20 so it can address parts of a
   /// message (scheduled copies, album members) in the low bits.
@@ -17,9 +14,8 @@ abstract class TelegramIds {
   static int serverMessageId(int tdlibMessageId) =>
       tdlibMessageId >> messageIdShift;
 
-  /// The supergroup id inside a chat id, or null if it isn't a supergroup chat.
-  ///
-  /// `-1001234567890` → `1234567890`. A positive id is already a supergroup id.
+  /// The supergroup id inside a chat id (`-1001234567890` to `1234567890`), or
+  /// null if it isn't a supergroup chat. A positive id is returned as is.
   static int? supergroupId(int chatId) {
     if (chatId > 0) return chatId;
     final text = chatId.toString();
@@ -27,14 +23,9 @@ abstract class TelegramIds {
     return int.tryParse(text.substring(_supergroupChatPrefix.length));
   }
 
-  /// A shareable t.me link for a channel post.
-  ///
-  /// Public channels get `t.me/<username>/<id>`, which anyone can open. Private
-  /// ones fall back to `t.me/c/<supergroupId>/<id>`, which only resolves for
-  /// members — the best that exists for a private channel.
-  ///
-  /// Returns null when the chat id isn't a supergroup and there is no username,
-  /// because no valid link exists for that case.
+  /// A shareable t.me link for a channel post: `t.me/<username>/<id>` for a
+  /// public channel, or `t.me/c/<supergroupId>/<id>` (members only) for a
+  /// private one. Null when neither applies.
   static String? postLink({
     required int chatId,
     required int messageId,

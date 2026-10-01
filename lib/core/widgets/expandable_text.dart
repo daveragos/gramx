@@ -9,9 +9,7 @@ import 'package:gramx/features/feed/domain/text_entity.dart';
 
 export 'package:gramx/core/text/text_clamp.dart';
 
-///
-/// Only long posts get the control: a four-line post with a "Show more" that
-/// reveals nothing is worse than no control at all.
+/// Post text clamped to [maxLines], with "Show more" only when it is long.
 class ExpandableText extends StatefulWidget {
   final String text;
   final List<TextEntity> entities;
@@ -42,8 +40,7 @@ class _ExpandableTextState extends State<ExpandableText> {
   @override
   void didUpdateWidget(ExpandableText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A recycled list item showing a different post must not inherit the
-    // previous one's expanded state.
+    // A recycled list item showing a different post starts collapsed.
     if (oldWidget.text != widget.text) _expanded = false;
   }
 

@@ -7,16 +7,8 @@ import 'package:gramx/features/compose/presentation/widgets/post_progress_bar.da
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 
-/// How far the app chrome has slid off screen.
-///
-/// [hidden] is a fraction of the chrome's own height: 0 is fully on screen, 1
-/// fully gone. It is a fraction rather than a bool because the bars track the
-/// scroll position one-to-one — the header leaves with the content that pushed
-/// it out, instead of snapping away once a threshold is crossed.
-///
-/// [animate] says whether the change should be tweened. A drag sets it false so
-/// the bars follow the thumb exactly; a settle sets it true so the leftover
-/// distance is covered smoothly.
+/// How far the chrome has slid off screen, as a fraction of its height (0
+/// shown, 1 hidden). [animate] is true only when settling after a drag.
 @immutable
 class ChromeOffset {
   final double hidden;
@@ -24,8 +16,7 @@ class ChromeOffset {
 
   const ChromeOffset({this.hidden = 0, this.animate = false});
 
-  /// Whether the chrome is more gone than not — what anything needing a plain
-  /// yes/no (the "new posts" pill, semantics) should ask.
+  /// Whether the chrome is more than half hidden.
   bool get isHidden => hidden >= 0.5;
 
   @override
@@ -41,20 +32,14 @@ class ChromeOffset {
   String toString() => 'ChromeOffset(hidden: $hidden, animate: $animate)';
 }
 
-/// Folds one scroll delta into the chrome offset.
-///
-/// Pure so the rule — the only part of this that can be subtly wrong — is
-/// testable without a viewport. [extent] is the chrome's height, which is what
-/// makes the movement one-to-one with the content: scrolling the list by the
-/// header's height retires exactly the header.
+/// Folds one scroll delta into the offset; [extent] is the chrome's height.
 ChromeOffset applyScrollDelta({
   required ChromeOffset current,
   required double delta,
   required double extent,
   required double pixels,
 }) {
-  // At (or above) the top there is nothing to scroll away from, and a bounce
-  // past the edge must not leave the header stranded off screen.
+  // At or above the top (including overscroll bounce) the chrome is shown.
   if (pixels <= 0) return const ChromeOffset();
   if (extent <= 0 || delta == 0) {
     return current.animate ? ChromeOffset(hidden: current.hidden) : current;
@@ -65,31 +50,18 @@ ChromeOffset applyScrollDelta({
   return ChromeOffset(hidden: next);
 }
 
-/// Where the chrome comes to rest when the finger leaves.
-///
-/// Half-retired chrome is nobody's intent, so a partial offset finishes in the
-/// direction it was already going.
+/// Where the chrome rests after a drag: the nearer end.
 ChromeOffset settleChrome(ChromeOffset current) {
   if (current.hidden <= 0) return const ChromeOffset();
   if (current.hidden >= 1) return const ChromeOffset(hidden: 1);
   return ChromeOffset(hidden: current.isHidden ? 1 : 0, animate: true);
 }
 
-/// Opacity for anything that belongs to the header rather than to the page —
-/// the "new posts" pill, most of all.
-///
-/// It fades out over the first half of the header's travel, so the pill is gone
-/// well before the header is: offering "3 new posts" while the bar that owns
-/// the feed is off screen just clutters the reading surface.
+/// Opacity for header-tied elements; fades over the header's first half.
 double chromeTiedOpacity(double hidden) => (1 - hidden * 2).clamp(0.0, 1.0);
 
 /// Whether a tab strip is between tabs, so the chrome should come back.
-///
-/// [position] is the controller's continuous animation value and [index] the
-/// tab it currently reports. A drag moves the first without the second, which
-/// is what makes this fire at the *start* of a swipe rather than when it
-/// lands: each tab reserves the header's height at the top of its list, so
-/// arriving with the header retired shows a band of empty space.
+/// [position] moves before [index] does, so this fires as a swipe starts.
 bool tabIsMoving({
   required double position,
   required int index,
@@ -119,8 +91,7 @@ class ChromeOffsetNotifier extends Notifier<ChromeOffset> {
     if (next != state) state = next;
   }
 
-  /// Brings the chrome back. [animate] false is for leaving a screen, where a
-  /// tween would play over whatever comes next.
+  /// Brings the chrome back. Pass [animate] false when leaving a screen.
   void show({bool animate = true}) {
     final next = ChromeOffset(hidden: 0, animate: animate);
     if (next != state) state = next;
@@ -133,20 +104,12 @@ final chromeOffsetProvider =
     );
 
 /// Whether the chrome is mostly on screen.
-///
-/// For the callers that only need a yes/no — the pill, and anything that has to
-/// stop offering a control the user can't see.
 final chromeVisibleProvider = Provider<bool>(
   (ref) => !ref.watch(chromeOffsetProvider).isHidden,
 );
 
-/// Feeds a scrollable's deltas into the chrome offset.
-///
-/// [extent] is how much scrolling retires the chrome completely — pass the
-/// header's height so the two move together.
-///
-/// Only depth-0 notifications count. A horizontal reaction strip inside a post,
-/// or a `TabBarView` above the list, would otherwise drive the header sideways.
+/// Feeds a scrollable's deltas into the chrome offset. Only depth-0
+/// notifications count, so nested scrollables do not move the header.
 class ChromeScrollObserver extends ConsumerWidget {
   final double extent;
   final Widget child;
@@ -184,10 +147,7 @@ class ChromeScrollObserver extends ConsumerWidget {
 }
 
 /// Rebuilds with the chrome's current position, tweened when it is settling.
-///
-/// One place owns the tween so every piece that tracks the chrome — the bars
-/// themselves, the status-bar scrim, the "new posts" pill — moves on the same
-/// value rather than on four animations that drift apart.
+/// Everything that tracks the chrome uses this so they stay in sync.
 class ChromeMotion extends ConsumerWidget {
   final Widget Function(BuildContext context, double hidden, Widget? child)
   builder;
@@ -229,8 +189,6 @@ class ChromeSlide extends StatelessWidget {
 }
 
 /// A blurred strip under the status bar, faded in as the header leaves.
-///
-/// Without it the status-bar text sits directly on scrolling content.
 class StatusBarScrim extends StatelessWidget {
   const StatusBarScrim({super.key});
 
@@ -259,24 +217,17 @@ double chromeHeaderHeight(BuildContext context) =>
 double chromeBottomInset(BuildContext context) =>
     ShellChrome.bottomBarHeight + MediaQuery.of(context).padding.bottom;
 
-/// A screen whose header slides away with the content, like the feed's.
-///
-/// The header overlays the body rather than sitting above it in the layout, so
-/// retiring it never reflows what is underneath — the reason this is a Stack
-/// and not an `AppBar`. [body] is handed the space the header and the bottom
-/// bar are covering so its scrollable can reserve it.
+/// A screen whose header overlays the body and slides away with it. [body]
+/// receives the space the header and bottom bar cover.
 class ChromeScaffold extends StatelessWidget {
   /// Height of the header row itself, above the status bar inset.
   static const double headerHeight = 56;
 
-  /// Contents of the header row.
   final Widget header;
 
-  /// Anything below the header row that scrolls away with it — the feed's
-  /// folder tabs, a filter strip.
+  /// Content below the header row that hides with it, such as folder tabs.
   final Widget? headerBottom;
 
-  /// Height of [headerBottom], if there is one.
   final double headerBottomHeight;
 
   final Widget Function(
@@ -286,16 +237,12 @@ class ChromeScaffold extends StatelessWidget {
   )
   body;
 
-  /// Whether this scaffold watches its own body for scrolling. False when the
-  /// body owns several scrollables and reports for itself — the feed's tabs.
+  /// Whether to observe the body's scrolling. False when the body reports for
+  /// itself, as with the feed's tabs.
   final bool observeScroll;
 
-  /// A floating action button, which belongs to the chrome and leaves with it.
-  ///
-  /// Handed to the `Scaffold` only while the chrome is on screen: swapping it
-  /// for null is what makes `Scaffold` play the FAB's own scale-out, and it is
-  /// the reason nothing here has to know how far the button would have to
-  /// travel to clear the screen edge.
+  /// A FAB that hides with the chrome. Passed to the `Scaffold` only while
+  /// the chrome is visible, so the `Scaffold` animates it.
   final Widget? floatingActionButton;
 
   const ChromeScaffold({
@@ -322,12 +269,8 @@ class ChromeScaffold extends StatelessWidget {
       content = ChromeScrollObserver(extent: totalHeight, child: content);
     }
 
-    // Built here rather than inside the Consumer below, and that placement is
-    // the point. The FAB has to appear and disappear, which means the widget
-    // that decides it rebuilds — and the feed's body is four scrollables. Held
-    // as a local, the same instance goes into every rebuild, so Flutter's
-    // element diffing skips the subtree entirely and only the Scaffold node is
-    // rebuilt.
+    // Built outside the Consumer below so the same instance is reused when
+    // the FAB toggles, and only the Scaffold rebuilds.
     final stack = Stack(
       children: [
         Positioned.fill(child: content),
@@ -344,11 +287,8 @@ class ChromeScaffold extends StatelessWidget {
               ),
               child: SizedBox(
                 height: totalHeight,
-                // The post-progress bar rides the header's bottom edge rather
-                // than sitting in the layout: a bar that pushed the feed down
-                // and pulled it back up would move what somebody is reading,
-                // twice, for something that is not about them. Inside the
-                // sliding chrome, so it leaves with the header it belongs to.
+                // Overlaid on the header's bottom edge so it never shifts the
+                // feed, and hides with the header.
                 child: Stack(
                   children: [
                     SafeArea(
@@ -379,7 +319,6 @@ class ChromeScaffold extends StatelessWidget {
       ],
     );
 
-    // A screen with no button never watches, so it never rebuilds for one.
     if (floatingActionButton == null) return Scaffold(body: stack);
 
     return Consumer(
@@ -398,16 +337,16 @@ class ChromeHeaderRow extends StatelessWidget {
   /// The page's name. Null when [titleWidget] carries it instead.
   final String? title;
 
-  /// Drawn in place of [title] — the home tab's mark, which is a picture.
+  /// Drawn in place of [title], such as the home tab's mark.
   final Widget? titleWidget;
 
   final List<Widget> actions;
 
-  /// Drawn before the title — the feed's account avatar.
+  /// Drawn before the title, such as the feed's account avatar.
   final Widget? leading;
 
-  /// regardless of the leading avatar's width. Page titles (Bookmarks,
-  /// Channels, …) stay left-aligned, so this defaults to false.
+  /// Centres the title on the header regardless of [leading]'s width. Used for
+  /// the home tab's mark; page titles stay left-aligned.
   final bool centerTitle;
 
   const ChromeHeaderRow({
@@ -444,8 +383,6 @@ class ChromeHeaderRow extends StatelessWidget {
 
     if (!centerTitle) return row;
 
-    // Centered independently of the row so the leading avatar's width
-    // doesn't push the wordmark off-center the way Expanded alignment would.
     return Stack(
       alignment: Alignment.center,
       children: [

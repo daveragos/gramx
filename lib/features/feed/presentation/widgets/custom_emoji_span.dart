@@ -8,20 +8,15 @@ import 'package:lottie/lottie.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/presentation/custom_emoji_provider.dart';
 
-/// One premium emoji, drawn inline in a run of text.
-///
-/// Falls back to the plain character it stands in for until the artwork
-/// resolves — and permanently, for formats we can't decode. That fallback is
-/// the whole glyph on its own: the previous version appended a gold star to
-/// every one, which turned a post full of premium emoji into noise.
+/// One custom (premium) emoji drawn inline in text. Shows the plain character
+/// until the artwork loads, and for formats that can't be decoded.
 class CustomEmojiGlyph extends ConsumerWidget {
   final int customEmojiId;
   final String fallbackText;
   final double size;
 
-  /// Drawn instead of [fallbackText] while the artwork is missing. For an
-  /// emoji that stands in for a mark rather than a character, such as an
-  /// emoji status standing in for the Premium star.
+  /// Shown instead of [fallbackText] while the artwork is missing, for an
+  /// emoji that stands in for a mark (such as an emoji status).
   final Widget? fallback;
 
   const CustomEmojiGlyph({
@@ -36,8 +31,7 @@ class CustomEmojiGlyph extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final emoji = ref.watch(customEmojiProvider)[customEmojiId];
 
-    // Ask for anything we don't have yet. Requests are batched and cached, so
-    // calling this from build is cheap.
+    // Requests are batched and cached, so this is cheap from build.
     if (emoji == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(customEmojiProvider.notifier).request([customEmojiId]);
@@ -57,8 +51,7 @@ class CustomEmojiGlyph extends ConsumerWidget {
           fit: BoxFit.contain,
           errorBuilder: (_, _, _) => _fallback(),
         ),
-        // WebM carries an alpha plane Android's decoder drops; the character
-        // reads better than a black square.
+        // Android's decoder drops WebM's alpha plane, so show the character.
         _ => _fallback(),
       },
     );

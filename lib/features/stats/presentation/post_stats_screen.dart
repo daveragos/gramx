@@ -18,19 +18,16 @@ import 'package:gramx/features/stats/presentation/stats_providers.dart';
 import 'package:gramx/features/stats/presentation/widgets/stat_figure_tile.dart';
 import 'package:gramx/features/stats/presentation/widgets/stat_section.dart';
 
-///
-/// The three counts across the top are the post's own and cost nothing: they
-/// are already on the message. The two charts below are `getMessageStatistics`,
-/// and "Shared by" is `getMessagePublicForwards` — Telegram's nearest thing to
-/// chat is not the channel's business.
+/// One post's statistics. The counts at the top come from the message, the
+/// charts from `getMessageStatistics`, and "Shared by" from
+/// `getMessagePublicForwards` (public forwards only).
 class PostStatsScreen extends ConsumerWidget {
   static const String route = '/post/:postId/stats';
 
   static String routeFor(int chatId, int messageId) =>
       '/post/${chatId}_$messageId/stats';
 
-  /// `<chatId>_<messageId>`, the id every screen in this app addresses a post
-  /// by. See `TdlibMappers`.
+  /// The post id, `<chatId>_<messageId>`.
   final String postId;
 
   const PostStatsScreen({super.key, required this.postId});
@@ -113,9 +110,7 @@ class _Body extends ConsumerWidget {
   final int messageId;
   final PostStats stats;
 
-  /// The post itself, when the screen that pushed here already had it. Null
-  /// only while the single-post fetch is in flight, and the charts do not wait
-  /// on it — the numbers are the point of this screen, not the words.
+  /// The post, or null while loading. The charts don't wait for it.
   final Post? post;
 
   const _Body({
@@ -177,9 +172,7 @@ class _Body extends ConsumerWidget {
           source: stats.reactionGraph,
           slug: 'post-$messageId-reactions',
         ),
-        // The heading waits for the answer. A heading over a space that is
-        // about to fill is the same fault as one over a space that never
-        // will.
+        // No heading until the forwards have loaded.
         if (shares != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -215,11 +208,8 @@ class _Body extends ConsumerWidget {
   }
 }
 
-/// The post's own counts, in the same tiles the channel overview uses.
-///
-/// They carry no growth arrow: a post has one lifetime and nothing to compare
-/// it against, and [StatFigure.hasGrowth] is what keeps the arrow off rather
-/// than a second widget.
+/// The post's own counts, in the channel overview's tiles. They have no
+/// previous period, so [StatFigure.hasGrowth] keeps the arrow off.
 class _PostFigures extends StatelessWidget {
   final Post post;
 
@@ -268,7 +258,7 @@ class _PostFigures extends StatelessWidget {
   }
 }
 
-/// A channel that forwarded this post, and what the forward earned there.
+/// A channel that forwarded this post, with the forward's views.
 class _ShareRow extends StatelessWidget {
   final PublicShare share;
   final Color secondary;
@@ -282,8 +272,7 @@ class _ShareRow extends StatelessWidget {
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return InkWell(
-      // The forwarded copy, in the channel that made it — which is the post a
-      // reader following this row is asking to see.
+      // Opens the forwarded copy in the channel that shared it.
       onTap: () => context.push('/post/${share.chatId}_${share.messageId}'),
       child: Container(
         padding: const EdgeInsets.symmetric(

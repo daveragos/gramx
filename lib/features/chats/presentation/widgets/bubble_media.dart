@@ -15,25 +15,16 @@ import 'package:gramx/features/feed/presentation/widgets/post_audio_player.dart'
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/sticker_tile.dart';
 
-/// The picture, video, file or sticker inside a message bubble.
-///
-/// Deliberately *not* the feed's `PostMediaGrid`. A post's media is a grid of
-/// up to four tiles with a `+N` badge because a channel post is a broadcast
-/// with an album; a message is one thing at a time, constrained by the bubble's
-/// width, and it keeps its own aspect ratio. Sharing the grid would mean one
-/// widget with two layout modes and a flag deciding which — and the audio,
-/// document and sticker renderers, which *are* shared, take a bare [MediaItem]
-/// already.
+/// The picture, video, file or sticker inside a message bubble. Unlike the
+/// feed's grid, it shows one item at its own aspect ratio.
 class BubbleMedia extends ConsumerWidget {
   final MediaItem item;
 
-  /// The bubble's usable width. The media never exceeds it, and a portrait
-  /// photo is capped by [maxHeight] so one picture cannot fill the screen.
+  /// The bubble's usable width. Media never exceeds it.
   final double maxWidth;
 
-  /// Whether the media is the whole message, with no text under it. Media-only
-  /// bubbles round all four corners; a captioned one squares the bottom two so
-  /// the picture and the words read as one object.
+  /// Whether the message has no caption. Captioned media gets square bottom
+  /// corners so it joins the text below.
   final bool isAlone;
 
   const BubbleMedia({
@@ -43,15 +34,14 @@ class BubbleMedia extends ConsumerWidget {
     this.isAlone = true,
   });
 
-  /// Tallest a picture may be drawn. A 9:16 photo at full bubble width is most
-  /// of a phone screen, which pushes the conversation off it.
+  /// Maximum drawn height, so a tall photo doesn't fill the screen.
   static const double maxHeight = 320;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     switch (item.type) {
       case MediaType.sticker:
-        // A sticker is the message: no bubble, no crop, its own size.
+        // Stickers draw at their own size, uncropped.
         return StickerTile(item: item);
       case MediaType.voice:
       case MediaType.audio:
@@ -72,8 +62,7 @@ class BubbleMedia extends ConsumerWidget {
   }
 }
 
-/// A photo, video or GIF: something with a frame to show and a tap that opens
-/// it full screen.
+/// A photo, video or GIF that opens full screen on tap.
 class _VisualMedia extends ConsumerWidget {
   final MediaItem item;
   final double maxWidth;
@@ -89,9 +78,8 @@ class _VisualMedia extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isVideo = item.type != MediaType.photo;
 
-    // A video shows its poster frame; a photo shows itself. Both fall back to
-    // the minithumbnail, which travels inside the message and is therefore
-    // there before any download is.
+    // Videos show their thumbnail. Both fall back to the minithumbnail, which
+    // arrives inside the message before any download.
     final path = resolveMediaPath(
       ref,
       fileId: isVideo ? item.thumbnailFileId : item.fileId,
@@ -116,8 +104,7 @@ class _VisualMedia extends ConsumerWidget {
             children: [
               _Frame(path: path, minithumbnail: item.minithumbnail),
               if (item.hasSpoiler)
-                // Telegram's "cover this until tapped" flag, set by the sender.
-                // Honouring it is the whole point of the flag existing.
+                // The sender marked this as a spoiler.
                 BackdropBlur(child: const SizedBox.expand()),
               if (isVideo) const _PlayBadge(),
               if (isVideo && item.duration > 0)
@@ -133,9 +120,8 @@ class _VisualMedia extends ConsumerWidget {
     );
   }
 
-  /// The drawn size: the media's own aspect ratio, capped by the bubble's width
-  /// and by [BubbleMedia.maxHeight]. Falls back to 4:3 when Telegram gave no
-  /// dimensions, which beats a zero-height box.
+  /// The media's aspect ratio fitted within [maxWidth] and
+  /// [BubbleMedia.maxHeight]. Assumes 4:3 when Telegram gives no dimensions.
   Size _fittedSize() {
     final width = item.width > 0 ? item.width.toDouble() : 4;
     final height = item.height > 0 ? item.height.toDouble() : 3;
@@ -170,8 +156,8 @@ class _VisualMedia extends ConsumerWidget {
   }
 }
 
-/// What is actually painted: the downloaded file if it has landed, otherwise
-/// Telegram's inline blur, otherwise a plain placeholder.
+/// The downloaded file if present, otherwise the minithumbnail, otherwise a
+/// plain placeholder.
 class _Frame extends StatelessWidget {
   final String? path;
   final String? minithumbnail;
@@ -202,8 +188,6 @@ class _Frame extends StatelessWidget {
           errorBuilder: (_, _, _) => placeholder,
         );
       } on FormatException {
-        // A malformed minithumbnail is a bad byte from the server, not a
-        // reason to lose the bubble.
         return placeholder;
       }
     }

@@ -28,9 +28,8 @@ ChatMessage _map(td.Message message, {bool isGroup = false, int cursor = 0}) =>
     );
 
 void main() {
-  // A reply to a channel's post named its author from the post's signature,
-  // which most channels leave blank — so the bubble said "Replying to" and
-  // stopped. The channel is the author, and its title is its name.
+  // Most channels leave the post signature blank, so the channel itself is
+  // named as the author.
   test('a reply to a channel post is to that channel', () {
     final message = TdFixtures.replyingMessage(
       id: 20,
@@ -53,8 +52,7 @@ void main() {
     expect(mapped.replyToAuthorName, 'Self Made Coder');
   });
 
-  // A photo has no text, and a one-to-one chat puts no name on a bubble — so a
-  // reply to your own photo said "Replying to" and nothing else.
+  // A photo has no text, so a reply to one needs a label of its own.
   group('what a reply quotes', () {
     ChatMessage photo({bool outgoing = true}) => ChatMessage(
       id: '${_chatId}_1',
@@ -101,9 +99,8 @@ void main() {
   });
 
   group('sender names', () {
-    // Somebody posting in a group as their channel, or an anonymous admin
-    // posting as the group, is a chat and not a user. Looked up only among
-    // users, they were drawn as a nameless "?".
+    // A user posting as their channel, or an anonymous admin posting as the
+    // group, is a chat sender rather than a user.
     test('a message sent as a chat is named after that chat', () {
       final json = TdFixtures.textMessageJson(id: 11, chatId: _chatId);
       json['sender_id'] = {'@type': 'messageSenderChat', 'chat_id': -100900};
@@ -126,8 +123,7 @@ void main() {
       expect(mapped.senderId, isNull);
     });
 
-    // In a private chat the two possible senders are the two people looking at
-    // the screen, and naming them on every bubble is noise.
+    // In a private chat both senders are obvious, so names would be noise.
     test('only groups carry one', () {
       final message = TdFixtures.chatMessage(
         id: 10,
@@ -210,10 +206,8 @@ void main() {
       expect(mapped.replyToChatId, isNull);
     });
 
-    // TDLib only inlines reply content for cross-chat replies and quotes, so a
-    // reply within a chat arrives with no preview. In a conversation the answer
-    // is almost always a few bubbles up — free, where the feed has to spend a
-    // request on it.
+    // TDLib only inlines reply content for cross-chat replies and quotes. A
+    // reply within the chat usually quotes a message already on the page.
     test('the excerpt is resolved from the page itself', () {
       final page = ChatMessageMapper.mapHistory(
         [
@@ -240,7 +234,6 @@ void main() {
       expect(filled.last.replyToText, 'the original');
     });
 
-    // A bare "replying to" line is honest. Inventing a preview is not.
     test('a reply to something off the page keeps its empty preview', () {
       final page = ChatMessageMapper.mapHistory(
         [
@@ -277,8 +270,8 @@ void main() {
     });
   });
 
-  // Service messages were drawn as empty lines, so a public group — mostly
-  // joins — read as blank gaps under date headers with nothing in them.
+  // Service messages render as a line of text, or not at all, never as an
+  // empty row.
   group('service lines', () {
     td.Message service(
       Map<String, dynamic> content, {
@@ -410,8 +403,7 @@ void main() {
       expect(rows.map((r) => r.isLastInGroup), [false, false, true]);
     });
 
-    // Longer than the window and a reply an hour later reads as part of the
-    // previous thought.
+    // Without a time limit, a reply an hour later would join the earlier run.
     test('a long gap breaks the run', () {
       final rows = ConversationRows.build([
         at(1, DateTime(2026, 8, 28, 10, 0)),
@@ -430,8 +422,6 @@ void main() {
       expect(rows.every((r) => r.isFirstInGroup), isTrue);
     });
 
-    // A message that opens a day opens a run, whoever sent the last one
-    // yesterday.
     test('a day boundary breaks a run that would otherwise continue', () {
       final rows = ConversationRows.build([
         at(1, DateTime(2026, 8, 27, 23, 59)),
@@ -460,7 +450,6 @@ void main() {
       expect(ConversationState.firstUnreadIn(messages, 100), 200);
     });
 
-    // Your own messages are not something you have to come back and read.
     test('skips outgoing and service messages', () {
       final messages = [
         msg(200, outgoing: true),
@@ -490,11 +479,8 @@ void main() {
       expect((next as ConversationMessageRow).message.messageId, 200);
     });
 
-    // The screen scrolls to the band by walking up the scrollback until it has
-    // been built — `ListView.builder` builds nothing far from the viewport, so
-    // the band twenty rows up has no `BuildContext` for `ensureVisible` to find.
-    // Knowing how far up it is, in the reversed order the list is drawn in, is
-    // what tells the screen there is anything to walk towards.
+    // `ListView.builder` builds nothing far from the viewport, so the screen
+    // walks up the scrollback to the band and needs to know how far it is.
     test('the band knows how far it is from the newest row', () {
       final rows = ConversationRows.build([
         msg(100),
@@ -505,8 +491,7 @@ void main() {
 
       final fromNewest = ConversationRows.unreadRowFromNewest(rows)!;
 
-      // Counted in the reversed order the list draws: the two newest messages
-      // sit below the band, so it is the third row from the bottom.
+      // Counted from the bottom: the two newest messages sit below the band.
       expect(rows[rows.length - 1 - fromNewest], isA<ConversationUnreadRow>());
       expect(fromNewest, 2);
     });
@@ -521,8 +506,7 @@ void main() {
       expect(rows[rows.length - 1 - fromNewest], isA<ConversationUnreadRow>());
     });
 
-    // Nothing to walk towards. The screen has to be able to tell this apart
-    // from "the band is a long way up", or it steps ten viewports for nothing.
+    // Must differ from "far up", or the screen scrolls for nothing.
     test('no band means no distance', () {
       expect(
         ConversationRows.unreadRowFromNewest(
@@ -532,8 +516,6 @@ void main() {
       );
     });
 
-    // A chat opened with nothing waiting gets no band at all, and an id that
-    // paged out of the loaded window must not conjure one somewhere else.
     test('no band without a target, or for a target off the page', () {
       expect(
         ConversationRows.build([msg(100)]).whereType<ConversationUnreadRow>(),
@@ -559,7 +541,6 @@ void main() {
       );
     });
 
-    // Within this year the year is noise; outside it, it is the point.
     test('the year appears only when it differs', () {
       expect(
         ChatDateSeparator.label(DateTime(2026, 5, 1), now: now),

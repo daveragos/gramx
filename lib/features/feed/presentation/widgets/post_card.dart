@@ -32,10 +32,8 @@ class PostCard extends ConsumerWidget {
   final Post post;
   final bool isHighlighted;
 
-  /// Whether to draw the hairline that closes the card.
-  ///
-  /// A thread draws its own after the "earlier posts" toggle, so the post it
-  /// belongs to must not close the group early.
+  /// Whether to draw the bottom divider. Off inside a thread, which draws its
+  /// own after the "earlier posts" toggle.
   final bool showDivider;
   final VoidCallback? onTap;
   final VoidCallback? onChannelTap;
@@ -55,13 +53,8 @@ class PostCard extends ConsumerWidget {
     this.onShareTap,
   });
 
-  /// Opens what a forwarded post came from.
-  ///
-  /// Three cases, in descending order of usefulness:
-  ///  1. Telegram told us the original post — open that post directly.
-  ///  2. We only know the channel — open the channel.
-  ///  3. The origin was hidden (a private channel, or a sender who forbids
-  ///     linking) — say so, rather than doing nothing on tap.
+  /// Opens a forwarded post's origin: the original post if known, else its
+  /// channel, else a message that the origin is hidden.
   void _handleForwardedTap(BuildContext context, WidgetRef ref) {
     final chatId = post.forwardedFromChatId;
     final messageId = post.forwardedFromMessageId;
@@ -99,10 +92,8 @@ class PostCard extends ConsumerWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    // Read state is NOT marked here. Flutter builds list items ahead of the
-    // viewport, so doing it in build() marked posts the user never saw — and
-    // ViewMessages propagates that to every Telegram client they own.
-    // FeedFocusController handles it, after a real on-screen dwell.
+    // Read state is not marked here: Flutter builds items ahead of the
+    // viewport. FeedFocusController marks it after an on-screen dwell.
 
     final defaultBookmarkHandler =
         onBookmarkTap ??
@@ -200,10 +191,7 @@ class PostCard extends ConsumerWidget {
         ),
         child: Column(
           children: [
-            // A quoted passage stands above the post that answers it, on a
-            // connector running down into this card's own avatar — so it is
-            // drawn here rather than inside the column below. See
-            // QuotedPassage.
+            // Drawn above the row so its connector runs into the avatar.
             if (showsQuotedPassage)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -217,8 +205,8 @@ class PostCard extends ConsumerWidget {
             Padding(
               padding: EdgeInsets.fromLTRB(
                 AppSpacing.postPadding,
-                // The passage above already opened the card; a second top
-                // padding here would break the connector's run.
+                // No top padding under a passage, to keep the connector
+                // continuous.
                 showsQuotedPassage ? 0 : AppSpacing.postPadding,
                 AppSpacing.postPadding,
                 AppSpacing.postPadding,
@@ -226,7 +214,6 @@ class PostCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Circular avatar on top left
                   ChannelAvatar(
                     title: post.channelTitle,
                     avatarPath: post.channelAvatarUrl,
@@ -244,7 +231,7 @@ class PostCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // "…" pinned to the far edge.
+                        // Title, username and time, with "…" at the far edge.
                         Row(
                           children: [
                             Expanded(
@@ -291,6 +278,7 @@ class PostCard extends ConsumerWidget {
                                   if (post.authorSignature != null &&
                                       post.authorSignature!.isNotEmpty) ...[
                                     Text(
+                                      // Shown as a handle, not "~ name".
                                       '@${post.authorSignature}',
                                       style:
                                           AppTypography.actionCount(
@@ -317,7 +305,7 @@ class PostCard extends ConsumerWidget {
                                   ),
                                   if (!post.isRead) ...[
                                     const SizedBox(width: 6),
-                                    // State carried by colour alone needs a label.
+                                    // The dot is colour only, so label it.
                                     Semantics(
                                       label: AppStrings.a11yUnread,
                                       child: Container(
@@ -341,7 +329,6 @@ class PostCard extends ConsumerWidget {
                           ],
                         ),
 
-                        // Clickable Forwarded Banner Header
                         if (forwardedText != null &&
                             forwardedText.isNotEmpty) ...[
                           const SizedBox(height: 3),
@@ -369,9 +356,8 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // "Replying to Ada" — context for words not read yet,
-                        // so it goes before them. The quote card is the other
-                        // shape and sits below the body; see ReplySlot.
+                        // The "Replying to" line goes above the body; the
+                        // quote card goes below it (see ReplySlot).
                         ReplyTarget(
                           post: post,
                           onOpenPost: () => _openReplyTarget(context),
@@ -381,9 +367,7 @@ class PostCard extends ConsumerWidget {
                           ),
                         ),
 
-                        // Text content with link launcher. Long posts clamp
-                        // with a "Show more" rather than pushing every other
-                        // channel off the screen.
+                        // Long posts collapse behind "Show more".
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
                           ExpandableText(
@@ -395,14 +379,13 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // Content this build can't draw. The label alone was a
-                        // dead end; Telegram itself can still show it.
+                        // Content the app can't draw, with a way to open it in
+                        // Telegram.
                         if (post.unsupportedKind != null) ...[
                           const SizedBox(height: AppSpacing.sm),
                           _OpenInTelegramButton(post: post),
                         ],
 
-                        // Link preview
                         if (post.linkPreviewUrl != null &&
                             post.linkPreviewUrl!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
@@ -415,7 +398,6 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // Poll
                         if (post.poll != null) ...[
                           const SizedBox(height: AppSpacing.md),
                           FeedPollCard(
@@ -425,13 +407,12 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        // Media Grid
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           PostMediaGrid(media: post.media, post: post),
                         ],
 
-                        // order, and the whole point of the card.
+                        // The quoted post being answered, below the answer.
                         ReplyTarget(
                           post: post,
                           slot: ReplySlot.belowBody,
@@ -442,9 +423,6 @@ class PostCard extends ConsumerWidget {
                           ),
                         ),
 
-                        // Reactions. Telegram's, drawn quietly — see
-                        // ReactionChipsRow for why they are not a second
-                        // action bar.
                         if (post.reactions.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),
                           ReactionChipsRow(
@@ -457,7 +435,6 @@ class PostCard extends ConsumerWidget {
 
                         const SizedBox(height: AppSpacing.md),
 
-                        // Action Bar
                         PostActionBar(
                           post: post,
                           secondaryColor: secondaryColor,
@@ -488,13 +465,9 @@ class PostCard extends ConsumerWidget {
   bool get showsQuotedPassage =>
       replyPresentationFor(post) == ReplyPresentation.passage;
 
-  /// The passage, with the byline of whoever wrote it.
-  ///
-  /// A reply inside this channel is answering this channel, so the face and
-  /// handle already on the card are the right ones. Across chats they belong
-  /// to somebody else and the avatar falls back to its initial rather than
-  /// wearing the wrong channel's picture — the same fault `PostSender` exists
-  /// to prevent, one level down.
+  /// The quoted passage with its author's byline. For a reply into another
+  /// chat, the avatar falls back to an initial instead of this channel's
+  /// picture.
   Widget _quotedPassage(BuildContext context) {
     final isSameChat = post.replyToChatId == null;
     return QuotedPassage(
@@ -510,11 +483,7 @@ class PostCard extends ConsumerWidget {
     );
   }
 
-  /// Opens the message this post answers.
-  ///
-  /// A reply can point into another chat. Assuming it points into this one
-  /// asked for a message id that does not exist there, which reports itself as
-  /// "post not found" however reachable the real one is.
+  /// Opens the message this post answers, which may be in another chat.
   void _openReplyTarget(BuildContext context) {
     final messageId = post.replyToMessageId;
     if (messageId == null) {
@@ -528,7 +497,7 @@ class PostCard extends ConsumerWidget {
   }
 }
 
-/// Sends the reader to Telegram for a message this build cannot render.
+/// Opens in Telegram a message the app can't render.
 class _OpenInTelegramButton extends ConsumerWidget {
   final Post post;
 
@@ -543,10 +512,8 @@ class _OpenInTelegramButton extends ConsumerWidget {
         label: const Text(AppStrings.postOpenInTelegram),
         onPressed: () async {
           final messenger = ScaffoldMessenger.of(context);
-          // A guest post has no TDLib message behind it to ask for a link, and
-          // TelegramIds cannot build one either — it un-shifts a TDLib message
-          // id, and a guest id is unshifted already, so it came back null and
-          // the button did nothing at all.
+          // Guest posts have no TDLib message, and their ids are not shifted
+          // like TDLib's, so they build their own link.
           final link = GuestPostMapper.isSynthetic(post.chatId)
               ? GuestPostMapper.postLink(post)
               : await ref.read(feedRepositoryProvider).postLink(post) ??
@@ -571,11 +538,8 @@ class _OpenInTelegramButton extends ConsumerWidget {
   }
 }
 
-/// The "…" at the top right of every card.
-///
-/// Drawn small and in secondary grey so it reads as furniture, not as one of
-/// the post's actions; the hit target is the full row height so it can still
-/// be found with a thumb.
+/// The small "…" at the top right of every card, with a hit target the full
+/// height of the row.
 class _MoreButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;

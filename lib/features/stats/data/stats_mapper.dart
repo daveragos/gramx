@@ -5,28 +5,14 @@ import 'package:gramx/features/stats/domain/channel_stats.dart';
 import 'package:gramx/features/stats/domain/post_stats.dart';
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// TDLib's statistics objects, in this app's terms.
-///
-/// Pure and separate from `StatsRepository` for one reason:
-/// the repository owns the requests, and every decision that has a wrong
-/// answer lives somewhere a test can reach without a TDLib client.
+/// Maps TDLib's statistics objects to domain types.
 abstract class StatsMapper {
-  /// How many of Telegram's recent interactions the Content tab keeps.
-  ///
-  /// Telegram sends up to a few hundred. Each row wants the post's own words,
-  /// and those come from one batched `getMessages` — which takes at most 100
-  /// ids and is a networked request whichever way it is sliced. Thirty is the
-  /// depth a reader scrolls before switching to a longer view, and it keeps
-  /// the batch comfortably inside the limit.
+  /// How many recent interactions the Content tab keeps. Their text comes
+  /// from one batched `getMessages`, which takes at most 100 ids.
   static const int recentPostLimit = 30;
 
-  /// A channel's statistics.
-  ///
-  /// Only [td.ChatStatisticsChannel] maps: the supergroup variant describes a
-  /// group's senders and administrators, which is a different screen for a
-  /// different thing, and gramX only ever opens this on a channel. An
-  /// unexpected variant answers null so the screen can say so rather than draw
-  /// a page of zeroes.
+  /// A channel's statistics. Returns null for any variant other than
+  /// [td.ChatStatisticsChannel], such as supergroup statistics.
   static ChannelStats? mapChannel(td.ChatStatistics statistics) {
     if (statistics is! td.ChatStatisticsChannel) return null;
 
@@ -39,8 +25,8 @@ abstract class StatsMapper {
       ),
       figures: {
         ChannelStatFigure.followers: _figure(statistics.memberCount),
-        // The only figure Telegram sends as a bare percentage rather than as a
-        // statisticalValue, so it has no previous period and no arrow.
+        // A bare percentage rather than a statisticalValue, so it has no
+        // previous period and no growth arrow.
         ChannelStatFigure.notifications: StatFigure(
           value: statistics.enabledNotificationsPercentage,
           isPercentage: true,
@@ -79,11 +65,8 @@ abstract class StatsMapper {
     );
   }
 
-  /// The recent interactions this app can draw, newest first.
-  ///
-  /// Stories are dropped rather than listed: gramX has no screen to open one
-  /// on, so a row for one would be a row that goes nowhere — the inert control
-  /// the hard rules forbid, wearing a list's clothes.
+  /// Recent post interactions, newest first. Stories are dropped since the
+  /// app has no screen to open them on.
   static List<PostInteraction> recentPosts(
     List<td.ChatStatisticsInteractionInfo> interactions,
   ) {
@@ -101,8 +84,7 @@ abstract class StatsMapper {
       );
     }
 
-    // Telegram orders these newest first already; sorting on the id says so in
-    // the code rather than relying on it, and message ids ascend with time.
+    // Sort by id (ascending with time) rather than rely on Telegram's order.
     posts.sort((a, b) => b.messageId.compareTo(a.messageId));
     if (posts.length > recentPostLimit) {
       return posts.sublist(0, recentPostLimit);
@@ -116,10 +98,8 @@ abstract class StatsMapper {
     reactionGraph: graph(statistics.messageReactionGraph),
   );
 
-  /// A TDLib graph as the three states a graph can be in.
-  ///
-  /// Data that arrived but cannot be read is [StatGraphMissing], not an empty
-  /// [StatGraphReady] — see `StatGraphParser.parse`.
+  /// Maps a TDLib graph to its source state. Unreadable data becomes
+  /// [StatGraphMissing], not an empty [StatGraphReady].
   static StatGraphSource graph(td.StatisticalGraph source) => switch (source) {
     td.StatisticalGraphData(:final jsonData) => _parsed(jsonData),
     td.StatisticalGraphAsync(:final token) => StatGraphPending(token),
@@ -134,9 +114,8 @@ abstract class StatsMapper {
     return StatGraphReady(parsed);
   }
 
-  /// Telegram's growth rate is already a percentage, and it is `0` both for
-  /// "unchanged" and for "there was no previous period". [StatFigure.hasGrowth]
-  /// is what refuses to draw an arrow on either.
+  /// Telegram's growth rate is already a percentage, and is `0` both for no
+  /// change and for no previous period. See [StatFigure.hasGrowth].
   static StatFigure _figure(td.StatisticalValue value) => StatFigure(
     value: value.value,
     previousValue: value.previousValue,

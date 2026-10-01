@@ -5,23 +5,13 @@ import 'package:open_filex/open_filex.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
 
-/// Hands a downloaded file to whichever app on the device owns it.
+/// Opens a downloaded file in another app on the device, with a snackbar
+/// that tells "no app found" apart from other failures.
 ///
-/// One place, because the three call sites that need it — a document row, the
-/// image viewer, the video viewer — were each about to grow their own copy of
-/// the same error handling, and the interesting part *is* the error handling:
-/// "there is no app for this" and "the app refused it" are different sentences
-/// and a reader can act on the first.
-///
-/// On Android this goes out as a `content://` URI through `open_filex`'s own
-/// `FileProvider`, which grants read permission to the receiving app for the
-/// life of the intent. A plain `file://` path would throw
-/// `FileUriExposedException` — TDLib's files live in app-private storage.
-///
-/// **It also depends on a manifest declaration.** Android 11 hides apps that
-/// are not matched by a `<queries>` entry, so without the `VIEW` + `*/*` intent
-/// in `AndroidManifest.xml` this reports "no app found" on a device that has
-/// three apps for the file.
+/// `open_filex` shares the file as a `content://` URI through its
+/// `FileProvider`, since TDLib's files are in app-private storage. Android 11+
+/// also needs the `VIEW` `*/*` `<queries>` entry in `AndroidManifest.xml`, or
+/// every file reports no app found.
 Future<void> openWithSystemApp(BuildContext context, String? path) async {
   if (path == null || path.isEmpty || !File(path).existsSync()) {
     _say(context, AppStrings.openWithNotReady);

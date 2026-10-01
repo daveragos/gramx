@@ -4,10 +4,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/presentation/widgets/custom_emoji_span.dart';
 
-/// The blue check beside a Telegram Premium account's name.
-///
-/// everywhere — the same badge, the same blue — rather than Telegram's star,
-/// [PremiumMark.shows].
+/// The check beside a Telegram Premium account's name. It is the same badge
+/// as the verified check, so a name never shows two; see [PremiumMark.shows].
 class PremiumCheck extends StatelessWidget {
   final double size;
 
@@ -24,19 +22,14 @@ class PremiumCheck extends StatelessWidget {
   }
 }
 
-/// A Premium account's mark where the view is about that one person: the
-/// conversation header and the profile.
-///
-/// Their own emoji status when they have set one — Telegram shows it in place
-/// of the Premium badge, and it is the person's choice of how to be seen — and
-/// the check otherwise, or while the emoji's artwork is still on its way. Lists
-/// draw [PremiumCheck] alone.
+/// A Premium account's mark in the conversation header and profile: the
+/// user's emoji status if set (as Telegram shows it), otherwise the check.
+/// Lists use [PremiumCheck] alone.
 class PremiumMark extends StatelessWidget {
   final int? emojiStatusId;
   final double size;
 
-  /// Whether the name already carries the verified check, in which case a
-  /// second check would say nothing more.
+  /// Whether the name already has the verified check.
   final bool isVerified;
 
   const PremiumMark({
@@ -46,11 +39,8 @@ class PremiumMark extends StatelessWidget {
     this.isVerified = false,
   });
 
-  /// Whether a name gets a Premium mark beside its verified check, if any.
-  ///
-  /// A verified Premium account shows its emoji status beside the check, as
-  /// Telegram does; without one there is nothing to add to the check it
-  /// already has.
+  /// Whether to show a Premium mark. A verified account shows one only when
+  /// it has an emoji status.
   static bool shows({
     required bool isPremium,
     required bool isVerified,

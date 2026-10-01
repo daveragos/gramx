@@ -10,22 +10,10 @@ import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Learns which channel the people in the messages list run, as the list is
-/// scrolled.
-///
-/// The badge beside a person's name — see `ChatSummary.affiliatedChannelId` —
-/// comes from their `UserFullInfo`, which TDLib only volunteers once their
-/// chat or profile has been opened. So the badge appeared for the three
-/// people the reader had talked to today and for nobody else, and a list
-/// meant to show who somebody is showed it only after you already knew.
-///
-/// **Why this is not the fan-out the request budget forbids.** It is driven by
-/// rows being *built*, which `ListView.builder` does for what is on or near
-/// the screen — not by the list existing. Each person is asked about once a
-/// session, one at a time, [spacing] apart, and the whole thing stops at
-/// [maxPerSession] or the first flood wait. Scrolling a screen of twelve
-/// conversations costs twelve requests spread over two seconds; scrolling
-/// nowhere costs nothing.
+/// Fetches `UserFullInfo` for people in the messages list as their rows are
+/// built, so the channel badge shows for chats not yet opened. One request per
+/// person per session, [spacing] apart, stopping at [maxPerSession] or the
+/// first flood wait.
 class AffiliationPrefetcher {
   final ChatsRepository _repository;
   final ChatCache _cache;
@@ -50,11 +38,8 @@ class AffiliationPrefetcher {
     this.maxPerSession = 80,
   }) : _selfUserId = selfUserId;
 
-  /// Asks about the person behind [chatId], if there is one worth asking about.
-  ///
-  /// Cheap to call from a row builder: everything that would make the
-  /// request pointless is answered here from the cache, and the request
-  /// itself is queued rather than sent.
+  /// Queues a request for the person behind [chatId], if needed. Cheap enough
+  /// to call from a row builder.
   void request(int chatId) {
     if (_stopped) return;
     final chat = _cache.chat(chatId);
@@ -74,11 +59,8 @@ class AffiliationPrefetcher {
     _drain();
   }
 
-  /// Who a row is about, when asking would tell the list something new.
-  ///
-  /// Pure, so the rule is testable: a person — not a bot, not the reader's
-  /// own Saved Messages, not a group — whose full record the cache does not
-  /// hold yet.
+  /// The user to ask about for a row: a person (not a bot, group or Saved
+  /// Messages) whose full info the cache doesn't have yet.
   @visibleForTesting
   static int? userToAskAbout(
     td.Chat chat, {
@@ -91,7 +73,6 @@ class AffiliationPrefetcher {
     final userId = type.userId;
     if (userId == selfUserId) return null;
     if (known.containsKey(userId)) return null;
-    // A bot has no channel of its own to run; asking would only ever say so.
     if (users[userId]?.type is td.UserTypeBot) return null;
     return userId;
   }
@@ -106,8 +87,7 @@ class AffiliationPrefetcher {
           await _repository.ensureUserFullInfo(userId);
         } on TdlibRequestException catch (e) {
           if (e.isFloodWait) {
-            // The penalty lands on the reader's account, not on this app.
-            // Whatever is queued is dropped and nothing more is asked.
+            // Flood waits apply to the user's account, so stop for the session.
             debugPrint('[Affiliation] rate limited — stopping: $e');
             _stopped = true;
             _queue.clear();

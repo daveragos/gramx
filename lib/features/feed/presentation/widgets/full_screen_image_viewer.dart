@@ -11,35 +11,21 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/media_viewer_chrome.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// One picture, described the way the viewer needs it rather than as a path.
-///
-/// A path alone was the bug behind "tapping a loading image shows a broken
-/// image icon": signed in, a photo that has not been downloaded yet has no
-/// path — the grid hands over TDLib's remote id or the numeric file id,
-/// because that is all `MediaItem.url` holds until the bytes land. The viewer
-/// then did `File(thatString).existsSync()`, got false, and drew the broken
-/// glyph over a picture that was merely still arriving.
-///
-/// Carrying the [fileId] instead lets the viewer *wait*: it watches the same
-/// download the grid watches, shows the blurred [minithumbnail] Telegram ships
-/// inside the message meanwhile, and swaps in the real file when it lands.
+/// One picture for the viewer. Until it downloads, the viewer watches
+/// [fileId] and shows [minithumbnail].
 @immutable
 class ViewerImage {
-  /// A local path, or an https URL in guest mode. Null when only [fileId] is
-  /// known.
+  /// A local path, or an https URL in guest mode.
   final String? path;
 
-  /// TDLib's file id, when there is one. Watching it both reports progress and
-  /// starts the download if nothing else has.
+  /// TDLib's file id; watching it also starts the download.
   final int? fileId;
 
-  /// Telegram's inline blur preview, base64. A few hundred bytes that arrive
-  /// with the message itself, so there is something to look at immediately.
+  /// Telegram's inline blur preview (base64), sent with the message.
   final String? minithumbnail;
 
   const ViewerImage({this.path, this.fileId, this.minithumbnail});
 
-  /// The viewer entry for a photo in a post.
   factory ViewerImage.of(MediaItem item, {String? downloadedPath}) =>
       ViewerImage(
         path: downloadedPath ?? item.localPath ?? item.url,
@@ -52,15 +38,13 @@ class ViewerImage {
       (path != null && path!.isNotEmpty) || (fileId != null && fileId != 0);
 }
 
-/// Full-screen multi-image gallery viewer with immersive system UI hiding,
-/// pinch zoom, swipe page view and a bottom counter pill.
+/// Full-screen immersive image gallery with pinch zoom and swipe paging.
 class FullScreenImageViewer extends StatefulWidget {
   final List<ViewerImage> items;
   final int initialIndex;
   final String tag;
 
-  /// The post these images belong to, so the viewer carries its identity and
-  /// actions instead of leaving the reader on a bare black screen.
+  /// The post these images belong to, for the viewer's header and actions.
   final Post? post;
 
   const FullScreenImageViewer({
@@ -79,8 +63,7 @@ class FullScreenImageViewer extends StatefulWidget {
     Post? post,
   }) {
     if (items.isEmpty) return;
-    // Root navigator: a branch's own navigator sits *under* the shell's bottom
-    // bar, so the viewer opened with the tab bar still painted over the photo.
+    // Root navigator, so the viewer covers the shell's bottom bar.
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder(
         opaque: false,
@@ -105,13 +88,11 @@ class FullScreenImageViewer extends StatefulWidget {
 }
 
 class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
-  /// Zoom bounds. The floor is 1: letting a picture shrink below the screen
-  /// only ever happened by accident, and it made every pinch feel loose.
+  /// Zoom bounds. A picture never shrinks below the screen.
   static const double _minScale = 1;
   static const double _maxScale = 8;
 
-  /// Where a double tap lands you. Deep enough to read small text in a
-  /// screenshot, shallow enough that one more pinch is not required.
+  /// Zoom after a double tap, enough to read small text in a screenshot.
   static const double _doubleTapScale = 2.5;
 
   late PageController _pageController;
@@ -119,26 +100,14 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   final Map<int, TransformationController> _transformControllers = {};
   bool _showChrome = true;
 
-  /// Whether the current page is scaled past 1:1, which changes what a drag
-  /// means — panning the picture rather than closing the viewer.
+  /// Whether the current page is zoomed, so a drag pans instead.
   bool _isZoomed = false;
 
-  /// Fingers currently on the screen.
-  ///
-  /// This is the whole fix for "pinching is a struggle". A `PageView` and an
-  /// `InteractiveViewer` are both in the gesture arena, and the page's
-  /// horizontal drag recogniser wins on the smallest sideways movement — which
-  /// every two-finger pinch has. So a pinch was read as a swipe, the page
-  /// flicked instead of zooming, and the reader had to find the one gesture
-  /// pure enough not to be stolen.
-  ///
-  /// A `Listener` sits outside the arena and simply counts pointers, so the
-  /// moment a second finger lands the page stops scrolling and the zoom has
-  /// the gesture to itself.
+  /// Fingers down, counted outside the gesture arena so paging stops when a
+  /// second finger lands; otherwise the `PageView` would steal pinches.
   int _pointers = 0;
 
-  /// Where the last double tap landed, so the zoom goes *there* rather than to
-  /// the middle of a picture the reader was not looking at.
+  /// Where the last double tap landed, so the zoom centres there.
   Offset? _doubleTapAt;
 
   @override
@@ -146,13 +115,11 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    // Hide BNB and system status bars in full screen mode
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
   void dispose() {
-    // Restore edge-to-edge system UI when exiting full screen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _pageController.dispose();
     for (final controller in _transformControllers.values) {
@@ -176,28 +143,18 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   }
 
   void _setPointers(int count) {
-    // Never below zero: a cancel that arrives for a pointer already counted
-    // out would otherwise leave the gallery locked against swiping for good.
+    // Clamped at zero so a stray cancel can't lock swiping.
     final next = count < 0 ? 0 : count;
     if (next == _pointers) return;
     setState(() => _pointers = next);
   }
 
-  /// Snaps a picture back into place once the fingers leave.
-  ///
-  /// `minScale` clamps the zoom but not the pan, so a picture nudged sideways
-  /// at 1:1 stays nudged — off-centre, with a black gutter down one side, and
-  /// no obvious way back. At rest and unzoomed there is only one right
-  /// position, so it takes it.
+  /// Settles the picture on release, since `minScale` doesn't bound the pan.
   void _onInteractionEnd(int index) {
     final controller = _getController(index);
     if (_scaleOf(index) <= 1.01) {
       controller.value = Matrix4.identity();
     } else {
-      // Zoomed, the pan is unbounded while the finger is down — see the
-      // boundary margin below — so at rest the picture is brought back to
-      // where it still fills the screen. Without this a zoomed picture could
-      // be pushed off the edge and left there, black where it had been.
       controller.value = keepCoveringViewport(
         controller.value,
         MediaQuery.sizeOf(context),
@@ -212,8 +169,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     if (controller.value != Matrix4.identity()) {
       controller.value = Matrix4.identity();
     } else {
-      // Keep the tapped point where it is: scaling about the origin would slide
-      // whatever the reader aimed at off the screen.
+      // Scale about the tapped point so it stays under the finger.
       final at = _doubleTapAt ?? Offset.zero;
       const scale = _doubleTapScale;
       controller.value = Matrix4.identity()
@@ -233,25 +189,17 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
 
   @override
   Widget build(BuildContext context) {
-    // Either a second finger or an already-zoomed picture means this gesture
-    // belongs to the image, not to the gallery.
     final imageOwnsGesture = _pointers > 1 || _isZoomed;
 
     return MediaViewerChrome(
       post: widget.post,
       showChrome: _showChrome,
-      // The picture being *looked at*, not the one the viewer opened on — the
-      // button has to follow the page. Resolved through a Consumer because
-      // this State has no `ref` of its own, and only the current page's file
-      // is watched, so swiping does not subscribe to the whole album.
       localPath: _localPathForCurrentPage,
       pageIndicator: MediaPageDots(
         count: widget.items.length,
         index: _currentIndex,
       ),
       child: DragToDismiss(
-        // A zoomed image pans instead; dismissing from under the reader's
-        // finger while they are inspecting a detail would be maddening.
         enabled: !imageOwnsGesture,
         child: Listener(
           onPointerDown: (_) => _setPointers(_pointers + 1),
@@ -266,19 +214,15 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             onPageChanged: (index) => setState(() {
               _currentIndex = index;
               _isZoomed = _scaleOf(index) > 1.01;
-              // Dropped until the new page reports its own, so the button can
-              // never hand out the picture the reader just swiped away from.
+              // Cleared until the new page reports its own file.
               _localPathForCurrentPage = null;
             }),
             itemBuilder: (context, index) {
               final item = widget.items[index];
 
               return GestureDetector(
-                // Opaque so a tap on the black around a portrait photo counts
-                // too — the furniture is what the reader is aiming at.
+                // Opaque so taps on the black around the photo count too.
                 behavior: HitTestBehavior.opaque,
-                // A single tap clears the furniture so the picture can be
-                // looked at on its own.
                 onTap: () => setState(() => _showChrome = !_showChrome),
                 onDoubleTapDown: (details) =>
                     _doubleTapAt = details.localPosition,
@@ -286,24 +230,14 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                 child: InteractiveViewer(
                   transformationController: _getController(index),
                   clipBehavior: Clip.none,
-                  // A picture at 1:1 has nowhere to pan to, so a drag is not
-                  // a pan — it is a swipe to the next picture, or the
-                  // pull-down that closes the viewer. Left enabled, any drag
-                  // that reached this recogniser first — a diagonal one, or
-                  // any drag at all on a single picture with no page to go
-                  // to — slid the picture sideways into the black. Zoomed,
-                  // panning is what a drag means and it comes back on.
+                  // At 1:1 a drag pages or dismisses rather than panning.
                   panEnabled: _isZoomed,
-                  // Unbounded, so a zoomed picture can be dragged right to its
-                  // own corner. The default pins the child's edges to the
-                  // viewport, which is what made panning feel stuck halfway.
+                  // Unbounded; _onInteractionEnd settles it afterwards.
                   boundaryMargin: const EdgeInsets.all(double.infinity),
                   minScale: _minScale,
                   maxScale: _maxScale,
                   trackpadScrollCausesScale: true,
-                  // Live, not just at the end: the page has to lock the instant
-                  // the scale moves, or the first frames of a pinch still read
-                  // as a swipe.
+                  // Live, so paging locks as soon as the scale moves.
                   onInteractionUpdate: (_) => _syncZoomState(index),
                   onInteractionEnd: (_) => _onInteractionEnd(index),
                   child: Center(
@@ -313,9 +247,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                           : '${widget.tag}_$index',
                       child: _ViewerImage(
                         item: item,
-                        // Only the page actually on screen reports, so
-                        // swiping does not have every page in the album
-                        // racing to set the button's target.
+                        // Only the page on screen reports its file.
                         onResolved: index == _currentIndex
                             ? _onCurrentPageResolved
                             : null,
@@ -332,16 +264,8 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   }
 }
 
-/// A zoomed picture's transform, moved just enough that the picture still
-/// covers the screen.
-///
-/// The viewer pans without bounds while a finger is down, so a zoomed picture
-/// can be dragged anywhere; this is where it settles once the finger lifts.
-/// The picture's box is the viewport scaled by the zoom, and the rule is that
-/// no edge of that box may come inside the viewport's — so the translation is
-/// clamped to `[viewport × (1 − scale), 0]` on each axis. At 1:1 that is
-/// exactly no translation at all. Pure, so it can be checked without a
-/// gesture.
+/// [transform] with its translation clamped so the zoomed picture still
+/// covers [viewport]: each axis is limited to `[viewport * (1 - scale), 0]`.
 Matrix4 keepCoveringViewport(Matrix4 transform, Size viewport) {
   final scale = transform.getMaxScaleOnAxis();
   final translation = transform.getTranslation();
@@ -353,25 +277,12 @@ Matrix4 keepCoveringViewport(Matrix4 transform, Size viewport) {
   return transform.clone()..setTranslationRaw(x, y, translation.z);
 }
 
-/// One full-screen picture, from either source and at any stage of arriving.
-///
-/// The viewer used to do `Image.file(File(pathOrUrl))` on whatever string it
-/// was handed, with a comment asserting media "always arrives from TDLib as a
-/// local file". Two things broke that. Guest mode carries `t.me` URLs, so
-/// `File('https://…')` never existed; and a signed-in photo that has not
-/// finished downloading carries a remote id or a bare file id, which is not a
-/// path either. Both ended on the broken-image glyph, one of them for a
-/// picture that would have arrived a second later.
-///
-/// So: resolve the URL through the guest cache, watch the file id for a
-/// download in flight, and only call something broken when there is genuinely
-/// nothing left to wait for.
+/// One full-screen picture, from a guest URL or a TDLib download. Shown as
+/// broken only when there is nothing left to wait for.
 class _ViewerImage extends ConsumerWidget {
   final ViewerImage item;
 
-  /// Reports the file this page resolved, so the chrome's "open with" can hand
-  /// out the exact one on screen. A callback rather than a second resolution
-  /// up top: the page already knows, and two answers can disagree.
+  /// Reports the resolved file, for the chrome's "open with" action.
   final ValueChanged<String?>? onResolved;
 
   const _ViewerImage({required this.item, this.onResolved});
@@ -381,15 +292,14 @@ class _ViewerImage extends ConsumerWidget {
     final fileId = item.fileId;
     FileDownloadProgressState? download;
     if (fileId != null && fileId != 0) {
-      // The *progress* provider, not the status one: opening a picture is the
-      // request for it, so this both reports and starts the download.
+      // The progress provider also starts the download.
       download = ref.watch(fileDownloadProgressProvider(fileId)).value;
     }
 
     final resolved =
         download?.localPath ?? resolveMediaPath(ref, rawPath: item.path);
 
-    // Reported after the frame, never during it: `build` must not write state.
+    // After the frame, since `build` must not write state.
     final report = onResolved;
     if (report != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => report(resolved));
@@ -406,8 +316,7 @@ class _ViewerImage extends ConsumerWidget {
       }
     }
 
-    // Still coming. The grid showed something a moment ago, so "broken" would
-    // be a lie — this is a wait, not a failure.
+    // Still downloading.
     final isRemote =
         item.path != null &&
         (item.path!.startsWith('http://') || item.path!.startsWith('https://'));
@@ -422,8 +331,7 @@ class _ViewerImage extends ConsumerWidget {
   }
 }
 
-/// What a picture looks like while its bytes are on the way: Telegram's own
-/// blur preview, if the message carried one, under a progress ring.
+/// A loading picture: Telegram's blur preview, if any, under a progress ring.
 class _LoadingImage extends StatelessWidget {
   final String? minithumbnail;
   final double progress;

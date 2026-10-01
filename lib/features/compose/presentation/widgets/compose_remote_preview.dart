@@ -9,16 +9,13 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 
-/// The sticker or GIF the post is carrying, and the way to take it back off.
-///
-/// One tile, not a strip: there is only ever one of these on a post, because
-/// Telegram cannot group a sticker or an animation into an album.
+/// The sticker or GIF the post is carrying, with a way to remove it. Always
+/// one tile, since Telegram can't put either in an album.
 class ComposeRemotePreview extends ConsumerWidget {
   final ComposeRemoteMedia media;
   final VoidCallback onRemove;
 
-  /// Roughly the size a sticker renders at in the feed, so what the writer sees
-  /// here is close to what the post will look like.
+  /// Roughly the size a sticker renders at in the feed.
   static const double _extent = 160;
 
   const ComposeRemotePreview({
@@ -33,9 +30,8 @@ class ComposeRemotePreview extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    // The thumbnail rather than the file itself: it is always WEBP or JPEG, so
-    // it renders whatever format the sticker is in — TGS and WebM would draw
-    // nothing here. See StickerTile for what full playback would take.
+    // The thumbnail is always WEBP or JPEG, so it renders whatever format the
+    // sticker is in (TGS and WebM would draw nothing). See StickerTile.
     final path = resolveMediaPath(
       ref,
       fileId: media.thumbnailFileId ?? media.fileId,

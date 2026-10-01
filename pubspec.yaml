@@ -10,11 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Material's own strings, and the text direction that comes with a locale.
-  # gramX ships English only — every string of its own is in
-  # `core/l10n/app_strings.dart` — but without these delegates the framework's
-  # widgets (the text selection menu, date pickers, semantics) are English on
-  # every device regardless, and there is no locale for the app to react to.
+  # Localized strings and text direction for the framework's own widgets.
   flutter_localizations:
     sdk: flutter
 
@@ -53,55 +49,33 @@ dependencies:
   country_picker: ^2.0.28
   visibility_detector: ^0.4.0+2
 
-  # Telling TDLib which network it is on. TDLib's own documentation requires
-  # `setNetworkType` to be called on every network change — the call is what
-  # forces its connections to reopen — and Flutter has no way to observe one
-  # without a platform plugin. Used for exactly that, in
-  # `infrastructure/telegram/tdlib_lifecycle.dart`, and nowhere else.
+  # Tells TDLib about network changes through `setNetworkType`.
   connectivity_plus: ^6.1.0
 
-  # Deep links. A Telegram client that cannot open a t.me link is the one
-  # link every post in it renders. This delivers
-  # the launch link and the ones that arrive while running; what they mean is
-  # decided in `core/navigation/telegram_link.dart`, which is pure.
+  # Deep links, both at launch and while the app is running.
   app_links: ^6.3.2
 
-  # Showing a notification. TDLib decides *what* should be notified and keeps
-  # the groups in step across the reader's devices; it has no way to draw one,
-  # which is what this is for.
+  # Draws notifications; TDLib decides what to notify.
   flutter_local_notifications: ^18.0.1
   lottie: ^3.5.1
   open_filex: ^4.7.0
 
-  # Composing: picking a photo or video off the device to attach to a post.
-  # Gallery only. The camera is reached through `camera` below, and only from
-  # the one control that needs it.
+  # Picking a photo or video from the gallery to attach to a post.
   image_picker: ^1.1.2
 
   # Guest mode only: fetching and parsing t.me/s/<channel> preview pages.
-  # Nothing else in the app makes an HTTP request of its own — signed-in
-  # traffic all goes through TDLib.
   http: ^1.2.2
   html: ^0.15.5
-  # Attaching a file that is not a picture. Uses the platform's own document
-  # picker (SAF on Android, UIDocumentPicker on iOS), which hands back a single
-  # file the app has been granted — so it needs no storage permission of its
-  # own.
+  # Attaching other files via the system picker; needs no storage permission.
   file_picker: ^11.0.3
 
-  # Recording a voice message. Configured for Opus in an OGG container, which
-  # is what `inputMessageVoiceNote` wants — anything else arrives in other
-  # Telegram clients as a file rather than a playable waveform. Needs the
-  # microphone permission, asked for at the moment the reader holds the button.
+  # Voice messages, as Opus in OGG so Telegram shows a playable waveform.
   record: ^7.1.1
 
-  # One position fix, for sending a location. Never a stream and never in the
-  # background: gramX asks once, when somebody taps "send my location", and
-  # stops.
+  # One position fix for sending a location, never in the background.
   geolocator: ^14.0.2
 
-  # Recording a round video message. The only thing in the app that opens the
-  # camera, and the only reason the camera permission is declared.
+  # Recording round video messages, the only use of the camera.
   camera: ^0.12.0+2
 
 dev_dependencies:

@@ -4,8 +4,7 @@ import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
-/// A draft that is ready to send, as a starting point for the tests that break
-/// exactly one rule.
+/// A valid draft. Each test breaks one rule of it.
 PollDraft valid() =>
     const PollDraft(question: 'Best colour?', options: ['Red', 'Blue']);
 
@@ -60,7 +59,6 @@ void main() {
     test('a quiz cannot also take several answers', () {
       final quiz = valid().withMultipleAnswers(true).withKind(PollKind.quiz);
       expect(quiz.allowsMultipleAnswers, isFalse);
-      // And it stays off while it is a quiz.
       expect(quiz.withMultipleAnswers(true).allowsMultipleAnswers, isFalse);
     });
 
@@ -87,9 +85,7 @@ void main() {
       expect(draft.removeOption(0).options.length, PollDraft.minOptions);
     });
 
-    // The failure this guards is silent: remove the option above the right
-    // answer and, without the shift, a different option is marked correct —
-    // which nobody notices until somebody votes.
+    // Without the shift, a different option would silently become correct.
     test('removing a row above the right answer moves the answer with it', () {
       final quiz = const PollDraft(
         question: 'Which?',
@@ -128,9 +124,7 @@ void main() {
     test(
       'a quiz carries the index of the filled option, not the typed one',
       () {
-        // A blank row sits between the two answers, so the typed index and the
-        // sent index differ — which is exactly the case that would mark the
-        // wrong answer correct.
+        // The blank row makes the typed index and the sent index differ.
         final quiz = const PollDraft(
           question: 'Which?',
           options: ['A', '', 'C'],

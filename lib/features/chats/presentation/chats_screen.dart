@@ -23,15 +23,12 @@ import 'package:gramx/features/chats/presentation/widgets/new_chat_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/guest_messages_placeholder.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// The messages tab: every conversation this account is in.
-///
-/// Costs no TDLib requests to open or to scroll — the rows are read out of the
-/// chat cache the update stream already fills. Only opening one costs anything.
+/// The messages tab: every conversation this account is in. Rows come from the
+/// chat cache, so showing and scrolling the list costs no TDLib requests.
 class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
-  /// Where a conversation lives. Root-level, so it covers the shell the way the
-  /// post and channel screens do rather than sitting under the bottom bar.
+  /// The route for a conversation. Root-level, so it covers the bottom bar.
   static String routeFor(int chatId) => '/chat/$chatId';
 
   @override
@@ -39,13 +36,9 @@ class ChatsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatsScreenState extends ConsumerState<ChatsScreen> {
-  /// Height the search row reserves inside the header.
-  ///
-  /// Measured, not guessed: the field's own dense content padding plus the
-  /// prefix icon's minimum come to 48, and the padding around it adds 8 above
-  /// and below. The scaffold needs the total up front — that number is how far
-  /// the chrome has to travel — which is the same arrangement, and the same
-  /// constraint, as the feed's folder strip.
+  /// Height the search row reserves inside the header: a 48 dense field plus
+  /// 8 padding above and below. The scaffold needs it up front to know how far
+  /// the chrome travels.
   static const double _searchFieldHeight = 64;
 
   final TextEditingController _search = TextEditingController();
@@ -85,13 +78,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // A guest has no account, so there is nobody for a message to be from.
-    // The tab stays — ShellTab owns tab order and branch index — and says so.
+    // Guests can't message. The tab stays because ShellTab owns the tab order.
     if (!ref.watch(readerCapabilitiesProvider).canMessage) {
       return const GuestMessagesPlaceholder();
     }
 
-    // Re-tapping the tab you are already on means "take me back to the top".
     ref.listen<int>(chatsScrollToTopProvider, (_, _) => _scrollToTop());
 
     final chats = ref.watch(visibleChatsProvider);
@@ -106,19 +97,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         leading: _AccountAvatar(),
         actions: [ChatFilterMenu(onAction: _handleMenu)],
       ),
-      // The search field belongs to the header, not to the body. Sitting in
-      // the body it was pinned below the space the header *used* to occupy, so
-      // scrolling down took the title row, the bottom bar and the button away
-      // and left the field floating under a band of nothing. As part of the
-      // chrome it leaves with everything else — the feed's folder tabs are the
-      // same arrangement for the same reason.
+      // Part of the header so it scrolls away with the rest of the chrome.
       headerBottomHeight: _searchFieldHeight,
       headerBottom: _SearchField(controller: _search),
       floatingActionButton: Padding(
-        // Lifts the button clear of the bottom bar, which overlays the content
-        // rather than sitting under it — so a FAB at the Scaffold's own
-        // position is drawn *behind* the bar. `ComposeFab` has the same line
-        // for the same reason.
+        // The bottom bar overlays the content, so lift the button above it.
         padding: const EdgeInsets.only(bottom: ShellChrome.bottomBarHeight),
         child: FloatingActionButton(
           backgroundColor: AppColors.accent,
@@ -143,10 +126,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               itemCount: chats.length,
               itemBuilder: (context, index) {
                 final chat = chats[index];
-                // A row being built is a row about to be looked at, so the
-                // channel this person runs is asked for now rather than when
-                // their chat is opened. Deduped, spaced and capped — see
-                // AffiliationPrefetcher for why this is not a fan-out.
+                // Fetch the person's channel as the row comes into view.
+                // AffiliationPrefetcher dedupes, spaces and caps the requests.
                 if (chat.kind == ChatKind.direct &&
                     chat.affiliatedChannelId == null) {
                   ref.read(affiliationPrefetcherProvider).request(chat.chatId);
@@ -169,8 +150,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   }
 }
 
-/// The account avatar, which opens the drawer — the same gesture and the same
-/// place as on the feed.
+/// The account avatar, which opens the drawer.
 class _AccountAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -187,8 +167,7 @@ class _AccountAvatar extends ConsumerWidget {
   }
 }
 
-/// Filters what is loaded. Issues no request, so it needs no debounce — see
-/// [ChatSearchQueryNotifier].
+/// Filters the loaded chats. No request, so no debounce.
 class _SearchField extends ConsumerWidget {
   final TextEditingController controller;
   const _SearchField({required this.controller});
@@ -245,14 +224,11 @@ class _SearchField extends ConsumerWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  /// Whether a filter or a search is why the list is empty. The two cases need
-  /// different words: one is "you have no conversations", the other is "none of
-  /// them match", and telling somebody the first when the second is true reads
-  /// as the app having lost their messages.
+  /// Whether a filter or a search is why the list is empty, which needs
+  /// different wording from having no conversations at all.
   final bool isFiltered;
 
-  /// Offered only in the genuinely-empty case. A "start a conversation" button
-  /// under "nothing matches this filter" answers a question nobody asked.
+  /// Offered only when there are no conversations at all.
   final VoidCallback? onStart;
 
   const _EmptyState({required this.isFiltered, this.onStart});

@@ -14,9 +14,6 @@ void main() {
       expect(next.chosen, {'👍'});
     });
 
-    // The bug this fixes: the optimistic path added to `chosen` instead of
-    // replacing, so two emoji showed as the user's own while the server had
-    // only kept the last.
     test('picking a second reaction replaces the first', () {
       final next = applyReactionChoice(
         reactions: const {'👍': 3, '🔥': 1},

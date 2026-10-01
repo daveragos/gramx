@@ -8,35 +8,16 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Which chats are worth asking about, and how many requests that costs.
-///
-/// **This is the whole budget argument for the Activity screen.** A list of
-/// everything that has happened to you is the shape the request budget forbids —
-/// a request per chat, over the whole chat list — unless something already
-/// knows which chats have anything in them. Something does: TDLib pushes
-/// `updateChatUnreadMentionCount` and `updateChatUnreadReactionCount` on the
-/// update stream for free, and `ChatCache` folds both into [ChatSummary].
-///
-/// So the plan is: ask only chats whose count is non-zero, which for an
-/// ordinary account is nought to three, and cap it anyway.
+/// Which chats Activity searches: only those with unread mentions or
+/// reactions (counts TDLib pushes for free), up to a cap.
 abstract class ActivityPlan {
-  /// The most chats one refresh will ask about.
-  ///
-  /// A cap rather than a trust: an account that has been away for a month, or
-  /// one in fifty busy groups, should cost the same as any other. Twelve chats
-  /// is at most 24 requests, spread over the screen being opened by hand.
+  /// The most chats one refresh searches (at most 24 requests).
   static const int maxChats = 12;
 
-  /// How many messages are read back per question.
-  ///
-  /// The screen shows the most recent few of anything; a hundred mentions in
-  /// one group is a group to open, not a hundred rows to scroll.
+  /// How many messages each search returns.
   static const int perChatLimit = 10;
 
-  /// What to ask, newest chat first.
-  ///
-  /// Sorted by the chat's own recency so the cap, when it bites, keeps the
-  /// chats the reader is most likely to care about.
+  /// What to search, newest chat first so the cap keeps recent chats.
   static List<ActivityQuery> queriesFor(List<ChatSummary> chats) {
     final candidates = [
       for (final chat in chats)
@@ -61,11 +42,7 @@ abstract class ActivityPlan {
     return candidates.take(maxChats).toList();
   }
 
-  /// The number on the bell.
-  ///
-  /// Free — every term is already in the cache. Mentions and reactions are
-  /// summed because the bell says "how many things happened", and the reader
-  /// does not sort them by kind before deciding whether to look.
+  /// The number on the bell: unread mentions plus reactions, from the cache.
   static int badgeCount(List<ChatSummary> chats) {
     var total = 0;
     for (final chat in chats) {
@@ -82,12 +59,8 @@ class ActivityRepository {
 
   ActivityRepository(this._tdlib, this._chatCache);
 
-  /// Everything that has happened, newest first.
-  ///
-  /// One `SearchChatMessages` per question in the plan, and the plan only ever
-  /// names chats the update stream has already said have something in them.
-  /// Driven by the screen being opened, never on a timer — see
-  /// [ActivityPlan].
+  /// Unread mentions, replies and reactions, newest first. One
+  /// `SearchChatMessages` per [ActivityPlan] query, run when the screen opens.
   Future<List<ActivityItem>> load(List<ChatSummary> chats) async {
     final items = <ActivityItem>[];
 
@@ -114,19 +87,9 @@ class ActivityRepository {
     return items;
   }
 
-  /// Tells Telegram the reader has seen what [load] just showed them.
-  ///
-  /// The bell counts unread mentions and reactions, and Telegram only clears
-  /// those when the message itself is viewed inside its chat — so the count
-  /// sat on the bell after the reader had looked straight at the list. This
-  /// is the missing half: one `readAllChatMentions` and one
-  /// `readAllChatReactions` per chat the list asked about, which moves the
-  /// mention and reaction markers and **nothing else** — the chat's own read
-  /// cursor stays where it was, so nothing here marks a conversation read.
-  ///
-  /// Same plan, same cap, same trigger as [load]: only chats the update stream
-  /// said had something, at most [ActivityPlan.maxChats] of them, and only
-  /// because the screen was opened by hand.
+  /// Clears the unread mention and reaction counts for the chats [load]
+  /// searched, since Telegram otherwise clears them only when the message is
+  /// viewed in its chat. Each chat's read position is left alone.
   Future<void> markSeen(List<ChatSummary> chats) async {
     for (final query in ActivityPlan.queriesFor(chats)) {
       if (query.wantsMentions) {
@@ -142,8 +105,7 @@ class ActivityRepository {
     try {
       await _tdlib.sendRequest(request);
     } catch (e) {
-      // A chat that would not take the acknowledgement keeps its count, and
-      // the bell stays honest about it. Nothing else depends on this.
+      // The chat just keeps its count on the bell.
       debugPrint('[Activity] $request failed: $e');
     }
   }
@@ -161,9 +123,7 @@ class ActivityRepository {
           offset: 0,
           limit: ActivityPlan.perChatLimit,
           filter: filter,
-          // The whole chat, not one thread and not a saved-messages topic —
-          // both of those narrow the search to somewhere the reader did not
-          // ask about.
+          // The whole chat, not one thread or saved-messages topic.
           messageThreadId: 0,
           savedMessagesTopicId: 0,
         ),
@@ -184,18 +144,14 @@ class ActivityRepository {
           ),
       ];
     } catch (e) {
-      // One chat failing is one chat missing from the list, not an empty
-      // screen. A flood wait here is exactly the case that must degrade.
+      // A failed chat (say, a flood wait) is just left out of the list.
       debugPrint('[Activity] search in $chatId failed: $e');
       return const [];
     }
   }
 
-  /// Who sent a message, read only from what the cache already holds.
-  ///
-  /// Never a request: a lookup per row of a list is the fan-out
-  /// the request budget forbids, and this is a list. A sender the cache does not
-  /// know simply has no name, and the row says where it happened instead.
+  /// Who sent a message, from the cache only, to avoid a request per row. An
+  /// unknown sender returns null and the row names the chat instead.
   ({String name, int? avatarFileId, int seed})? _senderOf(td.Message message) {
     final sender = message.senderId;
     if (sender is td.MessageSenderUser) {
@@ -220,9 +176,6 @@ class ActivityRepository {
   }
 
   /// One message as one row.
-  ///
-  /// Pure, and the part worth testing: which kind a message counts as, and
-  /// what a row says when the message has no text of its own.
   @visibleForTesting
   static ActivityItem itemFor(
     td.Message message, {
@@ -231,9 +184,8 @@ class ActivityRepository {
     required bool isReaction,
     ({String name, int? avatarFileId, int seed})? sender,
   }) {
-    // A reply to something you sent is a different event from a mention of
-    // you, and Telegram carries both on the same message — the reply pointer
-    // is what tells them apart, and it is the more specific of the two.
+    // Telegram counts a reply to the user as an unread mention too; the reply
+    // pointer tells the two apart.
     final kind = isReaction
         ? ActivityKind.reaction
         : (message.replyTo != null ? ActivityKind.reply : ActivityKind.mention);
@@ -253,10 +205,7 @@ class ActivityRepository {
     );
   }
 
-  /// One line of what the message says.
-  ///
-  /// A message with no text is not an empty row — a photo somebody tagged you
-  /// under still happened. The content type stands in for the words.
+  /// One line of the message's text, or its content type when it has none.
   @visibleForTesting
   static String previewOf(td.Message message) {
     final content = message.content;
@@ -287,11 +236,7 @@ class ActivityRepository {
     };
   }
 
-  /// The reaction to show, when a message carries several.
-  ///
-  /// Telegram lists *unread* reactions on the message itself, newest last —
-  /// so the last of them is the one that just happened, which is the one the
-  /// row is about.
+  /// The newest unread reaction on [message]. Telegram lists them newest last.
   @visibleForTesting
   static String? newestReactionOn(td.Message message) {
     final unread = message.unreadReactions;

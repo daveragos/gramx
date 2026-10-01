@@ -24,8 +24,7 @@ void main() {
       }
     });
 
-    // `t.me/s/name` is the web preview page — the one guest mode reads. It
-    // names the same channel, so it opens the same screen.
+    // `t.me/s/name` is the web preview page for the same channel.
     test('a preview link names the same channel', () {
       expect(
         parse('https://t.me/s/ragoose_dumps'),
@@ -49,16 +48,13 @@ void main() {
       );
     });
 
-    // TDLib shifts a server id left by 20 bits so it can address parts of a
-    // message. A link carries the unshifted number, so it has to be converted
-    // before anything in this app can look it up.
+    // Links carry server ids; TDLib message ids are shifted left by 20 bits.
     test('the number is shifted into a TDLib message id', () {
       final link = parse('https://t.me/ragoose_dumps/42') as TelegramPostLink;
       expect(link.tdlibMessageId, 42 << 20);
     });
 
-    // A forum link carries the topic first. gramX has no topics, and
-    // the post still opens — which beats refusing the link.
+    // A forum link carries the topic first; gramX has no topics.
     test('a forum link opens the post and ignores the topic', () {
       expect(
         parse('https://t.me/ragoose_dumps/7/11123'),
@@ -76,8 +72,7 @@ void main() {
       expect(link.serverMessageId, 42);
     });
 
-    // TDLib puts a -100 in front of a supergroup id to make a chat id, and
-    // every lookup in this app is by chat id.
+    // TDLib chat ids for supergroups are the id with a -100 prefix.
     test('the chat id carries the -100 prefix', () {
       final link =
           parse('https://t.me/c/1234567890/42') as TelegramPrivatePostLink;
@@ -92,9 +87,6 @@ void main() {
       expect(link.serverMessageId, 42);
     });
 
-    // Superseded. This used to expect null: no message meant no link at all,
-    // so the one shape that names a private channel you are already in was
-    // handed back to Telegram. It is a channel link now, not a broken post.
     test('a private channel with no message is a channel, not nothing', () {
       expect(
         parse('https://t.me/c/1234567890'),
@@ -112,9 +104,7 @@ void main() {
       );
     });
 
-    // `t.me/+15551234567` is a contact link — somebody to add, not a place to
-    // go. Treating it as an invite would send a phone number to the server as
-    // an invite hash.
+    // `t.me/+15551234567` is a contact link, not an invite hash.
     test('a phone number is not an invite', () {
       expect(parse('https://t.me/+15551234567'), isNull);
     });
@@ -145,9 +135,7 @@ void main() {
   });
 
   group('links this app does not open', () {
-    // Telegram reserves these words, and gramX implements none of them.
-    // Reading one as a username would send somebody to a channel that does
-    // not exist; unparsed means the link goes back to Telegram, which can.
+    // Reserved words gramX doesn't handle; unparsed links go to Telegram.
     test('a reserved word is not a username', () {
       for (final word in ['addstickers', 'proxy', 'login', 'share', 'bg']) {
         expect(parse('https://t.me/$word/whatever'), isNull, reason: word);
@@ -205,8 +193,6 @@ void main() {
       );
     });
 
-    // Every resolved name used to be taken for a channel, so t.me/<person>
-    // opened the channel screen on somebody's private chat.
     test('a resolved person opens their profile, and a group its chat', () {
       expect(
         DeepLinkRoutes.routeFor(
@@ -251,8 +237,7 @@ void main() {
       );
     });
 
-    // Nothing in gramX joins a private chat, and an unresolvable name has no
-    // screen either. Both go back to Telegram rather than nowhere.
+    // Both are handed to Telegram.
     test('an invite, and an unresolved name, have no route here', () {
       expect(DeepLinkRoutes.routeFor(TelegramInviteLink('x')), isNull);
       expect(DeepLinkRoutes.routeFor(TelegramChannelLink('durov')), isNull);
@@ -260,8 +245,7 @@ void main() {
     });
   });
 
-  // A link the app renders has to be one the app can read back. Anything else
-  // and "Copy link" produces something gramX itself would hand to Telegram.
+  // Links the app writes, such as from "Copy link", must parse back.
   group('round trip with the links this app writes', () {
     test('a public post link parses back to the same post', () {
       final link =
@@ -277,12 +261,8 @@ void main() {
     });
   });
 
-  /// The bug a browser found: tapping a `tg://` link opened "Page Not Found"
-  /// with `GoException: no routes for location: tg:/resolve?domain=…` under
-  /// it. Two faults met. Flutter's own deep linking was also on, so the raw
-  /// URI was pushed into go_router as a location — and by the time it got
-  /// there a normaliser had rewritten `tg://resolve` as `tg:/resolve`, moving
-  /// the action from the authority into the path, where nothing matched it.
+  /// go_router can normalise `tg://resolve` to `tg:/resolve`, moving the
+  /// action from the authority into the path.
   group('a tg: action is found wherever the form puts it', () {
     void expectsChannel(String raw, String username) {
       final link = TelegramLinks.parse(Uri.parse(raw));
@@ -331,9 +311,8 @@ void main() {
     });
   });
 
-  /// The safety net under the platform fix: a link that reaches the router as
-  /// a location anyway is handed back to the handler that owns links, rather
-  /// than shown to the reader as a routing failure.
+  /// A link that reaches the router as a location is handed to the link
+  /// handler instead of failing to route.
   group('deepLinkFromStrayLocation', () {
     test('claims a link this app can open', () {
       final uri = Uri.parse('tg:/resolve?domain=Meseretegeez');
@@ -345,15 +324,14 @@ void main() {
       expect(deepLinkFromStrayLocation(uri), uri);
     });
 
-    // A real route that simply does not exist is a routing bug, not a link,
-    // and must not be laundered into one.
+    // A bad in-app route is a routing bug, not a link.
     test('leaves an ordinary bad route alone', () {
       expect(deepLinkFromStrayLocation(Uri.parse('/nope')), isNull);
       expect(deepLinkFromStrayLocation(Uri.parse('/post/')), isNull);
     });
   });
 
-  /// had no case for. Each is a link Telegram really emits.
+  /// Further link shapes Telegram emits.
   group('shapes gramX used to hand back to Telegram', () {
     test('a private channel with no post opens the channel', () {
       final link = TelegramLinks.parse(Uri.parse('https://t.me/c/1234567890'));
@@ -429,8 +407,7 @@ void main() {
       expect(TelegramLinks.normaliseHashtag('  #flutter  '), '#flutter');
     });
 
-    // A phrase is a text search. gramX's hashtag screen would look for
-    // something nobody can have tagged.
+    // A phrase is a text search, not a hashtag.
     test('a phrase is not a hashtag', () {
       expect(TelegramLinks.normaliseHashtag('two words'), isNull);
       expect(TelegramLinks.normaliseHashtag('#'), isNull);
@@ -438,7 +415,7 @@ void main() {
       expect(TelegramLinks.parse(Uri.parse('tg://search')), isNull);
     });
 
-    // It is a query and a tab switch, not a screen — the shell handles it.
+    // A query and a tab switch, handled by the shell.
     test('it is deliberately not a route', () {
       expect(
         DeepLinkRoutes.routeFor(const TelegramHashtagLink('#flutter')),

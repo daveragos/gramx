@@ -8,13 +8,8 @@ import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/widgets/remove_chat.dart';
 
-/// What can be done to a whole conversation, on a long press in the list.
-///
-/// A long press used to toggle unread and nothing else — a hidden gesture with
-/// one meaning, which is the worst of both worlds: undiscoverable, and useless
-/// use, and every row here reflects state rather than asserting it: the labels
-/// flip with the chat, so there is no "Pin" on an already-pinned chat. The
-/// last row is the way out — leave a group, delete a chat — and it confirms.
+/// Long-press actions for a chat in the list: pin, read state, mute, and
+/// leave or delete. Labels follow the chat's current state.
 class ChatActionsSheet extends ConsumerWidget {
   final ChatSummary chat;
 
@@ -38,9 +33,8 @@ class ChatActionsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(chatsRepositoryProvider);
     final isUnread = chat.unreadCount > 0 || chat.isMarkedAsUnread;
-    // The sheet closes before any answer comes back, and its own context goes
-    // with it — so anything said afterwards is said through the navigator's,
-    // which outlives it.
+    // The sheet closes before results arrive, so follow-ups use the
+    // navigator's context, which outlives it.
     final host = Navigator.of(context).context;
     final messenger = ScaffoldMessenger.of(context);
 
@@ -62,9 +56,7 @@ class ChatActionsSheet extends ConsumerWidget {
                 isPinned: !chat.isPinned,
               );
               if (ok) return;
-              // Telegram caps how many chats may be pinned and refuses rather
-              // than ignoring the extra one, so this is a real answer the
-              // reader needs — silence would look like a dead control.
+              // Telegram refuses a pin past its limit on pinned chats.
               messenger.showSnackBar(
                 const SnackBar(
                   content: Text(AppStrings.messagesPinFailed),
@@ -110,8 +102,7 @@ class ChatActionsSheet extends ConsumerWidget {
               repository.setMuted(chat.chatId, isMuted: !chat.isMuted);
             },
           ),
-          // Saved Messages is the one chat with nobody to leave and nothing a
-          // reader would want gone in one tap.
+          // Saved Messages can't be left and isn't offered for deletion.
           if (chat.kind != ChatKind.savedMessages)
             ListTile(
               leading: Icon(

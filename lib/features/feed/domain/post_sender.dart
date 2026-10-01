@@ -1,34 +1,21 @@
 import 'package:flutter/foundation.dart';
 
-/// Who actually wrote a message, when that is not the chat it arrived in.
-///
-/// A channel post *is* its channel, so the feed needs nothing like this. A
-/// comment does: it lives in the channel's linked discussion group, and the
-/// person who left it has their own name, handle and picture. The mapper used
-/// to take those as three loose optional strings and fall back to the chat for
-/// each one independently — which is how a commenter with a name but no
-/// profile photo ended up wearing the channel's avatar, a stranger apparently
-/// posting as the channel itself.
-///
-/// Bundling them fixes that by construction: **a sender, once supplied, is the
-/// whole answer.** A null field here means "this person has no picture", not
-/// "ask the chat instead".
+/// Who wrote a message, when that is not the chat it arrived in. A null
+/// field means the sender has none, not that the chat's value applies.
 @immutable
 class PostSender {
-  /// The user behind the message, when a person sent it. Null for a message
-  /// sent by a chat — a channel posting into its own discussion group, or an
-  /// anonymous admin.
+  /// The user behind the message, or null when a chat sent it (a channel in
+  /// its discussion group, or an anonymous admin).
   final int? userId;
 
-  /// The chat behind the message, when a chat sent it rather than a person.
+  /// The chat behind the message, when a chat sent it.
   final int? senderChatId;
 
   final String title;
   final String? username;
 
-  /// Local path or remote id of the sender's photo. Null when they have none,
-  /// in which case the avatar falls back to their initial — never to the
-  /// chat's picture.
+  /// Local path of the sender's photo. Null when they have none; the avatar
+  /// then shows their initial, never the chat's picture.
   final String? avatarPath;
   final int? avatarFileId;
 
@@ -41,8 +28,7 @@ class PostSender {
     this.avatarFileId,
   });
 
-  /// What the avatar's fallback colour is derived from, so two comments by the
-  /// same person are the same colour and two people are not.
+  /// Seeds the avatar's fallback colour, so each person keeps one colour.
   int get colorSeed => userId ?? senderChatId ?? title.hashCode;
 
   @override

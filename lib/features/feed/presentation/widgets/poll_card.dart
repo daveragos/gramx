@@ -10,37 +10,24 @@ import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
-/// A poll, drawn and votable.
-///
-/// Deliberately knows nothing about where the poll came from. It used to reach
-/// into the feed's own provider to record a vote, which is why a poll in a
-/// conversation could not use it — and a conversation is now the second place
-/// polls appear. [onVote] is the whole of its relationship with the outside:
-/// the caller decides what a vote *means* (optimistic update, then the
-/// request), and this decides what it looks like.
-///
-/// [FeedPollCard] is the feed's binding of that callback, so the feed's call
-/// sites did not have to learn the plumbing.
+/// A poll, drawn and votable. The caller handles what a vote does through
+/// [onVote]; [FeedPollCard] wires it to the feed.
 class PollCard extends StatefulWidget {
   final Poll poll;
 
-  /// Records the reader's answer. The options are indices into [Poll.options].
+  /// Records the user's answer. The options are indices into [Poll.options].
   final Future<void> Function(List<int> optionIds) onVote;
 
-  /// Drops the card's own border and fill.
-  ///
-  /// A chat bubble is already a surface, and a bordered box drawn inside one is
-  /// a box inside a box — which is what Telegram avoids by letting the poll
-  /// simply be the bubble's contents.
+  /// Drops the card's own border and fill, for use inside a chat bubble.
   final bool isEmbedded;
 
-  /// The bubble's own foreground, when embedded. An outgoing bubble *is* the
-  /// accent colour, so a poll drawn in accent-on-accent is invisible.
+  /// The bubble's foreground when embedded, since an outgoing bubble is
+  /// already the accent colour.
   final Color? foregroundColor;
   final Color? mutedColor;
 
-  /// What a chosen option and the progress bars are tinted with. Falls back to
-  /// the app accent, which is right everywhere except on an outgoing bubble.
+  /// Tint for the chosen option and progress bars. Defaults to the app
+  /// accent.
   final Color? accentColor;
 
   const PollCard({
@@ -60,11 +47,8 @@ class PollCard extends StatefulWidget {
 class _PollCardState extends State<PollCard> {
   bool _isVoting = false;
 
-  /// What the reader has ticked but not yet sent, on a multiple-answer poll.
-  ///
-  /// Empty for every other poll, where a tap *is* the vote. Telegram splits the
-  /// two the same way, and it has to: with several answers allowed there is no
-  /// other moment at which the reader can say they are finished choosing.
+  /// Options ticked but not yet sent on a multiple-answer poll. On other
+  /// polls a tap is the vote.
   final Set<int> _selected = {};
 
   bool get _hasVoted => widget.poll.chosenOptionIds.isNotEmpty;
@@ -146,9 +130,7 @@ class _PollCardState extends State<PollCard> {
                 : _buildInteractiveOption(idx, option, primaryColor, accent),
           );
         }),
-        // Only a multiple-answer poll has a moment between choosing and
-        // voting. Everywhere else the tap already did it, and a button that
-        // does nothing is a control that lies.
+        // Only a multiple-answer poll needs a vote button.
         if (_isMultiple && !showResults)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -232,8 +214,7 @@ class _PollCardState extends State<PollCard> {
         ),
         child: Row(
           children: [
-            // The tick is the only thing that says a selection was registered
-            // on a multiple-answer poll, where the vote has not gone yet.
+            // Shows the pending selection on a multiple-answer poll.
             if (_isMultiple) ...[
               Icon(
                 isSelected
@@ -367,10 +348,7 @@ class _PollCardState extends State<PollCard> {
   }
 }
 
-/// A [PollCard] wired to the feed.
-///
-/// The optimistic update and the `SetPollAnswer` that used to live inside the
-/// card, moved out to the one surface that has a feed provider to update.
+/// A [PollCard] wired to the feed: an optimistic update, then `SetPollAnswer`.
 class FeedPollCard extends ConsumerWidget {
   final Poll poll;
   final String channelId;
@@ -391,8 +369,7 @@ class FeedPollCard extends ConsumerWidget {
         final chatId = int.tryParse(channelId);
         final postId = chatId != null ? '${chatId}_$messageId' : channelId;
 
-        // Instant, then persisted. The real counts arrive back on
-        // `updateMessageContent` and replace these.
+        // Real counts arrive later via `updateMessageContent`.
         ref
             .read(feedPostsProvider.notifier)
             .votePollOptimistic(postId, optionIds);

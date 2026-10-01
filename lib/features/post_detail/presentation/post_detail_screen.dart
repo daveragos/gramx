@@ -63,22 +63,18 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   Post? _replyTargetPost;
   final Set<String> _expandedCommentIds = {};
 
-  /// Pictures and videos picked but not yet posted. A comment can carry the
-  /// same things a post can now, and these ride along with the words the way
-  /// they do everywhere else in the app.
+  /// Pictures and videos attached to the comment but not yet posted.
   final List<ComposeAttachment> _attachments = [];
 
   bool _isSending = false;
 
-  /// Whether the reader unfolded the attach and sticker buttons while typing.
-  /// See [CollapsibleComposerTools].
+  /// Whether the attach and sticker buttons are unfolded while typing.
   bool _commentToolsExpanded = false;
 
   StreamSubscription<LivePostUpdate>? _liveSub;
   Timer? _refreshDebounce;
 
-  /// Replies arrive in bursts. Waiting a beat turns a conversation into one
-  /// refetch instead of one per message.
+  /// Replies arrive in bursts, so a short wait batches them into one refetch.
   static const Duration _commentsRefreshDebounce = Duration(milliseconds: 600);
 
   @override
@@ -94,11 +90,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     _watchForNewComments();
   }
 
-  /// Keeps an open thread current.
-  ///
-  /// Comments live in the channel's linked discussion group, not the channel
-  /// itself, so we match on the chat id of the comments already loaded. Only
-  /// runs while this screen is mounted.
+  /// Keeps an open thread current, matching updates on the comments' chat id.
   void _watchForNewComments() {
     _liveSub = ref.read(syncServiceProvider).livePostUpdates.listen((update) {
       if (update is! LiveNewMessage) return;
@@ -161,18 +153,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           reactionEmoji: emoji,
           isCurrentlyLiked: post.chosenReactions.contains(emoji),
         );
-    // No invalidate: the optimistic override is applied synchronously and the
-    // live update stream reconciles it. Refetching here dropped the screen —
-    // post, thread and scroll position — back to a spinner on every tap.
+    // No invalidate: the update stream reconciles the optimistic override.
   }
 
-  /// Whether there is anything to post: words, or something attached.
   bool get _canSendComment =>
       !_isSending &&
       (_commentController.text.trim().isNotEmpty || _attachments.isNotEmpty);
 
-  /// Attaches a picture or a video, through the same picker the post composer
-  /// and the message composer use.
+  /// Attaches a picture or a video through the shared media picker.
   Future<void> _attachToComment() async {
     final choice = await ComposeMediaKindSheet.show(context);
     if (choice == null || !mounted) return;
@@ -185,12 +173,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     setState(() => _attachments.add(attachment));
   }
 
-  /// Picks a sticker or a GIF and posts it on its own.
-  ///
-  /// Sent immediately rather than staged beside the text, because
-  /// `inputMessageSticker` has no caption field at all — anything typed would
-  /// be silently dropped. Telegram sends on tap here too, so the gesture reads
-  /// the same way it does everywhere else.
+  /// Picks a sticker or a GIF and sends it at once, on its own:
+  /// `inputMessageSticker` has no caption field, so typed text would be lost.
   Future<void> _sendStickerComment(int chatId, int messageId) async {
     final media = await ComposeStickerSheet.show(
       context,
@@ -248,9 +232,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Put back what was typed. Losing a comment to a failed send is the
-        // worst outcome here, and the text is the only part that cannot be
-        // picked again.
+        // Restore the typed text so a failed send does not lose it.
         setState(() {
           if (remote == null) {
             _commentController.text = text;
@@ -267,12 +249,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     }
   }
 
-  /// The long-press menu on a comment: reply, copy, and — for the reader's
-  /// own — edit.
-  ///
-  /// Gated the way the conversation's is, on what Telegram says may be done
-  /// to this message, so Edit appears only where the edit will be taken. The
-  /// sheet chooses and this method acts, with the screen's own context.
+  /// The long-press menu on a comment: reply, copy, and edit where allowed.
   Future<void> _openCommentActions(Post comment) async {
     HapticFeedback.mediumImpact();
     final rights = await ref
@@ -325,8 +302,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     }
   }
 
-  /// Rewrites a comment's words. The thread shows the new words at once from
-  /// the same override reactions use; nothing is refetched.
+  /// Edits a comment's text, shown at once without a refetch.
   Future<void> _editComment(Post comment) async {
     final isCaption = comment.media.isNotEmpty;
     final updated = await EditTextDialog.show(
@@ -376,8 +352,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final primaryColor = theme.colorScheme.onSurface;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // A guest has no Telegram account to write read state to, and the
-      // message id is one this app invented — see ReaderCapabilities.
+      // A guest has no account to write read state to, and the message id is
+      // made up locally. See ReaderCapabilities.
       if (ref.read(readerCapabilitiesProvider).canMarkRead) {
         ref.read(markPostAsReadProvider(widget.postId));
       }
@@ -398,8 +374,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         data: (post) {
           if (post == null) {
             // Usually a forward from a private channel, or a deleted post.
-            // Telegram itself may still be able to show it, so offer that
-            // rather than leaving a dead end.
+            // Telegram may still be able to show it, so offer that.
             return _UnreachablePost(postId: widget.postId);
           }
 
@@ -427,8 +402,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // The passage this post singles out stands above
-                              // it, on a connector running into its avatar.
                               if (replyPresentationFor(post) ==
                                   ReplyPresentation.passage)
                                 _quotedPassage(context, post),
@@ -480,10 +453,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                         ],
                                       ),
                                     ),
-                                    // The same "…" the card in the feed has,
-                                    // so a post can be edited, muted or
-                                    // linked from the screen that shows it
-                                    // whole — not only from the feed.
+                                    // The same "…" menu as the feed card.
                                     IconButton(
                                       tooltip: AppStrings.postMenuTooltip,
                                       visualDensity: VisualDensity.compact,
@@ -501,9 +471,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.lg),
-                              // "Replying to Ada", above the words it gives
-                              // context for. The card is the other shape and
-                              // sits below the body; see ReplySlot.
+                              // The "Replying to" line, above the body. The
+                              // card form sits below it; see ReplySlot.
                               ReplyTarget(
                                 post: post,
                                 onOpenPost: () =>
@@ -511,7 +480,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 onOpenAuthor: () =>
                                     context.push('/channel/${post.channelId}'),
                               ),
-                              // Post text
                               if (post.text != null &&
                                   post.text!.isNotEmpty) ...[
                                 TextEntityRenderer(
@@ -524,7 +492,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   ),
                                 ),
                               ],
-                              // Link preview
                               if (post.linkPreviewUrl != null &&
                                   post.linkPreviewUrl!.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.md),
@@ -536,7 +503,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   imageFileId: post.linkPreviewFileId,
                                 ),
                               ],
-                              // Poll display
                               if (post.poll != null) ...[
                                 const SizedBox(height: AppSpacing.md),
                                 FeedPollCard(
@@ -545,7 +511,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   messageId: post.messageId,
                                 ),
                               ],
-                              // Media
                               if (post.media.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.md),
                                 PostMediaGrid(media: post.media, post: post),
@@ -569,7 +534,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ],
                               const SizedBox(height: AppSpacing.lg),
-                              // Full timestamp
                               Text(
                                 TimeUtils.fullDateTime(post.publishedAt),
                                 style: AppTypography.timestamp(
@@ -639,10 +603,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ),
                         const Divider(height: 1),
-                        // The feed's own action bar, rather than a second copy
-                        // that drifted: the repeat icon here used to copy a
-                        // link instead of forwarding, and the reaction button
-                        // could only ever add the channel's top reaction.
+                        // The same action bar as the feed card.
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.postPadding,
@@ -651,10 +612,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           child: PostActionBar(
                             post: post,
                             secondaryColor: secondaryColor,
-                            // figure under your own post opens its analytics.
-                            // Offered only where Telegram says there are any —
-                            // one offline `getMessageProperties` for the post
-                            // on screen, never one per card in a list.
+                            // Opens the post's stats, if Telegram has any.
                             onViewsTap:
                                 ref
                                         .watch(
@@ -1009,7 +967,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   ),
                 ),
               ),
-              // Comment Input Bar for Logged-In Users on discussion enabled posts
+              // Comment input bar
               if (isLoggedIn && post.hasDiscussionGroup)
                 _buildCommentInputBar(
                   context: context,
@@ -1033,20 +991,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     required Color primaryColor,
     required Color secondaryColor,
 
-    /// The comment this one answers, when it answers another *comment*.
-    ///
-    /// Every comment in a discussion thread replies to something: the ones
-    /// under the post reply to the post itself, which Telegram records as a
-    /// reply like any other. Drawn as one, every comment in the thread said
-    /// "Replying to" — to the post they were plainly under, or worse, to the
-    /// commenter's own name, since the target's author is never sent for a
-    /// reply inside one chat. So the line is drawn only for a reply to a
-    /// comment, and it names the comment's author, who is known here.
+    /// The comment this one answers. Null for top-level comments, which
+    /// Telegram records as replies to the post.
     Post? replyingTo,
   }) {
-    // A commenter is a person, and gramX has somewhere to put one now. The
-    // channel screen is still where a comment posted *by a channel* leads,
-    // which is what the null case is.
+    // A comment posted by a channel has no sender user and opens the channel.
     final senderUserId = comment.senderUserId;
     void openAuthor() {
       if (senderUserId != null) {
@@ -1057,8 +1006,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     }
 
     return GestureDetector(
-      // The long-press menu — reply, copy, edit. Translucent, so the taps
-      // inside (author, media, the action bar) keep working as they did.
+      // Translucent, so taps on the author, media and action bar still work.
       behavior: HitTestBehavior.translucent,
       onLongPress: () => _openCommentActions(comment),
       child: IntrinsicHeight(
@@ -1144,11 +1092,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       ],
                     ),
 
-                    // A comment is already inside a thread, under a
-                    // connector, inside this screen. The card form would be a
-                    // fourth box, so it stays the line whatever it has — and
-                    // it is drawn only for a reply to another comment, naming
-                    // that comment's author. See [replyingTo].
+                    // Always the one-line form, never the card, since a
+                    // comment already sits inside a thread. See [replyingTo].
                     if (replyingTo != null)
                       ReplyTarget(
                         post: comment.copyWith(
@@ -1159,7 +1104,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         onOpenAuthor: openAuthor,
                       ),
 
-                    // Text Content
                     if (comment.text != null && comment.text!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       TextEntityRenderer(
@@ -1171,7 +1115,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       ),
                     ],
 
-                    // Media Attachments
                     if (comment.media.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       ConstrainedBox(
@@ -1185,10 +1128,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
                     const SizedBox(height: 8),
 
+                    // Action bar: reply, react, share
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Reply Icon + Count
                         InkWell(
                           onTap: () {
                             HapticFeedback.lightImpact();
@@ -1222,8 +1165,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ),
 
-                        // Reactions, with the post's own control: any reaction
-                        // the chat allows, not a hard-coded heart.
+                        // Offers any reaction the chat allows.
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,
@@ -1240,7 +1182,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ),
 
-                        // Share Icon
                         InkWell(
                           onTap: () {
                             HapticFeedback.lightImpact();
@@ -1296,9 +1237,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // answered, with no tinted band behind it. The bubble in a
-            // conversation and the composer in one both say it this way now,
-            // so the three places a reply is named all look like each other.
+            // A plain "Replying to" line, as in conversations.
             if (_replyTargetPost != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 8, 0),
@@ -1340,16 +1279,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // The reader's own face, not the channel's. This is where
-                  // *you* are about to say something, and the channel's
-                  // initial sitting there made every comment box look like the
-                  // channel was about to answer itself.
+                  // The user's own avatar, not the channel's.
                   _CommenterAvatar(),
                   const SizedBox(width: 6),
-                  // Attach and stickers, folded into one chevron while there
-                  // are words in the field. With both out beside the avatar
-                  // the field was a slot two words wide — see
-                  // CollapsibleComposerTools.
+                  // Attach and stickers fold into one chevron while the field
+                  // has text, so the field keeps its width.
                   CollapsibleComposerTools(
                     collapsed: composerToolsFolded(
                       hasText: _commentController.text.isNotEmpty,
@@ -1394,10 +1328,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       minLines: 1,
                       textCapitalization: TextCapitalization.sentences,
                       style: AppTypography.body(color: primaryColor),
-                      // Rebuilds the send button's enabled state; the field
-                      // itself stays uncontrolled, so this costs one setState
-                      // per keystroke and no request at all. An emptied field
-                      // unfolds the tools again for the next comment.
+                      // Updates the send button's enabled state. An emptied
+                      // field unfolds the tools again.
                       onChanged: (value) => setState(() {
                         if (value.isEmpty) _commentToolsExpanded = false;
                       }),
@@ -1424,8 +1356,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   const SizedBox(width: 8),
                   IconButton(
                     tooltip: AppStrings.chatSend,
-                    // Disabled rather than hidden, so the button does not move
-                    // out from under a thumb that is already on it.
+                    // Disabled rather than hidden, so the layout stays put.
                     onPressed: _canSendComment
                         ? () => _sendComment(post.chatId, post.messageId)
                         : null,
@@ -1462,10 +1393,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  /// The passage a post singles out of what it answers, above the post.
-  ///
-  /// Sized to this screen's larger avatar so the connector runs straight down
-  /// the gutter instead of stepping sideways where it meets the post.
+  /// The quoted passage above a post, sized to this screen's larger avatar so
+  /// the connector runs straight down the gutter.
   Widget _quotedPassage(BuildContext context, Post post) {
     final isSameChat = post.replyToChatId == null;
     return Padding(
@@ -1486,11 +1415,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  /// Opens the message [post] answers.
-  ///
-  /// The reply may live in another chat — see `Post.replyToChatId`. Assuming
-  /// this one asks for a message id that does not exist there, which reports
-  /// itself as "post not found" however reachable the real one is.
+  /// Opens the message [post] answers, which may be in another chat (see
+  /// `Post.replyToChatId`).
   void _openReplyTarget(BuildContext context, Post post) {
     final messageId = post.replyToMessageId;
     if (messageId == null) {
@@ -1501,10 +1427,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 }
 
-/// The reader's own face, beside the comment field.
-///
-/// Its own `ConsumerWidget` so the account lookup rebuilds this alone rather
-/// than the whole input bar on every frame of the stream behind it.
+/// The user's avatar beside the comment field. A separate widget so the
+/// account lookup rebuilds only this, not the whole input bar.
 class _CommenterAvatar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1517,8 +1441,8 @@ class _CommenterAvatar extends ConsumerWidget {
   }
 }
 
-/// Shown when a post can't be loaded — typically a forward whose origin is a
-/// channel the user isn't in.
+/// Shown when a post can't be loaded, typically a forward from a channel the
+/// user isn't in.
 class _UnreachablePost extends StatelessWidget {
   final String postId;
 
@@ -1586,6 +1510,5 @@ class _UnreachablePost extends StatelessWidget {
   }
 }
 
-/// What the long-press menu on a comment offers. See
-/// `_PostDetailScreenState._openCommentActions`.
+/// The actions in a comment's long-press menu.
 enum _CommentAction { reply, copy, edit }

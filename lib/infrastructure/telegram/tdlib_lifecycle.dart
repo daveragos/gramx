@@ -8,15 +8,10 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// What the client should be told when the app reaches a lifecycle state.
-///
-/// A value object rather than a set of calls, so the decision — which is the
-/// part that is easy to get wrong — can be tested without a TDLib client.
+/// A value object so the decision can be tested without a TDLib client.
 @immutable
 class LifecycleIntent {
-  /// Whether the account should report itself as present.
-  ///
-  /// Null means *no change*: the state says nothing about whether the reader
-  /// went away, so repeating the last answer is better than guessing a new one.
+  /// Whether the account should report itself as online. Null means no change.
   final bool? online;
 
   /// Whether every network connection should be reopened.
@@ -31,7 +26,7 @@ class LifecycleIntent {
     this.close = false,
   });
 
-  /// Nothing to do — the state is a transient one.
+  /// Nothing to do.
   static const none = LifecycleIntent();
 
   @override
@@ -54,15 +49,10 @@ class LifecycleIntent {
 abstract class TdlibLifecycleRules {
   /// What to tell TDLib when the app reaches [state].
   ///
-  /// The one non-obvious case is [AppLifecycleState.inactive]. Both platforms
-  /// emit it constantly — an incoming call, the notification shade, the app
-  /// switcher, a permission dialog — and none of those mean the reader left.
-  /// Treating it as "away" would flicker the account's presence on and off all
-  /// day and spend a request on each flicker, so it is deliberately ignored.
+  /// [AppLifecycleState.inactive] is ignored: it fires for calls, the
+  /// notification shade and dialogs, and would make presence flicker.
   static LifecycleIntent forState(AppLifecycleState state) => switch (state) {
-    // Coming back is also the moment a connection made on a network that no
-    // longer exists has to be replaced. Reopening here is what stops a phone
-    // woken on a different network from sitting on a dead socket.
+    // Reopen so a phone woken on a different network drops its dead sockets.
     AppLifecycleState.resumed => const LifecycleIntent(
       online: true,
       reopenConnections: true,
@@ -70,20 +60,15 @@ abstract class TdlibLifecycleRules {
     AppLifecycleState.inactive => LifecycleIntent.none,
     AppLifecycleState.hidden => const LifecycleIntent(online: false),
     AppLifecycleState.paused => const LifecycleIntent(online: false),
-    // The process is going away. Say goodbye in both senses: stop claiming to
-    // be present, and let TDLib flush rather than be killed mid-write.
+    // Go offline and close so TDLib flushes instead of being killed mid-write.
     AppLifecycleState.detached => const LifecycleIntent(
       online: false,
       close: true,
     ),
   };
 
-  /// The TDLib network type for what the platform reports.
-  ///
-  /// `connectivity_plus` answers with a *list* — a device can be on Wi-Fi and
-  /// mobile at once, and a VPN is reported alongside whatever carries it. The
-  /// order here is the order TDLib cares about: an interface that is cheap and
-  /// fast first, `none` only when nothing at all is up.
+  /// The TDLib network type for the platform's list of active interfaces.
+  /// Wi-Fi or ethernet wins over mobile; `none` only when nothing is up.
   static td.NetworkType networkTypeFor(List<ConnectivityResult> results) {
     if (results.isEmpty) return const td.NetworkTypeOther();
 
@@ -94,8 +79,7 @@ abstract class TdlibLifecycleRules {
     if (results.contains(ConnectivityResult.mobile)) {
       return const td.NetworkTypeMobile();
     }
-    // A VPN with no carrier reported under it still has *something* underneath;
-    // "other" is TDLib's answer for a link it can use but can't characterise.
+    // A VPN with no reported carrier is still a usable link.
     if (results.contains(ConnectivityResult.vpn)) {
       return const td.NetworkTypeOther();
     }
@@ -107,9 +91,7 @@ abstract class TdlibLifecycleRules {
 }
 
 /// Keeps TDLib in step with the app's lifecycle and the device's network.
-///
-/// Owns the two subscriptions and nothing else — every decision it makes comes
-/// from [TdlibLifecycleRules], which is where the tests point.
+/// Decisions come from [TdlibLifecycleRules].
 class TdlibLifecycle with WidgetsBindingObserver {
   final TdlibService _tdlib;
   final Connectivity _connectivity;
@@ -127,9 +109,7 @@ class TdlibLifecycle with WidgetsBindingObserver {
 
     WidgetsBinding.instance.addObserver(this);
 
-    // Seed the client with the network it is actually on before waiting for a
-    // change: TDLib assumes "other" until told, and the first thing it does on
-    // a metered connection should not be based on a guess.
+    // TDLib assumes "other" until told, so report the current network now.
     unawaited(_pushCurrentNetwork());
 
     _connectivitySub = _connectivity.onConnectivityChanged.listen(
@@ -140,7 +120,7 @@ class TdlibLifecycle with WidgetsBindingObserver {
           debugPrint('[Lifecycle] connectivity stream error: $e'),
     );
 
-    // The app is on screen the moment this runs; nothing else will say so.
+    // The app is in the foreground now and no lifecycle event will say so.
     unawaited(_tdlib.setOnline(true));
   }
 
@@ -165,8 +145,7 @@ class TdlibLifecycle with WidgetsBindingObserver {
     final online = intent.online;
     if (online != null) await _tdlib.setOnline(online);
 
-    // Order matters: reopening while still claiming to be away would have the
-    // fresh connection announce the wrong presence.
+    // Set presence before reopening so new connections report the right one.
     if (intent.reopenConnections) await _pushCurrentNetwork();
 
     if (intent.close) await _tdlib.close();
@@ -181,11 +160,8 @@ class TdlibLifecycle with WidgetsBindingObserver {
   }
 }
 
-/// The app's single lifecycle observer.
-///
-/// Read once from `bootstrap()`, which is also where it is started — a
-/// lifecycle observer created lazily by whichever widget happened to ask for it
-/// first would miss every transition before that widget was built.
+/// The app's single lifecycle observer. Started from `bootstrap()` so it sees
+/// every transition from launch.
 final tdlibLifecycleProvider = Provider<TdlibLifecycle>((ref) {
   final lifecycle = TdlibLifecycle(ref.watch(tdlibServiceProvider));
   ref.onDispose(() => unawaited(lifecycle.dispose()));

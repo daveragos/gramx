@@ -45,8 +45,7 @@ void main() {
       expect(find.byKey(const Key('media')), findsOneWidget);
     });
 
-    // Re-hiding on rebuild would flicker the cover back over media the reader
-    // already chose to see.
+    // Re-hiding on rebuild would flicker the cover back over revealed media.
     testWidgets('stays revealed across a rebuild', (tester) async {
       await tester.pumpWidget(host());
       await tester.tap(find.text('Tap to reveal'));

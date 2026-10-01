@@ -1,13 +1,6 @@
-/// The privacy policy and terms, as data rather than as markup.
-///
-/// Kept out of `app_strings.dart` only because of its size — the same rule
-/// applies: no user-facing sentence is written inside a widget.
-///
-/// **These documents describe what the code actually does.** If you change
-/// what is stored, what is sent, or what the app writes to someone's Telegram
-/// account, change the matching section here in the same commit. A privacy
-/// policy that has drifted from the code is worse than none, because people
-/// have relied on it.
+/// The privacy policy and terms. They describe what the code does, so a
+/// change to what is stored, sent, or written to a Telegram account must
+/// update the matching section in the same commit.
 library;
 
 class LegalSection {
@@ -20,10 +13,10 @@ class LegalSection {
 class LegalDocument {
   final String title;
 
-  /// Shown under the title, so a reader can tell how current this is.
+  /// Shown under the title.
   final String lastUpdated;
 
-  /// One line, above the sections: what this document is for.
+  /// One line shown above the sections.
   final String summary;
 
   final List<LegalSection> sections;
@@ -37,7 +30,7 @@ class LegalDocument {
 }
 
 abstract class LegalTexts {
-  /// Where to write with a question about either document.
+  /// Contact address for questions about either document.
   static const String contactEmail = 'daveyeinde@gmail.com';
 
   static const String lastUpdated = '23 August 2026';
@@ -226,7 +219,7 @@ abstract class LegalTexts {
     ],
   );
 
-  /// The document behind a route parameter, or null if it isn't one of them.
+  /// The document for a route parameter, or null if unknown.
   static LegalDocument? byId(String id) => switch (id) {
     'privacy' => privacy,
     'terms' => terms,

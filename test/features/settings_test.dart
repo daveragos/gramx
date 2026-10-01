@@ -4,8 +4,6 @@ import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
 
 void main() {
   group('AppSettings round-trip', () {
-    // The bug this fixes: the theme lived in a Notifier whose build() returned
-    // a hardcoded dark, so every restart threw the choice away.
     test('survives encode and decode', () {
       const settings = AppSettings(
         themeMode: AppThemeMode.dim,
@@ -30,8 +28,7 @@ void main() {
   });
 
   group('AppSettings decoding is tolerant', () {
-    // A settings file written by another build should cost one preference at
-    // worst, never prevent the app from starting.
+    // A bad value falls back to its default rather than blocking startup.
     test('unknown values fall back to defaults', () {
       final restored = AppSettings.decode('{"themeMode":"neon"}');
       expect(restored.themeMode, AppThemeMode.dark);
@@ -98,14 +95,11 @@ void main() {
       );
     });
 
-    // Photos loading is the sane default; a feed of blurred placeholders is
-    // not a feed.
     test('defaults to on', () {
       expect(const AppSettings().autoDownloadImagesEnabled, isTrue);
     });
 
-    // It is a separate question from autoplay: someone on a metered
-    // connection wants photos off and may not care about motion.
+    // Turning photos off to save data need not change autoplay.
     test('is independent of autoplay', () {
       const settings = AppSettings(
         autoPlay: AutoPlayPolicy.always,
@@ -115,8 +109,7 @@ void main() {
       expect(settings.autoDownloadImagesEnabled, isFalse);
     });
 
-    // A new setting cannot be added without also being persisted — the whole
-    // reason AppSettings is one value object.
+    // AppSettings is one value object, so every setting is persisted.
     test('survives a save and a reload', () {
       const settings = AppSettings(
         autoDownloadImages: AutoDownloadPolicy.never,
@@ -135,8 +128,6 @@ void main() {
   });
 
   group('InlinePlayerBudget', () {
-    // Every GIF tile used to spin up its own decoder the moment it was built,
-    // on screen or not.
     test('hands out no more than the cap', () {
       final budget = InlinePlayerBudget();
 

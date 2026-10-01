@@ -1,39 +1,25 @@
 import 'package:gramx/features/feed/domain/post.dart';
 
-/// How a post's reply target gets drawn.
-///
-/// it drew Telegram's tinted block with an accent bar down the left edge, in
-/// only on whether there is anything of the quoted post to show, so the choice
-/// lives here rather than being re-derived by each widget that draws it.
+/// How a post's reply target is drawn.
 enum ReplyPresentation {
-  /// The post answers nothing. Draw neither shape.
+  /// The post answers nothing.
   none,
 
-  /// whose parent the reader can already see, or whose content Telegram never
-  /// sent. Nothing is drawn around it.
+  /// One grey line naming who is being answered, used when there is nothing
+  /// of the parent to show.
   line,
 
-  /// own byline, its words and its picture. This is a reply to the **whole**
-  /// post — there is no passage to single out, so the post itself is shown.
-  /// Earned by having something to put in it; an empty bordered box is worse
-  /// than the line.
+  /// A quote card embedding the answered post, for a reply to the whole post
+  /// when there is content to show.
   card,
 
-  /// The selected passage, standing above the reply on a thread connector.
-  ///
-  /// When the writer quoted a *span* rather than answering the whole post,
-  /// the span is what they are talking about, so the span is what gets drawn
-  /// — not the post it came out of, and not its media. It carries no action
-  /// bar: a fragment of a message is not a thing that can be liked, forwarded
-  /// or bookmarked, and offering the controls would be the inert affordance
-  /// the hard rules forbid. The reply below keeps all of its own.
+  /// The quoted span, drawn above the reply on a thread connector. It has no
+  /// action bar, since a fragment can't be liked or forwarded.
   passage,
 }
 
-/// Whether [post] answers another message at all.
-///
-/// Any one of the three is enough: TDLib fills them independently, and a reply
-/// whose excerpt never resolved still has a message id worth linking to.
+/// Whether [post] answers another message. Any of the three fields counts,
+/// since TDLib fills them independently.
 bool hasReplyTarget(Post post) =>
     post.replyToMessageId != null ||
     post.replyToAuthorTitle != null ||
@@ -55,13 +41,8 @@ bool hasQuotedContent(Post post) {
   return url != null && url.isNotEmpty;
 }
 
-/// Which shape [post]'s reply target gets.
-///
-/// The first question is what was answered, not how much of it we have: a
-/// writer who selected a passage is talking about that passage, and drawing
-/// the whole post around it buries the part they picked. Only once that is
-/// ruled out does having something to show decide between the card and the
-/// line.
+/// Which shape [post]'s reply target gets: a quoted passage first, then a
+/// card if there is content to show, else a line.
 ReplyPresentation replyPresentationFor(Post post) {
   if (!hasReplyTarget(post)) return ReplyPresentation.none;
   if (post.replyToIsQuote && hasQuotedText(post)) {

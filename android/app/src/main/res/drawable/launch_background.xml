@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The window behind the app while the Flutter engine comes up, and on
-     Android 11 and below the whole launch screen.
-
-     Black, in both the light and the dark system theme: the app's own default
-     is its dark look, so the frame before Flutter's first one should be that
-     colour rather than the system's — a white window that snaps to black the
-     instant the splash draws was the very first thing a new reader saw. -->
+<!-- The window behind the app while Flutter starts, and the whole launch
+     screen on Android 11 and below. Black in both system themes, to match the
+     app's default dark look. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@android:color/black" />
 </layer-list>

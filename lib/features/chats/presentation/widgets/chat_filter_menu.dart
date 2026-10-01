@@ -10,21 +10,11 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 
-/// Extra rows on the filter menu that are not filters.
-///
-/// divider. Modelled as their own type rather than as extra [ChatFilter]
-/// values, because a filter and an action behave differently: one changes what
-/// the list shows and stays selected, the other happens once.
+/// One-off actions listed under the filters in the filter menu.
 enum ChatMenuAction { settings, markAllRead }
 
-/// The "All ⌄" pill in the header, and the sheet it opens.
-///
-/// Every row here does something — the five filters change the list, Settings
-/// opens Settings, and "Mark all as read" acknowledges every unread
-/// conversation. That is the bar for shipping a control at all.
-///
-/// pill, and Material's popup menu was the one surface in the app drawn in
-/// the framework's own shape.
+/// The filter pill in the chat list header and the sheet it opens, with the
+/// filters followed by [ChatMenuAction] rows.
 class ChatFilterMenu extends ConsumerWidget {
   final void Function(ChatMenuAction action) onAction;
 

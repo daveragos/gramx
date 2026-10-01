@@ -15,9 +15,7 @@ ErrorRecord _record(String message, {DateTime? at, String? stack}) =>
 
 void main() {
   group('ErrorLogFormatter.redact', () {
-    // The log exists so somebody can be asked to send it, which means what
-    // goes into it has to be safe to send. Each of these covers something the
-    // app is known to put in an error message.
+    // The log may be shared, so personal data must be scrubbed from it.
     test('a phone number never reaches the log', () {
       final out = ErrorLogFormatter.redact(
         'PHONE_NUMBER_INVALID for +251 91 234 5678',
@@ -67,8 +65,6 @@ void main() {
       expect(decoded.at.toUtc(), record.at.toUtc());
     });
 
-    // Stack lines are indented under their header, so reading the file back
-    // has to skip them rather than mistake each one for another error.
     test('an indented stack line is not a record', () {
       final encoded = ErrorLogFormatter.encode(
         _record('boom', stack: '#0  main\n#1  runApp'),
@@ -113,8 +109,7 @@ void main() {
       expect(state.records.last.message, 'error 59');
     });
 
-    // A widget that throws in `build` throws on every frame. Fifty copies of
-    // one fault is a log that has thrown away everything leading up to it.
+    // A widget that throws in `build` throws on every frame.
     test('a repeat of the last message is not recorded twice', () {
       final state = const ErrorLogState()
           .add(_record('same'))
@@ -146,8 +141,7 @@ void main() {
     setUp(ErrorHandlers.reset);
     tearDown(ErrorHandlers.reset);
 
-    // The errors most worth having are thrown while starting up, before there
-    // is a log to write them to. They are held until one appears.
+    // Startup errors are held until a log is connected.
     test('errors before connect are handed over afterwards', () {
       ErrorHandlers.onZoneError(StateError('early'), StackTrace.empty);
       expect(ErrorHandlers.bufferedCount, 1);
@@ -168,8 +162,7 @@ void main() {
       expect(seen, [ErrorSource.zone]);
     });
 
-    // A crash loop during startup would otherwise push out the first error,
-    // which is the one that says what actually happened.
+    // A startup crash loop must not push out the first error.
     test('the hold is bounded', () {
       for (var i = 0; i < ErrorHandlers.bufferLimit + 25; i++) {
         ErrorHandlers.onZoneError(StateError('e$i'), StackTrace.empty);
@@ -183,19 +176,15 @@ void main() {
     });
   });
 
-  // Most of what reaches the log is thrown while the widget tree is being
-  // built — a failed assertion in a build method — and Riverpod refuses a
-  // provider change mid-build. The record was dropped, so exactly the errors
-  // worth keeping were never kept.
+  // Riverpod refuses a provider change mid-build, and most errors are thrown
+  // during build.
   testWidgets('an error recorded while building is kept', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-    // Listened to, so the provider is alive and the change can be seen.
+    // Keeps the provider alive.
     container.listen(errorLogProvider, (_, _) {});
 
-    // The refusal surfaced only as a line on the console, after the state had
-    // changed and before the record reached the file — so the screen showed
-    // it once and it was gone on the next launch.
+    // Riverpod reports the refusal only through the console.
     final printed = <String>[];
     final original = debugPrint;
     debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
@@ -214,8 +203,7 @@ void main() {
       ),
     );
     await tester.pump();
-    // Restored inside the test: the framework checks it is back before
-    // tear-down runs.
+    // The framework checks this is restored before tear-down.
     debugPrint = original;
 
     expect(

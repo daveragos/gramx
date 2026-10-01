@@ -3,17 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 
-/// How long messages live in a chat before Telegram deletes them.
-///
-/// Chat-wide and two-sided, which is the whole reason it is not on the
-/// composer: it applies to everything *either* side sends from now on, both
-/// people see the change, and Telegram posts a service notice announcing it.
-/// The per-message timer in [SelfDestructSheet] is the other thing entirely —
-/// one sender, one picture, no notice.
-///
-/// Telegram's own three lengths, and off. TDLib takes any number of seconds,
-/// but a free-form duration picker would produce timers no other client can
-/// name, and the other side reads this setting in their client, not ours.
+/// Picks the chat-wide auto-delete timer, which applies to messages from both
+/// sides. Offers Telegram's standard lengths rather than arbitrary seconds.
 abstract class AutoDeleteSheet {
   /// The choices, in seconds. Zero is off.
   static const List<int> choices = [
@@ -27,8 +18,7 @@ abstract class AutoDeleteSheet {
   static Future<int?> show(BuildContext context, {required int current}) {
     return showModalBottomSheet<int>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // The shell's tab bar paints over branch navigators, so use the root.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) => SafeArea(
@@ -53,9 +43,7 @@ abstract class AutoDeleteSheet {
                     : null,
                 onTap: () => Navigator.pop(context, seconds),
               ),
-            // A timer set from another client to a length gramX does not offer
-            // is still shown, ticked, rather than leaving the sheet claiming
-            // nothing is set. Telegram allows any number of seconds.
+            // Shows a current timer that isn't one of [choices].
             if (current != 0 && !choices.contains(current))
               ListTile(
                 leading: const Icon(Icons.auto_delete_outlined),

@@ -7,18 +7,16 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/stats/domain/channel_stats.dart';
 
-///
-/// A label, the figure, and the change against the period before it. The
-/// arrow is an [Icon] rather than a glyph in the string so it can be coloured
-/// and, more to the point, **labelled**, because up
-/// and down here are told apart by colour and by a shape three pixels tall.
+/// One headline figure: a label, the value, and the change from the previous
+/// period. The arrow is an [Icon] so it can be coloured and given a semantic
+/// label.
 class StatFigureTile extends StatelessWidget {
   final String label;
   final StatFigure figure;
 
   const StatFigureTile({super.key, required this.label, required this.figure});
 
-  /// A figure as it is read: `2.5K`, or `43.2%` for the one that is a share.
+  /// Formats a figure as `2.5K`, or `43.2%` for a percentage.
   static String format(StatFigure figure) {
     if (!figure.isPercentage) {
       return TimeUtils.formatCount(figure.value.round());

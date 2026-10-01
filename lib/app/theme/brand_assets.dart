@@ -1,42 +1,25 @@
 import 'package:flutter/material.dart';
 
-/// Where the brand artwork lives, and which piece of it a given surface wants.
-///
-/// The launcher icons are Android resources under `android/app/src/main/res`
-/// and are not loaded through Flutter.
+/// Paths to the brand artwork. Launcher icons are Android resources under
+/// `android/app/src/main/res` and are not loaded through Flutter.
 abstract class BrandAssets {
-  /// The mark drawing itself, about three seconds a loop. Played by
-  /// `MarkPlayer`, which keeps to the file's own timing when the app is busy.
-  ///
-  /// Animated WebP rather than the Lottie the designer also delivered. That
-  /// export is not vector — it is 178 full-frame PNGs base64'd into the JSON,
-  /// 3.3 MB on disk and around 84 MB of bitmaps once decoded. This is the same
-  /// animation at 338 KB, decoded a few frames at a time instead of holding
-  /// all of them.
+  /// The mark animation, about three seconds a loop, played by `MarkPlayer`.
+  /// Animated WebP decodes a few frames at a time, keeping memory low.
   static const String markAnimation = 'assets/brand/gramx_mark.webp';
 
-  /// The mark as a flat glyph, for the feed header. Two of them, named for
-  /// the surface they sit on: the brand draws the header with a monochrome
-  /// mark — pale on the dark screen, grey on the
-  /// light one — not the coloured, glossy one the splash animates. On a row
-  /// that also carries an avatar and a bell, the flat mark is the one that
-  /// reads as a title rather than a fourth icon.
+  /// The flat monochrome mark for the feed header.
   static const String _glyphOnDark = 'assets/brand/glyph_on_dark.png';
   static const String _glyphOnLight = 'assets/brand/glyph_on_light.png';
 
-  /// The flat glyph that reads against `brightness`; `dim` reports
-  /// `Brightness.dark` and gets the pale one.
+  /// The glyph that reads against `brightness` (`dim` counts as dark).
   static String glyphFor(Brightness brightness) =>
       brightness == Brightness.dark ? _glyphOnDark : _glyphOnLight;
 
-  /// The icons are named for the surface they sit on, not for their own
-  /// colour — the light-ground icon is the one that belongs on a dark screen,
-  /// and reading it the other way round is how you end up with black on black.
+  /// Named for the surface they sit on, not for their own colour.
   static const String _appIconOnDark = 'assets/brand/app_icon_on_dark.png';
   static const String _appIconOnLight = 'assets/brand/app_icon_on_light.png';
 
-  /// The framed icon that reads against `brightness`. `dim` reports
-  /// `Brightness.dark`, so the two cases cover all three themes.
+  /// The framed icon that reads against `brightness` (`dim` counts as dark).
   static String appIconFor(Brightness brightness) =>
       brightness == Brightness.dark ? _appIconOnDark : _appIconOnLight;
 }

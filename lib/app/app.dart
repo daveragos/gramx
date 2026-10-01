@@ -16,10 +16,8 @@ class GramXApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(routerProvider);
 
-    // "Use device setting" hands the choice to MaterialApp, which already
-    // watches the platform's brightness and swaps between the two themes on
-    // its own. A chosen look is passed as both, so the platform has nothing
-    // to switch between.
+    // When following the device, MaterialApp switches themes itself. A chosen
+    // theme is passed as both so there is nothing to switch.
     final followsDevice = themeMode.followsDevice;
     final chosen = AppTheme.getTheme(themeMode);
 
@@ -30,17 +28,11 @@ class GramXApp extends ConsumerWidget {
       darkTheme: followsDevice ? AppTheme.dark() : chosen,
       themeMode: followsDevice ? ThemeMode.system : ThemeMode.light,
       routerConfig: router,
-      // Above every route, so the launch screen's mark stays put while the
-      // router decides, and the app opens through it. See LaunchReveal.
+      // Above every route so the launch mark stays put while the router
+      // decides. See LaunchReveal.
       builder: (context, child) => LaunchReveal(child: child!),
-      // gramX writes every string of its own in `core/l10n/app_strings.dart`
-      // and ships English only. These delegates are for the strings it does
-      // *not* write — the text selection menu, the date picker, the semantics
-      // announcements — which without them are English on every device with no
-      // locale for the app to react to at all. Declaring one supported locale
-      // is also what makes the choice explicit rather than accidental: adding
-      // a second means adding it here and swapping AppStrings' bodies for
-      // lookups, and no call site changes.
+      // For framework strings (selection menu, date picker, semantics). The
+      // app's own strings are in AppStrings and ship in English only.
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

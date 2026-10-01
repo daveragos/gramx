@@ -7,19 +7,13 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/stats/domain/channel_stats.dart';
 
-/// One post in the Content tab: what it said, and what it earned.
-///
-/// card uses for them — a reader should not have to learn a second vocabulary
-/// for "views" between the feed and the analytics screen.
-///
-/// Hairline separator and no card, because this is a list of posts, and
-/// every list in the app is divided the same way.
+/// One post in the Content tab: its text and its counts, with the same icons
+/// the post card uses.
 class StatPostRow extends StatelessWidget {
   final PostInteraction interaction;
 
-  /// The post's own words, when TDLib still holds the message. A statistics
-  /// list outlives the messages in it — a deleted post keeps its counts — so
-  /// this is genuinely optional rather than merely late.
+  /// The post's text, or null when TDLib no longer has the message (a deleted
+  /// post keeps its counts).
   final PostExcerpt? excerpt;
 
   final VoidCallback onTap;

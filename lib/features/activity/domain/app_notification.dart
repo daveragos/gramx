@@ -4,28 +4,25 @@ import 'package:handy_tdlib/api.dart' as td;
 /// One notification, as the operating system will draw it.
 @immutable
 class AppNotification {
-  /// TDLib's own id for it, reused as the OS notification id so a removal
-  /// TDLib announces can cancel exactly the one it means.
+  /// TDLib's id, reused as the OS notification id so removals can cancel it.
   final int id;
 
-  /// The group it belongs to — one chat, one group. Carried so a chat that
-  /// goes quiet can have all of its notifications taken down together.
+  /// The TDLib notification group, one per chat.
   final int groupId;
 
   final int chatId;
   final int messageId;
 
-  /// Who is speaking, or where. This is the notification's title.
+  /// The notification title, usually the chat's name.
   final String title;
 
-  /// What they said, already reduced to a line.
+  /// The message, reduced to one line.
   final String body;
 
-  /// Telegram's own "do not make a sound" flag for this one.
+  /// Telegram's flag for a notification without sound.
   final bool isSilent;
 
-  /// Whether this is a post in a broadcast channel rather than a message in a
-  /// conversation. The two open in different places.
+  /// Whether this is a channel post rather than a chat message.
   final bool isChannelPost;
 
   final DateTime at;
@@ -42,9 +39,7 @@ class AppNotification {
     this.isChannelPost = false,
   });
 
-  /// What tapping it opens: the post itself for a channel, where a chat
-  /// screen would put a composer under somebody else's broadcast, and the
-  /// conversation for everything else.
+  /// What a tap opens: the post for a channel, the chat otherwise.
   String get route =>
       isChannelPost ? '/post/${chatId}_$messageId' : '/chat/$chatId';
 
@@ -55,21 +50,11 @@ class AppNotification {
   int get hashCode => id;
 }
 
-/// Turns TDLib's notification objects into ones the OS can draw.
-///
-/// Pure, and deliberately so: **what** is worth notifying about is TDLib's
-/// decision, not this app's — it already applies the reader's per-chat mute
-/// settings, their scope settings, and the notifications another device has
-/// already dismissed. Second-guessing any of that here would produce an app
-/// that buzzes for chats the reader silenced on their phone.
-///
-/// What is left is presentation, which is what this does.
+/// Turns TDLib's notification objects into ones the OS can draw. TDLib has
+/// already applied mute settings, so this does no filtering of its own.
 abstract class NotificationMapper {
-  /// A notification, or null when there is nothing worth drawing.
-  ///
-  /// Outgoing messages answer null: your own message arriving on this device
-  /// is not news, and Telegram sends the notification group anyway so that
-  /// every client can keep its counts in step.
+  /// A notification, or null when there is nothing to draw. Outgoing messages
+  /// give null; Telegram sends them only to keep counts in sync.
   static AppNotification? map(
     td.Notification notification, {
     required int groupId,
@@ -96,8 +81,7 @@ abstract class NotificationMapper {
         chatTitle: chatTitle,
         isChannelPost: isChannelPost,
       ),
-      // A call and a new secret chat are both things gramX cannot open. A
-      // notification whose tap goes nowhere is worse than no notification.
+      // Calls and new secret chats can't be opened in the app.
       _ => null,
     };
   }
@@ -118,9 +102,7 @@ abstract class NotificationMapper {
       groupId: groupId,
       chatId: chatId,
       messageId: message.id,
-      // The chat's name, not the sender's: in a group the chat is what the
-      // reader recognises, and the sender is named in the body instead — which
-      // is what every Telegram client does.
+      // The chat's name; in a group the sender is named in the body.
       title: chatTitle,
       body: bodyOfMessage(message),
       isSilent: notification.isSilent,
@@ -185,11 +167,8 @@ abstract class NotificationMapper {
     };
   }
 
-  /// One line for a message that only arrived as a push.
-  ///
-  /// Telegram sends these without the message body when the reader has
-  /// previews turned off, which is [td.PushMessageContentHidden] — and that is
-  /// a setting to respect rather than a gap to fill in.
+  /// One line for a message that only arrived as a push. With previews off,
+  /// Telegram sends [td.PushMessageContentHidden] and no text.
   @visibleForTesting
   static String bodyOfPush(td.PushMessageContent content) => switch (content) {
     td.PushMessageContentText() => _oneLine(content.text),
@@ -210,8 +189,6 @@ abstract class NotificationMapper {
     td.PushMessageContentPoll() => '📊 ${_oneLine(content.question)}',
     td.PushMessageContentContact() => '👤 Contact',
     td.PushMessageContentLocation() => '📍 Location',
-    // The reader turned previews off. Saying "New message" is the honest
-    // rendering of a body Telegram deliberately did not send.
     td.PushMessageContentHidden() => 'New message',
     _ => 'New message',
   };

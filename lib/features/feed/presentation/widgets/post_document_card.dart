@@ -22,9 +22,6 @@ class PostDocumentCard extends ConsumerWidget {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  /// Through the shared helper, so a document row, the image viewer and the
-  /// video viewer all hand files out the same way and report the same two
-  /// distinct failures.
   Future<void> _openFile(BuildContext context, String path) =>
       openWithSystemApp(context, path);
 
@@ -67,10 +64,7 @@ class PostDocumentCard extends ConsumerWidget {
         if (isDownloaded) {
           _openFile(context, resolvedPath!);
         } else if (fileId != null && fileId != 0) {
-          // No snackbar. The ring on the left fills as the bytes arrive and
-          // the subtitle counts up beside it, which is the same information
-          // in the place the reader is already looking — and it does not cover
-          // the row it is describing.
+          // Progress shows in the row's ring and subtitle.
           ref
               .read(syncServiceProvider)
               .downloadFileWithPriority(fileId, priority: 32);
@@ -136,10 +130,7 @@ class PostDocumentCard extends ConsumerWidget {
                 ],
               ),
             ),
-            // Only a *second* action gets a second icon. The leading circle
-            // already says "download" (and turns into the progress ring), so a
-            // trailing arrow beside it was the same word twice; "open" is a
-            // different verb and keeps its own.
+            // The leading circle covers download; this icon is for open.
             if (isDownloaded)
               Icon(Icons.open_in_new_rounded, color: secondaryColor, size: 20),
           ],

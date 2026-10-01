@@ -7,22 +7,17 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Where a post has got to.
 enum PostSendStatus { uploading, sent, failed }
 
-/// One post on its way out, as the bar over the timeline shows it.
+/// One post on its way out, as shown in the bar over the timeline.
 @immutable
 class PostSendProgress {
   final PostSendStatus status;
 
-  /// How much of the attached files has gone up, 0…1.
-  ///
-  /// Null means there is nothing to measure — a text post, or a sticker
-  /// already on Telegram's servers. The bar runs indeterminate then, which is
-  /// the honest drawing of "working, and I cannot tell you how far".
+  /// Upload progress, 0 to 1, or null when there is nothing to measure (an
+  /// indeterminate bar).
   final double? fraction;
 
-  /// Where it is going, as the composer named it.
   final String targetLabel;
 
   const PostSendProgress({
@@ -49,22 +44,17 @@ class PostSendProgress {
   int get hashCode => Object.hash(status, fraction, targetLabel);
 }
 
-/// How far the tracked files have got, as one number.
-///
-/// Pure, and separated out because it is the part with the arithmetic in it.
-/// `expectedSize` is TDLib's estimate before it knows, and `size` is the truth
-/// once it does — a file reports one or the other, so both are read.
+/// Upload progress across tracked files. A file reports either
+/// `expectedSize` or `size`, so both are read.
 @immutable
 class UploadTally {
-  /// Bytes uploaded per file id.
   final Map<int, int> uploaded;
 
-  /// Total bytes per file id.
   final Map<int, int> total;
 
   const UploadTally({this.uploaded = const {}, this.total = const {}});
 
-  /// Folds one file update in, ignoring files this post does not own.
+  /// Folds one file update in, ignoring files this post doesn't own.
   UploadTally apply(td.File file, Set<int> watched) {
     if (!watched.contains(file.id)) return this;
 
@@ -75,11 +65,8 @@ class UploadTally {
     );
   }
 
-  /// The fraction to draw, or null while nothing has a size yet.
-  ///
-  /// Summed across files rather than averaged per file: three attachments of
-  /// wildly different sizes should move the bar by what they actually cost,
-  /// not a third each.
+  /// The fraction to draw, summed by bytes across files, or null while
+  /// nothing has a size yet.
   double? get fraction {
     var done = 0;
     var expected = 0;
@@ -92,18 +79,10 @@ class UploadTally {
   }
 }
 
-/// The post currently going out, and how far it has got.
-///
-/// gramX used to close the composer and say "Posted" the instant TDLib
-/// *accepted* the send, which for a post with media is several seconds before
-/// it is true.
-///
-/// Null when nothing is in flight, which is almost always.
+/// The post going out and its progress, or null. TDLib accepts a send
+/// before its files upload, so this tracks the real upload and send.
 class PostSendTracker extends Notifier<PostSendProgress?> {
-  /// How long the finished bar stays up before clearing itself.
-  ///
-  /// Long enough to be seen, short enough that it is gone before it becomes
-  /// furniture. A failure holds longer, because it asks for a decision.
+  /// How long the finished bar stays up. Failures stay longer.
   static const Duration sentLinger = Duration(milliseconds: 1600);
   static const Duration failedLinger = Duration(seconds: 5);
 
@@ -121,11 +100,7 @@ class PostSendTracker extends Notifier<PostSendProgress?> {
     return null;
   }
 
-  /// Starts watching a post that TDLib has accepted.
-  ///
-  /// Called by the composer as it closes. A second post while one is in flight
-  /// replaces the first: the bar shows one thing, and the newest send is the
-  /// one the writer is waiting on.
+  /// Starts watching a post TDLib has accepted, replacing any earlier one.
   void track(ComposeSendResult result, {required String targetLabel}) {
     if (!result.accepted) return;
     _stop();
@@ -137,7 +112,6 @@ class PostSendTracker extends Notifier<PostSendProgress?> {
     state = PostSendProgress(
       status: PostSendStatus.uploading,
       targetLabel: targetLabel,
-      // A post with nothing to upload has no fraction to show, and never will.
       fraction: result.hasUpload ? 0 : null,
     );
 
@@ -159,10 +133,8 @@ class PostSendTracker extends Notifier<PostSendProgress?> {
 
     final fraction = next.fraction;
     if (fraction == null) return;
-    // The last stretch belongs to the server, not to the wire: a file whose
-    // bytes have all gone up is not a message that has been sent yet, and a
-    // bar sitting full while nothing happens reads as stuck. Held just short
-    // until the send is confirmed.
+    // Held short of full until the send is confirmed, so a full bar doesn't
+    // sit there looking stuck.
     state = current.copyWith(fraction: fraction.clamp(0.0, 0.98));
   }
 
@@ -173,9 +145,7 @@ class PostSendTracker extends Notifier<PostSendProgress?> {
     switch (object) {
       case td.UpdateMessageSendSucceeded():
         _pendingMessages = {..._pendingMessages}..remove(object.oldMessageId);
-        // An album is several messages and is only done when the last of them
-        // lands. Finishing on the first would flash "Posted" over an upload
-        // still running.
+        // An album is several messages, so wait for the last one.
         if (_pendingMessages.isNotEmpty) return;
         _finish(PostSendStatus.sent, sentLinger);
 
@@ -198,7 +168,7 @@ class PostSendTracker extends Notifier<PostSendProgress?> {
     _clearTimer = Timer(linger, clear);
   }
 
-  /// Takes the bar away. Also the "dismiss" the failed state offers.
+  /// Removes the bar, also used to dismiss a failure.
   void clear() {
     _stop();
     state = null;

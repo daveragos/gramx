@@ -6,12 +6,8 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/l10n/legal_text.dart';
 
-/// Renders one of the legal documents.
-///
-/// Plain and scrollable on purpose: this is a thing to be read, not a screen
-/// to be designed. It is also why both documents live in the app rather than
-/// behind a link — someone with no signal, or no patience for a browser, can
-/// still read what they are agreeing to before they agree to it.
+/// Renders one of the legal documents. Bundled in the app rather than linked,
+/// so it can be read offline.
 class LegalScreen extends StatelessWidget {
   final String documentId;
 

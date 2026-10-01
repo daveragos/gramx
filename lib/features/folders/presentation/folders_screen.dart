@@ -11,11 +11,8 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 class FoldersScreen extends ConsumerWidget {
   const FoldersScreen({super.key});
 
-  /// Opens a folder as the feed's tab rather than duplicating the feed here.
-  ///
-  /// This screen is pushed above the shell, so it cannot reach the navigation
-  /// shell either — same trap as the drawer. Going to the feed's route lands
-  /// on the right branch, and the request below selects the tab once there.
+  /// Opens a folder as its feed tab. This screen sits above the shell, so it
+  /// navigates to the feed route and requests the tab.
   void openFolderTab(BuildContext context, WidgetRef ref, int folderId) {
     ref.read(requestedFolderProvider.notifier).request(folderId.toString());
     context.go(ShellTab.home.path);
@@ -82,9 +79,6 @@ class FoldersScreen extends ConsumerWidget {
             separatorBuilder: (context, index) => const Divider(),
             itemBuilder: (context, index) {
               final folder = folders[index];
-              // Real counts: folderChannelIdsProvider already resolves exactly
-              // this. The screen previously read a hardcoded empty map, so every
-              // row said "0 channels".
               final countAsync = ref.watch(folderChannelIdsProvider(folder.id));
 
               return ListTile(
@@ -106,8 +100,6 @@ class FoldersScreen extends ConsumerWidget {
                   style: AppTypography.actionCount(color: secondaryColor),
                 ),
                 trailing: Icon(Icons.chevron_right, color: secondaryColor),
-                // Folders are read as tabs on the feed, so this opens the
-                // matching tab rather than duplicating the feed here.
                 onTap: () => openFolderTab(context, ref, folder.id),
               );
             },

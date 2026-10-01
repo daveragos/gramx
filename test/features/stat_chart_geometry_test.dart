@@ -28,9 +28,7 @@ StatGraph _graph({
 
 const _size = Size(100, 100);
 
-/// The chart's arithmetic, away from the canvas. Every case here is one that
-/// divides by zero, draws off the box, or draws the wrong series if it is got
-/// wrong — and none of them are visible in a screenshot of a healthy channel.
+/// The chart's arithmetic, tested away from the canvas.
 void main() {
   group('StatChartGeometry', () {
     test('scales a series between zero and its highest value', () {
@@ -50,8 +48,7 @@ void main() {
       expect(geometry.yFor(50), 50);
     });
 
-    // A count graph that started at 900 would otherwise be drawn as if it had
-    // started at zero this month, which is a chart about nothing.
+    // Without a zero baseline, a small change would fill the whole chart.
     test('the axis starts at zero even when no value is near it', () {
       final geometry = StatChartGeometry.of(
         _graph(
@@ -81,7 +78,6 @@ void main() {
       expect(geometry.yFor(-20), 100);
     });
 
-    // A channel whose member count did not move all month.
     test('a flat series does not divide by a zero range', () {
       final geometry = StatChartGeometry.of(
         _graph(
@@ -97,8 +93,7 @@ void main() {
       expect(geometry.pointAt(0, 1).dy.isFinite, isTrue);
     });
 
-    // The `index / (count - 1)` a line chart is laid out with is an infinity
-    // at one point, and a channel one day old is a real thing to open.
+    // Layout divides by `count - 1`; a channel one day old has one sample.
     test('a single-sample graph is centred rather than infinite', () {
       final geometry = StatChartGeometry.of(
         _graph(
@@ -300,10 +295,8 @@ void main() {
     });
   });
 
-  // Telegram sends every statistics axis as millisecond timestamps, including
-  // the one that means "hour of the day" — so the unit has to come from the
-  // span rather than from the graph, or the Active times chart is labelled
-  // with the same date twenty-four times.
+  // Telegram sends every statistics axis as millisecond timestamps, even the
+  // hour-of-day one, so the label unit comes from the span.
   group('TimeUtils.axisLabel', () {
     final at = DateTime(2026, 6, 7, 14, 30);
 

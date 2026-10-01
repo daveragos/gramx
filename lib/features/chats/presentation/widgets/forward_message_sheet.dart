@@ -11,13 +11,9 @@ import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 
-/// Picks where a message goes when it is forwarded out of a conversation.
-///
-/// Its own sheet rather than a reuse of the feed's `ForwardSheet`, which takes
-/// a `Post` — a broadcast with a channel byline — and would have to be bent
-/// into taking either. The destination list is the same one the post picker
-/// uses (`ChatCache.forwardTargets`: chats this account can actually write in),
-/// so opening it costs no requests and cannot offer a destination that fails.
+/// Picks the destination chat for forwarding a message. Lists
+/// `ChatCache.forwardTargets` (chats the account can write in), so opening it
+/// sends no requests.
 class ForwardMessageSheet extends ConsumerStatefulWidget {
   const ForwardMessageSheet({super.key});
 
@@ -61,7 +57,7 @@ class _ForwardMessageSheetState extends ConsumerState<ForwardMessageSheet> {
         : AppColors.lightTextSecondary;
     final fill = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
 
-    // Filtering what is already loaded, so typing here issues no request.
+    // Filters locally, so typing sends no requests.
     final targets = ChatListBuilder.filter(
       ref
           .watch(chatsRepositoryProvider)

@@ -8,15 +8,10 @@ import 'package:gramx/features/chats/domain/chat_summary.dart';
 
 import '../support/td_fixtures.dart';
 
-/// The screen gramX never had — somewhere to put a person.
-///
-/// The mapper is what is worth testing here. Every one of these is a rule that
-/// can be wrong quietly: an empty string that means "hidden" rendered as a
-/// blank row, a deleted account drawn as somebody with a very sparse profile,
-/// a missing photo inherited from somewhere else.
+/// The profile mapper's rules: hidden fields stay absent, deleted accounts say
+/// so, and a missing photo is never borrowed.
 void main() {
-  // A resolved username picks its screen from this. Getting it wrong is how a
-  // person's t.me link opened the channel screen.
+  // The resolved chat kind decides which screen a t.me link opens.
   group('what a resolved name belongs to', () {
     test('a person or a bot is a person', () {
       expect(
@@ -76,8 +71,7 @@ void main() {
       expect(profile.displayName, 'Ada Lovelace');
       expect(profile.username, 'ada');
       expect(profile.isVerified, isTrue);
-      // Absent, not empty: the screen draws what it has while the second
-      // request is still in flight rather than holding the page back.
+      // Absent until the full info arrives, so the screen can draw early.
       expect(profile.bio, isNull);
       expect(profile.groupsInCommon, 0);
     });
@@ -127,8 +121,7 @@ void main() {
       );
 
       expect(profile.isBot, isTrue);
-      // A bot answers instantly and always, so a presence line for one is
-      // noise dressed as information.
+      // A bot is always available, so it shows no presence line.
       expect(profile.presence, ChatPresence.unknown);
     });
 
@@ -176,8 +169,7 @@ void main() {
       final profile = UserProfileMapper.from(
         TdFixtures.user(id: 42),
         fullInfo: TdFixtures.userFullInfo(),
-        // Even handed a title, a person with no personal chat has no channel:
-        // zero means none, and a stray title must not conjure one.
+        // A personal chat id of zero means none, whatever the title.
         personalChannelTitle: 'Ada Writes',
       );
 

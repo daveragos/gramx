@@ -30,41 +30,22 @@ import 'package:gramx/features/settings/presentation/profile_screen.dart';
 import 'package:gramx/features/settings/presentation/legal_screen.dart';
 import 'package:gramx/features/activity/presentation/activity_screen.dart';
 
-// Navigation keys for each branch
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _searchNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'search');
 final _channelsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'channels');
 final _messagesNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'messages');
 
-/// Auth-gated router.
-///
-/// The [redirect] callback checks the current auth step on every navigation:
-///  - Loading → stay on current route (no redirect).
-///  - Not authenticated → redirect to /auth.
-///  - Authenticated + on /auth → redirect to /home.
-///
-/// [refreshListenable] is a ValueNotifier that fires whenever the auth step
-/// changes, causing GoRouter to re-evaluate the redirect callback.
-/// How long the app will wait on the splash for the session's state to settle.
-///
-/// Long enough to cover TDLib's own startup chatter, short enough that a reader
-/// who really is signed out is not left looking at nothing. Only ever spent by
-/// that reader: reaching `authenticated` leaves the splash immediately.
+/// How long the splash waits for TDLib's startup authorization states.
 const Duration authSettleWindow = Duration(milliseconds: 700);
 
+/// The app's router. Redirects are decided by [authRedirect].
 final routerProvider = Provider<GoRouter>((ref) {
-  // Seed the notifier with the current auth step.
   final authNotifier = ValueNotifier<AuthStep>(
     ref.read(authControllerProvider).step,
   );
 
-  // Listen (NOT watch) to auth state so the GoRouter instance is stable —
-  // we only want to trigger refreshListenable, not rebuild the router.
-  //
-  // `hasSignedIn` is remembered here rather than derived: once a session has
-  // existed in this run, a loading state means it is going away, and the
-  // sign-in screen is where that belongs. See authRedirect.
+  // Listened to, not watched, so the GoRouter instance stays stable.
   var hasSignedIn =
       ref.read(authControllerProvider).step == AuthStep.authenticated;
 
@@ -73,24 +54,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     authNotifier.value = next.step;
   });
 
-  // Entering or leaving guest mode changes which routes are reachable, so the
-  // redirect has to be re-evaluated when it flips — otherwise the reader sits
-  // on the screen they just left. Merged with the auth notifier rather than
-  // folded into it: they are two independent reasons to re-decide.
+  // Guest mode changes which routes are reachable.
   final guestNotifier = ValueNotifier<bool>(ref.read(isGuestModeProvider));
   ref.listen<bool>(
     isGuestModeProvider,
     (_, next) => guestNotifier.value = next,
   );
 
-  // Whether the session's state can be believed yet.
-  //
-  // TDLib announces several authorization states while it starts, and one of
-  // them can be a sign-in step it supersedes a moment later — which is what
-  // flashed the sign-in screen at a signed-in reader on the way to their feed.
-  // Until this flips, the app waits on the splash rather than acting on an
-  // answer that is about to change. `authenticated` short-circuits it, so the
-  // window is only ever *spent* by somebody who turns out to be signed out.
+  // Flips after [authSettleWindow]; see authRedirect's `isSettled`.
   final settledNotifier = ValueNotifier<bool>(false);
   final settleTimer = Timer(authSettleWindow, () {
     settledNotifier.value = true;
@@ -105,10 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    // A Telegram link that arrives as a location rather than through
-    // app_links is still a link this app can open, so it is handed back to
-    // the handler that owns them instead of being shown to the reader as a
-    // routing failure. See deepLinkFromStrayLocation.
+    // See deepLinkFromStrayLocation.
     onException: (context, state, router) {
       final link = deepLinkFromStrayLocation(state.uri);
       if (link != null) {
@@ -116,8 +84,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       router.go(ShellTab.home.path);
     },
-    // Neither the feed nor the sign-in screen: see SplashScreen for why the
-    // app opens on a destination that means "not decided yet".
     initialLocation: SplashScreen.route,
     refreshListenable: Listenable.merge([
       authNotifier,
@@ -137,16 +103,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const SplashScreen(),
       ),
-      // Branches are declared in ShellTab order and take their paths from it;
-      // see app/app_shell.dart. Adding a tab means adding a branch here.
+      // Branches must be declared in ShellTab order.
       StatefulShellRoute.indexedStack(
-        // A fade, not the platform's page transition. The shell is arrived at
-        // from the splash and from sign-in — both screens that carry the same
-        // mark on the same background — and the default Android transition
-        // slid the feed up over the splash as if it were a page pushed on top
-        // of something the reader had been using. A cross-fade lets the mark
-        // become the feed's header in place, which is what the two screens
-        // are: one start-up, not a navigation.
+        // A fade, since the splash and sign-in screens share the shell's mark.
         pageBuilder: (context, state, navigationShell) => CustomTransitionPage(
           key: state.pageKey,
           child: AppShell(navigationShell: navigationShell),
@@ -161,7 +120,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
         ),
         branches: [
-          // Home tab
           StatefulShellBranch(
             navigatorKey: _homeNavigatorKey,
             routes: [
@@ -171,7 +129,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Search tab
           StatefulShellBranch(
             navigatorKey: _searchNavigatorKey,
             routes: [
@@ -181,7 +138,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Channels tab
           StatefulShellBranch(
             navigatorKey: _channelsNavigatorKey,
             routes: [
@@ -191,7 +147,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Messages tab
           StatefulShellBranch(
             navigatorKey: _messagesNavigatorKey,
             routes: [
@@ -203,7 +158,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // Detail routes (outside shell — full screen)
+      // Full-screen routes outside the shell.
       GoRoute(
         path: '/post/:postId',
         parentNavigatorKey: _rootNavigatorKey,
@@ -213,16 +168,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           return PostDetailScreen(postId: postId, autoFocusReply: focusReply);
         },
       ),
-      // A channel's own numbers, for whoever runs it. Under the channel route
-      // rather than beside it: it is a view *of* that channel, and the path
-      // says so — see `ChannelStatsScreen`.
       GoRoute(
         path: ChannelStatsScreen.route,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) =>
             ChannelStatsScreen(channelId: state.pathParameters['channelId']!),
       ),
-      // under a post of your own.
       GoRoute(
         path: PostStatsScreen.route,
         parentNavigatorKey: _rootNavigatorKey,
@@ -244,20 +195,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      // Guest mode's own screen. Outside the shell, like /folders: it is a
-      // place you go to and come back from, not a tab you live in.
       GoRoute(
         path: '/guest/channels',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const GuestChannelsScreen(),
       ),
-      // Writing a post. Root-level and full screen, like the media viewers:
-      // it covers the shell rather than living inside a tab.
       GoRoute(
         path: ComposeFab.route,
         parentNavigatorKey: _rootNavigatorKey,
-        // `extra` rather than a query parameter: shared text can be long and
-        // can carry anything, and a URL is the wrong place for either.
+        // Shared text goes in `extra` since it can be long.
         builder: (context, state) =>
             ComposeScreen(initialText: state.extra as String?),
       ),
@@ -266,37 +212,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AuthScreen(),
       ),
-      // One conversation. Root-level and full screen: it covers the shell the
-      // way the post and channel screens do, rather than sitting under the
-      // bottom bar with a keyboard over it.
       GoRoute(
         path: '/chat/:chatId',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final chatId = int.tryParse(state.pathParameters['chatId'] ?? '');
-          // An unparseable id is a malformed link, not a chat. The list is
-          // where somebody who followed one should land.
+          // A malformed link falls back to the chat list.
           if (chatId == null) return const ChatsScreen();
           return ConversationScreen(chatId: chatId);
         },
       ),
-      // Bookmarks left the bottom bar for the drawer when Messages took its
-      // every existing link to it keeps working.
       GoRoute(
         path: '/bookmarks',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const BookmarksScreen(),
       ),
-      // Somebody else's profile. `/profile` below is the reader's own account
-      // and is a different screen entirely; these are two nouns that happen to
-      // share a word.
+      // Another user's profile. `/profile` below is the user's own account.
       GoRoute(
         path: '/user/:userId',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final userId = int.tryParse(state.pathParameters['userId'] ?? '');
-          // A malformed link is not a person. The messages list is where
-          // somebody who followed one should land.
+          // A malformed link falls back to the chat list.
           if (userId == null) return const ChatsScreen();
           return UserProfileScreen(userId: userId);
         },
@@ -306,9 +243,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ProfileScreen(),
       ),
-      // What happened while you were away. A pushed route rather than a tab:
-      // puts Channels there, which stays as it is — so this is reached from
-      // the drawer and from the bell in the feed header, both of which are
+      // Reached from the drawer and the bell in the feed header.
       GoRoute(
         path: ActivityScreen.route,
         parentNavigatorKey: _rootNavigatorKey,
@@ -324,8 +259,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const FoldersScreen(),
       ),
-      // Reachable while signed out as well as in: the sign-in screen links
-      // here, and nobody should have to agree to something they can't read.
+      // Reachable while signed out; the sign-in screen links here.
       GoRoute(
         path: '/legal/:document',
         parentNavigatorKey: _rootNavigatorKey,

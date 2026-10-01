@@ -3,9 +3,7 @@ import 'package:gramx/app/app_shell.dart';
 
 void main() {
   group('ShellTab', () {
-    // The router declares its branches in this order and StatefulNavigationShell
-    // addresses them by index, so a reorder here silently sends every tab to the
-    // wrong screen. Pin it.
+    // StatefulNavigationShell addresses branches by index, so the order matters.
     test('order and paths are pinned', () {
       expect(ShellTab.values.map((t) => t.path), [
         '/home',

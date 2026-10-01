@@ -14,12 +14,8 @@ import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 
-/// Picks who to write to.
-///
-/// Backed by `SearchChats`, which TDLib documents as an **offline** method — it
-/// searches the titles and usernames of chats already loaded and never reaches
-/// the server. That is what makes typing here free, and why this has a short
-/// debounce for the sake of the widget tree rather than for the request budget.
+/// Picks a chat to write to. Uses `SearchChats`, which TDLib runs offline over
+/// already loaded chats, so typing sends no requests.
 class NewChatSheet extends ConsumerStatefulWidget {
   const NewChatSheet({super.key});
 
@@ -42,8 +38,7 @@ class NewChatSheet extends ConsumerStatefulWidget {
 }
 
 class _NewChatSheetState extends ConsumerState<NewChatSheet> {
-  /// Long enough to coalesce a burst of keystrokes into one rebuild, short
-  /// enough that the list keeps up with typing.
+  /// Debounce that coalesces a burst of keystrokes into one rebuild.
   static const Duration _settle = Duration(milliseconds: 200);
 
   final TextEditingController _controller = TextEditingController();
@@ -54,8 +49,7 @@ class _NewChatSheetState extends ConsumerState<NewChatSheet> {
   @override
   void initState() {
     super.initState();
-    // The unfiltered list is the sheet's resting state, so it opens on
-    // something rather than on an empty box.
+    // Opens on the unfiltered list.
     _search('');
   }
 

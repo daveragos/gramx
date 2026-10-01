@@ -15,32 +15,18 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Post {
 
- String get id; int get chatId; String get channelId; int get messageId; int get mediaAlbumId; String get channelTitle; String? get channelUsername;/// The person who wrote this, when it was a person rather than a channel.
-///
-/// Set for comments, which are messages in a channel's discussion group by
-/// whoever left them. Null for a channel's own posts, where the channel is
-/// the author and [channelId] already says who that is. It is what lets a
-/// comment's avatar open a profile instead of the channel the thread
-/// hangs off — see `PostSender`.
- int? get senderUserId; String? get channelAvatarUrl; int? get channelAvatarFileId; String? get channelAvatarColor; bool get isChannelVerified; String? get text; List<MediaItem> get media; DateTime get publishedAt; int get viewCount; int get replyCount; int get forwardCount; Map<String, int> get reactions; Set<String> get chosenReactions; bool get isBookmarked; bool get isRead; String? get linkPreviewUrl; String? get linkPreviewTitle; String? get linkPreviewDescription; String? get linkPreviewImageUrl; int? get linkPreviewFileId; String? get forwardedFromTitle; String? get forwardedFromUsername; String? get forwardedFromChatId;/// The original post's id in its own channel, when Telegram tells us.
-/// Lets a forward link to the post itself rather than just the channel.
- int? get forwardedFromMessageId; String? get replyToText;/// Whether [replyToText] is a passage the writer *selected* out of the
-/// message being answered, rather than that message's opening words.
-///
-/// differently from a reply to a whole post: the span becomes its own
-/// block above the reply on a thread connector, while a whole-post reply
-/// is embedded in a quote card. So the two cannot share one field. TDLib
-/// fills `replyTo.quote` only in the first case, and the mapper folds it
-/// into [replyToText] alongside two other sources — this is what survives
-/// that fold. See `ReplyPresentation`.
- bool get replyToIsQuote; String? get replyToAuthorTitle; int? get replyToMessageId;/// The chat the replied-to message lives in, when it isn't this one.
-///
-/// Telegram lets a message reply across chats. Assuming the reply target
-/// shares [chatId] sends the reader to a message id in the wrong chat,
-/// which reports itself as "post not found" however reachable it is.
- int? get replyToChatId; String? get replyToThumbnailUrl; int? get replyToThumbnailFileId; bool get hasDiscussionGroup; String? get authorSignature;/// Set when Telegram sent content this app cannot draw — the TDLib type
-/// name, so the card can offer to open it in Telegram instead of showing a
-/// dead sentence.
+ String get id; int get chatId; String get channelId; int get messageId; int get mediaAlbumId; String get channelTitle; String? get channelUsername;/// The user who wrote this, for comments in a discussion group. Null for a
+/// channel's own posts. Lets a comment's avatar open a profile; see
+/// `PostSender`.
+ int? get senderUserId; String? get channelAvatarUrl; int? get channelAvatarFileId; String? get channelAvatarColor; bool get isChannelVerified; String? get text; List<MediaItem> get media; DateTime get publishedAt; int get viewCount; int get replyCount; int get forwardCount; Map<String, int> get reactions; Set<String> get chosenReactions; bool get isBookmarked; bool get isRead; String? get linkPreviewUrl; String? get linkPreviewTitle; String? get linkPreviewDescription; String? get linkPreviewImageUrl; int? get linkPreviewFileId; String? get forwardedFromTitle; String? get forwardedFromUsername; String? get forwardedFromChatId;/// The original post's id in its channel, when Telegram provides it, so a
+/// forward can link to the post rather than the channel.
+ int? get forwardedFromMessageId; String? get replyToText;/// Whether [replyToText] is a span quoted from the replied-to message
+/// rather than its opening words. TDLib sets `replyTo.quote` only for a
+/// quote, and the two are drawn differently. See `ReplyPresentation`.
+ bool get replyToIsQuote; String? get replyToAuthorTitle; int? get replyToMessageId;/// The chat of the replied-to message, when it isn't this one. Telegram
+/// allows replies across chats.
+ int? get replyToChatId; String? get replyToThumbnailUrl; int? get replyToThumbnailFileId; bool get hasDiscussionGroup; String? get authorSignature;/// The TDLib type name of content this app can't draw, so the card can
+/// offer to open it in Telegram.
  String? get unsupportedKind; List<TextEntity> get entities;@JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? get poll;
 /// Create a copy of Post
 /// with the given fields replaced by the non-null parameter values.
@@ -299,13 +285,9 @@ class _Post implements Post {
 @override@JsonKey() final  int mediaAlbumId;
 @override final  String channelTitle;
 @override final  String? channelUsername;
-/// The person who wrote this, when it was a person rather than a channel.
-///
-/// Set for comments, which are messages in a channel's discussion group by
-/// whoever left them. Null for a channel's own posts, where the channel is
-/// the author and [channelId] already says who that is. It is what lets a
-/// comment's avatar open a profile instead of the channel the thread
-/// hangs off — see `PostSender`.
+/// The user who wrote this, for comments in a discussion group. Null for a
+/// channel's own posts. Lets a comment's avatar open a profile; see
+/// `PostSender`.
 @override final  int? senderUserId;
 @override final  String? channelAvatarUrl;
 @override final  int? channelAvatarFileId;
@@ -347,35 +329,25 @@ class _Post implements Post {
 @override final  String? forwardedFromTitle;
 @override final  String? forwardedFromUsername;
 @override final  String? forwardedFromChatId;
-/// The original post's id in its own channel, when Telegram tells us.
-/// Lets a forward link to the post itself rather than just the channel.
+/// The original post's id in its channel, when Telegram provides it, so a
+/// forward can link to the post rather than the channel.
 @override final  int? forwardedFromMessageId;
 @override final  String? replyToText;
-/// Whether [replyToText] is a passage the writer *selected* out of the
-/// message being answered, rather than that message's opening words.
-///
-/// differently from a reply to a whole post: the span becomes its own
-/// block above the reply on a thread connector, while a whole-post reply
-/// is embedded in a quote card. So the two cannot share one field. TDLib
-/// fills `replyTo.quote` only in the first case, and the mapper folds it
-/// into [replyToText] alongside two other sources — this is what survives
-/// that fold. See `ReplyPresentation`.
+/// Whether [replyToText] is a span quoted from the replied-to message
+/// rather than its opening words. TDLib sets `replyTo.quote` only for a
+/// quote, and the two are drawn differently. See `ReplyPresentation`.
 @override@JsonKey() final  bool replyToIsQuote;
 @override final  String? replyToAuthorTitle;
 @override final  int? replyToMessageId;
-/// The chat the replied-to message lives in, when it isn't this one.
-///
-/// Telegram lets a message reply across chats. Assuming the reply target
-/// shares [chatId] sends the reader to a message id in the wrong chat,
-/// which reports itself as "post not found" however reachable it is.
+/// The chat of the replied-to message, when it isn't this one. Telegram
+/// allows replies across chats.
 @override final  int? replyToChatId;
 @override final  String? replyToThumbnailUrl;
 @override final  int? replyToThumbnailFileId;
 @override@JsonKey() final  bool hasDiscussionGroup;
 @override final  String? authorSignature;
-/// Set when Telegram sent content this app cannot draw — the TDLib type
-/// name, so the card can offer to open it in Telegram instead of showing a
-/// dead sentence.
+/// The TDLib type name of content this app can't draw, so the card can
+/// offer to open it in Telegram.
 @override final  String? unsupportedKind;
  final  List<TextEntity> _entities;
 @override@JsonKey() List<TextEntity> get entities {

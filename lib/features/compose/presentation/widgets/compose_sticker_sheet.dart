@@ -11,13 +11,8 @@ import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/presentation/sticker_providers.dart';
 
-/// Picks a sticker or a GIF out of the account's own Telegram collection.
-///
-/// Two tabs, because they are two collections and Telegram keeps them apart.
-/// The sticker tab has a source strip along the bottom — favourites, recents,
-/// then one icon per installed set — which is Telegram's own arrangement and,
-/// more importantly, the thing that keeps this off the request budget: a set's
-/// stickers are fetched when its icon is tapped, never before.
+/// Picks a sticker or a GIF from the account's Telegram collection. A set's
+/// stickers are fetched only when its icon is tapped.
 class ComposeStickerSheet extends ConsumerStatefulWidget {
   /// Which tab to open on.
   final ComposeRemoteKind initialKind;
@@ -31,8 +26,7 @@ class ComposeStickerSheet extends ConsumerStatefulWidget {
   }) {
     return showModalBottomSheet<ComposeRemoteMedia>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // Above the shell's bottom bar; see mute_sheet.dart.
       useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
@@ -49,7 +43,7 @@ class _ComposeStickerSheetState extends ConsumerState<ComposeStickerSheet>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
 
-  /// Which sticker source is on screen. Only this one is ever fetched.
+  /// The sticker source on screen. Only this one is fetched.
   StickerSource _source = const FavouriteStickers();
 
   @override
@@ -106,8 +100,7 @@ class _ComposeStickerSheetState extends ConsumerState<ComposeStickerSheet>
                     secondary: secondary,
                   ),
                   _RemoteGrid(
-                    // Lazy: the GIF list is not fetched until this tab is
-                    // built, which is what makes the tab choice free.
+                    // The GIF list isn't fetched until this tab is built.
                     itemsAsync: ref.watch(savedGifsProvider),
                     emptyMessage: AppStrings.composeNoGifs,
                     onPick: _pick,
@@ -183,7 +176,7 @@ class _SourceStrip extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    // Titles and icons only — one request, no stickers fetched.
+    // Titles and icons only, in one request.
     final sets = ref.watch(installedStickerSetsProvider).value ?? const [];
 
     return Container(
@@ -296,9 +289,7 @@ class _RemoteGrid extends StatelessWidget {
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.accent),
       ),
-      // The repository already logs and answers with an empty list, so an
-      // error here is only ever a programming fault — say the same thing an
-      // empty collection says rather than showing a stack trace.
+      // The repository returns an empty list on error, so show the empty state.
       error: (_, _) => _Empty(message: emptyMessage, secondary: secondary),
       data: (items) {
         if (items.isEmpty) {
@@ -325,10 +316,8 @@ class _RemoteGrid extends StatelessWidget {
                 onTap: () => onPick(item),
                 borderRadius: BorderRadius.circular(AppSpacing.sm),
                 child: _RemoteThumbnail(
-                  // The thumbnail, not the sticker itself: it is a fraction of
-                  // the size, and it is always WEBP or JPEG — so a grid of them
-                  // costs little and never hits the TGS and WebM formats that
-                  // Flutter's image decoder cannot read. See StickerTile.
+                  // The thumbnail is small and always WEBP or JPEG, which
+                  // Flutter can decode, unlike TGS and WebM. See StickerTile.
                   fileId: item.thumbnailFileId ?? item.fileId,
                 ),
               ),
@@ -357,8 +346,7 @@ class _RemoteThumbnail extends ConsumerWidget {
     return Image.file(
       File(path),
       fit: BoxFit.contain,
-      // A format the decoder will not read draws nothing rather than an error
-      // glyph — the sticker is still perfectly sendable.
+      // An undecodable format draws nothing; the sticker can still be sent.
       errorBuilder: (_, _, _) => const SizedBox.shrink(),
     );
   }

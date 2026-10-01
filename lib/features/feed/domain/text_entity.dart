@@ -3,11 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'text_entity.freezed.dart';
 part 'text_entity.g.dart';
 
-/// Every formatting mark Telegram can put on a message.
-///
-/// Kept in step with TDLib's `TextEntityType` union: anything missing here maps
-/// to [unknown] and renders as plain text, which is how quoted blocks and code
-/// blocks used to lose their formatting entirely.
+/// Every formatting mark Telegram can put on a message. Mirrors TDLib's
+/// `TextEntityType`; anything missing maps to [unknown] and renders plain.
 enum TextEntityType {
   bold,
   italic,
@@ -17,15 +14,15 @@ enum TextEntityType {
   codeBlock,
   blockQuote,
 
-  /// A quote Telegram collapses until tapped. Rendered as a quote here, since
-  /// the post itself already collapses when it is long.
+  /// A quote Telegram collapses until tapped. Drawn as a normal quote, since
+  /// long posts already collapse.
   expandableBlockQuote,
   url,
   textUrl,
   mention,
 
-  /// A mention of a user with no username — the name is the link text and the
-  /// id is all Telegram gives us, so it is styled but not tappable.
+  /// A mention of a user with no username. Telegram gives only the id, so it
+  /// is styled but not tappable.
   mentionName,
   hashtag,
   cashtag,

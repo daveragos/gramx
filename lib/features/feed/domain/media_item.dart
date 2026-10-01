@@ -3,10 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'media_item.freezed.dart';
 part 'media_item.g.dart';
 
-/// How an animated sticker is encoded.
-///
-/// Telegram ships three, and they need three different renderers — treating
-/// them all as images (which this app used to do) leaves TGS and WebM broken.
+/// How a sticker is encoded. Each format needs a different renderer.
 enum StickerFormat {
   /// Still or animated WebP. Flutter's Image widget animates these natively.
   webp,
@@ -15,7 +12,7 @@ enum StickerFormat {
   tgs,
 
   /// VP9 video with an alpha channel. Android's hardware decoder drops the
-  /// alpha plane, so this falls back to the static thumbnail for now.
+  /// alpha plane, so this falls back to the static thumbnail.
   webm,
 
   /// Not a sticker, or a format we don't recognise.
@@ -50,28 +47,24 @@ abstract class MediaItem with _$MediaItem {
     String? mimeType,
     String? localPath,
 
-    /// Whether Telegram flagged this video as streamable.
-    ///
-    /// Set only for videos muxed so playback can begin before the file is
-    /// complete (`faststart`: the moov atom at the front). A video without it
-    /// cannot be played from a prefix at all — the player would read the whole
-    /// thing looking for the index — so it must fall back to downloading in
-    /// full. See `TdlibFileServer`.
+    /// Whether Telegram flagged this video as streamable (`faststart`, index at
+    /// the front). Without it the file must be downloaded in full before it
+    /// plays. See `TdlibFileServer`.
     @Default(false) bool supportsStreaming,
 
-    /// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
+    /// Base64 JPEG minithumbnail from Telegram, a preview of about 100 bytes.
     String? minithumbnail,
 
-    /// TDLib file ID for the main media file (for reactive download tracking).
+    /// TDLib file id for the main media file.
     int? fileId,
 
-    /// TDLib file ID for the thumbnail file.
+    /// TDLib file id for the thumbnail.
     int? thumbnailFileId,
 
     /// How a sticker is encoded. Only meaningful for [MediaType.sticker].
     @Default(StickerFormat.unknown) StickerFormat stickerFormat,
 
-    /// Telegram's "cover this until tapped" flag, set by the poster.
+    /// Telegram's spoiler flag: covered until tapped.
     @Default(false) bool hasSpoiler,
   }) = _MediaItem;
 

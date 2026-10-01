@@ -27,9 +27,7 @@ class FolderFeed extends ConsumerStatefulWidget {
   /// Room reserved for the bottom bar, which also overlays this list.
   final double bottomPadding;
 
-  /// Where the top of the content sits once the header has slid away — the
-  /// status bar inset. The "new posts" pill follows this so it stays near the
-  /// top of the screen instead of stranding where the header used to be.
+  /// The status bar inset, where content starts once the header slides away.
   final double collapsedTopPadding;
 
   const FolderFeed({
@@ -61,14 +59,12 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
 
   @override
   void deactivate() {
-    // Leaving the feed with the bar hidden would strand it off screen on
-    // whatever comes next. No tween — it would play over the next screen.
+    // Restore the chrome for the next screen, without animating over it.
     ref.read(chromeOffsetProvider.notifier).show(animate: false);
     super.deactivate();
   }
 
-  /// Commits pending arrivals, then returns to the top so the user lands on
-  /// the newest post rather than wherever the insert pushed them.
+  /// Commits pending arrivals and scrolls to the newest post.
   void _showNewPosts() {
     ref.read(pendingPostsProvider.notifier).accept();
     _scrollToTop();
@@ -76,8 +72,6 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
 
   void _scrollToTop() {
     if (!_scrollController.hasClients) return;
-    // Bring the chrome back too — arriving at the top with the header still
-    // hidden looks like the app lost its navigation.
     ref.read(chromeOffsetProvider.notifier).show();
     _scrollController.animateTo(
       0,
@@ -86,10 +80,8 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     );
   }
 
-  /// Chat ids this tab shows, or null for the "All" tab.
-  ///
-  /// Pagination is scoped to these so a narrow folder doesn't page every
-  /// channel the user follows just to add a couple of rows.
+  /// Chat ids this tab shows, or null for the "All" tab. Pagination is
+  /// limited to these.
   Set<int>? _visibleChatIds() {
     final folderId = int.tryParse(widget.folderId);
     if (widget.folderId == 'All' || folderId == null) return null;
@@ -114,12 +106,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
 
   @override
   Widget build(BuildContext context) {
-    // Keeps the focus controller alive while the feed is on screen. It owns the
-    // dwell timers behind read tracking and chat focus; listening (rather than
-    // watching) avoids rebuilding the whole list every time focus moves.
+    // Keeps the focus controller (read tracking) alive. Listening rather than
+    // watching avoids rebuilding the list whenever focus moves.
     ref.listen(feedFocusControllerProvider, (_, _) {});
 
-    // Another widget — the tab bar, usually — asking this feed to go to the top.
     ref.listen<ScrollToTopRequest?>(feedScrollToTopProvider, (_, request) {
       if (request?.folderId == widget.folderId) _scrollToTop();
     });
@@ -129,8 +119,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final pendingCount = pending.length;
     final backlogIds = ref.watch(backlogIdsProvider);
     final isSyncing = ref.watch(feedPostsProvider).isLoading;
-    // "Nothing here" and "nothing yet" look identical and mean opposite
-    // things. These two say which one this is.
+    // Tell "nothing yet" apart from "nothing here".
     final isWarmingUp = ref.watch(feedWarmupProvider);
     final channelsKnown = ref.watch(channelsKnownProvider);
     final theme = Theme.of(context);
@@ -162,8 +151,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
       ),
       data: (posts) {
         if (posts.isNotEmpty) _hasLoadedOnce = true;
-        // Collapse a channel's own follow-ups so one burst takes one slot, and
-        // weave in the unread backlog — see buildFeedEntries.
+        // Groups a channel's bursts and weaves in the backlog.
         final entries = buildFeedEntries(posts, backlogOrder: backlogIds);
         if (posts.isEmpty) {
           if (isSyncing || isWarmingUp || !channelsKnown) {
@@ -172,10 +160,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               child: const FeedSkeleton(),
             );
           }
-          // The feed holds unread posts only, so an empty one from an
-          // account that follows channels means the reader finished
-          // everything — on this launch, or before it. That is a different
-          // message from "this folder has nothing in it".
+          // The feed holds only unread posts, so empty means caught up.
           final caughtUp = _hasLoadedOnce || channelsKnown;
           return Center(
             child: Padding(
@@ -218,13 +203,10 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           children: [
             RefreshIndicator(
               color: AppColors.accent,
-              // The list starts under the header, so without this the spinner
-              // animates behind it and the pull looks like it did nothing.
+              // Keeps the spinner below the header.
               edgeOffset: widget.topPadding,
               onRefresh: () async {
-                // A refresh re-fetches everything, so held-back arrivals would
-                // be duplicated by it — drop them rather than showing a stale
-                // pill.
+                // The refresh includes held arrivals, so drop them.
                 ref.read(pendingPostsProvider.notifier).discard();
                 await ref.read(feedPostsProvider.notifier).refresh();
               },
@@ -237,8 +219,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                   }
                   return false;
                 },
-                // The header and the bottom bar travel with the content rather
-                // than toggling once a threshold is crossed.
+                // The header and bottom bar move with the scroll.
                 child: ChromeScrollObserver(
                   extent: widget.topPadding,
                   child: ListView.builder(
@@ -280,10 +261,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               ),
             ),
             if (pendingCount > 0)
-              // The pill belongs to the header: it rides down with it and is
-              // gone once the header is. Offering "3 new posts" while the bar
-              // that owns the feed is off screen just clutters the reading
-              // surface.
+              // The pill moves and fades with the header.
               ChromeMotion(
                 builder: (context, hidden, child) {
                   final opacity = chromeTiedOpacity(hidden);
@@ -310,17 +288,12 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   }
 }
 
-/// The "N new posts" affordance. Tapping it is the only way arrivals enter the
-/// feed — see [PendingPostsNotifier].
-///
-/// The faces are the point of the redesign: a count says how much has piled
-/// up, the avatars say who it is from, and that is the half of the question
-/// that decides whether to tap now or keep reading.
+/// The "N new posts" pill with the posting channels' avatars. Tapping it is
+/// the only way arrivals enter the feed (see [PendingPostsNotifier]).
 class _NewPostsPill extends StatelessWidget {
   final int count;
 
-  /// One post per channel that contributed, newest first — see
-  /// [pillAvatarPosts]. Empty draws the old arrow instead.
+  /// One post per channel (see [pillAvatarPosts]); an arrow when empty.
   final List<Post> faces;
 
   final VoidCallback onTap;
@@ -366,9 +339,7 @@ class _NewPostsPill extends StatelessWidget {
                     size: 16,
                   )
                 else
-                  // The pill already carries the whole sentence as its
-                  // semantic label; the faces would otherwise be read out
-                  // again, one channel name at a time.
+                  // The pill's label already covers these.
                   ExcludeSemantics(child: _AvatarStack(posts: faces)),
                 const SizedBox(width: 7),
                 Text(
@@ -388,14 +359,12 @@ class _NewPostsPill extends StatelessWidget {
   }
 }
 
-/// Overlapping channel avatars, first one on top.
-///
-/// Each wears a ring in the pill's own colour, which is what separates two
-/// dark avatars that overlap — without it the stack reads as one smudge.
+/// Overlapping channel avatars, first one on top, each ringed in the pill's
+/// colour so overlapping dark avatars stay distinct.
 class _AvatarStack extends StatelessWidget {
   static const double _diameter = 24;
 
-  /// How much of each avatar the next one covers.
+  /// Horizontal offset between avatars.
   static const double _step = 16;
 
   static const double _ring = 1.5;
@@ -413,8 +382,7 @@ class _AvatarStack extends StatelessWidget {
       width: outer + _step * (posts.length - 1),
       child: Stack(
         children: [
-          // Painted back to front so the newest channel sits on top, which is
-          // the one the count is mostly about.
+          // Back to front, so the newest channel is on top.
           for (var i = posts.length - 1; i >= 0; i--)
             Positioned(
               left: i * _step,

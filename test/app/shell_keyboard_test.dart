@@ -8,13 +8,8 @@ import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 
-/// The bottom bar rode up on top of the keyboard.
-///
-/// The bar is pinned to the bottom of the shell's own `Scaffold` body, so
-/// letting that Scaffold shrink for the keyboard carried the bar with it — a
-/// tab strip sitting on the keyboard's top edge on every screen with a field
-/// in it. The fix is one flag, and it is the sort of flag that gets
-/// "tidied away" later by somebody who does not know what it is holding up.
+/// The shell's `Scaffold` must not resize for the keyboard, or the bottom bar
+/// rides up on top of it.
 void main() {
   GoRouter shellRouter() => GoRouter(
     initialLocation: ShellTab.home.path,
@@ -38,10 +33,7 @@ void main() {
     ],
   );
 
-  // The bar reserves its own height plus the gesture inset, and the default
-  // test window has neither the inset nor the room — so the tab labels
-  // overflow a surface that is fine on any real phone. A phone-shaped window
-  // is what these assertions are about anyway.
+  // A phone-sized window; the default test window is too small for the bar.
   setUp(() {
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
@@ -60,13 +52,9 @@ void main() {
   });
 
   Widget host() => ProviderScope(
-    // The messages tab badges itself from the live chat list, which would
-    // reach for a TDLib client this test has no use for.
+    // Keep the tab badges away from TDLib.
     overrides: [
       unreadChatCountProvider.overrideWith((ref) => 0),
-      // The Home icon watches for waiting posts; this test is about the
-      // bars, so the real notifier — which listens to the sync service and
-      // would drag TDLib into the test — is stood down.
       pendingPostsProvider.overrideWith(_NoPendingPosts.new),
     ],
     child: MaterialApp.router(routerConfig: shellRouter()),
@@ -85,7 +73,7 @@ void main() {
     await tester.pumpWidget(host());
     final before = tester.getRect(find.byType(BottomNavigationBar));
 
-    // What a keyboard is, as far as the framework is concerned.
+    // A keyboard, as far as the framework is concerned.
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
 
@@ -97,9 +85,7 @@ void main() {
   ) async {
     await tester.pumpWidget(host());
 
-    // The branch's Scaffold is a different one from the shell's, and nothing
-    // here has turned its own resizing off — which is what keeps a field being
-    // typed into out from under the keyboard.
+    // Branch scaffolds still resize, keeping focused fields above the keyboard.
     final branchScaffolds = tester
         .widgetList<Scaffold>(find.byType(Scaffold))
         .where((s) => s.key != shellScaffoldKey);

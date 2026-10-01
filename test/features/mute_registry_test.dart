@@ -160,8 +160,7 @@ void main() {
         expect(restored.isMuted('b', now: now), isTrue);
       });
 
-      // Mutes were a bare list of ids before they could expire. Reading one as
-      // indefinite keeps everything the reader already muted muted.
+      // A bare list of ids is the format without expiry, read as indefinite.
       test('reads the old list format as indefinite mutes', () {
         final restored = MuteRegistry.fromJson(['-100111', 'somech']);
 

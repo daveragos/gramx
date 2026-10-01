@@ -8,17 +8,8 @@ import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// Opens Saved Messages, resolving the chat first.
-///
-/// One function rather than a route, because the destination is not knowable
-/// from a path: Saved Messages is a private chat with your own user id, which
-/// is read from the account record, and on a fresh account the chat has to be
-/// created before it can be pushed. A `/saved` route would have to do all of
-/// that inside a builder, which is exactly the side-effect-in-`build` the hard
-/// rules forbid.
-///
-/// Safe to call from anywhere with a `WidgetRef`. Reports failure rather than
-/// pushing an empty screen.
+/// Opens Saved Messages, resolving (and on a fresh account creating) the chat
+/// first. Shows a snackbar if the chat can't be resolved.
 Future<void> openSavedMessages(BuildContext context, WidgetRef ref) async {
   final chatId = await ref
       .read(chatsRepositoryProvider)
@@ -39,9 +30,6 @@ Future<void> openSavedMessages(BuildContext context, WidgetRef ref) async {
   context.push(ChatsScreen.routeFor(chatId));
 }
 
-/// Whether Saved Messages is reachable at all.
-///
-/// A guest has no account, so there is no chat with themselves to save into —
-/// the entry is hidden rather than shown and refused.
+/// Whether Saved Messages is available. False for a guest, who has no account.
 bool canOpenSavedMessages(WidgetRef ref) =>
     ref.watch(readerCapabilitiesProvider).canMessage;

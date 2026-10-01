@@ -1,6 +1,5 @@
 # Release signing. Copy this file to android/key.properties and fill it in.
-# key.properties and the keystore itself are ignored by git; keep both backed
-# up, because a build signed with any other key cannot update an installed one.
+# Back up both it and the keystore: only the same key can update an install.
 storeFile=/absolute/path/to/upload-keystore.jks
 storePassword=
 keyAlias=upload

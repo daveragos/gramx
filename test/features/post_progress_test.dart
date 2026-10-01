@@ -55,9 +55,7 @@ void main() {
       expect(tally.fraction, 0.25);
     });
 
-    // TDLib reports `expectedSize` before it knows and `size` once it does. A
-    // tally that read only one of them would have no denominator for half the
-    // life of the upload.
+    // TDLib sets `expectedSize` until the real `size` is known.
     test('expectedSize stands in until size is known', () {
       final tally = const UploadTally().apply(
         _file(id: 10, expectedSize: 400, uploaded: 100),
@@ -67,8 +65,6 @@ void main() {
       expect(tally.fraction, 0.25);
     });
 
-    // Summed rather than averaged: three attachments of wildly different sizes
-    // should move the bar by what they actually cost, not a third each.
     test('several files are weighted by size, not counted equally', () {
       final tally = const UploadTally()
           .apply(_file(id: 10, size: 900, uploaded: 0), watched)
@@ -106,9 +102,7 @@ void main() {
   });
 
   group('ComposeMessages.uploadingFileIds', () {
-    // The largest photo size is the one that takes the time; the smaller ones
-    // are generated from it. Counting them all would average a thumbnail's
-    // instant completion against the real upload.
+    // Smaller photo sizes are generated from the largest, the real upload.
     test('a photo contributes only its largest size', () {
       final message = TdFixtures.photoMessage(
         id: 1,
@@ -125,8 +119,7 @@ void main() {
       expect(ComposeMessages.uploadingFileIds(message), [42]);
     });
 
-    // A sticker is already on Telegram's servers, so nothing goes up for it
-    // and the bar has nothing to measure — which is why it runs indeterminate.
+    // Nothing goes up, so the bar has nothing to measure and is indeterminate.
     test('a text post uploads nothing', () {
       final message = TdFixtures.textMessage(id: 1, chatId: -100);
 

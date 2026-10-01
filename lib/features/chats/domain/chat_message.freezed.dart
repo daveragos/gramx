@@ -17,52 +17,30 @@ mixin _$ChatMessage {
 
 /// `"<chatId>_<messageId>"`, the same key shape the rest of the app uses.
  String get id; int get chatId; int get messageId;/// Album members share this. Zero when the message stands alone.
- int get mediaAlbumId;/// True when this account sent it. Decides which side the bubble sits on,
-/// and whether a send state is drawn at all.
+ int get mediaAlbumId;/// True when this account sent it.
  bool get isOutgoing;/// Who sent it. Null for a message from an anonymous admin or a channel
 /// posting into its discussion group.
- int? get senderId;/// The sender's display name. Only drawn in groups — in a private chat the
-/// two possible senders are the two people looking at it.
+ int? get senderId;/// The sender's display name. Only drawn in groups.
  String? get senderName; String? get senderAvatarPath; int? get senderAvatarFileId; String? get senderAvatarColorHex; String? get text; List<TextEntity> get entities; List<MediaItem> get media;/// The poll this message is, if it is one.
-///
-/// Carried rather than flattened to its question text. A poll bubble used
-/// to render as an empty box: `MessagePoll` is content the feed draws in
-/// full, so it had no fallback label to borrow, and nothing here knew what
-/// to do with it — a message with no words, no media and no poll is a
-/// bubble with nothing in it.
 @JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) Poll? get poll;/// A place somebody sent: a location, or a venue with a name on it.
-///
-/// Drawn as a card rather than reduced to the words "📍 Location", which
-/// is what a conversation showed for one — a label with the coordinates
-/// thrown away, so the one thing a location is for could not be done with
-/// it.
 @JsonKey(fromJson: _placeFromJson, toJson: _placeToJson) MessagePlace? get place;/// A contact card somebody sent.
 @JsonKey(fromJson: _contactFromJson, toJson: _contactToJson) MessageContactCard? get contact;/// True while this message's media is Telegram's tap-to-view kind and has
-/// not been opened. The bubble draws a cover rather than the picture, which
-/// is the whole point of it.
- bool get isSecretMedia;/// True when the media is "view once": gone when the viewer closes it,
-/// however long they looked. Mutually exclusive with
-/// [selfDestructSeconds] — Telegram's type is one or the other.
+/// not been opened. The bubble draws a cover instead of the picture.
+ bool get isSecretMedia;/// True when the media is "view once": gone when the viewer closes it.
+/// Mutually exclusive with [selfDestructSeconds].
  bool get isViewOnce;/// How long the viewer gets once they open it, in seconds. Zero for
 /// [isViewOnce] media and for anything that does not self-destruct.
  int get selfDestructSeconds; DateTime get sentAt;/// When Telegram says the message was edited, if it was.
  DateTime? get editedAt; MessageSendState get sendState; Map<String, int> get reactions; Set<String> get chosenReactions;/// The message this one replies to, when there is one.
  int? get replyToMessageId; String? get replyToText; String? get replyToAuthorName;/// The chat the replied-to message lives in, when it isn't this one.
-/// Telegram allows replies across chats, and assuming otherwise sends the
-/// reader to a message id in the wrong chat.
- int? get replyToChatId; int? get replyToThumbnailFileId;/// Where a forwarded message came from, as Telegram will name it. Null
-/// when the origin is hidden, which Telegram allows.
- String? get forwardedFromTitle; String? get linkPreviewUrl; String? get linkPreviewTitle; String? get linkPreviewDescription; int? get linkPreviewFileId;/// Whether this message is pinned to the top of the chat.
-///
-/// Read so the long-press menu can offer the right one of Pin and Unpin.
-/// It arrives on `updateMessageIsPinned` rather than as a content change,
-/// because nothing about the message itself moved.
- bool get isPinned;/// Telegram's own notice about the chat — "you joined", "photo changed".
-/// Drawn as a centred line rather than a bubble, the way every Telegram
-/// client does it, so it reads as narration and not as something somebody
-/// said.
- bool get isService;/// Set when Telegram sent content this build cannot draw: the TDLib type
-/// name, so the bubble can offer Telegram rather than showing an empty box.
+/// Telegram allows replies across chats.
+ int? get replyToChatId; int? get replyToThumbnailFileId;/// The forwarded message's origin as Telegram names it. Null when hidden.
+ String? get forwardedFromTitle; String? get linkPreviewUrl; String? get linkPreviewTitle; String? get linkPreviewDescription; int? get linkPreviewFileId;/// Whether this message is pinned in the chat. Changes arrive on
+/// `updateMessageIsPinned`, not as a content change.
+ bool get isPinned;/// Telegram's own notice about the chat ("you joined", "photo changed").
+/// Drawn as a centred line instead of a bubble.
+ bool get isService;/// The TDLib type name of content this build cannot draw, so the bubble
+/// can offer to open it in Telegram.
  String? get unsupportedKind;
 /// Create a copy of ChatMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -314,14 +292,12 @@ class _ChatMessage extends ChatMessage {
 @override final  int messageId;
 /// Album members share this. Zero when the message stands alone.
 @override@JsonKey() final  int mediaAlbumId;
-/// True when this account sent it. Decides which side the bubble sits on,
-/// and whether a send state is drawn at all.
+/// True when this account sent it.
 @override final  bool isOutgoing;
 /// Who sent it. Null for a message from an anonymous admin or a channel
 /// posting into its discussion group.
 @override final  int? senderId;
-/// The sender's display name. Only drawn in groups — in a private chat the
-/// two possible senders are the two people looking at it.
+/// The sender's display name. Only drawn in groups.
 @override final  String? senderName;
 @override final  String? senderAvatarPath;
 @override final  int? senderAvatarFileId;
@@ -342,29 +318,16 @@ class _ChatMessage extends ChatMessage {
 }
 
 /// The poll this message is, if it is one.
-///
-/// Carried rather than flattened to its question text. A poll bubble used
-/// to render as an empty box: `MessagePoll` is content the feed draws in
-/// full, so it had no fallback label to borrow, and nothing here knew what
-/// to do with it — a message with no words, no media and no poll is a
-/// bubble with nothing in it.
 @override@JsonKey(fromJson: _pollFromJson, toJson: _pollToJson) final  Poll? poll;
 /// A place somebody sent: a location, or a venue with a name on it.
-///
-/// Drawn as a card rather than reduced to the words "📍 Location", which
-/// is what a conversation showed for one — a label with the coordinates
-/// thrown away, so the one thing a location is for could not be done with
-/// it.
 @override@JsonKey(fromJson: _placeFromJson, toJson: _placeToJson) final  MessagePlace? place;
 /// A contact card somebody sent.
 @override@JsonKey(fromJson: _contactFromJson, toJson: _contactToJson) final  MessageContactCard? contact;
 /// True while this message's media is Telegram's tap-to-view kind and has
-/// not been opened. The bubble draws a cover rather than the picture, which
-/// is the whole point of it.
+/// not been opened. The bubble draws a cover instead of the picture.
 @override@JsonKey() final  bool isSecretMedia;
-/// True when the media is "view once": gone when the viewer closes it,
-/// however long they looked. Mutually exclusive with
-/// [selfDestructSeconds] — Telegram's type is one or the other.
+/// True when the media is "view once": gone when the viewer closes it.
+/// Mutually exclusive with [selfDestructSeconds].
 @override@JsonKey() final  bool isViewOnce;
 /// How long the viewer gets once they open it, in seconds. Zero for
 /// [isViewOnce] media and for anything that does not self-destruct.
@@ -392,30 +355,23 @@ class _ChatMessage extends ChatMessage {
 @override final  String? replyToText;
 @override final  String? replyToAuthorName;
 /// The chat the replied-to message lives in, when it isn't this one.
-/// Telegram allows replies across chats, and assuming otherwise sends the
-/// reader to a message id in the wrong chat.
+/// Telegram allows replies across chats.
 @override final  int? replyToChatId;
 @override final  int? replyToThumbnailFileId;
-/// Where a forwarded message came from, as Telegram will name it. Null
-/// when the origin is hidden, which Telegram allows.
+/// The forwarded message's origin as Telegram names it. Null when hidden.
 @override final  String? forwardedFromTitle;
 @override final  String? linkPreviewUrl;
 @override final  String? linkPreviewTitle;
 @override final  String? linkPreviewDescription;
 @override final  int? linkPreviewFileId;
-/// Whether this message is pinned to the top of the chat.
-///
-/// Read so the long-press menu can offer the right one of Pin and Unpin.
-/// It arrives on `updateMessageIsPinned` rather than as a content change,
-/// because nothing about the message itself moved.
+/// Whether this message is pinned in the chat. Changes arrive on
+/// `updateMessageIsPinned`, not as a content change.
 @override@JsonKey() final  bool isPinned;
-/// Telegram's own notice about the chat — "you joined", "photo changed".
-/// Drawn as a centred line rather than a bubble, the way every Telegram
-/// client does it, so it reads as narration and not as something somebody
-/// said.
+/// Telegram's own notice about the chat ("you joined", "photo changed").
+/// Drawn as a centred line instead of a bubble.
 @override@JsonKey() final  bool isService;
-/// Set when Telegram sent content this build cannot draw: the TDLib type
-/// name, so the bubble can offer Telegram rather than showing an empty box.
+/// The TDLib type name of content this build cannot draw, so the bubble
+/// can offer to open it in Telegram.
 @override final  String? unsupportedKind;
 
 /// Create a copy of ChatMessage

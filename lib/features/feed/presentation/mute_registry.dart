@@ -1,19 +1,12 @@
 /// Which channels are hidden from the feed, and until when.
 ///
-/// Lives beside the notifier rather than in `domain/` for the same reason
-/// `FeedFocusTracker` does: it is policy, not a model.
+/// Pure state with no I/O or clock; callers pass the time. Persistence and
+/// expiry timers live in `MutedChannelsNotifier`.
 ///
-/// Pure state and rules, no I/O and no clock of its own — every question takes
-/// the time to answer it at. `MutedChannelsNotifier` owns persistence and the
-/// timer that prunes expirations; this owns what "muted" means.
-///
-/// A channel answers to several ids depending on where it was learned from —
-/// the chat id, the `-100`-prefixed form, the bare supergroup id, the username
-/// — so a mute is stored against every one of them. Storing only the id that
-/// happened to be at hand is why a channel muted from its profile could read as
-/// unmuted in the list.
+/// A channel can be known by its chat id, the `-100` form, the bare
+/// supergroup id or its username, so a mute is stored under all of them.
 class MuteRegistry {
-  /// Alias id → when the mute lifts. A null value means "until I say so".
+  /// Alias id to when the mute lifts; null means indefinitely.
   final Map<String, DateTime?> _entries;
 
   MuteRegistry([Map<String, DateTime?>? entries]) : _entries = {...?entries};
@@ -23,7 +16,7 @@ class MuteRegistry {
 
   bool get isEmpty => _entries.isEmpty;
 
-  /// Every name a channel might be known by here.
+  /// Every id a channel might be known by.
   static Set<String> aliasesOf(
     String channelId, {
     int? chatId,
@@ -105,8 +98,7 @@ class MuteRegistry {
     }
   }
 
-  /// Drops mutes whose time is up. Returns true if anything changed, so the
-  /// caller knows whether to rebuild and re-persist.
+  /// Drops expired mutes. Returns true if anything changed.
   bool pruneExpired(DateTime now) {
     final expired = _entries.entries
         .where((e) => e.value != null && !e.value!.isAfter(now))
@@ -119,8 +111,7 @@ class MuteRegistry {
     return true;
   }
 
-  /// The next moment a mute lifts, so the caller can wake exactly once instead
-  /// of polling. Null when nothing is on a timer.
+  /// When the next timed mute lifts, or null if none is timed.
   DateTime? nextExpiry(DateTime now) {
     DateTime? soonest;
     for (final until in _entries.values) {
@@ -130,7 +121,7 @@ class MuteRegistry {
     return soonest;
   }
 
-  /// Ids that count as muted at [now] — what the feed filter matches against.
+  /// Ids that count as muted at [now], for the feed filter.
   Set<String> activeIds(DateTime now) => {
     for (final entry in _entries.entries)
       if (entry.value == null || entry.value!.isAfter(now)) entry.key,
@@ -138,10 +129,8 @@ class MuteRegistry {
 
   MuteRegistry copy() => MuteRegistry(_entries);
 
-  /// Restores from disk, tolerating the format that came before.
-  ///
-  /// Mutes used to be a plain list of ids with no expiry. Reading one as a set
-  /// of indefinite mutes keeps everything the reader already muted muted.
+  /// Restores from disk. A plain list of ids (the older format) is read as
+  /// indefinite mutes.
   factory MuteRegistry.fromJson(Object? decoded) {
     if (decoded is List) {
       return MuteRegistry({for (final id in decoded) id.toString(): null});
@@ -167,7 +156,7 @@ class MuteRegistry {
   };
 }
 
-/// How long a mute lasts — Telegram's own menu.
+/// How long a mute lasts, matching Telegram's options.
 enum MuteDuration {
   oneHour(Duration(hours: 1)),
   eightHours(Duration(hours: 8)),

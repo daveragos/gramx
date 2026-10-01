@@ -26,8 +26,7 @@ void main() {
       expect(threads.single.hasReplies, isFalse);
     });
 
-    // The problem this solves: one channel posting a burst of follow-ups buried
-    // every other channel under it.
+    // Keeps a burst of follow-ups from one channel from burying the others.
     test('collapses follow-ups under the post they reply to', () {
       final threads = groupIntoThreads([
         post(messageId: 1, minutesAgo: 30),
@@ -112,9 +111,8 @@ void main() {
       );
     });
 
-    // A thread surfaces because of its newest post, so that is what the
-    // collapsed card must show — otherwise the card carries an old timestamp
-    // and the new message is hidden behind expand-and-scroll.
+    // A thread surfaces because of its newest post, so the collapsed card
+    // shows that one.
     test('latest is the newest post, earlier is everything before it', () {
       final thread = groupIntoThreads([
         post(messageId: 1, minutesAgo: 30),
@@ -171,8 +169,8 @@ void main() {
       expect(threads, hasLength(2));
     });
 
-    // A cycle must not swallow its members: if every post resolves to another
-    // member, none is a root and the whole group drops out of the feed.
+    // In a cycle no post is a root, so without care the whole group would
+    // drop out of the feed.
     test('a reply cycle keeps both posts in the feed', () {
       final posts = [
         post(messageId: 1, minutesAgo: 5, replyTo: 2),
@@ -202,10 +200,8 @@ void main() {
     });
   });
 
-  // The reported fault: a channel that fires off three or four unrelated posts
-  // within a minute takes over the top of the feed. They do not reply to each
-  // other, so groupIntoThreads has nothing to collapse — they are simply
-  // different posts that happened to land together.
+  // Unrelated posts from one channel within a minute would take over the top
+  // of the feed, and groupIntoThreads can't collapse them.
   group('scatterChannelBursts', () {
     List<String> idsOf(List<FeedThread> threads) => [
       for (final t in threads) t.root.id,
@@ -238,8 +234,7 @@ void main() {
       expect(scattered, hasLength(6));
     });
 
-    // The narrow half of the rule. Spreading out a channel that simply posts a
-    // lot would stop the feed being chronological, which is the whole product.
+    // Only bursts are spread out; the feed otherwise stays chronological.
     test('a channel posting steadily is left exactly as it was', () {
       final posts = threadsOf([
         post(chatId: -1, messageId: 3, minutesAgo: 60),
@@ -250,8 +245,7 @@ void main() {
       expect(idsOf(scatterChannelBursts(posts)), idsOf(posts));
     });
 
-    // A burst read out of sequence is a worse bug than a burst: the third post
-    // must never overtake the second while the second is still held back.
+    // A later post must never overtake an earlier one from the same channel.
     test('a channel\'s own posts keep their order', () {
       final scattered = scatterChannelBursts(
         threadsOf([
@@ -270,7 +264,6 @@ void main() {
       expect(ownOrder, [3, 2, 1]);
     });
 
-    // Spacing is a preference; losing a post to keep it would not be.
     test('nothing is dropped when there is nothing to interleave with', () {
       final posts = threadsOf([
         post(chatId: -1, messageId: 3, minutesAgo: 1),

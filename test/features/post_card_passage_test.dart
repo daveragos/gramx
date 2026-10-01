@@ -10,10 +10,8 @@ import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// A quoted passage is the one shape `ReplyTarget` does **not** draw: it
-/// stands above the post, in the avatar gutter, so the host places it. That
-/// makes forgetting to place it silent — the reply target would simply vanish
-/// and look like a post that answers nothing. This is the guard.
+/// `ReplyTarget` does not draw a quoted passage: the card places it above the
+/// post, so these tests catch a passage that silently goes missing.
 Post post({
   String? replyToText,
   bool replyToIsQuote = false,
@@ -37,8 +35,7 @@ void main() {
   Widget host(Post p) => ProviderScope(
     overrides: [
       fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
-      // The action bar asks whether this reader may act. Deciding that
-      // walks the auth state into TDLib, which is not here.
+      // The action bar reads the auth state from TDLib, which is absent here.
       readerCapabilitiesProvider.overrideWithValue(ReaderCapabilities.signedIn),
     ],
     child: MaterialApp(
@@ -64,8 +61,7 @@ void main() {
     expect(find.text('the reply itself'), findsOneWidget);
   });
 
-  /// The passage sits above the post, not inside it — which is what lets the
-  /// connector run down into the reply's own avatar.
+  /// Above the post, not inside it, so the connector can reach the avatar.
   testWidgets('the passage stands above the reply', (tester) async {
     await tester.pumpWidget(
       host(
@@ -82,8 +78,6 @@ void main() {
     expect(passage.dy, lessThan(reply.dy));
   });
 
-  /// One action bar on the card, and none on the passage. The reply keeps
-  /// every control; the fragment it quotes gets none.
   testWidgets('the passage adds no second action bar', (tester) async {
     await tester.pumpWidget(
       host(
@@ -121,8 +115,7 @@ void main() {
     expect(find.byType(QuotedPostCard), findsNothing);
   });
 
-  /// own words come first, and the post they answer is what you look at once
-  /// you have read them.
+  /// The reply's own words come first, then the post it quotes.
   group('the quote card sits under the answer', () {
     Post quoting() => Post(
       id: '-100_5',
@@ -157,15 +150,13 @@ void main() {
       expect(bar.dy, greaterThan(quoted.dy));
     });
 
-    // The host draws ReplyTarget in both slots. A shape that answered in both
-    // would appear twice.
+    // ReplyTarget is drawn in both slots; a shape matching both shows twice.
     testWidgets('exactly once', (tester) async {
       await tester.pumpWidget(host(quoting()));
       expect(find.byType(QuotedPostCard), findsOneWidget);
     });
 
-    // The line is context for words not read yet, so it keeps its place above
-    // them even though the card moved.
+    // The line gives context for the words, so it stays above them.
     testWidgets('the line still comes before the words', (tester) async {
       await tester.pumpWidget(host(post(replyToMessageId: 4)));
 

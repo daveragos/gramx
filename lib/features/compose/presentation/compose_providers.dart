@@ -13,29 +13,21 @@ final composeMediaPickerProvider = Provider<ComposeMediaPicker>(
   (ref) => ComposeMediaPicker(),
 );
 
-/// This account's own Telegram user id, or null while the record is loading.
-///
-/// Only used to recognise Saved Messages, which TDLib models as a private chat
-/// with yourself. Stored as text in the accounts table, so it is parsed here
-/// rather than at each call site.
+/// This account's Telegram user id, or null while the record is loading.
+/// Used to recognise Saved Messages, a private chat with yourself in TDLib.
 final selfUserIdProvider = Provider<int?>((ref) {
   final id = ref.watch(activeAccountProvider).value?.telegramUserId;
   return id == null ? null : int.tryParse(id);
 });
 
-/// When the set of chats might have changed.
-///
-/// Split out from [chatCacheProvider] so the coalescing below can be tested
-/// without a TDLib client — the notifier's job is deciding *when* to rebuild,
-/// and that decision is the part that was wrong.
+/// Fires when the set of chats might have changed. Separate from
+/// [chatCacheProvider] so the debounce can be tested without TDLib.
 final chatCacheChangesProvider = Provider<Stream<void>>(
   (ref) => ref.watch(chatCacheProvider).changes,
 );
 
-/// The destination list as it stands right now.
-///
-/// A function rather than a value: calling it is the expensive part, and the
-/// point of [ComposeTargetsNotifier] is to call it rarely.
+/// Builds the destination list on demand. A function because building it is
+/// expensive and [ComposeTargetsNotifier] calls it rarely.
 final composeTargetsSourceProvider = Provider<List<ComposeTarget> Function()>((
   ref,
 ) {
@@ -44,25 +36,9 @@ final composeTargetsSourceProvider = Provider<List<ComposeTarget> Function()>((
   return () => repository.targets(selfUserId: selfUserId);
 });
 
-/// Where this account may post, best destination first.
-///
-/// Watches the chat cache rather than reading it once, for the same reason
-/// [ChannelsKnownNotifier] does: the cache is empty for a moment after signing
-/// in, and a list captured during that moment would leave the writer with
-/// nowhere to post for the rest of the session.
-///
-/// **The recompute is debounced, and that is load-bearing.** Building this list
-/// filters and sorts every cached chat and allocates a [ComposeTarget] per
-/// survivor. `ChatCache.changes` fires once per *chat update*, and the initial
-/// sync after signing in delivers hundreds of them in a burst — so recomputing
-/// on each one is hundreds of sorts over hundreds of chats, synchronously, on
-/// the UI thread. That is enough to freeze the first frame after sign-in, and a
-/// frozen UI keeps painting whatever it last drew: the "Loading account
-/// profile" screen, long after the account had in fact loaded.
-///
-/// Coalescing the burst costs a few hundred milliseconds before the compose
-/// button appears, which nobody is waiting on, and it is the same shape as the
-/// album coalesce in `PendingPostsNotifier`.
+/// Where this account may post, best destination first. Rebuilt from the
+/// chat cache with a debounce, since the sync after sign-in sends hundreds
+/// of chat updates in a burst and rebuilding on each can freeze the UI.
 class ComposeTargetsNotifier extends Notifier<List<ComposeTarget>> {
   /// How long a burst of chat updates settles before the list is rebuilt.
   static const Duration settleWindow = Duration(milliseconds: 300);
@@ -77,17 +53,13 @@ class ComposeTargetsNotifier extends Notifier<List<ComposeTarget>> {
       _settle?.cancel();
       _settle = Timer(settleWindow, () {
         final next = current();
-        // ComposeTarget has value equality, so a burst that changed nothing
-        // relevant is not a new state — otherwise the picker would rebuild
-        // under the writer's finger.
+        // Skip identical lists so the picker doesn't rebuild under a finger.
         if (!_sameList(next, state)) state = next;
       });
     });
 
-    // Riverpod fires onDispose on a *rebuild* too, keeping the notifier
-    // instance. Cancelling here is
-    // therefore also what stops a pending recompute from the previous
-    // dependencies landing on the new one, or on a disposed notifier.
+    // Riverpod also calls onDispose on a rebuild, so this stops a pending
+    // recompute from landing on the new dependencies or a disposed notifier.
     ref.onDispose(() {
       _settle?.cancel();
       _settle = null;
@@ -111,13 +83,8 @@ final composeTargetsProvider =
       ComposeTargetsNotifier.new,
     );
 
-/// Whether the compose button should exist at all.
-///
-/// Two ways for the answer to be no, and both of them mean the button would be
-/// a control that renders and does nothing: a guest has no account to post as,
-/// and a reader who runs no channel and shares no group has nowhere for a post
-/// to go. Saved Messages keeps the second case rare rather than impossible —
-/// it is only absent before the chat cache has filled.
+/// Whether to show the compose button. False for a guest, or when there is
+/// nowhere to post (rare, since Saved Messages appears once the cache fills).
 final canComposeProvider = Provider<bool>((ref) {
   if (!ref.watch(readerCapabilitiesProvider).canPost) return false;
   return ref.watch(composeTargetsProvider).isNotEmpty;

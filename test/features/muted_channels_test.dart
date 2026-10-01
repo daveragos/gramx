@@ -13,14 +13,12 @@ Channel channel({
 }) => Channel(id: id, chatId: chatId, title: title, username: username);
 
 void main() {
-  // The mute set persists to a JSON file. There is no platform channel here,
-  // so the write fails and is swallowed — initialising the binding keeps that
-  // failure to one quiet line instead of a wall of framework advice.
+  // The mute set's file write fails without a platform channel; the binding
+  // keeps that failure quiet.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('mutedChannelsListProvider', () {
-    // Muting hid a channel from the feed and from nothing else, so there was
-    // no way back short of remembering the channel and opening its profile.
+    // Gives a way to unmute without finding the channel's profile.
     test('lists the channels currently muted', () async {
       final channels = [
         channel(id: '-100111', chatId: -100111, title: 'Kept'),
@@ -65,9 +63,8 @@ void main() {
       expect(container.read(mutedChannelsListProvider), isEmpty);
     });
 
-    // The mute set holds every id a channel answers to — chat id, prefixed id,
-    // username — so a channel muted from one screen must read as muted on the
-    // other.
+    // The mute set holds every id a channel answers to (chat id, prefixed id,
+    // username).
     test('recognises a channel muted under any of its ids', () async {
       final channels = [
         channel(

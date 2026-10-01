@@ -38,8 +38,7 @@ class ScriptedRepository implements FeedRepository {
     requestedFrom.add(fromMessageId);
     final page = pages[calls.clamp(0, pages.length - 1)];
     calls++;
-    // A real request is never instant; this is what lets the test hold two
-    // callers in flight at once.
+    // Lets two callers be in flight at once.
     await Future<void>.delayed(const Duration(milliseconds: 10));
     return page;
   }
@@ -49,8 +48,7 @@ class ScriptedRepository implements FeedRepository {
       throw UnimplementedError('${invocation.memberName} is not faked');
 }
 
-/// The channel list layers the merged feed's copy of a post over its own, so
-/// the feed has to exist — but not to reach TDLib.
+/// The channel list reads the merged feed, which must not reach TDLib here.
 class _EmptyFeed extends FeedNotifier {
   @override
   Future<List<Post>> build() async => const [];
@@ -127,8 +125,7 @@ void main() {
       );
     });
 
-    // The scroll listener fires on every frame near the bottom. Without this
-    // guard that is one request per frame, against a rate-limited account.
+    // The scroll listener fires on every frame near the bottom.
     test('two overlapping calls make one request', () async {
       final repo = ScriptedRepository([
         [post(5, minutesAgo: 200)],
@@ -179,8 +176,6 @@ void main() {
       expect(repo.calls, 0);
     });
 
-    // Refreshing has to start clean, or the pages already loaded stack a
-    // second copy of the history under the first.
     test('reset drops the pages and lets paging start again', () async {
       final repo = ScriptedRepository([
         [post(5, minutesAgo: 200)],

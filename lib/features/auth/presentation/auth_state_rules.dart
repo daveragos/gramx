@@ -2,36 +2,27 @@ import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
-/// What one TDLib announcement should do to the screen.
-///
-/// A null [state] means leave the screen as it is.
+/// What one TDLib announcement does to the screen. A null [state] leaves the
+/// screen as it is.
 class AuthTransition {
   final AuthState? state;
 
-  /// Whether the reader should still be held at the method chooser.
+  /// Whether the user is still held at the method chooser.
   final bool stayAtChooser;
 
   const AuthTransition({this.state, required this.stayAtChooser});
 }
 
-/// Turns a TDLib authorization state into the page the reader should see.
-///
-/// Pure, because this is where the sign-in flow went wrong and the failure was
-/// invisible in a widget: TDLib owns the authorization state and re-announces
-/// it — a pending QR is reissued every few seconds — so every announcement
-/// dragged the reader back onto the page they had just left. Backing out of a
-/// method cannot cancel the attempt (TDLib has no call for it), so instead the
-/// attempt stops driving the screen, which is what [stayAtChooser] tracks.
-///
-/// `AuthorizationStateReady` and `...Closed` are not handled here: they have
-/// side effects the controller owns.
+/// Maps a TDLib authorization state to the page to show. While [stayAtChooser]
+/// is set, TDLib's repeated announcements don't move the screen. Ready and
+/// Closed are handled by the controller.
 AuthTransition resolveAuthState({
   required AuthState current,
   required td.AuthorizationState tdState,
   required bool stayAtChooser,
 }) {
   if (tdState is td.AuthorizationStateWaitPhoneNumber) {
-    // A fresh attempt is possible again, so nothing is being held back.
+    // A fresh attempt is possible, so the hold is released.
     return const AuthTransition(
       state: AuthState(step: AuthStep.loginMethodSelection),
       stayAtChooser: false,
@@ -40,8 +31,7 @@ AuthTransition resolveAuthState({
 
   if (tdState is td.AuthorizationStateWaitOtherDeviceConfirmation) {
     if (stayAtChooser) {
-      // Keep the link current — the reader may come back to it — without
-      // moving them onto the page.
+      // Keep the link current without moving to the QR page.
       return AuthTransition(
         state: current.copyWith(qrCodeLink: tdState.link, isSubmitting: false),
         stayAtChooser: true,
@@ -66,9 +56,7 @@ AuthTransition resolveAuthState({
   }
 
   if (tdState is td.AuthorizationStateWaitPassword) {
-    // Never held back. Reaching this means the sign-in actually progressed —
-    // someone confirmed the QR, or the code was accepted — and that outranks
-    // whichever page the reader had wandered to.
+    // Never held: sign-in has moved past the chosen method.
     return AuthTransition(
       state: current.copyWith(step: AuthStep.waitPassword, isSubmitting: false),
       stayAtChooser: false,
@@ -78,12 +66,8 @@ AuthTransition resolveAuthState({
   return AuthTransition(stayAtChooser: stayAtChooser);
 }
 
-/// Whether a QR code has to be asked for, or one is already in hand.
-///
-/// `requestQrCodeAuthentication` is rejected outright while TDLib is already
-/// holding a QR open — "Call to requestQrCodeAuthentication unexpected" — and
-/// TDLib refreshes the link on its own, so there is never anything to ask for
-/// in that state.
+/// Whether a QR code needs requesting. TDLib rejects a request while one is
+/// open, and refreshes the link itself.
 bool shouldRequestQrCode({
   required bool tdlibIsShowingQr,
   required String? knownLink,

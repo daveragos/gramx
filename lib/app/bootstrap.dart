@@ -20,18 +20,14 @@ Future<ProviderContainer> bootstrap() async {
 
   final container = ProviderContainer();
 
-  // Subscribe the chat mirror BEFORE TDLib starts polling. ChatCache replaces
-  // the per-chat GetChat fan-out, and `updatesStream` is a broadcast stream —
-  // it buffers nothing, so anything emitted before this line is lost and those
-  // channels never reach the feed. Order matters here.
+  // Must subscribe before TDLib starts polling: `updatesStream` is a broadcast
+  // stream and anything emitted earlier is lost.
   container.read(chatCacheProvider);
 
-  // Starts reading the record of seen posts off the disk, so it is in hand
-  // well before the feed's first stage waits on it.
+  // Start loading seen posts from disk before the feed needs them.
   container.read(seenPostsProvider);
 
-  // Initialize TDLib Service and start Updates Isolate asynchronously.
-  // We await this so auth state is available before the first frame renders.
+  // Awaited so auth state is available before the first frame.
   try {
     await container.read(tdlibServiceProvider).initialize();
     StartupTrace.mark('TDLib client up');
@@ -39,32 +35,18 @@ Future<ProviderContainer> bootstrap() async {
     debugPrint('TDLib initialization error: $e\n$stack');
   }
 
-  // Eagerly prime the AuthController so it subscribes to TDLib auth events
-  // BEFORE the first frame. Without this, the auth subscription only starts
-  // when a widget reads authControllerProvider — which may never happen if
-  // the router hasn't redirected to /auth yet.
+  // Subscribe to auth events before the first frame rather than waiting for
+  // a widget to read the provider.
   container.read(authControllerProvider);
 
-  // Start observing the app's lifecycle and the device's network.
-  //
-  // Here rather than in a widget: an observer created by whichever screen
-  // happened to read it first would miss every transition before that screen
-  // was built, and the transition that matters most — the first `resumed` —
-  // is the earliest one there is.
+  // Started here so the first `resumed` is not missed.
   container.read(tdlibLifecycleProvider).start();
 
-  // Start listening for links, and pick up the one the app was launched with.
-  // Not awaited: a launch link is parked in the provider and collected by the
-  // shell once there is a navigator, so nothing here has to wait for it.
+  // Not awaited: the launch link is parked and collected by the shell.
   unawaited(container.read(pendingDeepLinkProvider.notifier).start());
 
-  // Notifications, but only for a reader who has said yes. Starting the
-  // service is also what tells TDLib to generate notification groups at all —
-  // it produces none until asked — so a reader with the setting off costs
-  // nothing rather than costing groups that are thrown away here.
-  //
-  // The launch tap is collected either way: it is a tap that already happened,
-  // and the setting may have been turned off since.
+  // Starting the service makes TDLib generate notification groups, so it
+  // only starts when notifications are on.
   final notifications = container.read(notificationServiceProvider);
   unawaited(notifications.collectLaunchTap());
   if (container.read(settingsProvider).notificationsEnabled) {

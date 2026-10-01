@@ -17,10 +17,7 @@ void main() {
       expect(state.chats[-100123]?.title, 'News');
     });
 
-    // A post counts as read when its id is behind the chat's read cursor.
-    // Folding in only the unread count left everything read during a session
-    // still looking unread — so a refresh handed the reader back what they had
-    // just finished, and the unread sweep kept re-fetching it.
+    // A post counts as read once its id is behind the chat's read cursor.
     test(
       'UpdateChatReadInbox advances the read cursor, not just the count',
       () {
@@ -73,9 +70,7 @@ void main() {
       expect(ChatCacheState.mainListOrder(state.chats[-100123]!), 90);
     });
 
-    // The cold-start race: TDLib can emit a chat's last message before the
-    // UpdateNewChat that introduces the chat. Dropping it loses that channel's
-    // newest post until the next refresh.
+    // TDLib can send a chat's last message before the UpdateNewChat for it.
     test('last message arriving before its chat is buffered, then flushed', () {
       final message = TdFixtures.textMessage(id: 4194304, chatId: -100123);
 
@@ -185,8 +180,7 @@ void main() {
       expect(merged.firstWhere((p) => p.list is td.ChatListMain).order, 99);
     });
 
-    // order 0 means "not in this list any more" — storing it would leave a dead
-    // entry that sorts the chat to the bottom instead of removing it.
+    // Order 0 means the chat has left this list.
     test('order 0 removes the position rather than storing it', () {
       final current = [TdFixtures.position(order: 10)];
       final merged = ChatCacheState.mergePosition(
@@ -215,10 +209,7 @@ void main() {
       expect(state.channels.map((c) => c.id), [-1]);
     });
 
-    // The regression this guards: resolving a forwarded post's origin calls
-    // GetChat, TDLib answers with UpdateNewChat, and that channel entered the
-    // cache. Without a membership check its posts entered the feed — so a
-    // channel the user never subscribed to started appearing.
+    // Resolving a forward's origin adds that channel to the cache via GetChat.
     test('excludes channels the user is not subscribed to', () {
       final state = ChatCacheState();
       state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1, mainOrder: 10)));
@@ -335,9 +326,7 @@ void main() {
     });
   });
 
-  // Everything a conversation needs that a channel feed never did. Each of
-  // these used to be read straight off the chat TDLib first volunteered, which
-  // meant it was correct once and then frozen for the session.
+  // Conversation fields follow TDLib's updates rather than the first snapshot.
   group('ChatCacheState conversation fields', () {
     late ChatCacheState state;
 
@@ -350,9 +339,7 @@ void main() {
       expect(state.users[7]?.firstName, 'Ada');
     });
 
-    // Presence changes constantly and for people the reader is not looking at,
-    // so it folds into the existing record rather than replacing it — the
-    // update carries the status and nothing else.
+    // A status update carries only the status, so it folds into the record.
     test('a status update folds into the user rather than replacing it', () {
       state.apply(
         TdFixtures.userUpdate(
@@ -384,8 +371,7 @@ void main() {
       expect(state.users, isEmpty);
     });
 
-    // Without this every message the account sends stays "sent" for the
-    // session, however long ago the other side read it.
+    // Without this, sent messages never show as read.
     test('the outbox cursor moves', () {
       state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
       state.apply(
@@ -394,8 +380,7 @@ void main() {
       expect(state.chats[5]?.lastReadOutboxMessageId, 42);
     });
 
-    // A chat marked unread by hand carries no count, so a list reading only
-    // unreadCount draws it as read.
+    // A chat marked unread by hand carries no unread count.
     test('a hand-set unread mark is kept', () {
       state.apply(TdFixtures.newChat(TdFixtures.conversation(id: 5)));
       state.apply(
@@ -452,10 +437,8 @@ void main() {
     });
   });
 
-  // The channel a person runs lives on `UserFullInfo`, and the only
-  // affordable way to have one is to keep the ones TDLib volunteers. Asking
-  // for them would be a `GetUserFullInfo` per row of the chat list, which is
-  // the fan-out the request budget exists to forbid.
+  // A person's channel lives on `UserFullInfo`. Keeping the ones TDLib sends
+  // avoids a `GetUserFullInfo` per chat row.
   group('ChatCacheState full user records', () {
     late ChatCacheState state;
 
@@ -507,8 +490,7 @@ void main() {
     });
   });
 
-  // TDLib clears a field by sending null for it, and its generated copyWith
-  // reads null as "keep". Every one of these stayed at its old value.
+  // TDLib clears a field with null, which its generated copyWith reads as keep.
   group('a field TDLib clears is cleared', () {
     late ChatCacheState state;
 
@@ -517,8 +499,7 @@ void main() {
       state.apply(TdFixtures.newChat(TdFixtures.privateChat(id: 42)));
     });
 
-    // Sending clears the draft. Kept, it came back into the composer the next
-    // time the chat was opened.
+    // Sending clears the draft, so it must not come back to the composer.
     test('a draft, once sent', () {
       state.apply(
         const td.UpdateChatDraftMessage(

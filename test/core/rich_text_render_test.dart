@@ -67,9 +67,8 @@ void main() {
   });
 
   group('QuoteBlock', () {
-    // The reported bug: the post's own "Show more" cannot clamp a quote,
-    // because a quote is a widget inside the paragraph rather than more lines
-    // of it — so a quoted wall of text was rendered whole.
+    // A quote is a widget inside the paragraph, so the post's own "Show more"
+    // can't clamp it.
     testWidgets('a long quote collapses, and the toggle opens it', (
       tester,
     ) async {
@@ -151,9 +150,8 @@ void main() {
       expect(find.text(AppStrings.postShowMore), findsNothing);
     });
 
-    // A SelectableText with a line limit keeps the rest of the post in its own
-    // scroll view, so a collapsed post could be read by scrolling it and the
-    // toggle meant nothing.
+    // A SelectableText with a line limit scrolls internally instead of
+    // clipping.
     testWidgets('a collapsed post cannot be scrolled instead of expanded', (
       tester,
     ) async {
@@ -177,7 +175,6 @@ void main() {
       await tester.tap(find.text(AppStrings.postShowMore));
       await tester.pump();
 
-      // Expanded, the whole post is there and selectable again.
       expect(find.byType(SelectableText), findsOneWidget);
     });
 

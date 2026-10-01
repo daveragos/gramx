@@ -5,12 +5,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_file_server.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 import 'package:http/http.dart' as http;
 
-/// Range parsing and the loopback server's contract.
-///
-/// Both halves are easy to get subtly wrong in ways that only show up as a
-/// video that will not scrub: an off-by-one in `Content-Range` makes a player
-/// re-request the same byte forever, and the suffix form (`bytes=-500`, the
-/// *last* 500 bytes) reads naturally as "from 500" if you are not looking.
+/// Range parsing and the loopback server's contract. Mistakes here show up as
+/// a video that will not scrub.
 void main() {
   group('parseRange', () {
     const total = 1000;
@@ -37,7 +33,7 @@ void main() {
       expect(range.isPartial, isTrue);
     });
 
-    // The one that reads backwards: this is the last 500 bytes, not "from 500".
+    // The last 500 bytes, not "from 500".
     test('a suffix range counts back from the end', () {
       final range = parseRange('bytes=-500', totalSize: total);
       expect(range.start, 500);
@@ -63,8 +59,7 @@ void main() {
       expect(range.isPartial, isFalse);
     });
 
-    // Only the first range of a multi-range request is served, which is what
-    // the single Content-Range header can honestly describe.
+    // A single Content-Range header can only describe one range.
     test('a multi-range request serves the first range', () {
       final range = parseRange('bytes=0-99,200-299', totalSize: total);
       expect(range.start, 0);
@@ -98,9 +93,7 @@ void main() {
       expect(url.port, greaterThan(0));
     });
 
-    // The token is the only thing between this port and any other app on the
-    // device — without it, a neighbour could walk file ids and pull the
-    // reader's media off a plain local socket.
+    // Without the token, any app on the device could read media off the port.
     test('the URL carries a per-launch token', () async {
       final url = await server.urlFor(42);
       expect(url.pathSegments, hasLength(2));
@@ -146,8 +139,7 @@ void main() {
   });
 }
 
-/// The server only reaches TDLib once a request gets past the token check, and
-/// none of the tests above get that far.
+/// Throws if reached; the tests above never get past the token check.
 class _UnusedTdlib implements TdlibService {
   @override
   dynamic noSuchMethod(Invocation invocation) =>

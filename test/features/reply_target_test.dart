@@ -61,8 +61,7 @@ void main() {
       );
     });
 
-    // TDLib sends no excerpt for a reply inside one channel, so this is the
-    // common case, not the edge one.
+    // TDLib sends no excerpt for replies within one channel, so this is common.
     test('a reply with nothing to show gets the line', () {
       expect(
         replyPresentationFor(
@@ -96,7 +95,7 @@ void main() {
       );
     });
 
-    // An empty bordered box is worse than the line it replaced.
+    // A blank excerpt falls back to the line rather than an empty box.
     test('whitespace is not content', () {
       expect(
         replyPresentationFor(post(replyToMessageId: 4, replyToText: '   \n ')),
@@ -104,8 +103,6 @@ void main() {
       );
     });
 
-    // The writer picked those words, so those words are what is drawn — not
-    // the post they came out of.
     test('a selected passage beats the card', () {
       expect(
         replyPresentationFor(
@@ -133,8 +130,7 @@ void main() {
       );
     });
 
-    // The flag says a span was selected; without the span there is nothing to
-    // stand above the reply, so it falls back rather than drawing an empty one.
+    // Without the quoted words there is nothing to draw, so it falls back.
     test('the quote flag without words is not a passage', () {
       expect(
         replyPresentationFor(
@@ -175,9 +171,7 @@ void main() {
       VoidCallback? onOpenPost,
       ReplySlot slot = ReplySlot.belowBody,
     }) => ProviderScope(
-      // An avatar or a thumbnail asks TDLib for the file behind it. There
-      // is no TDLib here, so every id resolves to "not downloaded" — which
-      // is also what the widget sees on a real first frame.
+      // Without TDLib every file stays "not downloaded", as on a first frame.
       overrides: [
         fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
       ],
@@ -229,8 +223,7 @@ void main() {
       expect(find.text('the analytical engine'), findsOneWidget);
     });
 
-    // Telegram's block was drawn inside a comment, which is inside a thread,
-    // which is inside the post screen. The card there would be a fourth box.
+    // Comments already sit inside a thread; a card would nest another box.
     testWidgets('compact keeps the line even with words to quote', (
       tester,
     ) async {
@@ -250,7 +243,7 @@ void main() {
         find.text(AppStrings.chatReplyingToName('Ada Lovelace')),
         findsOneWidget,
       );
-      // The words still survive, under the line rather than in a box.
+      // The words still show, under the line rather than in a box.
       expect(find.text('the analytical engine'), findsOneWidget);
     });
 
@@ -278,8 +271,7 @@ void main() {
       expect(opened, 1);
     });
 
-    // The passage stands above the post, outside the column ReplyTarget sits
-    // in, so the host draws it. PostCard has its own test that it does.
+    // The host draws the passage above the post; PostCard tests that it does.
     testWidgets('ReplyTarget leaves a passage to the host', (tester) async {
       await tester.pumpWidget(
         host(
@@ -296,8 +288,7 @@ void main() {
       expect(find.text('the part they picked'), findsNothing);
     });
 
-    // A comment is already on a connector inside a thread. A second connector
-    // inside it would be the nested shape already removed, in a new form.
+    // A comment already hangs on a thread connector; a second one would nest.
     testWidgets('a comment shows a passage as the line, not a connector', (
       tester,
     ) async {
@@ -321,8 +312,7 @@ void main() {
       expect(find.text('the part they picked'), findsOneWidget);
     });
 
-    // The same fault PostSender was built to prevent, one level down: a quote
-    // of another channel must not wear this channel's picture and tick.
+    // A quote of another channel must not wear this channel's avatar or tick.
     testWidgets('a cross-chat quote borrows no identity from this post', (
       tester,
     ) async {
@@ -364,8 +354,7 @@ void main() {
       expect(card.isAuthorVerified, isTrue);
     });
 
-    // Each shape belongs to exactly one slot. A host draws ReplyTarget twice,
-    // and a shape that answered in both would be drawn twice with it.
+    // Each shape belongs to one slot, since the host draws ReplyTarget in both.
     group('slots', () {
       final replied = post(
         replyToMessageId: 4,
@@ -420,9 +409,7 @@ void main() {
       expect(find.text('the part they picked'), findsOneWidget);
     });
 
-    // A fragment of a message is not a thing that can be liked, forwarded or
-    // bookmarked. Drawing the controls under one would be the inert
-    // affordance the hard rules forbid.
+    // A quoted fragment cannot be liked, forwarded or bookmarked.
     testWidgets('carries no action bar', (tester) async {
       await tester.pumpWidget(
         host(
@@ -454,8 +441,7 @@ void main() {
       expect(opened, 1);
     });
 
-    // Unlike the card, the passage is never clamped: the writer chose exactly
-    // these words, so hiding some of them behind an ellipsis hides the point.
+    // Unlike the card, the passage is never clamped: the writer chose them.
     testWidgets('a long passage is not truncated', (tester) async {
       final long = List.filled(40, 'word').join(' ');
       await tester.pumpWidget(
@@ -467,9 +453,7 @@ void main() {
       expect(text.overflow, isNull);
     });
 
-    // Telegram would not say whose the passage is — a private origin channel,
-    // or one nothing has cached. The byline is omitted rather than borrowed
-    // from the post doing the quoting, which is always the wrong name.
+    // With no known author, the byline is left out rather than borrowed.
     testWidgets('an unattributed passage draws no byline', (tester) async {
       await tester.pumpWidget(
         host(const QuotedPassage(passage: 'the part they picked')),
@@ -491,9 +475,7 @@ void main() {
       expect(opened, 1);
     });
 
-    // The block's height comes from its content, so a one-line passage under a
-    // one-line byline left the avatar almost touching the reply's — a stub of
-    // a few pixels rather than a line joining two posts.
+    // The height follows the content, so a short passage needs a minimum.
     testWidgets('a short passage still gets a connector you can see', (
       tester,
     ) async {

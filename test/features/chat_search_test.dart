@@ -6,9 +6,8 @@ import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 void main() {
   late ProviderContainer container;
 
-  /// Both providers are auto-dispose, so a test that only reads them lets them
-  /// be collected between statements — which is a disposed-notifier error, not
-  /// a debounce failure. The screen holds them by watching; this stands in.
+  /// Keeps the auto-dispose providers alive between reads, as the screen's
+  /// watch does.
   void hold() {
     container.listen(inChatSearchQueryProvider, (_, _) {});
     container.listen(debouncedInChatSearchQueryProvider, (_, _) {});
@@ -21,10 +20,7 @@ void main() {
   tearDown(() => container.dispose());
 
   group('the in-chat search field', () {
-    // Closed and empty are different states: closed means the header is a
-    // header again, empty means the field is open and waiting. A screen that
-    // could not tell them apart would either never show the field or never
-    // put it away.
+    // Closed (null) shows the header; empty means the field is open.
     test('starts closed, which is not the same as empty', () {
       expect(container.read(inChatSearchQueryProvider), isNull);
 
@@ -44,9 +40,8 @@ void main() {
   });
 
   group('the debounce', () {
-    // Searching a chat is a networked SearchChatMessages. A ten-character
-    // query undebounced is ten of them, on the one path a person drives
-    // keystroke by keystroke.
+    // Each settled query is a networked `SearchChatMessages`, so typing is
+    // debounced.
     test('typing does not reach the settled query straight away', () {
       final notifier = container.read(inChatSearchQueryProvider.notifier)
         ..open();
@@ -70,8 +65,7 @@ void main() {
       expect(container.read(debouncedInChatSearchQueryProvider), 'receipts');
     });
 
-    // Clearing the field has nothing to spend, so it takes effect at once —
-    // otherwise the results linger for 300 ms over an empty field.
+    // Clearing costs no request, so it skips the debounce.
     test('clearing takes effect immediately', () async {
       final notifier = container.read(inChatSearchQueryProvider.notifier)
         ..open()

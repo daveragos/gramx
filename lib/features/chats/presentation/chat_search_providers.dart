@@ -5,18 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 
-/// How long typing must pause before a query reaches Telegram.
-///
-/// The same 300 ms every text field in this app owes TDLib. Searching a chat is
-/// a networked `SearchChatMessages`, and a ten-character query undebounced is
-/// ten of them.
+/// How long typing must pause before a query goes to Telegram. Each search is
+/// a networked `SearchChatMessages` request.
 const Duration chatSearchDebounce = Duration(milliseconds: 300);
 
-/// What is being searched for in one conversation.
-///
-/// Null when the search bar is closed, which is a different state from an empty
-/// query: closed means the header is a header again, empty means the field is
-/// open and waiting.
+/// What is being searched for in one conversation. Null when the search bar
+/// is closed; empty when it is open with no query.
 class InChatSearchQuery extends Notifier<String?> {
   Timer? _timer;
 
@@ -64,8 +58,7 @@ class DebouncedInChatSearchQuery extends Notifier<String> {
       state = query;
     });
 
-    // Keep showing the last settled query while the reader is still typing,
-    // so results do not blank between keystrokes.
+    // Keep the last settled query so results don't blank between keystrokes.
     return _emitted;
   }
 }
@@ -89,11 +82,8 @@ final inChatSearchResultsProvider = FutureProvider.autoDispose
 
 /// The message pinned in one chat.
 ///
-/// **Deliberately not auto-disposed.** Asking costs a request even when the
-/// answer is "none" — TDLib 2.x has no free way to ask — so the answer is held
-/// for the session rather than re-fetched every time the reader reopens the
-/// same conversation. One chat's pinned message is one object; the leak is
-/// bounded by how many chats somebody opens.
+/// Not auto-disposed: each lookup costs a request even when there is no pin,
+/// so the answer is kept for the session.
 final pinnedMessageProvider = FutureProvider.family<ChatMessage?, int>((
   ref,
   chatId,

@@ -4,11 +4,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 
-/// How long one attachment survives after it is opened.
-///
-/// Only ever shown for a private chat — [SelfDestruct] explains why — so this
-/// widget does not have to ask: whoever opens it has already decided the
-/// destination allows it.
+/// How long one attachment survives after it is opened. Only shown for
+/// private chats; see [SelfDestruct].
 abstract class SelfDestructSheet {
   /// Returns the chosen setting, or null if the sheet was dismissed.
   static Future<SelfDestruct?> show(
@@ -17,8 +14,7 @@ abstract class SelfDestructSheet {
   }) {
     return showModalBottomSheet<SelfDestruct>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // Above the shell's bottom bar; see mute_sheet.dart.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) => SafeArea(

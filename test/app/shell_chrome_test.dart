@@ -3,8 +3,7 @@ import 'package:gramx/app/app_shell.dart';
 
 void main() {
   group('ShellChrome', () {
-    // The header and the bottom bar move together. Different durations or
-    // curves made the two halves of the frame disagree, which reads as jumpy.
+    // The header and the bottom bar must animate in step.
     test('one duration and curve for both bars', () {
       expect(ShellChrome.slideDuration.inMilliseconds, greaterThan(0));
       expect(

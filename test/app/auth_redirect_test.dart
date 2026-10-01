@@ -4,8 +4,7 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 void main() {
   group('at startup, before any session has existed', () {
-    // TDLib has not answered yet. Flashing a sign-in screen at someone who is
-    // signed in is worse than a beat of nothing.
+    // TDLib hasn't answered yet, so don't flash the sign-in screen.
     test('a loading state stays where it is', () {
       expect(
         authRedirect(
@@ -29,11 +28,8 @@ void main() {
     });
   });
 
-  // The flash: TDLib announces several authorization states while it starts,
-  // and one of them can be a sign-in step it supersedes a moment later with
-  // Ready. Acting on it painted the sign-in screen for a frame or two on the
-  // way to a signed-in reader's own feed. `hasSignedIn` could not catch this —
-  // no session has existed yet in the run — so the settle window does.
+  // TDLib can report a sign-in step during startup and replace it with Ready a
+  // moment later, so sign-in steps wait for the state to settle.
   group('while the session state is still settling', () {
     test('a sign-in step does not move anybody off the splash', () {
       expect(
@@ -59,8 +55,6 @@ void main() {
       );
     });
 
-    // The answer that ends the wait early, so a signed-in reader never spends
-    // the window at all.
     test('but being signed in leaves immediately', () {
       expect(
         authRedirect(
@@ -85,9 +79,7 @@ void main() {
       );
     });
 
-    // Only startup is protected. A sign-out is a settled answer whatever the
-    // window says, and leaving somebody inside a shell they are signed out of
-    // is the bug the `hasSignedIn` rule exists for.
+    // Only startup waits; a sign-out redirects immediately.
     test('a sign-out is never held back by it', () {
       expect(
         authRedirect(
@@ -114,8 +106,6 @@ void main() {
       );
     });
 
-    // Unchanged: a guest standing anywhere they chose stays there, including
-    // on the sign-in screen they went to in order to stop being one.
     test('and stays put anywhere they actually chose', () {
       expect(
         authRedirect(
@@ -141,9 +131,8 @@ void main() {
     });
   });
 
-  // The reported failure: signing out left the reader inside the shell,
-  // looking at a signed-out feed with the bottom bar under it, because the
-  // sign-out sat in `loading` and every loading state was left alone.
+  // After sign-out the state can sit in `loading`; that must not keep the user
+  // in the shell.
   group('once a session has existed', () {
     test('a loading state goes to sign-in', () {
       expect(
@@ -203,8 +192,7 @@ void main() {
     });
   });
 
-  // A guest has no session and never will, so the signed-out rules above would
-  // bounce them to sign-in forever. The shell has to stand on its own footing.
+  // A guest has no session, so the signed-out rules must not apply.
   group('guest mode', () {
     test('a guest reaches the shell without a session', () {
       for (final location in ['/home', '/search', '/channels', '/messages']) {
@@ -221,7 +209,6 @@ void main() {
       }
     });
 
-    // Guest mode is a way in, not a one-way door.
     test('a guest can still reach the sign-in screen', () {
       expect(
         authRedirect(
@@ -246,8 +233,6 @@ void main() {
       );
     });
 
-    // Leaving guest mode has to strand nobody in the shell — the same fault
-    // already fixed for a hung sign-out.
     test('dropping the flag sends them back to sign-in', () {
       expect(
         authRedirect(
@@ -261,7 +246,6 @@ void main() {
     });
   });
 
-  // Nobody should have to agree to something they cannot read.
   group('the legal documents', () {
     test('are readable signed out', () {
       for (final step in [
@@ -283,10 +267,8 @@ void main() {
   });
 
   group('guest routing', () {
-    // The bug: entering guest mode set the flag and trusted the redirect to
-    // move the reader. It cannot — a guest is deliberately allowed to stand on
-    // the sign-in screen so they can stop being one, so the honest answer here
-    // is "stay put" and the browse button has to navigate for itself.
+    // The redirect leaves a guest on sign-in, so the browse button must
+    // navigate itself.
     test('a guest on the sign-in screen is left there', () {
       expect(
         authRedirect(
@@ -322,8 +304,6 @@ void main() {
       );
     });
 
-    // Signing in wins over a leftover flag: isGuestModeProvider clears it, and
-    // an authenticated reader sitting on /auth belongs in the shell.
     test('signing in from guest mode lands in the shell', () {
       expect(
         authRedirect(

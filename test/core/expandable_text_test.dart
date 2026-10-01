@@ -11,8 +11,7 @@ void main() {
       expect(shouldClampText(''), isFalse);
     });
 
-    // A "Show more" that reveals one extra line is a control that lies about
-    // what it does, so the thresholds sit where a post is genuinely long.
+    // "Show more" only appears for posts that are clearly long.
     test('a post just under the line limit stays whole', () {
       final text = List.filled(kCollapsedPostLines - 1, 'line').join('\n');
       expect(shouldClampText(text), isFalse);

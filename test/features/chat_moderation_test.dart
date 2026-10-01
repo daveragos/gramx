@@ -60,8 +60,8 @@ void main() {
       expect(repository.canLeave(42), isFalse);
     });
 
-    // Telegram keeps a basic group you left as a read-only chat on the list.
-    // Leaving has to take it off, or "Leave" looks like it did nothing.
+    // Telegram keeps a left basic group on the list as a read-only chat, so
+    // leaving also removes it.
     test('a basic group is taken off the list as well as left', () async {
       await tdlib.push(TdFixtures.newChat(TdFixtures.basicGroupChat(id: -300)));
 
@@ -97,8 +97,8 @@ void main() {
       expect(calls.map((c) => c.revoke), [false, true]);
     });
 
-    // Deleting the history of a live end-to-end session would leave the
-    // session itself open on both devices.
+    // Deleting only the history would leave the secret chat open on both
+    // devices.
     test('closes a secret chat before deleting it', () async {
       await tdlib.push(
         TdFixtures.newChat(TdFixtures.secretChat(id: 77, userId: 42)),
@@ -127,7 +127,7 @@ void main() {
       ]);
     });
 
-    // Read off the chat record, so a block made anywhere has to land on it.
+    // Read from the chat record, so blocks made elsewhere show up too.
     test('is read from the chat, and follows TDLib when it changes', () async {
       await tdlib.push(TdFixtures.newChat(TdFixtures.privateChat(id: 42)));
       expect(repository.isBlocked(42), isFalse);
@@ -142,8 +142,7 @@ void main() {
     });
   });
 
-  // Telegram refuses to turn media into text, so "Edit" on a photo always
-  // failed while it sent EditMessageText.
+  // Telegram rejects `EditMessageText` on a media message.
   group('editing', () {
     test('text is edited as text, and media by its caption', () async {
       await repository.editText(chatId: 42, messageId: 1, text: 'words');

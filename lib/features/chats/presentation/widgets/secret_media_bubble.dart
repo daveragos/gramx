@@ -12,29 +12,19 @@ import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 
-/// The cover over media that disappears once it is opened.
-///
-/// Telegram's tap-to-view shape, drawn in the bubble's own colours rather than
-/// as a black box: a glyph, what kind of thing is under it, and — on an
-/// incoming one — an invitation to open it. There is deliberately no preview,
-/// no blurred frame and no thumbnail. The point of the feature is that the
-/// picture has not been seen yet, and a thumbnail is a small copy of the
-/// picture.
-///
-/// Outgoing covers are not tappable. The sender already saw what they sent, and
-/// opening one's own view-once message is a state Telegram does not have.
+/// The tap-to-view cover over self-destructing media. Shows no thumbnail or
+/// preview of the content. Outgoing covers are not tappable.
 class SecretMediaCover extends StatelessWidget {
   final ChatMessage message;
 
-  /// The bubble's usable width, so the cover matches the bubbles around it.
+  /// The bubble's usable width.
   final double maxWidth;
 
-  /// Foreground for the glyph and the label — the bubble's own, because an
-  /// outgoing bubble is the accent colour and accent-on-accent is invisible.
+  /// The bubble's foreground colour, used for the glyph and label.
   final Color foregroundColor;
   final Color mutedColor;
 
-  /// Opens it. Null on an outgoing message, and on one already being opened.
+  /// Opens the media. Null when outgoing or already being opened.
   final VoidCallback? onOpen;
 
   const SecretMediaCover({
@@ -111,18 +101,13 @@ class SecretMediaCover extends StatelessWidget {
   }
 }
 
-/// The full-screen look at media that is about to be destroyed.
-///
-/// Its own route rather than the ordinary image viewer, because two of the
-/// things it does are the opposite of what that one does: it cannot be shared
-/// or saved, and it closes itself. A countdown is drawn for timed media and
-/// closes the route when it reaches zero; view-once media has no clock and
-/// stays until the viewer dismisses it, which is exactly what Telegram means by
-/// "view once".
+/// Full-screen viewer for self-destructing media, with no share or save.
+/// Timed media closes when its countdown ends; view-once media stays until
+/// dismissed.
 class SecretMediaViewer extends ConsumerStatefulWidget {
   final MediaItem item;
 
-  /// Seconds on the clock. Zero for view-once media, which has none.
+  /// Countdown length in seconds. Zero for view-once media.
   final int seconds;
 
   const SecretMediaViewer({
@@ -131,7 +116,7 @@ class SecretMediaViewer extends ConsumerStatefulWidget {
     required this.seconds,
   });
 
-  /// Shows it. Returns when the viewer is gone, however it went.
+  /// Shows the viewer and completes when it closes.
   static Future<void> show(
     BuildContext context, {
     required MediaItem item,
@@ -161,9 +146,7 @@ class _SecretMediaViewerState extends ConsumerState<SecretMediaViewer> {
       _tick = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         setState(() => _remaining--);
-        // Closes itself rather than sitting at zero. The media is gone on
-        // Telegram's side at this point; leaving it on screen would be showing
-        // something that no longer exists.
+        // The media is gone on Telegram's side once the timer ends.
         if (_remaining <= 0) {
           _tick?.cancel();
           Navigator.of(context).maybePop();
@@ -194,8 +177,7 @@ class _SecretMediaViewerState extends ConsumerState<SecretMediaViewer> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        // No share and no save. Both exist on the ordinary viewer, and neither
-        // belongs on something the sender chose to make temporary.
+        // No share or save actions for self-destructing media.
         leading: IconButton(
           tooltip: AppStrings.secretMediaClose,
           icon: const Icon(Icons.close_rounded),

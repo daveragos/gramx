@@ -12,8 +12,6 @@ void main() {
       );
     });
 
-    // The reported bug: the picker listed every subscribed channel, and picking
-    // one of them could only ever fail.
     test('a channel you only read is not a destination', () {
       final chat = TdFixtures.chat(id: -100123, mainOrder: 10);
       final supergroup = TdFixtures.supergroup(
@@ -95,9 +93,7 @@ void main() {
     });
   });
 
-  // Narrower than canPostIn, and deliberately so: Telegram will take a message
-  // in places it will not take a poll. The composer's poll button and the
-  // conversation's read the same answer from here, so they cannot disagree.
+  // Narrower than canPostIn: Telegram can accept messages but refuse polls.
   group('canSendPollsIn', () {
     test('a private chat with a person never takes a poll', () {
       expect(
@@ -122,8 +118,6 @@ void main() {
       expect(ChatCacheState.canSendPollsIn(chat, supergroup), isTrue);
     });
 
-    // Polls are their own permission in Telegram: a group can let members talk
-    // and still refuse polls, which is why this does not read canPostIn.
     test('a group that permits messages but not polls does not', () {
       final chat = TdFixtures.chat(
         id: -100456,
@@ -161,10 +155,8 @@ void main() {
     });
   });
 
-  // Telegram permissions media by *kind*: a group can let members send photos
-  // and forbid voice messages, and each is its own bit. The composer draws one
-  // control per kind from this, so a microphone that fails when held is exactly
-  // what a single "may write here" flag would produce.
+  // Telegram grants media rights per kind, so a group can allow photos and
+  // forbid voice notes. The composer shows one control per kind.
   group('canSendIn, per kind', () {
     test('a private chat takes every kind but a poll', () {
       final chat = TdFixtures.privateChat(id: 7);
@@ -200,8 +192,7 @@ void main() {
         ChatCacheState.canSendIn(chat, supergroup, ChatSendRight.voiceNotes),
         isTrue,
       );
-      // Documents were not permitted, and messages being allowed does not
-      // imply they are.
+      // Allowing messages does not imply documents.
       expect(
         ChatCacheState.canSendIn(chat, supergroup, ChatSendRight.documents),
         isFalse,
@@ -257,8 +248,7 @@ void main() {
       );
     });
 
-    // Elsewhere it is an admin power, and the right Telegram checks is the one
-    // to delete messages — which is what the timer does on everybody's behalf.
+    // In groups the timer needs the right to delete messages.
     test('an ordinary member of a group may not', () {
       final chat = TdFixtures.chat(
         id: -100456,
@@ -320,8 +310,7 @@ void main() {
       ]);
     });
 
-    // A chat only in the cache because a forward origin was resolved by id has
-    // no chat-list position, and is not somewhere the user can send anything.
+    // A chat with no chat-list position is one the user is not in.
     test('a chat the user is not in is excluded', () {
       final state = ChatCacheState();
       state.apply(

@@ -4,16 +4,12 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/navigation/telegram_link_resolver.dart';
 
-/// `GetInternalLinkType` is Telegram's own parser, shipped inside
-/// TDLib, documented offline and callable before authorization — so it is off
-/// the request budget and works in guest mode.
+/// `GetInternalLinkType` is TDLib's offline link parser, so it costs no
+/// requests and works in guest mode.
 ///
-/// The whole design turns on there being **three** answers rather than two.
-/// "TDLib could not say" and "TDLib says this is a Telegram link gramX has no
-/// screen for" collapse into the same null if you let them, and they must not:
-/// the local parser's last rule is "anything left is a username", so a link
-/// shape Telegram adds next year would be read as a channel that does not
-/// exist and the reader sent to a 404 instead of to Telegram.
+/// The resolver has three outcomes: TDLib couldn't say, a supported link, or
+/// a Telegram link with no screen here. The last must not fall through to the
+/// local parser, which reads any leftover path as a username.
 void main() {
   Uri uri(String raw) => Uri.parse(raw);
 
@@ -35,10 +31,7 @@ void main() {
       );
     });
 
-    /// TDLib names the kind but hands back only a URL for `getMessageLinkInfo`
-    /// — which is *not* documented offline. Calling it would put a networked
-    /// request on the budget for every tapped post link, so the address is
-    /// read out of the same URL locally, for nothing.
+    /// `getMessageLinkInfo` is not offline, so message links are parsed locally.
     test('a message link is addressed locally, not by a second request', () {
       final verdict = TelegramLinkResolver.verdictFor(
         td.InternalLinkTypeMessage(url: 'https://t.me/ragoose_dumps/42'),
@@ -64,8 +57,7 @@ void main() {
       );
     });
 
-    /// TDLib answers with its own canonical spelling of an invite, which is a
-    /// URL where [TelegramInviteLink] holds a hash.
+    /// TDLib returns an invite as a URL; [TelegramInviteLink] holds a hash.
     test('an invite is unwrapped back to its hash', () {
       final verdict = TelegramLinkResolver.verdictFor(
         td.InternalLinkTypeChatInvite(inviteLink: 'https://t.me/+AbCdEfGh'),
@@ -80,8 +72,8 @@ void main() {
   });
 
   group('a link only Telegram can open', () {
-    /// The case the three-state exists for. Each of these has a first path
-    /// segment the local parser would happily read as a channel name.
+    /// Each of these has a first path segment the local parser would read as a
+    /// channel name.
     test('is never guessed at by the local parser', () {
       final types = <td.InternalLinkType>[
         td.InternalLinkTypeBotStart(
@@ -107,9 +99,7 @@ void main() {
       }
     });
 
-    /// A public chat whose username Telegram accepts and this app's rule does
-    /// not. Better handed over than opened on a name the channel screen cannot
-    /// look up.
+    /// A username Telegram accepts but this app's rule does not.
     test('a username this app would refuse goes to Telegram', () {
       expect(
         TelegramLinkResolver.verdictFor(
@@ -136,9 +126,8 @@ void main() {
   });
 
   group('a link TDLib has no opinion on', () {
-    /// Not the same as unsupported. This TDLib version has no type for
-    /// `tg://search`, and the local parser opens it — so the fallback has to
-    /// run rather than the link being handed away.
+    /// This TDLib version has no type for `tg://search`, but the local parser
+    /// handles it.
     test('falls through to the local parser', () {
       expect(
         TelegramLinkResolver.verdictFor(
@@ -150,9 +139,7 @@ void main() {
     });
   });
 
-  /// The gate on the link stream. It used to be a full parse, which quietly
-  /// made the local regex the last word on every incoming link: a shape only
-  /// TDLib knows was dropped on arrival and never reached the resolver.
+  /// The gate on the link stream. It must let through shapes only TDLib knows.
   group('couldBeTelegram', () {
     test('lets through anything Telegram serves', () {
       for (final raw in [
@@ -177,9 +164,7 @@ void main() {
       }
     });
 
-    /// Weaker than parse on purpose: it answers "ours to think about?", not
-    /// "where does it go?". A reserved word is Telegram's, and only the
-    /// resolver gets to decide it has no screen here.
+    /// It asks whether a link is Telegram's, not where it goes.
     test('is weaker than parse, deliberately', () {
       final reserved = uri('https://t.me/addstickers/pack');
       expect(TelegramLinks.parse(reserved), isNull);

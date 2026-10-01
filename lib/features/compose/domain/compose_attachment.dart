@@ -1,11 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-/// The kinds of file this app can upload.
-///
-/// Each one answers three questions Telegram asks differently of each, and the
-/// answers are here rather than at the call sites because getting one wrong is
-/// silent: a caption that vanishes, or an album Telegram refuses with an error
-/// that names no file.
+/// The kinds of file this app can upload, with Telegram's per-kind rules for
+/// albums, captions and self-destruct.
 enum ComposeMediaKind {
   photo,
   video,
@@ -13,92 +9,62 @@ enum ComposeMediaKind {
   /// Any other file, sent as-is.
   document,
 
-  /// A voice message: a waveform somebody holds a button to record.
   voiceNote,
 
   /// A round video message.
   videoNote;
 
-  /// Whether `sendMessageAlbum` may group this with others *of the same
-  /// family*.
-  ///
-  /// TDLib's rule, quoted: only audio, document, photo and video may be
-  /// grouped, and documents may only be grouped with documents. A voice note
-  /// or a round video note is always its own message.
+  /// Whether `sendMessageAlbum` may group this with others of the same
+  /// [albumFamily]. Voice and round video notes are always separate messages.
   bool get canGroup => this == photo || this == video || this == document;
 
-  /// Which pile this may be grouped with. Null for anything ungroupable.
-  ///
-  /// Photos and videos share one album; documents have their own. Mixing the
-  /// two is refused by Telegram, so the composer sends them as separate
-  /// messages instead.
+  /// The album group this belongs to, or null. Photos and videos share one;
+  /// documents have their own, and Telegram refuses mixing the two.
   int? get albumFamily => switch (this) {
     ComposeMediaKind.photo || ComposeMediaKind.video => 0,
     ComposeMediaKind.document => 1,
     _ => null,
   };
 
-  /// Whether Telegram lets this carry a caption at all.
-  ///
-  /// `inputMessageVideoNote` has no caption field — words typed beside one
-  /// would be dropped without a word, which is the failure
-  /// [ComposeDraft.stickerBlocksText] already guards for stickers.
+  /// Whether this can carry a caption (`inputMessageVideoNote` can't).
   bool get takesCaption => this != ComposeMediaKind.videoNote;
 
-  /// Whether a self-destruct timer may be set on this.
-  ///
-  /// Every media kind but a plain document: TDLib puts `selfDestructType` on
-  /// photo, video, video note and voice note, and on nothing else.
+  /// Whether a self-destruct timer may be set (not on documents).
   bool get canSelfDestruct => this != ComposeMediaKind.document;
 }
 
-/// How long a piece of media survives after the person it was sent to opens it.
-///
-/// Telegram's "view once" and its timer are the same TDLib field with two
-/// shapes — [MessageSelfDestructType] is either "immediately" or a number of
-/// seconds — so they are one type here rather than a bool and an int that can
-/// disagree. [SelfDestruct.none] is the ordinary case and carries no timer at
-/// all, which is what keeps `selfDestructType: null` on every message that is
-/// not meant to disappear.
-///
-/// **Private chats only.** Telegram rejects a self-destructing message anywhere
-/// else, so the control that sets this is not offered in a group or a channel
-/// rather than being offered and failing on send.
+/// How long media survives after the recipient opens it: never ([none]), on
+/// close ([viewOnce]), or after a timer. Mirrors TDLib's
+/// `MessageSelfDestructType`. Telegram only allows this in private chats.
 @immutable
 class SelfDestruct {
-  /// Telegram's ceiling for a timed self-destruct, in seconds. A timer past it
-  /// is refused outright.
+  /// Telegram's maximum self-destruct timer, in seconds.
   static const int maxSeconds = 60;
 
-  /// Ordinary media. Stays where it is sent.
+  /// Ordinary media that doesn't self-destruct.
   static const SelfDestruct none = SelfDestruct._(
     seconds: 0,
     isViewOnce: false,
   );
 
-  /// Gone the moment the viewer closes it, however long they looked.
+  /// Deleted as soon as the recipient closes it.
   static const SelfDestruct viewOnce = SelfDestruct._(
     seconds: 0,
     isViewOnce: true,
   );
 
-  /// The timer lengths the picker offers, in seconds. Telegram's own set.
+  /// The timer lengths the picker offers, in seconds.
   static const List<int> timerChoices = [5, 10, 30, 60];
 
-  /// Seconds the viewer gets once they open it. Zero when this is [none] or
-  /// [viewOnce].
+  /// Seconds after opening before deletion. Zero for [none] and [viewOnce].
   final int seconds;
 
-  /// True for "view once": no countdown, gone on close.
-  ///
-  /// Named with the `is` prefix so it does not collide with the [viewOnce]
-  /// constant beside it — the value and the predicate are different things.
+  /// True for view-once media, which has no countdown.
   final bool isViewOnce;
 
   const SelfDestruct._({required this.seconds, required this.isViewOnce});
 
-  /// A countdown of [seconds]. Clamped to Telegram's range, because a value
-  /// outside it is refused with an error that does not say which field it meant.
+  /// A countdown of [seconds], clamped to [maxSeconds].
   factory SelfDestruct.after(int seconds) {
     if (seconds <= 0) return none;
     return SelfDestruct._(
@@ -124,13 +90,8 @@ class SelfDestruct {
       isViewOnce ? 'SelfDestruct.viewOnce' : 'SelfDestruct($seconds s)';
 }
 
-/// A file picked off the device, measured and ready to hand to TDLib.
-///
-/// Dimensions are carried rather than looked up at send time because
-/// `InputMessagePhoto` and `InputMessageVideo` both require them: a photo sent
-/// with no size renders as a grey box in every client until the bytes arrive.
-/// [ComposeMediaProbe] fills them in when the file is picked, which is the one
-/// moment the app is allowed to be slow.
+/// A picked file, measured and ready to send. Dimensions are read when the
+/// file is picked, since `InputMessagePhoto` and `InputMessageVideo` need them.
 @immutable
 class ComposeAttachment {
   /// Absolute path to the file on disk.
@@ -144,33 +105,24 @@ class ComposeAttachment {
   /// Video length in whole seconds. Always 0 for a photo.
   final int durationSeconds;
 
-  /// Size on disk, checked against Telegram's 10 MB photo ceiling.
+  /// Size on disk, checked against Telegram's 10 MB photo limit.
   final int sizeBytes;
 
-  /// The name the file arrives under. Documents only — every other kind is
-  /// named by Telegram from its type.
+  /// The file name, for documents only.
   final String? fileName;
 
   /// The document's MIME type, when the picker could work one out.
   final String? mimeType;
 
-  /// The bars drawn under a voice message, one byte per sample.
-  ///
-  /// Telegram's own clients draw this and never re-read the audio for it, so a
-  /// voice note sent with an empty waveform is a flat grey bar in every client
-  /// that receives it. Empty for every other kind.
+  /// A voice message's waveform, one byte per sample. Recipients draw this
+  /// rather than reading the audio. Empty for other kinds.
   final List<int> waveform;
 
-  /// Whether this one disappears after it is opened. [SelfDestruct.none] for
-  /// everything sent to a group, a channel, or Saved Messages — Telegram only
-  /// takes a self-destructing message in a private chat.
+  /// Self-destruct setting; always [SelfDestruct.none] outside private chats.
   final SelfDestruct selfDestruct;
 
-  /// Whether the media arrives blurred behind a tap-to-reveal cover.
-  ///
-  /// Nothing to do with [selfDestruct]: a spoiler still lives in the chat
-  /// forever, it just is not the first thing somebody's eye lands on. Telegram
-  /// refuses both flags on the same message, which [canSpoiler] enforces.
+  /// Whether the media arrives behind a tap-to-reveal cover. Telegram refuses
+  /// this together with [selfDestruct]; see [canSpoiler].
   final bool hasSpoiler;
 
   const ComposeAttachment({
@@ -193,21 +145,13 @@ class ComposeAttachment {
   bool get isVoiceNote => kind == ComposeMediaKind.voiceNote;
   bool get isVideoNote => kind == ComposeMediaKind.videoNote;
 
-  /// Whether this one is drawn as a picture in the composer's strip. A document
-  /// has no frame to show, so it gets a row with its name instead.
+  /// Whether the composer shows a thumbnail. Documents show their name.
   bool get hasPreviewFrame => isPhoto || isVideo || isVideoNote;
 
-  /// Whether a spoiler cover may be put over this.
-  ///
-  /// Media that destroys itself is already hidden behind a tap, and Telegram
-  /// rejects the pair. The composer hides the toggle rather than offering one
-  /// that would take the message down with it.
+  /// Whether a spoiler may be set (not on self-destructing media).
   bool get canSpoiler => !selfDestruct.isEnabled && (isPhoto || isVideo);
 
-  /// True when the probe could not read the file's dimensions.
-  ///
-  /// Not fatal — TDLib accepts zeros and the server works the size out — but
-  /// it is why the tile falls back to a square rather than the real aspect.
+  /// True when the file's dimensions couldn't be read.
   bool get hasUnknownSize => width <= 0 || height <= 0;
 
   ComposeAttachment copyWith({SelfDestruct? selfDestruct, bool? hasSpoiler}) {
@@ -223,9 +167,7 @@ class ComposeAttachment {
       mimeType: mimeType,
       waveform: waveform,
       selfDestruct: destruct,
-      // A timer wins over a spoiler rather than the two being sent together,
-      // which Telegram refuses. Setting one clears the other here, at the one
-      // place both are known, instead of at every control that sets either.
+      // A timer clears the spoiler, since Telegram refuses both together.
       hasSpoiler: destruct.isEnabled ? false : (hasSpoiler ?? this.hasSpoiler),
     );
   }

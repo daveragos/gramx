@@ -8,16 +8,12 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:gramx/features/feed/domain/seen_posts.dart';
 
-/// The reader's [SeenPosts], kept on disk between launches.
-///
-/// Nothing watches it: the feed reads it when it admits posts, and the read
-/// queue when it works out how far Telegram's cursor may move. So it holds its
-/// record in a field and has no state to rebuild anyone with.
+/// The user's [SeenPosts], persisted between launches. Read on demand by the
+/// feed and the read queue, so it exposes no watchable state.
 class SeenPostsNotifier extends Notifier<void> {
   static const String _fileName = 'seen_posts.json';
 
-  /// How long changes gather before they are written. A scroll marks a post
-  /// seen every half second or so; one write covers the run.
+  /// Debounce for writes, so one write covers a scroll.
   static const Duration _saveDelay = Duration(seconds: 1);
 
   SeenPosts _seen = SeenPosts();
@@ -35,9 +31,8 @@ class SeenPostsNotifier extends Notifier<void> {
     _load();
   }
 
-  /// Completes once the record has been read from disk. The feed waits on it
-  /// before its first stage, or a launch would briefly offer posts it had
-  /// already shown.
+  /// Completes once the record is loaded. The feed waits on it so a launch
+  /// doesn't briefly show posts already seen.
   Future<void> get ready => _loaded.future;
 
   Set<String> get postIds => _seen.postIds;
@@ -49,20 +44,19 @@ class SeenPostsNotifier extends Notifier<void> {
     return parsed != null && _seen.contains(parsed.chatId, parsed.messageId);
   }
 
-  /// Remembers that the reader has seen [postId] (`chatId_messageId`).
+  /// Marks [postId] (`chatId_messageId`) as seen.
   void add(String postId) {
     final parsed = _parse(postId);
     if (parsed == null) return;
     if (_seen.add(parsed.chatId, parsed.messageId)) _scheduleSave();
   }
 
-  /// Forgets what Telegram's cursor for [chatId] now covers.
+  /// Forgets posts in [chatId] up to Telegram's read [cursor].
   void settle(int chatId, int cursor) {
     if (_seen.settle(chatId, cursor)) _scheduleSave();
   }
 
-  /// Forgets everything. Chats are account-scoped, so this goes with signing
-  /// out.
+  /// Forgets everything. Called on sign-out, since chat ids are per account.
   Future<void> clear() async {
     _saveTimer?.cancel();
     _seen = SeenPosts();

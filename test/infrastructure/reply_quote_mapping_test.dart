@@ -5,10 +5,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
-/// draws that differently from a reply to the whole post. The mapper filled
-/// `replyToText` from three sources — the selected quote, a resolved excerpt,
-/// and the target's own content — and kept no record of which, so by the time
-/// the UI saw it the distinction was gone.
+/// The mapper fills `replyToText` from a selected quote, a resolved excerpt or
+/// the target's content, and records which, since each is drawn differently.
 void main() {
   final channel = TdFixtures.chatWithPhoto(
     id: -1001,
@@ -49,8 +47,7 @@ void main() {
     expect(replyPresentationFor(post), ReplyPresentation.passage);
   });
 
-  /// The fold that lost the distinction: both arrive together on a cross-chat
-  /// quote, and whichever won the field decided the shape.
+  /// A cross-chat quote carries both; the selected passage must win.
   test('the selected passage wins over the answered post\'s own words', () {
     final post = TdlibMappers.mapMessageToPost(
       TdFixtures.replyingMessage(
@@ -70,8 +67,7 @@ void main() {
     expect(replyPresentationFor(post), ReplyPresentation.passage);
   });
 
-  /// An excerpt the repository resolved is the target's opening words, not a
-  /// passage anybody chose — it must not be drawn as one.
+  /// A resolved excerpt is the target's opening words, not a chosen passage.
   test('a resolved excerpt is not a quote', () {
     final post = TdlibMappers.mapMessageToPost(
       TdFixtures.replyingMessage(id: 5, chatId: -1001, replyToMessageId: 4),
@@ -94,8 +90,7 @@ void main() {
     expect(replyPresentationFor(post), ReplyPresentation.line);
   });
 
-  /// A quote of nothing is not a quote. Guards the shape that requires a
-  /// non-null passage to draw at all.
+  /// A passage is drawn only when it has words.
   test('an empty quote does not claim to be one', () {
     final post = TdlibMappers.mapMessageToPost(
       TdFixtures.replyingMessage(
@@ -111,10 +106,7 @@ void main() {
     expect(replyPresentationFor(post), isNot(ReplyPresentation.passage));
   });
 
-  /// The bug the third device session found. A quote out of a **photo** post's
-  /// caption came out as "📷 Photo": only the `messageText` branch filled
-  /// `replyToText` with `??=`, and every other content branch assigned over
-  /// whatever was there — including the passage the writer had chosen.
+  /// Every content branch must keep a quoted passage, not just `messageText`.
   group('a quote survives what the answered message is', () {
     test('quoting a photo caption keeps the words, not "Photo"', () {
       final post = TdlibMappers.mapMessageToPost(
@@ -169,8 +161,7 @@ void main() {
     });
   });
 
-  /// The other half of the same screenshot: the passage was drawn under the
-  /// byline of the channel doing the quoting, not the channel it came out of.
+  /// The byline belongs to the quoted channel, not the one quoting it.
   group('a quote is not attributed to whoever quoted it', () {
     test('a passage from another channel has no borrowed author', () {
       final post = TdlibMappers.mapMessageToPost(

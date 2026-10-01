@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/feed/presentation/widgets/full_screen_image_viewer.dart';
 
 void main() {
-  // The bug: a drag on an unzoomed picture — any drag on a single picture,
-  // a diagonal one in an album — was taken as a pan and slid the picture
-  // sideways into the black, sometimes off the screen entirely.
+  // An unzoomed picture must not pan when dragged.
   group('a picture at 1:1', () {
     Widget viewer() => ProviderScope(
       child: MaterialApp(
@@ -46,9 +44,8 @@ void main() {
     });
   });
 
-  // Zoomed, panning is unbounded while the finger is down. This is where the
-  // picture settles when it lifts: still covering the screen, never left
-  // pushed off the edge.
+  // Panning is unbounded while zoomed; on release the picture settles back to
+  // cover the screen.
   group('keepCoveringViewport', () {
     const viewport = Size(400, 800);
 

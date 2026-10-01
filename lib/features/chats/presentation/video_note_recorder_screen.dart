@@ -11,28 +11,18 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/data/compose_media_picker.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 
-/// Recording a round video message.
+/// Full-screen recorder for a round video message.
 ///
-/// Its own route rather than a control on the composer, and for one reason:
-/// the viewfinder *is* the interface. A round note is framed — somebody points
-/// a phone at their own face and the circle is what tells them whether they are
-/// in it — and a preview small enough to sit above a keyboard is not a
-/// viewfinder.
-///
-/// **The circle is a mask, not a crop.** The camera hands back a rectangular
-/// file, and `inputMessageVideoNote` carries a `length` that Telegram and every
-/// client use to centre-crop it into a circle. So what is drawn here is the
-/// same crop the recipient will see, and the file that is sent is whole — which
-/// is what every Telegram client does, and why a note recorded here plays
-/// correctly in all of them.
+/// The circle is only a mask: the rectangular file is sent whole, and the
+/// `length` on `inputMessageVideoNote` tells Telegram how to centre-crop it.
 class VideoNoteRecorderScreen extends StatefulWidget {
   const VideoNoteRecorderScreen({super.key});
 
-  /// Telegram's ceiling for a round video message.
+  /// Telegram's maximum length for a round video message.
   static const Duration maxDuration = Duration(seconds: 60);
 
-  /// Opens the recorder. Returns what was recorded, or null if the reader
-  /// backed out — which includes every failure, each of which says so first.
+  /// Opens the recorder. Returns the recording, or null if the user backs out
+  /// or recording fails.
   static Future<ComposeAttachment?> show(BuildContext context) {
     return Navigator.of(context, rootNavigator: true).push<ComposeAttachment>(
       MaterialPageRoute(
@@ -67,17 +57,12 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
-    // Disposed without stopping: an in-flight recording on a route that is
-    // going away is not one anybody meant to send, and `dispose` releases the
-    // file with it.
+    // Disposing without stopping discards any recording in progress.
     unawaited(_controller?.dispose());
     super.dispose();
   }
 
-  /// Which camera to open first.
-  ///
-  /// The front one. A video message is a person talking to somebody, and a
-  /// recorder that starts on the back camera opens on the ceiling.
+  /// The front camera if there is one, otherwise the first.
   int _preferredCamera(List<CameraDescription> cameras) {
     final front = cameras.indexWhere(
       (c) => c.lensDirection == CameraLensDirection.front,
@@ -100,8 +85,7 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
     } on CameraException catch (e) {
       if (!mounted) return;
       setState(() {
-        // The one failure worth naming separately: the reader can fix it, and
-        // the fix is somewhere other than this screen.
+        // A missing permission gets its own message since the user can fix it.
         _error = e.code.toLowerCase().contains('permission')
             ? AppStrings.videoNoteNoCamera
             : AppStrings.videoNoteUnavailable;
@@ -111,9 +95,7 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
 
   Future<void> _attach(CameraDescription camera) async {
     final previous = _controller;
-    // Medium, deliberately. A round note is drawn a couple of hundred pixels
-    // across in every client, and recording 4K to be centre-cropped into a
-    // circle costs the sender an upload nobody sees.
+    // Round notes display small, so a higher resolution only adds upload size.
     final controller = CameraController(
       camera,
       ResolutionPreset.medium,
@@ -163,8 +145,7 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
     _ticker = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (!mounted) return;
       setState(() => _elapsed += const Duration(milliseconds: 200));
-      // Stops itself at Telegram's ceiling and sends what it has, rather than
-      // recording past a limit the send would then refuse.
+      // Stops at Telegram's limit and keeps what was recorded.
       if (_elapsed >= VideoNoteRecorderScreen.maxDuration) _stop();
     });
   }
@@ -194,9 +175,7 @@ class _VideoNoteRecorderScreenState extends State<VideoNoteRecorderScreen> {
     }
     if (!mounted) return;
 
-    // Measured through the same probe a picked video goes through, so the
-    // duration and dimensions on the message are read off the file rather than
-    // taken from this screen's own clock — which counts wall time, not frames.
+    // Duration and size come from the file; the ticker only counts wall time.
     final measured = await ComposeMediaPicker.describeVideo(file.path);
     if (!mounted) return;
 
@@ -303,16 +282,13 @@ class _RoundPreview extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          // The ring is the recording light. It is paired with the countdown
-          // under it, so the state does not rest on a colour alone.
+          // Red while recording; the countdown below also shows the state.
           color: isRecording ? AppColors.error : Colors.white24,
           width: isRecording ? 3 : 1,
         ),
       ),
       child: ClipOval(
-        // The preview keeps its own aspect ratio and is centre-cropped by the
-        // oval, which is exactly what Telegram does with `length` on the way
-        // out — so the circle here is the circle they will see.
+        // Centre-cropped the same way Telegram crops the sent note.
         child: FittedBox(
           fit: BoxFit.cover,
           clipBehavior: Clip.hardEdge,

@@ -2,8 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/core/widgets/channel_avatar.dart';
 
-/// `title[0]` is one UTF-16 code unit — half of any emoji — so a name that
-/// started with one drew a replacement "?" where its letter should be.
+/// `title[0]` is one UTF-16 code unit, which is only half of an emoji.
 void main() {
   test('a plain name draws its first letter, upper-cased', () {
     expect(ChannelAvatar.initialOf('ada lovelace'), 'A');

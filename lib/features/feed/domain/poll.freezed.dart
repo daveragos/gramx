@@ -290,8 +290,7 @@ as bool,
 /// @nodoc
 mixin _$Poll {
 
- String get id; String get question; List<PollOption> get options; int get totalVoterCount; bool get isAnonymous; bool get isClosed; bool get isQuiz;/// Whether a voter may pick more than one option. Regular polls only —
-/// a quiz has exactly one right answer, so Telegram never sets both.
+ String get id; String get question; List<PollOption> get options; int get totalVoterCount; bool get isAnonymous; bool get isClosed; bool get isQuiz;/// Whether a voter may pick more than one option. Never set on a quiz.
  bool get allowsMultipleAnswers; int? get correctOptionId; List<int> get chosenOptionIds;
 /// Create a copy of Poll
 /// with the given fields replaced by the non-null parameter values.
@@ -511,8 +510,7 @@ class _Poll implements Poll {
 @override final  bool isAnonymous;
 @override final  bool isClosed;
 @override final  bool isQuiz;
-/// Whether a voter may pick more than one option. Regular polls only —
-/// a quiz has exactly one right answer, so Telegram never sets both.
+/// Whether a voter may pick more than one option. Never set on a quiz.
 @override@JsonKey() final  bool allowsMultipleAnswers;
 @override final  int? correctOptionId;
  final  List<int> _chosenOptionIds;

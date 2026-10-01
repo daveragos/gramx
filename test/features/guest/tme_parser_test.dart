@@ -4,13 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/guest/data/tme_page_parser.dart';
 import 'package:gramx/features/guest/domain/guest_page.dart';
 
-/// The parser reads markup nobody promised to keep stable, so the way a
-/// Telegram redesign is supposed to surface is a failing test against a saved
-/// page — not an empty feed on somebody's phone.
-///
-/// `test/support/tme_samples/durov.html` is a real capture. The hand-written
-/// snippets below cover the shapes that capture happens not to contain, and
-/// the two selector traps that are easy to reintroduce.
+/// The t.me markup can change without notice, so a redesign should fail these
+/// tests rather than empty someone's feed. `durov.html` is a real capture; the
+/// snippets below cover shapes it doesn't contain.
 void main() {
   late String durovHtml;
 
@@ -58,8 +54,6 @@ void main() {
       expect(page.posts.where((p) => p.views != null), isNotEmpty);
     });
 
-    // The whole reason reactions are worth parsing here: the preview page has
-    // them, so a guest sees the same chips a signed-in reader does.
     test(
       'reactions come through, counts expanded from Telegram\'s shorthand',
       () {
@@ -72,8 +66,7 @@ void main() {
           expect(reaction.count, greaterThan(0));
           expect(reaction.emoji, isNotEmpty);
         }
-        // "55.2K" on the page is 55200 here — Post.reactions is a number, and
-        // TimeUtils.formatCount re-abbreviates it in the app's own style.
+        // "55.2K" on the page; the app abbreviates it again when drawing.
         expect(
           withReactions.expand((p) => p.reactions).map((r) => r.count),
           contains(greaterThan(1000)),
@@ -94,8 +87,8 @@ void main() {
       expect(paid.first.emoji, TmePageParser.paidReactionEmoji);
     });
 
-    // Telegram embeds only the id and draws the glyph in JS, so there is no
-    // character in the HTML to show. Dropping the reaction would be worse.
+    // The page has only the emoji id (the glyph is drawn by script), so a
+    // placeholder stands in.
     test('custom emoji reactions keep their count under a placeholder', () {
       final custom = page.posts
           .expand((p) => p.reactions)
@@ -114,9 +107,8 @@ void main() {
   });
 
   group('not a channel preview', () {
-    // A 404, a private-channel redirect or a login wall has no channel header.
-    // Returning an empty page instead of null would look like a channel that
-    // has posted nothing, which is a much worse answer than "couldn't read it".
+    // A 404, a private-channel redirect or a login wall has no channel header,
+    // and must not read as a channel with no posts.
     test('returns null rather than an empty channel', () {
       expect(
         TmePageParser.parse('<html><body>Nope</body></html>', 'x'),
@@ -127,8 +119,8 @@ void main() {
   });
 
   group('the nested-text trap', () {
-    // t.me/s/ nests the class: an outer wrapper holds an inner element with the
-    // same class and the actual text. Taking the first match picks the wrapper.
+    // The text class is nested: the outer element wraps an inner one with the
+    // same class, which holds the text.
     test('takes the innermost body, not the wrapper', () {
       final page = _pageWith('''
         <div class="tgme_widget_message" data-post="c/5">
@@ -141,8 +133,7 @@ void main() {
       expect(page.posts.single.text, 'Good morning');
     });
 
-    // The reply preview wears the same class, so a post replying to another
-    // would otherwise render the quoted text as its own body.
+    // The quoted reply above a post uses the same class.
     test('ignores the reply preview', () {
       final page = _pageWith('''
         <div class="tgme_widget_message" data-post="c/6">
@@ -210,8 +201,7 @@ void main() {
       );
     });
 
-    // The page is untrusted network input. A relative path, a data: blob or a
-    // javascript: href must never reach an image loader or a launcher.
+    // Untrusted input: only https URLs may reach an image loader or launcher.
     test('non-https media is dropped, not passed through', () {
       final page = _pageWith('''
         <div class="tgme_widget_message" data-post="c/11">
@@ -244,11 +234,8 @@ void main() {
     });
   });
 
-  // Reported against https://t.me/github/11123. The preview page draws its own
-  // "Please open Telegram to view this post" placeholder for content its web
-  // widget cannot render, and the post then carries no text and no media — so
-  // it parsed as an empty post and reached the feed as a card with a header, a
-  // timestamp and nothing between them.
+  // For content the web preview can't render (e.g. https://t.me/github/11123)
+  // the page shows a "Please open Telegram" notice and no text or media.
   group('a post the preview page will not draw', () {
     test('is flagged rather than parsed as an empty post', () {
       final page = _pageWith('''
@@ -274,9 +261,8 @@ void main() {
       expect(page.posts.single.media, isEmpty);
     });
 
-    // The trap. Telegram puts the same markup inside every video wrap as a
-    // browser fallback, so matching on the class alone flags every post on the
-    // saved capture — all twenty of them.
+    // Every video wrap carries the same notice as a hidden browser fallback,
+    // so its presence alone must not flag a post.
     test('a video\'s own browser fallback is not the placeholder', () {
       final page = _pageWith('''
         <div class="tgme_widget_message text_not_supported_wrap js-widget_message"

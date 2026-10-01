@@ -21,7 +21,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
-/// Search state notifier for managing search query and results.
+/// The search query as typed.
 class SearchNotifier extends Notifier<String> {
   @override
   String build() => '';
@@ -34,18 +34,12 @@ final searchQueryProvider = NotifierProvider<SearchNotifier, String>(
   SearchNotifier.new,
 );
 
-/// How long typing must pause before a query is allowed to reach Telegram.
-///
-/// Without this, a ten-character query fired `SearchPublicChats` ten times,
-/// each followed by per-result lookups — on the one path in the app the user
-/// drives keystroke by keystroke. Nothing driven by a text field may reach
-/// TDLib undebounced.
+/// How long typing must pause before a query reaches Telegram. Each search
+/// is a request plus per-result lookups, so text input is always debounced.
 const Duration searchDebounce = Duration(milliseconds: 300);
 
-/// The search query with the network debounce applied.
-///
-/// [searchQueryProvider] stays instant so filtering already-loaded posts feels
-/// immediate; only the query that costs a request waits.
+/// The search query with the network debounce applied. [searchQueryProvider]
+/// stays instant for filtering posts that are already loaded.
 class DebouncedSearchQueryNotifier extends Notifier<String> {
   Timer? _timer;
   String _emitted = '';
@@ -57,7 +51,7 @@ class DebouncedSearchQueryNotifier extends Notifier<String> {
     _timer?.cancel();
     ref.onDispose(() => _timer?.cancel());
 
-    // Clearing the field takes effect immediately — there is nothing to spend.
+    // Clearing the field takes effect immediately, since it costs nothing.
     if (query.isEmpty) {
       _emitted = '';
       return '';
@@ -90,20 +84,15 @@ final searchFocusTriggerProvider = NotifierProvider<SearchFocusNotifier, int>(
   SearchFocusNotifier.new,
 );
 
-/// Posts matching the query, searched on Telegram's servers.
-///
-/// Runs off the debounced query, since each search is a request.
+/// Posts matching the debounced query, searched on Telegram's servers.
 final searchedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return const [];
   return ref.watch(feedRepositoryProvider).searchPosts(query);
 });
 
-/// Substring match over posts already loaded in the feed.
-///
-/// Instant, and shown while the server search is still in flight so results
-/// don't blank out between keystrokes. Kept as a fallback rather than the whole
-/// feature — it can only ever find what is already in memory.
+/// Substring match over posts already loaded in the feed. Shown while the
+/// server search is in flight so results don't blank out between keystrokes.
 List<Post> matchLoadedPosts(List<Post> posts, String query) {
   final needle = query.toLowerCase().trim();
   if (needle.isEmpty) return posts;
@@ -118,11 +107,7 @@ List<Post> matchLoadedPosts(List<Post> posts, String query) {
 }
 
 /// Search results: server hits once they land, local matches until then.
-///
-/// A guest gets local matching only. `SearchMessages` is a TDLib request and
-/// needs an account; `t.me/s/` offers no search of its own. So the guest search
-/// filters what has been loaded, which is honest about its scope rather than
-/// silently returning less than the reader expects.
+/// Guests get local matching only, since `SearchMessages` needs an account.
 final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final query = ref.watch(searchQueryProvider).trim();
 
@@ -141,8 +126,7 @@ final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
 
   return remote.when(
     data: (results) {
-      // Union: a loaded post the server didn't return is still a valid hit,
-      // and vice versa.
+      // Union of local and server hits.
       final localHits = local.value ?? const <Post>[];
       return AsyncValue.data(mergePostsNewestFirst(results, localHits));
     },
@@ -165,16 +149,11 @@ final searchCategoryProvider =
       SearchCategoryNotifier.new,
     );
 
-/// Local and global public channels matching the search query.
-///
-/// Watches the debounced query — this provider spends requests.
+/// Local and global public channels matching the debounced query.
 final searchChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return [];
-  // Public-channel discovery is a TDLib request, so a guest cannot have it.
-  // What they can have is their own list: matching it here is why the Channels
-  // tab of search now answers for them at all, instead of being a category
-  // that was permanently, silently empty.
+  // Channel discovery needs an account; guests search their own list.
   if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) {
     final needle = query.toLowerCase();
     final guestChannels = await ref.watch(guestChannelsProvider.future);
@@ -216,9 +195,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isSearching = false;
 
-  // No focus on arrival. The tab used to raise the keyboard every time it was
-  // opened, which put it over the Explore page the reader had come to look at;
-  // still lands in the field through searchFocusTriggerProvider.
+  // No autofocus, so the keyboard does not cover the Explore page. A hashtag
+  // tap still focuses the field through searchFocusTriggerProvider.
   @override
   void dispose() {
     _controller.dispose();
@@ -265,10 +243,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xs,
         ),
-        // The account avatar moved here from the feed's header, and the search
-        // icon moved out of it: this *is* the search screen, so an icon that
-        // opens it was pointing at the page it was on, and the drawer had no
-        // search page for exactly this reason.
         child: Row(
           children: [
             Semantics(
@@ -302,8 +276,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// The rounded field itself. Split out so the header row above stays
-  /// readable now that it carries two things rather than one.
+  /// The rounded search field.
   Widget _searchField(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -366,7 +339,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
-/// Shows search results (channels + posts) when user is typing.
+/// Channel and post results while the user is typing.
 class _SearchResults extends ConsumerWidget {
   final Color primaryColor;
   final Color secondaryColor;
@@ -393,9 +366,7 @@ class _SearchResults extends ConsumerWidget {
 
     return CustomScrollView(
       slivers: [
-        // The filter chips scroll with the results rather than sitting in a
-        // fixed strip: the header slides away, and a row pinned to where it
-        // used to be would strand itself mid-screen.
+        // The chips scroll with the results, since the header slides away.
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.only(
@@ -545,7 +516,6 @@ class _SearchResults extends ConsumerWidget {
   }
 }
 
-/// Channel search result tile.
 class _ChannelResultTile extends StatelessWidget {
   final Channel channel;
   final Color primaryColor;
@@ -573,7 +543,6 @@ class _ChannelResultTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar
             () {
               if (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty) {
                 final file = File(channel.avatarUrl!);
@@ -642,15 +611,10 @@ class _ChannelResultTile extends StatelessWidget {
   }
 }
 
-///
-/// A sliver rather than a widget, so it scrolls with the posts under it rather
-/// than pinning a block to the top of a list somebody is reading.
-///
-/// Absent entirely when Telegram suggests nothing, or while the one request is
-/// in flight: a heading over an empty space is worse than no heading, and this
-/// is a section nobody asked for.
+/// Channel suggestions from Telegram's recommendations, as a sliver that
+/// scrolls with the posts. Hidden while loading or when there are none.
 class _WhoToFollow extends ConsumerWidget {
-  /// there is nowhere for a "more" to go here, so this is simply the list.
+  /// How many suggestions are shown.
   static const int maxShown = 5;
 
   final Color primaryColor;
@@ -715,7 +679,7 @@ class _WhoToFollow extends ConsumerWidget {
   }
 }
 
-/// Default explore view when not searching — recent posts from the feed.
+/// The explore view shown when not searching: recent posts from the feed.
 class _ExploreView extends ConsumerWidget {
   final Color primaryColor;
   final Color secondaryColor;
@@ -766,8 +730,7 @@ class _ExploreView extends ConsumerWidget {
 
         return CustomScrollView(
           slivers: [
-            // one request for the whole session — see
-            // `recommendedChannelsProvider`.
+            // One request per session; see `recommendedChannelsProvider`.
             _WhoToFollow(
               primaryColor: primaryColor,
               secondaryColor: secondaryColor,
@@ -812,10 +775,8 @@ class _ExploreView extends ConsumerWidget {
   }
 }
 
-/// Opens the search tab with [hashtag] already entered.
-///
-/// Lives here so the tag lands in the same provider the search screen reads,
-/// and so `core/`'s text renderer needs no knowledge of search.
+/// Opens the search tab with [hashtag] already entered. Lives here so
+/// `core/`'s text renderer needs no knowledge of search.
 void openHashtagSearch(BuildContext context, WidgetRef ref, String hashtag) {
   ref.read(searchQueryProvider.notifier).setQuery(hashtag);
   ref.read(searchCategoryProvider.notifier).setCategory(SearchCategory.posts);

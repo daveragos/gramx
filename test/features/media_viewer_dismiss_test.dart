@@ -3,8 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/feed/presentation/widgets/media_viewer_chrome.dart';
 
 void main() {
-  // The rule on its own: the pull-down that closes the viewer has to be a
-  // pull *down*, not a page swipe with a slant to it.
+  // Only a mostly vertical drag closes the viewer, not a slanted page swipe.
   group('what counts as a vertical drag', () {
     const slop = 18.0;
     final isVertical = MostlyVerticalDragGestureRecognizer.isMostlyVertical;
@@ -46,8 +45,8 @@ void main() {
       );
     }
 
-    // The bug: this swipe slid the picture down and faded it, because the
-    // vertical recogniser saw its eighteen points before the page did.
+    // The vertical recogniser sees the slop before the page does, so it must
+    // not claim this swipe.
     testWidgets('a slanted swipe turns the page and moves nothing else', (
       tester,
     ) async {

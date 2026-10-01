@@ -15,15 +15,8 @@ import 'package:gramx/features/chats/presentation/widgets/message_send_state_ico
 import 'package:gramx/features/chats/presentation/widgets/secret_media_bubble.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
-/// One message in a conversation.
-///
-/// accent blue, incoming on the left on a neutral surface, both capped at a
-/// share of the screen so a long line wraps instead of running edge to edge.
-///
-/// The bubble draws only what the message actually has. A name row appears in
-/// groups and not in private chats, an avatar only under the last of a run, a
-/// tick only on messages this account sent — each of those absences is a
-/// decision made in [ConversationRows] or here, never a widget rendering empty.
+/// One message in a conversation: outgoing on the right in the accent colour,
+/// incoming on the left on a neutral surface.
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
 
@@ -39,44 +32,35 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  /// Flashed when a reply jump lands on this bubble, so the reader can see
-  /// where they were sent.
+  /// Briefly tinted when a reply jump lands on this bubble.
   final bool isHighlighted;
 
-  /// Tapping the quoted line jumps to what was replied to.
+  /// Tap on the quoted line: jumps to the replied-to message.
   final VoidCallback? onReplyTap;
 
-  /// Tapping an `@name` in the body. Supplied by the screen, because resolving
-  /// one reaches Telegram and a widget must not.
+  /// Tap on an `@name` in the body. Resolving it is left to the screen.
   final ValueChanged<String>? onMentionTap;
   final void Function(String emoji)? onReactionTap;
 
-  /// Tapping the sender's face in a group. gramX now has somewhere for a
-  /// person to lead to, and the avatar is where every chat app puts that door.
+  /// Tap on the sender's avatar in a group.
   final VoidCallback? onSenderTap;
 
-  /// Records an answer to the poll in this bubble. Supplied by the screen,
-  /// because voting reaches Telegram and a widget must not.
+  /// Votes in the poll in this bubble. Supplied by the screen.
   final Future<void> Function(List<int> optionIds)? onVote;
 
-  /// Opens media that disappears once it is opened. Null on an outgoing one and
-  /// on one that has already been opened — and null is what makes the cover
-  /// untappable, so a bubble cannot offer a tap that destroys nothing.
+  /// Opens self-destructing media. Null when outgoing or already opened.
   final VoidCallback? onOpenSecretMedia;
 
-  /// Opens a location or venue in a maps app. Supplied by the screen, because
-  /// launching one leaves the app.
+  /// Opens a location or venue in a maps app.
   final VoidCallback? onOpenPlace;
 
   /// Opens the profile of a shared contact. Null when they are not on Telegram.
   final ValueChanged<int>? onOpenContact;
 
-  /// Whether the conversation is in selection mode. Every bubble reserves the
-  /// tick gutter while it is, so ticking one does not shunt the others
-  /// sideways under the reader's thumb.
+  /// Whether the conversation is in selection mode.
   final bool isSelecting;
 
-  /// Whether this one is ticked.
+  /// Whether this message is selected.
   final bool isSelected;
 
   const MessageBubble({
@@ -100,15 +84,11 @@ class MessageBubble extends StatelessWidget {
     this.isSelected = false,
   });
 
-  /// enough for a paragraph, narrow enough that the other side of the
-  /// conversation is always visibly there.
+  /// The widest a bubble may be, as a fraction of the screen width.
   static const double maxWidthFraction = 0.78;
 
   @override
   Widget build(BuildContext context) {
-    // Telegram's own narration about the chat — "you joined", "photo changed" —
-    // is centred and unbubbled, so it reads as the app talking rather than as
-    // something a person said.
     if (message.isService) return _ServiceLine(message: message);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -117,9 +97,7 @@ class MessageBubble extends StatelessWidget {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
-      // Selection wins over the jump flash: the flash is a moment, the tick is
-      // a state, and a bubble that lost its tint mid-selection would read as
-      // having been unticked.
+      // The selection tint takes precedence over the jump highlight.
       color: isSelected
           ? AppColors.accent.withValues(alpha: 0.18)
           : (isHighlighted
@@ -137,9 +115,7 @@ class MessageBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // The tick, on the leading edge for both sides. Colour alone does not
-          // say a message is selected — the tint is easy to miss on one bubble
-          // in a run — so the state is drawn as a mark as well.
+          // A checkbox as well as the tint, so selection isn't colour alone.
           if (isSelecting) ...[
             Semantics(
               selected: isSelected,
@@ -157,9 +133,7 @@ class MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
-          // The avatar gutter is reserved for every incoming bubble in a group,
-          // not just the one that draws an avatar — otherwise a run of messages
-          // steps sideways under the one that has it.
+          // Reserved on every incoming group bubble so a run lines up.
           if (!isOutgoing && isGroup) ...[
             SizedBox(
               width: AppSpacing.avatarSizeSmall,
@@ -215,7 +189,6 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
-/// The bubble itself.
 class _Body extends StatelessWidget {
   final ChatMessage message;
   final bool isGroup;
@@ -261,8 +234,7 @@ class _Body extends StatelessWidget {
         ? Colors.white.withValues(alpha: 0.75)
         : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary);
 
-    // A sticker is the whole message and Telegram draws it with no bubble at
-    // all — a coloured box behind a die-cut image looks like a bug.
+    // A sticker on its own is drawn without a bubble.
     final isBareSticker =
         message.media.length == 1 &&
         message.media.first.type == MediaType.sticker &&
@@ -305,9 +277,7 @@ class _Body extends StatelessWidget {
               onTap: onReplyTap,
             ),
           ),
-        // Media that disappears is drawn as a cover, never as itself. The
-        // thumbnail is a small copy of the picture, and a feature whose whole
-        // point is that it has not been seen cannot lead with one.
+        // Self-destructing media shows a cover, never its thumbnail.
         if (message.isSecretMedia)
           Padding(
             padding: EdgeInsets.only(
@@ -329,8 +299,6 @@ class _Body extends StatelessWidget {
               ),
               child: BubbleMedia(
                 item: item,
-                // The bubble's padding is inside its width, so the media gets
-                // what is left of it.
                 maxWidth: maxWidth - AppSpacing.md * 2,
                 isAlone: message.isMediaOnly,
               ),
@@ -359,8 +327,7 @@ class _Body extends StatelessWidget {
             isEmbedded: true,
             foregroundColor: textColor,
             mutedColor: metaColor,
-            // On an outgoing bubble the accent *is* the background, so the
-            // bars and ticks borrow the bubble's foreground instead.
+            // Outgoing bubbles are already the accent colour.
             accentColor: isOutgoing ? textColor : AppColors.accent,
             onVote: onVote ?? (_) async {},
           ),
@@ -370,13 +337,9 @@ class _Body extends StatelessWidget {
             entities: message.entities,
             style: AppTypography.body(color: textColor),
             onMentionTap: onMentionTap,
-            // The long press belongs to the bubble. See
-            // [TextEntityRenderer.selectable].
+            // The long press belongs to the bubble.
             selectable: false,
-            // An outgoing bubble *is* the accent colour, so a mention or link
-            // drawn in accent on it is invisible. Handing the renderer the
-            // bubble's own foreground makes it legible, and it underlines when
-            // overridden so colour is not the only signal left.
+            // Accent links would vanish on an outgoing bubble.
             linkColor: isOutgoing ? textColor : null,
           ),
         if (message.unsupportedKind != null)
@@ -413,7 +376,8 @@ class _Body extends StatelessWidget {
     );
   }
 
-  /// on the last of a run, which squares off into the tail.
+  /// Rounded corners, except on the sender's side: the top corner after the
+  /// first message of a run, and the bottom corner on the last.
   BorderRadius _radius(bool isOutgoing) {
     const round = Radius.circular(18);
     const tail = Radius.circular(4);
@@ -426,16 +390,7 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Who this message is answering, above the answer.
-///
-/// left, the author in bold, the quoted words indented behind it — a card
-/// says "Replying to @ada" in one grey line and lets the message itself be the
-/// message. That is what this is: a naming line, then the quoted words in the
-/// same muted weight underneath, with nothing drawn around either.
-///
-/// It stays tappable — the line is the jump to what was replied to — so it
-/// carries the reply glyph and the name in the accent colour rather than a
-/// border to say so.
+/// The "Replying to" line and quoted text above a reply.
 class _ReplyQuote extends StatelessWidget {
   final ChatMessage message;
   final Color accent;
@@ -463,7 +418,7 @@ class _ReplyQuote extends StatelessWidget {
           : AppStrings.chatReplyingToName(name),
       child: GestureDetector(
         onTap: onTap,
-        // Opaque so the whole line is the target, not just the glyphs in it.
+        // Opaque so the whole line is tappable, not just the glyphs.
         behavior: HitTestBehavior.opaque,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +443,6 @@ class _ReplyQuote extends StatelessWidget {
               ],
             ),
             // Null when the replied-to message is older than the loaded page.
-            // The naming line alone is honest; inventing a preview is not.
             if (quoted != null && quoted.isNotEmpty)
               Text(
                 quoted,
@@ -503,7 +457,6 @@ class _ReplyQuote extends StatelessWidget {
   }
 }
 
-/// Time, the edited mark, and the delivery tick.
 class _MetaRow extends StatelessWidget {
   final ChatMessage message;
   final Color color;
@@ -536,7 +489,7 @@ class _MetaRow extends StatelessWidget {
   }
 }
 
-/// Telegram's own narration about the chat, centred and unbubbled.
+/// A service message, centred and without a bubble.
 class _ServiceLine extends StatelessWidget {
   final ChatMessage message;
   const _ServiceLine({required this.message});

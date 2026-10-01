@@ -3,8 +3,6 @@ import 'package:gramx/core/l10n/app_strings.dart';
 
 void main() {
   group('pluralised strings', () {
-    // Every count-bearing string picks its own plural in one place, so a locale
-    // with different rules has a single file to change.
     test('new-posts pill', () {
       expect(AppStrings.newPostsPill(1), '1 new post');
       expect(AppStrings.newPostsPill(2), '2 new posts');
@@ -51,8 +49,7 @@ void main() {
     });
 
     test('multi-line concatenations did not lose their spaces', () {
-      // Adjacent string literals across lines silently glue words together if
-      // the trailing space is dropped.
+      // Adjacent literals glue words together if a trailing space is dropped.
       for (final s in [
         AppStrings.foldersEmptyBody,
         AppStrings.bookmarksEmptyBody,

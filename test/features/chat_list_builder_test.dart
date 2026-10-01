@@ -25,8 +25,7 @@ void main() {
       );
     });
 
-    // Channels are the feed. Listing them here would show the same post in two
-    // places and turn a reader with DMs into a Telegram client.
+    // Channels belong to the feed, not the messages list.
     test('a broadcast channel is not', () {
       expect(
         ChatCacheState.isConversation(TdFixtures.chat(id: -100999)),
@@ -44,8 +43,7 @@ void main() {
       );
     });
 
-    // TDLib titles it with your own name — which in the forward picker sat
-    // beside a channel of the same name, where forwarding publishes.
+    // TDLib titles it with the user's own name.
     test('Saved Messages is called that, and has no presence', () {
       final chat = TdFixtures.conversation(
         id: 42,
@@ -62,8 +60,6 @@ void main() {
       expect(row.presence, ChatPresence.unknown);
     });
 
-    // Without the user record a bot reads as a person, and the reader gets
-    // "last seen recently" under a piece of software.
     test('a bot is told apart by its user record, not its chat', () {
       final chat = TdFixtures.conversation(id: 7, userId: 7);
       expect(ChatListBuilder.kindOf(chat), ChatKind.direct);
@@ -73,8 +69,7 @@ void main() {
       );
     });
 
-    // A bot is a private chat, but it is not a person, and Bots is its own
-    // filter now — folding them into Direct as well would make both mean less.
+    // Bots have their own filter.
     test('a bot is private but not Direct', () {
       expect(ChatKind.direct.isDirect, isTrue);
       expect(ChatKind.savedMessages.isDirect, isTrue);
@@ -99,8 +94,6 @@ void main() {
       expect(row.previewIsDraft, isFalse);
     });
 
-    // A draft that looked like a sent message is how somebody forgets they
-    // were mid-sentence with a person.
     test('a draft wins the preview line and is marked as one', () {
       final row = _summary(
         TdFixtures.conversation(
@@ -137,7 +130,6 @@ void main() {
       expect(private.previewSender, isNull);
     });
 
-    // A join has no words of its own, so the row read "Pearlie:" and stopped.
     test('a service message previews as what happened, with no prefix', () {
       final join = TdFixtures.textMessageJson(id: 10, chatId: -100200)
         ..['content'] = {'@type': 'messageChatJoinByLink'}
@@ -160,8 +152,7 @@ void main() {
       );
     });
 
-    // A chat marked unread by hand carries no count, so a list reading only
-    // unreadCount draws it as read — the opposite of what was asked for.
+    // A chat marked unread by hand has an unreadCount of zero.
     test('a hand-marked chat is unread without a count', () {
       final row = _summary(
         TdFixtures.conversation(id: 1, isMarkedAsUnread: true),
@@ -181,9 +172,7 @@ void main() {
       expect(row.isRequest, isTrue);
     });
 
-    // Telegram expresses a pin as a very high order, so the sort already put a
-    // pinned chat on top — but nothing said *why*, and an old chat above a new
-    // one with no explanation reads as a sorting bug.
+    // The sort already puts pinned chats first; the row must also say why.
     test('a pinned chat says it is pinned', () {
       final pinned = TdFixtures.conversation(id: 1, isPinned: true);
       expect(ChatListBuilder.isPinned(pinned), isTrue);
@@ -193,8 +182,7 @@ void main() {
   });
 
   group('chats with nothing in them', () {
-    // Telegram opens a chat the moment it has anything to say about somebody,
-    // conversation with one. Those filled the list with people never spoken to.
+    // Telegram opens a chat for "joined Telegram" notices about contacts.
     test('a contact-registration notice is not a conversation', () {
       final chat = TdFixtures.conversation(
         id: 5,
@@ -214,9 +202,8 @@ void main() {
       );
     });
 
-    // The tempting generalisation — hide any chat whose last message is a
-    // service notice — would hide a real group the moment somebody changed its
-    // photo. Only the one content type, which can only ever be alone.
+    // Only the contact-registration notice hides a chat, not service messages
+    // in general.
     test('a real chat survives, whatever its last message is', () {
       final chat = TdFixtures.conversation(
         id: 5,
@@ -227,8 +214,7 @@ void main() {
   });
 
   group('the bot tag', () {
-    // A bot is a private chat in Telegram's model, so nothing about the row
-    // says so unless the user record is consulted.
+    // In Telegram's model a bot chat is a private chat.
     test('is decided by the user record, and only for bots', () {
       final chat = TdFixtures.conversation(id: 7, userId: 7);
       final asBot = ChatListBuilder.summaryFor(
@@ -271,8 +257,6 @@ void main() {
       );
     });
 
-    // A bot answers instantly and always, so a status for one is noise dressed
-    // as information.
     test('a bot has none', () {
       expect(
         ChatListBuilder.presenceOf(
@@ -292,8 +276,7 @@ void main() {
   });
 
   group('ordering', () {
-    // Telegram expresses a pinned chat as a very high order, so sorting by it
-    // pins the pinned chats for free — where every other client puts them.
+    // Pinned chats have a very high order, so they sort first.
     test('is TDLib\'s own chat-list order, newest first', () {
       final rows = ChatListBuilder.build(
         [
@@ -307,8 +290,7 @@ void main() {
       expect(rows.map((r) => r.title), ['pinned', 'busy', 'quiet']);
     });
 
-    // Left to the sort's stability, two chats with no activity could swap
-    // places between rebuilds under the reader's thumb.
+    // Otherwise inactive chats could swap places between rebuilds.
     test('ties break on a stable value, not on sort order', () {
       final rows = ChatListBuilder.build(
         [
@@ -362,7 +344,6 @@ void main() {
     test('each filter selects what its label promises', () {
       expect(_titles(rows, ChatFilter.all), hasLength(4));
       expect(_titles(rows, ChatFilter.unread), ['Unread Person']);
-      // Bots are out of Direct now, which is the point of splitting them.
       expect(_titles(rows, ChatFilter.direct), ['Ada', 'Unread Person']);
       expect(_titles(rows, ChatFilter.groups), ['The Group']);
       expect(_titles(rows, ChatFilter.bots), ['A Bot']);
@@ -382,8 +363,6 @@ void main() {
       expect(found.map((r) => r.title), ['Ada']);
     });
 
-    // The badge counts conversations, not messages: "3" should mean three
-    // people are waiting, which is a number somebody can act on.
     test('the unread badge counts conversations', () {
       final withMarked = [
         ...rows,
@@ -392,8 +371,7 @@ void main() {
       expect(ChatListBuilder.unreadChatCount(withMarked), 2);
     });
 
-    // Most unread chats on a Telegram account are groups and bots. The badge
-    // follows the Messages tab's filter, which opens on Direct.
+    // The badge follows the Messages tab's filter, which starts on Direct.
     test('the unread badge counts only what the filter shows', () {
       final busy = [
         ...rows,
@@ -501,8 +479,7 @@ void main() {
       expect(ChatListBuilder.emojiStatusOf(user, now: now), 5551);
     });
 
-    // Telegram documents the status as Premium-only; a lapsed subscription
-    // can leave one behind.
+    // The status is Premium only; a lapsed subscription can leave one behind.
     test('a status without Premium is ignored', () {
       final user = TdFixtures.user(id: 9, emojiStatusId: 5551);
 
@@ -511,10 +488,7 @@ void main() {
   });
 }
 
-/// A conversation with something in it.
-///
-/// [ChatListBuilder.build] drops chats with no messages, so an ordering test
-/// built on bare chats would be asserting against an empty list.
+/// A chat with a last message, since [ChatListBuilder.build] drops empty ones.
 td.Chat _withMessage({
   required int id,
   required String title,

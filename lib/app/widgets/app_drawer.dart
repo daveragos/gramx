@@ -12,13 +12,9 @@ import 'package:gramx/features/chats/presentation/open_saved_messages.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 class AppDrawer extends ConsumerWidget {
-  /// Switches to a bottom-bar tab.
-  ///
-  /// Supplied by the shell rather than looked up here:
-  /// `StatefulNavigationShell.of` searches the widget tree, and the drawer is a
-  /// *sibling* of the navigation shell, not a descendant. The lookup could
-  /// never succeed, so "Saved messages" and "Subscribed channels" closed the
-  /// drawer and did nothing else.
+  /// Switches to a bottom-bar tab. Passed in by the shell because the drawer
+  /// is a sibling of the navigation shell, so `StatefulNavigationShell.of`
+  /// cannot find it.
   final void Function(ShellTab tab) onSelectTab;
 
   const AppDrawer({super.key, required this.onSelectTab});
@@ -60,9 +56,6 @@ class AppDrawer extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // The avatar opens the profile, which is what tapping your
-                  // own face means everywhere else. The "⋮" that used to sit
-                  // opposite it did nothing at all, so it is gone.
                   ChannelAvatar(
                     title: displayName,
                     avatarPath: accountAsync.value?.avatarPath,
@@ -122,11 +115,7 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(),
-            // The nav items scroll. They used to be laid out directly in the
-            // column above a Spacer, which fits until it doesn't — adding the
-            // Messages entry overflowed the drawer on a short viewport, and a
-            // list that silently clips the last item is worse than one that
-            // scrolls.
+            // Scrolls so the items fit on short screens.
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -139,13 +128,8 @@ class AppDrawer extends ConsumerWidget {
                       GoRouter.of(context).push('/profile');
                     },
                   ),
-                  // Tabs switch branches rather than pushing. Pushing a branch route
-                  // onto the root stack leaves the shell's indexed stack behind and
-                  // throws away that tab's scroll position.
-                  // Bookmarks is a pushed route rather than a tab now that Messages
-                  // has the fourth slot — so it pushes, where a tab would goBranch.
-                  // bottom bar; gramX's third slot is Channels, so it is here
-                  // and on the bell in the feed header instead.
+                  // Tabs switch branches rather than pushing, which would lose
+                  // the tab's scroll position. Other entries push routes.
                   DrawerNavItem(
                     icon: Icons.notifications_none_rounded,
                     title: AppStrings.drawerActivity,
@@ -167,9 +151,8 @@ class AppDrawer extends ConsumerWidget {
                     title: AppStrings.messagesTab,
                     onTap: () => _goToTab(context, ShellTab.messages),
                   ),
-                  // Telegram's notes-to-self chat. It sorts by activity like
-                  // any other chat, so a reader who saves something once a
-                  // week has to hunt down the list for it otherwise.
+                  // Telegram's notes-to-self chat, which otherwise sorts by
+                  // activity in the chat list.
                   if (canOpenSavedMessages(ref))
                     DrawerNavItem(
                       icon: Icons.bookmark_added_outlined,

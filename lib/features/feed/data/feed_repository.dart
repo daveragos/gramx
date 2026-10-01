@@ -25,58 +25,37 @@ class FeedRepository {
   final SyncService _syncService;
   final ChatCache _chatCache;
 
-  /// How many posts we aim to hold per channel in the merged feed.
+  /// How many posts the merged feed aims to hold per channel.
   static const int postsPerChannel = 30;
 
-  /// Channels with unread posts the throttled backfill will fetch real history
-  /// for, most recently active first.
-  ///
-  /// Telegram caps `GetChatHistory` at roughly 30 requests per 30 seconds
-  /// sustained, so this number and [backfillThrottle] are a matched pair. Don't
-  /// raise one without the other.
+  /// Channels the backfill fetches history for. Telegram allows about 30
+  /// `GetChatHistory` calls per 30 seconds; change with [backfillThrottle].
   static const int backfillTopChannels = 30;
 
-  /// Gap between backfill requests. Just over one second keeps us under the cap
-  /// with headroom for the requests the user's own taps generate.
+  /// Gap between backfill requests, leaving headroom for the user's own taps.
   static const Duration backfillThrottle = Duration(milliseconds: 1100);
 
-  /// How many times opening a channel will ask the server for more history
-  /// before giving up on filling the first page.
-  ///
-  /// TDLib chooses its own batch size and can answer with one message while
-  /// plenty of history remains, so one request is not a page. Bounded because
-  /// even a user-driven path shares the account's request budget.
+  /// Server requests opening a channel may make to fill the first page, since
+  /// TDLib can return fewer messages than asked while more history remains.
   static const int channelHistoryMaxRequests = 4;
 
-  /// Channels the unread sweep looks behind the read cursor for.
-  ///
-  /// Shares the budget with [backfillTopChannels] and runs after it: one
-  /// request at a time at [backfillThrottle], abandoned on the first
-  /// rate-limit. A bounded, throttled sweep — not a fan-out.
+  /// Channels the unread sweep reaches behind the read cursor for, on the
+  /// backfill's budget.
   static const int unreadSweepTopChannels = 30;
 
   /// Unread posts lifted per channel per sweep.
-  ///
-  /// Small on purpose: a backlog is read a few posts at a time, and one
-  /// channel sitting on four hundred unread must not become the feed.
   static const int unreadPerChannel = 5;
 
-  /// Channels one "load older" page will reach back into. Pagination is a
-  /// user-driven path, but it repeats on every scroll to the bottom, so it is
-  /// bounded too.
+  /// Channels one "load older" page reaches into.
   static const int paginationChannelsPerPage = 10;
 
-  /// Cap on how many unknown forwarded-from channels we will name per feed
-  /// build. Bounded so a feed full of forwards can't become a fan-out.
+  /// Cap on unknown forwarded-from channels looked up per feed build.
   static const int _maxForwardLookups = 10;
 
   FeedRepository(this._tdlib, this._db, this._syncService, this._chatCache);
 
-  /// Picks the channels whose oldest loaded post is newest.
-  ///
-  /// Those are the only ones that can extend a merged feed backwards — every
-  /// other channel already reaches further back than the current frontier, so
-  /// paging it adds nothing the user would see.
+  /// Picks the channels whose oldest loaded post is newest, the only ones that
+  /// can extend the merged feed backwards.
   static List<MapEntry<int, int>> selectPaginationFrontier(
     Map<int, int> oldestMessageIds, {
     required int limit,
@@ -92,11 +71,8 @@ class FeedRepository {
     return bookmarks.map((b) => '${b.chatId}_${b.messageId}').toSet();
   }
 
-  /// Reads a chat's history from TDLib's local database only.
-  ///
-  /// `onlyLocal: true` never reaches the server, so this is outside the flood
-  /// budget and safe to run across every channel at once. It can legitimately
-  /// return nothing on a cold cache.
+  /// Reads a chat's history from TDLib's local database only, outside the
+  /// flood budget. May return nothing on a cold cache.
   Future<List<td.Message>> _localHistory(int chatId, {int limit = 30}) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -124,11 +100,8 @@ class FeedRepository {
     return list;
   }
 
-  /// Whether [message] is one the reader has not read yet.
-  ///
-  /// The same rule the mapper uses for `Post.isRead`, applied before mapping
-  /// so a read message costs nothing: the feed never shows one, so there is no
-  /// point building its card. A post this account sent is its own reader.
+  /// Whether [message] is unread, by the same rule as `Post.isRead`. Checked
+  /// before mapping so read messages are skipped.
   static bool isUnreadIn(td.Chat chat, td.Message message) =>
       !message.isOutgoing && message.id > chat.lastReadInboxMessageId;
 
@@ -142,16 +115,8 @@ class FeedRepository {
       if (chat.unreadCount > 0) chat,
   ];
 
-  /// One post per channel, from what the update stream already delivered.
-  ///
-  /// The first stage of a launch's feed. Every chat TDLib loads arrives with
-  /// its `lastMessage`, so once the first page of the chat list is in, this
-  /// costs no request at all — no history, no name lookups, no reply excerpts —
-  /// and can be on screen while [fetchUnreadLocalPosts] is still reading. Only
-  /// a last message the reader has not read counts.
-  ///
-  /// A card built here may lack the name of a channel it was forwarded from;
-  /// the local pass replaces it a moment later with one that has it.
+  /// One unread post per channel, from each chat's `lastMessage`. Costs no
+  /// request, so it can show while [fetchUnreadLocalPosts] is still reading.
   Future<List<Post>> fetchHeadlinePosts() async {
     await _chatCache.ensureFirstPage();
     final channelChats = _chatCache.channels;
@@ -164,36 +129,20 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, channelChats, quick: true);
   }
 
-  /// The unread posts TDLib already holds on disk, in two stages.
-  ///
-  /// Never reaches the server: every read is `onlyLocal`, so none of it
-  /// counts against the request budget. Real history for channels whose unread
-  /// posts are not on disk arrives afterwards via [backfillRecentHistory].
-  ///
-  /// Only channels with something unread are read at all, and only as far back
-  /// as their unread count reaches. A read post never enters the feed, so
-  /// reading thirty of them per channel across four hundred channels — which
-  /// is what this used to do — was seconds of work to throw away.
-  ///
-  /// The first stage is the [firstStageChannels] most recently active of those,
-  /// out of the first page of the chat list: the posts at the top of the feed.
-  /// The rest follows in stages of the same size, each page of the chat list
-  /// as it lands. Each yield carries only its own stage's posts.
+  /// The unread posts TDLib holds on disk, in stages of [firstStageChannels]
+  /// channels, most recently active first. Local reads only; the rest comes
+  /// from [backfillRecentHistory]. Each yield holds only that stage's posts.
   Stream<List<Post>> fetchUnreadLocalPosts() async* {
     await _chatCache.ensureFirstPage();
     final done = <int>{};
 
-    // What the chat list holds so far, then again each time another round of
-    // it lands, until the whole list is in. Later rounds hold less recently
-    // active channels, whose posts belong further down anyway.
+    // Repeat as each round of the chat list lands, until the whole list is in.
     while (true) {
       final wholeList = !_chatCache.isLoading;
       final fresh = [
         for (final chat in _channelsWithUnread())
           if (done.add(chat.id)) chat,
       ];
-      // In stages, so the feed grows while the rest is read rather than
-      // sitting on its first screen until every channel is done.
       for (var start = 0; start < fresh.length; start += firstStageChannels) {
         yield await _unreadLocalStage(
           fresh.skip(start).take(firstStageChannels).toList(),
@@ -212,15 +161,11 @@ class FeedRepository {
       _syncService.downloadChatAvatar(chat);
     }
 
-    // A few channels at a time, with a frame let through between each batch.
-    // Asked for all at once, a hundred channels' local histories came back as
-    // one burst of a few thousand message objects to build on the UI thread,
-    // right when the reader first tries to touch the screen.
+    // A few channels at a time, yielding a frame between batches.
     final messagesByChatId = <int, List<td.Message>>{};
 
-    // A channel with one unread post needs no read at all: that post is its
-    // last message, which came with the chat list. Most channels with
-    // anything unread are like this, so most of the reads go.
+    // A channel with one unread post needs no read: that post is its last
+    // message, which came with the chat list.
     final toRead = <td.Chat>[];
     for (final chat in chats) {
       final last = chat.lastMessage;
@@ -253,24 +198,16 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, chats);
   }
 
-  /// How many channels' local histories are read at once. Small enough that
-  /// the objects built from one batch fit comfortably inside a frame budget.
+  /// How many channels' local histories are read at once.
   static const int localReadBatch = 6;
 
   /// How many messages [_buildPosts] maps before letting a frame through.
   static const int mapYieldEvery = 60;
 
-  /// Fetches unread history TDLib does not have on disk, one channel at a time.
-  ///
-  /// [heldLocally] is how many unread posts per channel the local pass already
-  /// found. A channel whose unread posts were all on disk is skipped, so a
-  /// launch where everything is on the phone asks the server for nothing.
-  ///
-  /// Yields each channel's posts on their own as they arrive — only the new
-  /// ones, never the whole list so far, which rebuilt every earlier channel's
-  /// cards again at each step. Throttled to [backfillThrottle] and abandoned on
-  /// the first rate-limit: the penalty for overrunning is applied to the
-  /// user's Telegram account, not to this app.
+  /// Fetches unread history not on disk, one channel at a time, yielding each
+  /// channel's posts as they arrive. Channels covered by [heldLocally] are
+  /// skipped. Stops on the first rate limit, since Telegram penalises the
+  /// account.
   Stream<List<Post>> backfillRecentHistory({
     Map<int, int> heldLocally = const {},
   }) async* {
@@ -316,15 +253,8 @@ class FeedRepository {
     }
   }
 
-  /// Unread posts behind each channel's read cursor that TDLib already holds.
-  ///
-  /// Local-only, so it costs nothing and is off the request budget entirely —
-  /// which is the point: the feed's first paint can carry a real mix of old
-  /// unread posts without waiting on a single network round trip. The
-  /// networked [fetchUnreadBacklog] runs later and goes deeper.
-  ///
-  /// A cold cache legitimately answers with nothing; that is not an error, it
-  /// just means the mix arrives with the throttled sweep instead.
+  /// Unread posts behind each channel's read cursor that TDLib already holds
+  /// locally, so the first paint can include a backlog mix.
   Future<List<Post>> fetchCachedUnreadBacklog() async {
     final targets = _chatCache.channels
         .where((chat) => chat.unreadCount > 0)
@@ -332,8 +262,7 @@ class FeedRepository {
         .toList();
     if (targets.isEmpty) return const [];
 
-    // Batched with a frame between, like fetchFeedPosts: this runs right
-    // behind the first paint, which is the worst moment to hold the thread.
+    // Batched with a frame between, since this runs right after first paint.
     final messagesByChatId = <int, List<td.Message>>{};
     for (var start = 0; start < targets.length; start += localReadBatch) {
       final batch = targets.skip(start).take(localReadBatch).toList();
@@ -355,8 +284,8 @@ class FeedRepository {
       final res = await _tdlib.sendRequest(
         td.GetChatHistory(
           chatId: chat.id,
-          // A negative offset from the read cursor is TDLib's way of saying "the
-          // messages after this one" — the oldest unread rather than the newest.
+          // A negative offset from the read cursor returns the messages after
+          // it: the oldest unread rather than the newest.
           fromMessageId: chat.lastReadInboxMessageId,
           offset: -unreadPerChannel,
           limit: unreadPerChannel,
@@ -373,16 +302,9 @@ class FeedRepository {
     }
   }
 
-  /// The oldest unread posts sitting behind each channel's read cursor.
-  ///
-  /// The feed is newest-first, so a channel's older unread posts are only
-  /// reachable by scrolling past everything newer — which nobody does, and the
-  /// backlog only grows. This lifts a few of them out per channel so the feed
-  /// can weave them in; see `buildFeedEntries`.
-  ///
-  /// Same budget shape as [backfillRecentHistory]: the busiest channels only,
-  /// one request at a time, abandoned on the first rate-limit. Channels with
-  /// nothing unread cost nothing — they are never requested.
+  /// The oldest unread posts behind each channel's read cursor, for the feed
+  /// to weave in (see `buildFeedEntries`). Same budget rules as
+  /// [backfillRecentHistory].
   Future<List<Post>> fetchUnreadBacklog() async {
     final targets = _chatCache.channels
         .where((chat) => chat.unreadCount > 0)
@@ -397,10 +319,7 @@ class FeedRepository {
         final res = await _tdlib.sendRequest(
           td.GetChatHistory(
             chatId: chat.id,
-            // From the read cursor, with a negative offset: TDLib reads that as
-            // "the messages *after* this one", which is precisely the oldest
-            // unread. Asking from 0 returns the newest, which the feed already
-            // has.
+            // A negative offset from the read cursor returns the oldest unread.
             fromMessageId: chat.lastReadInboxMessageId,
             offset: -unreadPerChannel,
             limit: unreadPerChannel,
@@ -432,12 +351,7 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, targets);
   }
 
-  /// Loads one page of older posts, reaching back into a bounded set of channels.
-  ///
-  /// Only the channels whose oldest loaded post is *newest* can extend the
-  /// merged feed backwards — the others already reach further back than the
-  /// current frontier. Fetching just those keeps a scroll-to-bottom at
-  /// [paginationChannelsPerPage] requests instead of one per subscription.
+  /// Loads one page of older posts. See [selectPaginationFrontier].
   Future<List<Post>> fetchOlderPosts(Map<int, int> oldestMessageIds) async {
     if (oldestMessageIds.isEmpty) return [];
 
@@ -482,14 +396,8 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, chats);
   }
 
-  /// Looks up the messages that posts in this batch are replying to.
-  ///
-  /// TDLib only inlines `replyTo.content` for cross-chat replies and quotes, so
-  /// a reply inside one channel arrives with no preview text — the card fell
-  /// back to the words "Original post", which say nothing about the post.
-  ///
-  /// `GetMessages` takes a list, so this is one request per chat regardless of
-  /// how many replies it holds, and it reads local data in the common case.
+  /// Fetches the messages that posts in this batch reply to. TDLib only
+  /// inlines `replyTo.content` for cross-chat replies and quotes.
   Future<Map<String, String>> _resolveReplyExcerpts(
     Map<int, List<td.Message>> messagesByChatId,
   ) async {
@@ -499,7 +407,7 @@ class FeedRepository {
       for (final message in entry.value) {
         final replyTo = message.replyTo;
         if (replyTo is! td.MessageReplyToMessage) continue;
-        // Already inlined by TDLib, or the user quoted specific text.
+        // Already inlined by TDLib, or the reply quotes specific text.
         if (replyTo.content != null || replyTo.quote != null) continue;
         if (replyTo.messageId == 0) continue;
         wanted.putIfAbsent(entry.key, () => {}).add(replyTo.messageId);
@@ -508,8 +416,6 @@ class FeedRepository {
 
     if (wanted.isEmpty) return const {};
 
-    // One request per channel, all in flight at once — see `_buildPosts` for
-    // why they no longer wait on each other.
     final excerpts = <String, String>{};
     await Future.wait(
       wanted.entries.map((entry) async {
@@ -519,7 +425,7 @@ class FeedRepository {
           );
           if (res is! td.Messages) return;
           for (final message in res.messages) {
-            // GetMessages answers with an id of 0 for anything it doesn't have.
+            // GetMessages returns id 0 for messages it doesn't have.
             if (message.id == 0) continue;
             final excerpt = TdlibMappers.excerptOf(message);
             if (excerpt != null) {
@@ -536,9 +442,8 @@ class FeedRepository {
     return excerpts;
   }
 
-  /// Names the channels the cache does not know, one `GetChat` each, all at
-  /// once. A private or deleted origin answers with an error and is left out;
-  /// the card falls back to the author signature.
+  /// Names the channels the cache doesn't know. A private or deleted origin
+  /// is left out, and the card falls back to the author signature.
   Future<Map<int, String>> _lookupOriginTitles(Iterable<int> chatIds) async {
     final titles = <int, String>{};
     await Future.wait(
@@ -552,11 +457,8 @@ class FeedRepository {
     return titles;
   }
 
-  /// Maps raw messages into sorted [Post]s, resolving forwarded-channel names.
-  ///
-  /// [quick] skips every lookup that would reach the server — unknown origin
-  /// names, reply excerpts — and builds from what is in hand. For a first
-  /// paint that must not wait on the network; the full pass follows.
+  /// Maps raw messages into sorted [Post]s. [quick] skips lookups that reach
+  /// the server, for a first paint.
   Future<List<Post>> _buildPosts(
     Map<int, List<td.Message>> messagesByChatId,
     List<td.Chat> chats, {
@@ -569,14 +471,8 @@ class FeedRepository {
       knownChatTitles[chat.id] = chat.title;
     }
 
-    // Name the channels a post points at — the one it was forwarded from, and
-    // the one a reply or a quote came out of. Both used to be one list; only
-    // forwards were on it, so a passage quoted from another channel had no
-    // name for its author and the mapper fell back to the channel doing the
-    // quoting, putting the wrong byline over somebody else's words.
-    //
-    // The cache answers most of these for free; only genuinely unknown chats
-    // cost a request, and that is capped.
+    // Name the channels a post points at: the forward origin, and the origin
+    // of a reply or quote. Unknown chats cost a capped request.
     final unresolved = <int>{};
     void nameOrigin(td.MessageOrigin? origin) {
       final originId = switch (origin) {
@@ -602,12 +498,7 @@ class FeedRepository {
       }
     }
 
-    // Three lookups that do not depend on each other, started together and
-    // awaited together. Run one after another they cost the sum of their round
-    // trips — up to ten `GetChat`s for unknown origins, then a `GetMessages`
-    // per channel with replies, each a trip to the server on a cold cache —
-    // and that sum sat between the folder tabs appearing and the first post.
-    // Same requests, same budget; they just no longer queue.
+    // Independent lookups, started together so their round trips overlap.
     final bookmarkKeysFuture = _bookmarkKeys();
     final originTitlesFuture = quick
         ? Future.value(const <int, String>{})
@@ -620,10 +511,7 @@ class FeedRepository {
     knownChatTitles.addAll(await originTitlesFuture);
     final replyExcerpts = await replyExcerptsFuture;
 
-    // Mapping is where the time goes: entities, media, reactions and reply
-    // targets for every message, all synchronous. Done in one pass over a
-    // hundred channels it held the UI thread for the better part of a
-    // second, so a frame is let through every [mapYieldEvery] messages.
+    // Mapping is slow across many channels, so yield a frame periodically.
     final posts = <Post>[];
     var mappedSinceYield = 0;
     for (final entry in messagesByChatId.entries) {
@@ -649,13 +537,8 @@ class FeedRepository {
     return posts;
   }
 
-  /// Maps messages already in hand into posts for one known chat.
-  ///
-  /// Unlike [mapIncomingMessages] this does **not** filter by subscription:
-  /// the caller has a specific chat open and asked for these messages, so a
-  /// channel the reader is browsing without having joined still renders. Costs
-  /// nothing beyond the bookmark lookup and whatever forwarded-origin names
-  /// are not already cached.
+  /// Maps messages into posts for one chat, without the subscription filter
+  /// of [mapIncomingMessages].
   Future<List<Post>> mapChannelMessages(
     int chatId,
     List<td.Message> messages,
@@ -672,7 +555,7 @@ class FeedRepository {
     return _buildPosts({chatId: _dedupeMessages(messages)}, [chat]);
   }
 
-  /// Fetch posts for a single channel (local-first fallback).
+  /// Fetches posts for a single channel, local history first.
   Future<List<Post>> fetchChannelPosts(
     int chatId, {
     int fromMessageId = 0,
@@ -709,7 +592,6 @@ class FeedRepository {
       }
     }
 
-    // Local history first, for an instant first paint.
     collect(
       await _tdlib.sendRequest(
         td.GetChatHistory(
@@ -722,16 +604,8 @@ class FeedRepository {
       ),
     );
 
-    // Then keep asking the server until there is a real page.
-    //
-    // `GetChatHistory` is documented to return **fewer messages than
-    // requested even when the history has not ended** — TDLib picks the batch
-    // size. Asking once and rendering whatever came back is why opening a
-    // channel could land on a single post with nothing to scroll to, and
-    // therefore nothing to trigger pagination either: a dead end.
-    //
-    // Bounded and user-driven, which is what the request budget allows for
-    // opening a specific channel — never a fan-out over the chat list.
+    // Then ask the server until there is a full page, since `GetChatHistory`
+    // can return a short batch before the history ends.
     var cursor = collected.isEmpty ? fromMessageId : collected.last.id;
     for (
       var attempt = 0;
@@ -756,7 +630,7 @@ class FeedRepository {
         break;
       }
 
-      // Nothing new means the end of the history, not a slow batch.
+      // No new messages means the end of the history.
       if (collected.length == before) break;
       cursor = collected.last.id;
     }
@@ -775,17 +649,9 @@ class FeedRepository {
     );
   }
 
-  /// How many search hits one page returns.
   static const int searchPageSize = 40;
 
-  /// Searches posts across every channel the user follows.
-  ///
-  /// This is a real server-side search. The previous behaviour was a substring
-  /// match over whatever happened to be in memory — roughly the last 30 posts
-  /// per channel — so anything read last week simply wasn't findable.
-  ///
-  /// `onlyInChannels` keeps group and private chats out of a channel reader's
-  /// results.
+  /// Searches posts on the server across every channel the user follows.
   Future<List<Post>> searchPosts(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
@@ -814,11 +680,8 @@ class FeedRepository {
     }
   }
 
-  /// Maps messages that arrived on the update stream into posts.
-  ///
-  /// Costs nothing beyond the bookmark lookup — the messages are already in
-  /// hand and the chats come from the cache. Messages from chats we don't
-  /// follow, or that aren't channels, are dropped.
+  /// Maps messages from the update stream into posts, dropping any not from
+  /// a subscribed channel.
   Future<List<Post>> mapIncomingMessages(List<td.Message> messages) async {
     if (messages.isEmpty) return [];
 
@@ -827,8 +690,7 @@ class FeedRepository {
 
     for (final message in messages) {
       final chat = _chatCache.chat(message.chatId);
-      // Membership matters here too: TDLib streams updates for chats it merely
-      // knows about, and those must not reach the feed.
+      // TDLib also streams updates for chats the user hasn't joined.
       if (chat == null ||
           !ChatCacheState.isChannel(chat) ||
           !ChatCacheState.isSubscribed(chat)) {
@@ -848,9 +710,6 @@ class FeedRepository {
   }
 
   /// Forwards a post into another Telegram chat.
-  ///
-  /// This is what the repeat icon should always have done — it displayed
-  /// `forwardCount` while being wired to "copy a link".
   Future<bool> forwardPost({required Post post, required int toChatId}) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -868,7 +727,7 @@ class FeedRepository {
             sendingId: 0,
             onlyPreview: false,
           ),
-          // Forward with attribution rather than silently copying the content.
+          // Forward with attribution rather than copying the content.
           sendCopy: false,
           removeCaption: false,
         ),
@@ -880,22 +739,11 @@ class FeedRepository {
     }
   }
 
-  /// Chats a post can be forwarded into, most recently active first.
-  ///
-  /// Read straight from the cache, so opening the picker costs no requests.
-  /// Where a post can be forwarded to.
-  ///
-  /// Only chats this account can actually post into — see
-  /// `ChatCacheState.canPostIn`. Listing every subscribed channel offered
-  /// destinations that would always fail.
+  /// Chats this account can post into, from the cache.
   List<td.Chat> forwardTargets() => _chatCache.forwardTargets;
 
-  /// A shareable t.me link for a post.
-  ///
-  /// Asks TDLib for the canonical link first — it knows about usernames,
-  /// albums and thread context. Falls back to building one locally if the
-  /// request fails, so sharing still works offline or for a channel TDLib
-  /// declines to link.
+  /// A shareable t.me link for a post, from TDLib or built locally if that
+  /// fails.
   Future<String?> postLink(Post post) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -919,19 +767,9 @@ class FeedRepository {
     );
   }
 
-  /// Toggle bookmark using chatId + messageId.
-  ///
-  /// The local row is the index; **Saved Messages is the copy that lasts.** A
-  /// bookmark used to be a Drift row and nothing else, so reinstalling the app
-  /// — or signing in on a second device — lost every one of them. Telegram's
-  /// own durable save is a forward to Saved Messages, so that is what this
-  /// writes, and [restoreBookmarks] is what reads it back.
-  ///
-  /// The mirror is best-effort. A tap while offline, or while rate limited,
-  /// still bookmarks locally and simply has no saved copy; it is not queued
-  /// and not retried, because a bookmark is not worth a queue. What that costs
-  /// is one bookmark missing from a restore, which is better than a tap that
-  /// appears to do nothing.
+  /// Toggles a bookmark. The local row is the index; a forward to Saved
+  /// Messages survives a reinstall (see [restoreBookmarks]). The forward is
+  /// best effort and isn't retried.
   Future<void> toggleBookmark(int chatId, int messageId) async {
     final existing =
         await (_db.select(_db.bookmarkEntries)..where(
@@ -950,8 +788,6 @@ class FeedRepository {
 
     final accountId = (await _activeAccount())?.id ?? 1;
 
-    // Written before the local row, so the row is stored with its handle
-    // rather than needing a second write to attach one.
     final savedMessageId = await _writeSavedCopy(chatId, messageId);
 
     await _db
@@ -966,8 +802,7 @@ class FeedRepository {
         );
   }
 
-  /// The signed-in account's row, which is also where the reader's own
-  /// Telegram user id lives.
+  /// The signed-in account's row.
   Future<Account?> _activeAccount() async {
     final accounts = await (_db.select(
       _db.accounts,
@@ -975,11 +810,8 @@ class FeedRepository {
     return accounts.isEmpty ? null : accounts.first;
   }
 
-  /// This account's Saved Messages chat, or null when there is no account.
-  ///
-  /// Telegram models notes-to-self as a private chat with yourself, so the
-  /// chat id *is* the user id — once the chat exists. On a fresh account it
-  /// does not, which is why this can have to create it.
+  /// This account's Saved Messages chat, created if needed. Its id is the
+  /// user id.
   Future<int?> _savedMessagesChatId() async {
     final selfId = int.tryParse((await _activeAccount())?.telegramUserId ?? '');
     if (selfId == null) return null;
@@ -996,7 +828,7 @@ class FeedRepository {
     }
   }
 
-  /// Forwards a post into Saved Messages, answering the copy's id.
+  /// Forwards a post into Saved Messages and returns the copy's id.
   Future<int?> _writeSavedCopy(int chatId, int messageId) async {
     final saved = await _savedMessagesChatId();
     if (saved == null) return null;
@@ -1009,7 +841,7 @@ class FeedRepository {
           fromChatId: chatId,
           messageIds: [messageId],
           options: const td.MessageSendOptions(
-            // A note to yourself should not buzz your own phone.
+            // No notification for a note to yourself.
             disableNotification: true,
             fromBackground: true,
             protectContent: false,
@@ -1018,8 +850,7 @@ class FeedRepository {
             sendingId: 0,
             onlyPreview: false,
           ),
-          // Attribution is the whole point: the copy has to say where it came
-          // from, because that is what a restore reads to find the original.
+          // Attribution is required: a restore reads it to find the original.
           sendCopy: false,
           removeCaption: false,
         ),
@@ -1032,7 +863,6 @@ class FeedRepository {
     }
   }
 
-  /// Deletes a bookmark's copy out of Saved Messages.
   Future<void> _removeSavedCopy(int? savedMessageId) async {
     if (savedMessageId == null) return;
     final saved = await _savedMessagesChatId();
@@ -1043,8 +873,7 @@ class FeedRepository {
         td.DeleteMessages(
           chatId: saved,
           messageIds: [savedMessageId],
-          // Saved Messages is a chat with yourself; there is no other side for
-          // a copy to be left on.
+          // Saved Messages has no other side, so revoke is harmless.
           revoke: true,
         ),
       );
@@ -1054,24 +883,11 @@ class FeedRepository {
   }
 
   /// How far back a restore reads.
-  ///
-  /// Paged like any history read, and bounded: Saved Messages is also where a
-  /// reader keeps everything else they have ever sent themselves, and walking
-  /// all of it to find bookmarks would be a fan-out with extra steps.
   static const int _restorePages = 8;
   static const int _restorePageSize = 100;
 
-  /// Rebuilds the local bookmark rows from Saved Messages.
-  ///
-  /// This is what makes a bookmark survive a reinstall. Every mirror carries
-  /// `forwardInfo`, and a channel origin names the chat and the message it came
-  /// from — which is exactly the pair a bookmark is.
-  ///
-  /// Existing rows are left alone, so running this twice adds nothing and
-  /// running it after deleting a bookmark does not bring that bookmark back:
-  /// unbookmarking deletes the mirror too, so there is nothing to find.
-  ///
-  /// Answers how many bookmarks it added.
+  /// Rebuilds local bookmark rows from Saved Messages, using each mirror's
+  /// `forwardInfo`. Existing rows are kept. Returns how many were added.
   Future<int> restoreBookmarks() async {
     final saved = await _savedMessagesChatId();
     if (saved == null) return 0;
@@ -1128,14 +944,8 @@ class FeedRepository {
     }
   }
 
-  /// The channel post a saved copy was forwarded from, if it was one.
-  ///
-  /// Pure, and the part worth testing: Saved Messages holds everything a reader
-  /// has ever sent themselves, and only a forward *from a channel* with a
-  /// message id behind it is a bookmark. A note typed to yourself, a forward
-  /// from a person, and a channel origin with no message id all answer null —
-  /// the last of those is a forward Telegram could not attribute precisely,
-  /// which is not enough to find a post with.
+  /// The channel post a saved copy was forwarded from, or null if it isn't a
+  /// forward from a channel with a message id.
   @visibleForTesting
   static ({int chatId, int messageId})? bookmarkOriginOf(td.Message message) {
     final origin = message.forwardInfo?.origin;
@@ -1144,7 +954,6 @@ class FeedRepository {
     return (chatId: origin.chatId, messageId: origin.messageId);
   }
 
-  /// Check if a post is bookmarked.
   Future<bool> isBookmarked(int chatId, int messageId) async {
     final existing =
         await (_db.select(_db.bookmarkEntries)..where(
@@ -1154,21 +963,15 @@ class FeedRepository {
     return existing != null;
   }
 
-  /// Fetch a single post by chatId and messageId via TDLib GetMessages.
   Future<Post?> fetchSinglePost(int chatId, int messageId) async {
     final chat = await _resolveChat(chatId);
     if (chat == null) return null;
 
-    // Local first — free, and usually enough for a post already in the feed.
     final cached = await _messageById(chatId, messageId);
     if (cached != null) return _postFrom(cached, chat);
 
-    // Not cached. Ask the server for a window *around* the message.
-    //
-    // `GetChatHistory` with offset 0 returns messages strictly older than the
-    // anchor, so the message asked for is never in the result — the old
-    // fallback could not succeed, and a perfectly reachable public post
-    // reported itself as private. A negative offset includes the anchor.
+    // Ask the server for a window around the message. With offset 0
+    // `GetChatHistory` returns only older messages; -1 includes the anchor.
     try {
       final res = await _tdlib.sendRequest(
         td.GetChatHistory(
@@ -1188,16 +991,12 @@ class FeedRepository {
       debugPrint('[FeedRepo] fetchSinglePost history fallback failed: $e');
     }
 
-    // One more try at the direct read: the window fetch above will have pulled
-    // the message into TDLib's local store even if it wasn't in the reply.
+    // The window fetch stores the message locally even if it wasn't returned.
     final afterFetch = await _messageById(chatId, messageId);
     return afterFetch == null ? null : _postFrom(afterFetch, chat);
   }
 
-  /// Reads one message, or null if TDLib doesn't have it.
-  ///
-  /// `GetMessages` answers with a placeholder whose id is 0 rather than an
-  /// error when a message isn't cached, so the id has to be checked.
+  /// Reads one message, or null if TDLib doesn't have it (it returns id 0).
   Future<td.Message?> _messageById(int chatId, int messageId) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -1212,12 +1011,8 @@ class FeedRepository {
     }
   }
 
-  /// Finds a chat, teaching TDLib about it if it only knows the id.
-  ///
-  /// A forwarded post's origin is often a channel the user isn't in, so the
-  /// cache misses and `GetChat` alone can fail. `CreateSupergroupChat` makes a
-  /// public channel resolvable; a genuinely private one still fails, which is
-  /// the case the UI reports honestly.
+  /// Finds a chat, using `CreateSupergroupChat` when `GetChat` fails, as it can
+  /// for a public channel the user isn't in.
   Future<td.Chat?> _resolveChat(int chatId) async {
     final cached = _chatCache.chat(chatId);
     if (cached != null) return cached;
@@ -1226,7 +1021,7 @@ class FeedRepository {
       final res = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
       if (res is td.Chat) return res;
     } catch (_) {
-      // Falls through to the supergroup path below.
+      // Fall through to the supergroup path.
     }
 
     final supergroupId = TelegramIds.supergroupId(chatId);
@@ -1252,7 +1047,6 @@ class FeedRepository {
     return posts.isEmpty ? null : posts.first;
   }
 
-  /// Fetch all bookmarked posts stored in the local SQLite database.
   Future<List<Post>> fetchBookmarkedPosts() async {
     final bookmarks = await _db.select(_db.bookmarkEntries).get();
     if (bookmarks.isEmpty) return [];
@@ -1300,15 +1094,8 @@ class FeedRepository {
     return bookmarkedPosts;
   }
 
-  /// Acknowledges a post as read with Telegram.
-  ///
-  /// [postId] is the composite `"<chatId>_<messageId>"` form.
-  ///
-  /// [forceRead] tells TDLib to write the read state through even though the
-  /// chat isn't open. Pass false while the chat *is* open — then the ack is the
-  /// canonical "the user is reading this" signal rather than an assertion.
-  /// This is not cosmetic: read state propagates to every Telegram client the
-  /// user owns, so an over-eager true marks posts read on their phone too.
+  /// Marks a post as read. [forceRead] writes the read state even though the
+  /// chat isn't open; pass false while it is open.
   Future<void> markPostAsRead(String postId, {bool forceRead = true}) async {
     final parts = postId.split('_');
     if (parts.length != 2) return;
@@ -1323,17 +1110,9 @@ class FeedRepository {
     );
   }
 
-  /// The messages of [chatId] Telegram's read cursor can move over now: the
-  /// unbroken run above it the reader has seen, oldest first.
-  ///
-  /// Empty when the first unread message is one the reader has not seen, or
-  /// when some unread messages are not on the phone yet, so there is no telling
-  /// whether they were. Moving the cursor further would mark those read in
-  /// every Telegram app, and the feed would never show them. See
-  /// [readableUpTo] for what counts as passing.
-  ///
-  /// A chat the cache does not know gets [seen] back as it is: there is no
-  /// cursor to be careful of.
+  /// The messages of [chatId] the read cursor can move over: the unbroken
+  /// seen run above it, oldest first. Empty if any unread message is unseen
+  /// or not on the device. See [readableUpTo].
   Future<List<int>> readableRun(int chatId, Set<int> seen) async {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return seen.toList()..sort();
@@ -1349,13 +1128,11 @@ class FeedRepository {
     ];
   }
 
-  /// Every message above [chat]'s read cursor, oldest first, or null if TDLib
-  /// does not hold them all on the phone.
+  /// Every message above [chat]'s read cursor, oldest first, or null if they
+  /// aren't all stored locally.
   Future<List<UnreadMessage>?> _unreadMessages(td.Chat chat) async {
     final count = chat.unreadCount;
     if (count == 0) return const [];
-    // One local read covers up to a hundred. Past that the reader has not
-    // seen what lies between anyway.
     if (count >= 100) return null;
 
     final cursor = chat.lastReadInboxMessageId;
@@ -1397,16 +1174,8 @@ class FeedRepository {
     ];
   }
 
-  /// Acknowledges messages as read, and reports what went wrong.
-  ///
-  /// Returns null on success, or the error to log. Read acks used to be
-  /// fire-and-forget: a flood wait or a moment offline lost them silently, and
-  /// the reader's Telegram kept showing everything unread with nothing to
-  /// explain it. The caller ([ReadReceiptQueue]) retries.
-  ///
-  /// The source is stated rather than left for TDLib to infer from whether the
-  /// chat happens to be open. Read state is exactly the thing that must not
-  /// depend on a guess.
+  /// Marks messages as read, returning null or the error to log. The caller
+  /// ([ReadReceiptQueue]) retries.
   Future<String?> markMessagesRead({
     required int chatId,
     required List<int> messageIds,
@@ -1430,15 +1199,9 @@ class FeedRepository {
     }
   }
 
-  /// Notify TDLib that the user has opened a chat.
-  ///
-  /// Required for unread tracking across clients, and for interaction info —
-  /// views and reactions only stream for open chats.
-  ///
-  /// Returns whether TDLib actually acknowledged it. The caller needs that: a
-  /// read acknowledgement sent with `forceRead: false` against a chat TDLib
-  /// does not yet consider open is quietly declined, and `ViewMessages` still
-  /// answers `Ok`, so nothing retries it. See [ReadReceiptQueue].
+  /// Tells TDLib the user opened a chat, which turns on live view and reaction
+  /// counts. Returns whether TDLib acknowledged it, since a `forceRead: false`
+  /// ack for a chat it doesn't consider open is silently ignored.
   Future<bool> openChat(int chatId) async {
     try {
       final result = await _tdlib.sendRequest(td.OpenChat(chatId: chatId));
@@ -1449,7 +1212,6 @@ class FeedRepository {
     }
   }
 
-  /// Notify TDLib that the user has closed a chat.
   Future<void> closeChat(int chatId) async {
     try {
       await _tdlib.sendRequest(td.CloseChat(chatId: chatId));
@@ -1458,7 +1220,6 @@ class FeedRepository {
     }
   }
 
-  /// Get available reactions for a chat
   Future<List<String>> getAvailableReactions(int chatId) async {
     final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
     if (chatObj is td.Chat) {
@@ -1473,11 +1234,11 @@ class FeedRepository {
         return emojis;
       }
     }
-    // Default fallback emojis if all reactions are allowed
+    // Fallback when all reactions are allowed.
     return ['👍', '❤️', '🔥', '🥰', '👏'];
   }
 
-  /// Fetch comments (message thread history) for a channel post
+  /// Fetches a channel post's comments.
   Future<List<Post>> fetchPostComments(int chatId, int messageId) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -1491,14 +1252,8 @@ class FeedRepository {
       );
 
       if (res is td.Messages && res.messages.isNotEmpty) {
-        // The chat the comments are *in* — the channel's discussion group —
-        // not the channel they hang off. Mapped against the channel, every
-        // comment carried the channel's chat id with the group's message id:
-        // a reaction on one went to a message the channel does not have, a
-        // reply to another comment read as a reply into a different chat,
-        // and the live refresh compared the group's updates against the
-        // channel's id and never matched. TDLib has already told the cache
-        // about the group by the time its history has been fetched.
+        // Map against the discussion group the comments are in, not the
+        // channel, or reactions and replies target the wrong chat.
         final threadChatId = res.messages.first.chatId;
         var chatObj = _chatCache.chat(threadChatId);
         if (chatObj == null) {
@@ -1509,7 +1264,6 @@ class FeedRepository {
         }
         if (chatObj == null) return [];
 
-        // Collect all unique userIds and senderChatIds
         final userIds = <int>{};
         final chatIds = <int>{};
         for (final m in res.messages) {
@@ -1521,7 +1275,6 @@ class FeedRepository {
           }
         }
 
-        // Fetch user and chat sender details in parallel
         final userResults = await Future.wait(
           userIds.map((id) => _tdlib.sendRequest(td.GetUser(userId: id))),
         );
@@ -1529,10 +1282,8 @@ class FeedRepository {
           chatIds.map((id) => _tdlib.sendRequest(td.GetChat(chatId: id))),
         );
 
-        // One entry per sender, built whole. Three parallel maps keyed by a
-        // string used to leave a commenter with a name but no photo falling
-        // back to the *channel's* avatar for the missing half — which is why
-        // people's comments sometimes showed up wearing the channel's face.
+        // One whole entry per sender, so a missing photo never falls back to
+        // the channel's avatar.
         final senders = <String, PostSender>{};
 
         for (final r in userResults) {
@@ -1589,7 +1340,7 @@ class FeedRepository {
     return [];
   }
 
-  /// A downloaded photo's path, or something the loader can resolve later.
+  /// A downloaded photo's path, or a remote id the loader can resolve later.
   static String? _photoPath(td.File? file) {
     if (file == null) return null;
     if (file.local.path.isNotEmpty) return file.local.path;
@@ -1607,18 +1358,8 @@ class FeedRepository {
     onlyPreview: false,
   );
 
-  /// Posts a comment into a post's discussion thread.
-  ///
-  /// A comment can now carry what a post can: pictures, a video, a sticker or
-  /// a GIF out of the account's own collection. The content objects come from
-  /// [ComposeMessages] rather than being built here, which is the whole reason
-  /// that class is pure and separate — the rules about captions, albums and
-  /// what a sticker may not carry are decided in one place, and a comment
-  /// obeys the same ones a post does.
-  ///
-  /// Two requests at most: one `GetMessageThread` to find where comments
-  /// actually live, and one send. Both are a direct consequence of somebody
-  /// pressing a button.
+  /// Posts a comment into a post's discussion thread, built by
+  /// [ComposeMessages] with the same rules as posts.
   Future<void> sendComment(
     int chatId,
     int messageId,
@@ -1643,9 +1384,7 @@ class FeedRepository {
         messageId: replyToMessageId ?? targetThreadId,
       );
 
-      // Words alone stay on the path they were always on, including
-      // `clearDraft: false` — the discussion group may hold a draft of its own
-      // that a comment posted from here has no business wiping.
+      // `clearDraft: false` keeps any draft in the discussion group.
       if (attachments.isEmpty && remote == null) {
         await _tdlib.sendRequest(
           td.SendMessage(

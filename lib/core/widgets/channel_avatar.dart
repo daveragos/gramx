@@ -29,8 +29,7 @@ class ChannelAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     Widget avatar;
 
-    // Resolves a TDLib file id or a guest-mode https URL to the same thing:
-    // a path on disk. See resolveMediaPath.
+    // A TDLib file id or a guest-mode URL, resolved to a path on disk.
     final resolvedPath = resolveMediaPath(
       ref,
       fileId: avatarFileId,
@@ -38,7 +37,6 @@ class ChannelAvatar extends ConsumerWidget {
     );
 
     if (resolvedPath != null && resolvedPath.isNotEmpty) {
-      // Use async file existence check instead of blocking existsSync()
       final fileExists = ref.watch(fileExistsProvider(resolvedPath));
       avatar = fileExists.when(
         data: (exists) {
@@ -66,13 +64,8 @@ class ChannelAvatar extends ConsumerWidget {
 
   static final RegExp _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
-  /// What a photo-less avatar draws: the first letter of [title].
-  ///
-  /// By grapheme rather than by `title[0]`, which is one UTF-16 code unit —
-  /// half of any emoji — so a name like "🇮🇱 Ada" drew a replacement "?". The
-  /// first *letter* is skipped to where there is one, since a flag or a star
-  /// in front of a name is decoration; a name that is nothing but emoji draws
-  /// its first one.
+  /// The first letter of [title] for an avatar with no photo, by grapheme so
+  /// emoji aren't split. Leading emoji are skipped if a letter follows.
   @visibleForTesting
   static String initialOf(String title) {
     final graphemes = title.trim().characters;

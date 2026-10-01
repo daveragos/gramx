@@ -41,8 +41,7 @@ void main() {
       }
     });
 
-    // The policy makes specific promises about what this app does. These are
-    // the ones that would be a lie if the code changed underneath them.
+    // Promises in the policy that depend on the code.
     test('the privacy policy still covers what the app actually does', () {
       final text = LegalTexts.privacy.sections
           .expand((s) => [s.heading, ...s.paragraphs])
@@ -73,7 +72,6 @@ void main() {
           .toLowerCase();
 
       expect(text, contains('not made by, affiliated with, or endorsed by'));
-      // The disclaimer and the liability limit are the load-bearing parts.
       expect(text, contains('no warranty'));
       expect(text, contains('not liable'));
       expect(text, contains('rate-limit'));
@@ -81,9 +79,8 @@ void main() {
   });
 
   group('version', () {
-    // Three places show it and Telegram shows a fourth, in the reader's own
-    // device list. One constant feeds them all; this keeps it in step with the
-    // version the build is actually stamped with.
+    // The app version is shown in several places, including Telegram's
+    // device list.
     test('matches pubspec.yaml', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final declared = RegExp(

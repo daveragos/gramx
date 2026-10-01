@@ -5,19 +5,16 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/app/widgets/pill_button.dart';
 
-/// One answer a confirmation offers.
-///
-/// The value is what [showAppDialog] returns when this one is tapped. A
-/// [AppDialogAction.cancel] answers null, the same as tapping outside — every
-/// caller already treats null as "leave it".
+/// One button in an [AppDialog]. [value] is what [showAppDialog] returns when
+/// it is tapped; [AppDialogAction.cancel] returns null, like dismissing.
 class AppDialogAction<T> {
   final String label;
   final T? value;
 
-  /// Drawn filled, first. The one thing the dialog exists to ask about.
+  /// Drawn filled.
   final bool isPrimary;
 
-  /// Red: the answer that cannot be taken back.
+  /// Drawn red, for an irreversible answer.
   final bool isDestructive;
 
   const AppDialogAction({
@@ -27,7 +24,7 @@ class AppDialogAction<T> {
     this.isDestructive = false,
   });
 
-  /// The way out. Always last, always outlined, always answers null.
+  /// An outlined button that returns null.
   const AppDialogAction.cancel(this.label)
     : value = null,
       isPrimary = false,
@@ -41,16 +38,8 @@ class AppDialogAction<T> {
   };
 }
 
-/// explanation, and the answers stacked as full-width pills — the one being
-/// asked about on top, the way out underneath.
-///
-/// Material's `AlertDialog` puts two text buttons side by side in the bottom
-/// corner, in the framework's own font, and every screen in the app had its
-/// own copy of that with its own idea of which button was red. This is the one
-/// shape, and it is the one place that decides.
-///
-/// Returns the tapped action's value, or null when the dialog was dismissed
-/// by tapping outside or with the back gesture.
+/// Shows the app's confirmation dialog with actions stacked as full-width
+/// pills. Returns the tapped action's value, or null when dismissed.
 Future<T?> showAppDialog<T>(
   BuildContext context, {
   required String title,
@@ -71,21 +60,18 @@ Future<T?> showAppDialog<T>(
   );
 }
 
-/// The dialog itself, for callers that need to hold their own state in it —
-/// an edit field, a validated input. Prefer [showAppDialog] otherwise.
+/// The dialog widget, for callers that hold their own state in it (such as an
+/// edit field). Prefer [showAppDialog] otherwise.
 class AppDialog<T> extends StatelessWidget {
   final String title;
   final String? body;
 
-  /// Anything between the body and the buttons — a text field, a list.
+  /// Shown between the body and the buttons.
   final Widget? content;
   final List<AppDialogAction<T>> actions;
 
-  /// A first button the caller builds itself, drawn above [actions].
-  ///
-  /// For the dialog whose answer is not known when it opens — an edit field
-  /// pops with whatever was typed — so the caller wires the pop and this
-  /// widget keeps the shape.
+  /// A caller-built button drawn above [actions], for a dialog whose result
+  /// is not known up front (such as typed text).
   final Widget? primary;
 
   const AppDialog({

@@ -67,8 +67,7 @@ void main() {
       );
     });
 
-    // Load-bearing: auth_providers.dart shows this string to the user verbatim.
-    // A type prefix would surface "TdlibRequestException(400): ..." on sign-in.
+    // auth_providers.dart shows this string to the user verbatim.
     test('toString is the bare Telegram message, with no type prefix', () {
       expect(
         const TdlibRequestException(400, 'PHONE_NUMBER_INVALID').toString(),

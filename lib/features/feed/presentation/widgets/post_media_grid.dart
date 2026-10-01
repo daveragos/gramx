@@ -26,8 +26,7 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 class PostMediaGrid extends StatelessWidget {
   final List<MediaItem> media;
 
-  /// The post this media belongs to. Passed through to the full-screen viewer
-  /// so it can show who posted it and offer the same actions as the card.
+  /// The post this media belongs to, passed to the full-screen viewer.
   final Post? post;
 
   const PostMediaGrid({super.key, required this.media, this.post});
@@ -57,7 +56,6 @@ class PostMediaGrid extends StatelessWidget {
 
     final children = <Widget>[];
 
-    // Build document or audio widgets
     for (final item in docOrAudioItems) {
       if (item.type == MediaType.document) {
         children.add(
@@ -76,7 +74,6 @@ class PostMediaGrid extends StatelessWidget {
       }
     }
 
-    // Build visual media grid if present
     if (visualItems.isNotEmpty) {
       final borderColor =
           Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
@@ -286,8 +283,7 @@ class PostMediaGrid extends StatelessWidget {
   }
 }
 
-/// Spoken description for a media tile. Photos and videos in a post were
-/// entirely invisible to a screen reader before this.
+/// Screen reader description for a media tile.
 String describeMedia(MediaItem item, int index, int total) {
   final kind = switch (item.type) {
     MediaType.photo => AppStrings.mediaPhoto,
@@ -331,25 +327,22 @@ class _MediaTile extends ConsumerWidget {
         ? (item.thumbnailFileId ?? item.fileId)
         : item.fileId;
 
-    // A photo obeys the auto-download preference; a video or GIF thumbnail is
-    // a few kilobytes and is what makes the tile legible at all, so it always
-    // loads. The setting is about photos, not about leaving grey boxes.
+    // The auto-download setting applies to photos only; video and GIF
+    // thumbnails are small and always load.
     final autoDownload =
         item.type != MediaType.photo ||
         ref.watch(settingsProvider.select((s) => s.autoDownloadImagesEnabled));
 
     FileDownloadProgressState? downloadState;
     if (trackFileId != null && trackFileId != 0) {
-      // The two providers differ in one thing: the first issues a DownloadFile
-      // the moment it is watched, the second only reflects one somebody else
-      // started. That is the whole mechanism behind the preference.
+      // The progress provider starts a download when watched; the status
+      // provider only reflects one already started.
       downloadState = autoDownload
           ? ref.watch(fileDownloadProgressProvider(trackFileId)).value
           : ref.watch(fileDownloadStatusProvider(trackFileId)).value;
     }
 
-    // Guest media has no TDLib file id — it is an https URL that
-    // resolveMediaPath caches to disk, so the tile below still loads a file.
+    // Guest media is an https URL that resolveMediaPath caches to disk.
     final String? resolvedPath =
         downloadState?.localPath ??
         _tryResolvePath(item) ??
@@ -463,8 +456,6 @@ class _MediaTile extends ConsumerWidget {
                 ),
               ),
             )
-          // Auto-download off: say the photo is there and waiting, rather
-          // than leaving a blurred square that reads as a failure.
           else if (!autoDownload)
             const Center(child: _TapToLoadBadge()),
         ],
@@ -494,9 +485,7 @@ class _MediaTile extends ConsumerWidget {
       );
     }
 
-    // A spoiler covers the media until the reader chooses to see it. The
-    // poster set this flag deliberately, so revealing it must be a decision,
-    // not something that happens by scrolling past.
+    // Covered until the user taps to reveal it.
     if (item.hasSpoiler) {
       return SpoilerCover(
         label: describeMedia(item, index, allMedia.length),
@@ -558,9 +547,8 @@ class _MediaTile extends ConsumerWidget {
     String? resolvedPath,
     String heroTag,
   ) {
-    // With auto-download off, the first tap is the request for the photo. The
-    // viewer would otherwise open on nothing, which looks like a broken image
-    // rather than a preference the reader set.
+    // With auto-download off, the first tap downloads the photo instead of
+    // opening the viewer.
     final needsFetch =
         item.type == MediaType.photo &&
         (resolvedPath == null || resolvedPath.isEmpty) &&
@@ -580,16 +568,10 @@ class _MediaTile extends ConsumerWidget {
         videoPath = videoFileState.value;
       }
       videoPath ??= item.localPath;
-      // A guest video may already be cached; if not, the viewer fetches it
-      // from remoteUrl. Reading the provider here can only ever answer for one
-      // already on disk — it used to be the only chance, so an uncached guest
-      // video opened onto "unavailable" with nothing trying to change that.
+      // A cached guest video, if any; otherwise the viewer fetches remoteUrl.
       videoPath ??= ref.read(guestMediaPathProvider(item.url ?? '')).value;
 
-      // Open regardless of whether the file has landed: the viewer shows the
-      // poster frame and its own progress, and starts playback when ready.
-      // Refusing to open and showing a snackbar instead made a tapped video
-      // feel like it had failed.
+      // Opens even before the file lands; the viewer shows its own progress.
       FullScreenVideoViewer.show(
         context,
         videoPath: videoPath,
@@ -601,9 +583,8 @@ class _MediaTile extends ConsumerWidget {
       );
     } else {
       final imageItems = <ViewerImage>[];
-      // Tracked while building rather than looked up afterwards: the list is
-      // filtered, so a position in `allMedia` is not a position in it. A post
-      // whose video came first opened on the wrong picture.
+      // Tracked while building, since the list is filtered and indices in
+      // `allMedia` don't match.
       var initialIndex = 0;
 
       for (final m in allMedia) {
@@ -611,10 +592,7 @@ class _MediaTile extends ConsumerWidget {
         final downloadedPath = m.fileId != null && m.fileId != 0
             ? ref.read(fileDownloadProgressProvider(m.fileId!)).value?.localPath
             : null;
-        // The file id goes over with it. Handing across a path alone meant a
-        // photo still downloading arrived as TDLib's remote id, which is not a
-        // file — and the viewer drew a broken image over a picture that was
-        // seconds away.
+        // Carries the file id so the viewer can wait for a pending download.
         final image = ViewerImage.of(m, downloadedPath: downloadedPath);
         if (!image.hasSource) continue;
         if (identical(m, item)) initialIndex = imageItems.length;
@@ -644,7 +622,7 @@ class _GifVideoPlayerTile extends ConsumerStatefulWidget {
 }
 
 class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
-  /// A tile must be at least this visible before it is worth a decoder.
+  /// Visible fraction needed before the tile starts playing.
   static const double _playThreshold = 0.5;
 
   VideoPlayerController? _controller;
@@ -664,8 +642,8 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
     ref.read(inlinePlayerBudgetProvider).release();
   }
 
-  /// Starts playing only when the tile is genuinely on screen, auto-play is on,
-  /// and the shared budget has room.
+  /// Starts playing only when the tile is on screen, auto-play is on, and the
+  /// shared budget has room.
   Future<void> _start() async {
     if (_controller != null || _starting) return;
     if (!ref.read(autoPlayEnabledProvider)) return;
@@ -696,8 +674,7 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
     }
   }
 
-  /// Tears the player down when the tile scrolls away, freeing its slot for
-  /// whatever the user is actually looking at.
+  /// Disposes the player when the tile scrolls away, freeing its slot.
   Future<void> _stop() async {
     final controller = _controller;
     if (controller == null) {
@@ -777,9 +754,7 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
   }
 }
 
-/// "There is a photo here; tap for it." Shown only when the reader has turned
-/// photo auto-download off, so the tile is a deliberate state rather than a
-/// stalled one.
+/// Tap-to-load badge, shown when photo auto-download is off.
 class _TapToLoadBadge extends StatelessWidget {
   const _TapToLoadBadge();
 

@@ -7,7 +7,6 @@ void main() {
       MediaItem(id: 'x', type: type, fileName: fileName);
 
   group('describeMedia', () {
-    // Photos and videos in a post were entirely invisible to a screen reader.
     test('names each media kind', () {
       expect(describeMedia(item(MediaType.photo), 0, 1), 'Photo');
       expect(describeMedia(item(MediaType.video), 0, 1), 'Video');
@@ -32,8 +31,6 @@ void main() {
       expect(describeMedia(item(MediaType.audio), 0, 1), 'Audio track');
     });
 
-    // In an album, "Photo" four times tells the listener nothing about where
-    // they are.
     test('gives position within an album', () {
       expect(describeMedia(item(MediaType.photo), 0, 4), 'Photo 1 of 4');
       expect(describeMedia(item(MediaType.photo), 3, 4), 'Photo 4 of 4');

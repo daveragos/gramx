@@ -5,17 +5,13 @@ import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
 
 /// Records read acknowledgements instead of sending them.
-///
-/// `implements` plus `noSuchMethod` so the fake doesn't have to stand up a
-/// TDLib client, a database and a sync service just to answer one method.
 class _RecordingRepository implements FeedRepository {
   final List<({int chatId, List<int> messageIds, bool forceRead})> calls = [];
 
-  /// Error returned by the next call, then cleared — for testing the retry.
+  /// Error returned by the next call, then cleared.
   String? nextError;
 
-  /// Chats whose first unread post the reader has not reached: nothing there
-  /// can be acknowledged yet.
+  /// Chats where nothing can be acknowledged yet.
   final Set<int> blocked = {};
 
   @override
@@ -44,8 +40,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('groupReadReceipts', () {
-    // Read state in Telegram is a cursor per chat. Six posts of one channel are
-    // one acknowledgement, not six requests through the same flood gate.
+    // Telegram tracks reads as a cursor per chat, so one request covers a chat.
     test('collapses posts into one batch per chat', () {
       final batch = groupReadReceipts([
         '-100111_10',
@@ -98,8 +93,7 @@ void main() {
       expect(repo.calls.first.messageIds, [10, 12]);
     });
 
-    // TDLib takes an open chat as genuine reading; everywhere else it has to be
-    // told to write the read through.
+    // TDLib counts reads in an open chat itself; other chats need forceRead.
     test('forces the read except for the chat being read', () async {
       final queue = container.read(readReceiptQueueProvider.notifier);
       queue.setOpenChat(-100111);
@@ -113,15 +107,10 @@ void main() {
       expect(other.forceRead, isTrue);
     });
 
-    // The race that lost reads: OpenChat used to be fire-and-forget and this
-    // set was filled the moment it was dispatched. A receipt flushed before
-    // TDLib acknowledged went out with forceRead: false against a chat TDLib
-    // did not consider open — declined, but still answered Ok, so nothing
-    // retried it. Unconfirmed now means force.
+    // A chat is not open until TDLib confirms OpenChat, so the read is forced.
     test('an unconfirmed open chat still forces the read', () async {
       final queue = container.read(readReceiptQueueProvider.notifier);
-      // What FeedFocusController does the instant focus moves: nothing is
-      // confirmed open until OpenChat comes back.
+      // As FeedFocusController does when focus moves.
       queue.setOpenChat(null);
       queue.add('-100111_10');
       await queue.flush();
@@ -152,9 +141,8 @@ void main() {
       expect(repo.calls, hasLength(1));
     });
 
-    // Telegram's cursor marks everything below it read. A newer post seen
-    // above an older one the reader has not reached must not move it, or the
-    // older one is marked read unseen — and the feed never shows it.
+    // Telegram's cursor marks everything below it read, so it must not move
+    // past an older post the user has not reached.
     test('sends nothing past a post the reader has not reached', () async {
       final queue = container.read(readReceiptQueueProvider.notifier);
       repo.blocked.add(-100111);
@@ -180,8 +168,6 @@ void main() {
       );
     });
 
-    // The bug this queue exists for: a failed acknowledgement used to vanish
-    // into a debug line, and the reader's Telegram stayed unread.
     test('a failure is retried', () async {
       final queue = container.read(readReceiptQueueProvider.notifier);
       repo.nextError = 'FLOOD_WAIT_12';

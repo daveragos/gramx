@@ -1,35 +1,19 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-/// The bars drawn under a voice message.
-///
-/// Telegram carries the waveform *with* the message rather than deriving it,
-/// and every client draws what it is given — so a voice note sent without one
-/// is a flat grey bar for the person who receives it, in every Telegram client
-/// there is. It is the difference between a voice message and an audio file
-/// with a play button.
-///
-/// The encoding is TDLib's: amplitudes packed at **five bits each**, little
-/// end first, then base64. Five bits means each sample is 0–31, and the
-/// packing crosses byte boundaries — sample 1 occupies the top three bits of
-/// byte 0 and the bottom two of byte 1 — which is the part that is easy to get
-/// silently wrong and produces bars that look like noise.
-///
-/// Pure and self-contained so the packing can be tested against known bytes
-/// rather than by sending a voice message and looking at it.
+/// The bars drawn under a voice message. Telegram doesn't derive these, so a
+/// voice note sent without one shows a flat bar. TDLib packs amplitudes at
+/// five bits each (0 to 31), low bits first, across byte boundaries, then
+/// base64.
 abstract class VoiceWaveform {
-  /// How many bars Telegram's own clients draw. Longer recordings are
-  /// downsampled to this; shorter ones are sent as they are.
+  /// How many bars Telegram draws. Longer recordings are downsampled to this.
   static const int sampleCount = 100;
 
   /// The largest value five bits can hold.
   static const int maxAmplitude = 31;
 
-  /// Squeezes a run of amplitudes down to at most [sampleCount].
-  ///
-  /// Takes the **peak** of each bucket rather than the mean. A voice recording
-  /// averaged over its buckets flattens into a low ridge; the peaks are what
-  /// make speech look like speech.
+  /// Squeezes a run of amplitudes down to at most [sampleCount], keeping the
+  /// peak of each bucket. Averages flatten speech into a low ridge.
   static List<int> downsample(List<int> samples, {int to = sampleCount}) {
     if (samples.isEmpty || samples.length <= to) return samples;
 
@@ -46,12 +30,9 @@ abstract class VoiceWaveform {
     return out;
   }
 
-  /// Turns decibel readings into the 0–31 range Telegram uses.
-  ///
-  /// [dbfs] is what a recorder reports: 0 at full scale and negative below it.
-  /// Anything under [floor] is silence as far as a voice note is concerned —
-  /// clamping there rather than at the true noise floor is what keeps a quiet
-  /// room from drawing as a wall of half-height bars.
+  /// Turns decibel readings (0 at full scale, negative below) into Telegram's
+  /// 0 to 31 range. Anything under [floor] counts as silence, so a quiet room
+  /// doesn't draw as half-height bars.
   static List<int> fromDecibels(List<double> dbfs, {double floor = -50}) {
     return [
       for (final db in dbfs)
@@ -65,9 +46,7 @@ abstract class VoiceWaveform {
   }
 
   /// Packs amplitudes five bits each and base64-encodes them, as TDLib wants.
-  ///
-  /// An empty list encodes to an empty string, which is TDLib's own spelling of
-  /// "no waveform" — not a zero-length one.
+  /// An empty list gives an empty string, which TDLib reads as "no waveform".
   static String encode(List<int> samples) {
     if (samples.isEmpty) return '';
 

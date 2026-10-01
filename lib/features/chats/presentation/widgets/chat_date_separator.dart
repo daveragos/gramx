@@ -44,11 +44,8 @@ class ChatDateSeparator extends StatelessWidget {
     );
   }
 
-  /// Today and yesterday get their names; anything else gets a date.
-  ///
-  /// A date nobody has to decode reads faster, and "Today" is the one label a
-  /// reader scanning a conversation is actually looking for. Within this year
-  /// the year is dropped, because it is the same year and saying so is noise.
+  /// "Today", "Yesterday", or a date that omits the year when it is the
+  /// current one.
   static String label(DateTime date, {DateTime? now}) {
     final today = ConversationRows.dayOf(now ?? DateTime.now());
     final day = ConversationRows.dayOf(date);
@@ -61,13 +58,8 @@ class ChatDateSeparator extends StatelessWidget {
   }
 }
 
-/// The "Unread messages" band a chat opens on when something was waiting.
-///
-/// A full-width rule rather than a pill, deliberately: a date band names a day
-/// and belongs *to* the messages under it, while this one is a cut across the
-/// conversation — everything below it is new. Telegram's own clients draw it
-/// the same way, and the difference in shape is what stops the two reading as
-/// the same kind of thing.
+/// The full-width "Unread messages" band above the first unread message.
+/// Drawn as a bar rather than a pill so it doesn't look like a date.
 class ChatUnreadBand extends StatelessWidget {
   const ChatUnreadBand({super.key});
 

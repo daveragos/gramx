@@ -8,17 +8,14 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 import '../support/td_fixtures.dart';
 
-/// A TDLib that answers `LoadChats` the way the real one does: the chats
-/// arrive as updates, the reply is `Ok`, and once there is nothing left the
-/// reply is a 404.
+/// Answers `LoadChats` like TDLib: chats arrive as updates, then `Ok` or 404.
 class _ListTdlib implements TdlibService {
   final List<td.Chat> chats;
   final _updates = StreamController<td.TdObject>.broadcast();
   int loadChatsCalls = 0;
   bool signedIn = true;
 
-  /// When set, the second `LoadChats` waits on it: a later page still on its
-  /// way from the server.
+  /// When set, the second `LoadChats` waits on it, like a slow server page.
   Completer<void>? holdSecondPage;
 
   _ListTdlib(this.chats);
@@ -53,9 +50,7 @@ class _ListTdlib implements TdlibService {
 }
 
 void main() {
-  // The cold-start cost this guards: three repositories asked for the chat
-  // list on the way to the first feed, and each rebuilt when the first
-  // channel landed, so the whole load ran five or six times in a row.
+  // Several repositories ask for the chat list at startup and share one load.
   group('ChatCache.ensureLoaded', () {
     test('concurrent callers share one load', () async {
       final tdlib = _ListTdlib([
@@ -70,7 +65,7 @@ void main() {
         cache.ensureLoaded(),
       ]);
 
-      // One round that loaded, one that answered 404 — and not per caller.
+      // One round that loaded and one that answered 404, not per caller.
       expect(tdlib.loadChatsCalls, 2);
       expect(cache.isLoaded, isTrue);
       expect(cache.channels.length, 2);
@@ -88,8 +83,7 @@ void main() {
       expect(tdlib.loadChatsCalls, after);
     });
 
-    // Before sign-in every request fails. An empty answer then is not "no
-    // chats", and remembering it would leave the feed empty for the session.
+    // Requests fail before sign-in, and that empty result is not "no chats".
     test('a load that could not ask is not remembered', () async {
       final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])
         ..signedIn = false;
@@ -118,9 +112,7 @@ void main() {
     });
   });
 
-  // The feed's first paint waited on every round of the chat list, and on a
-  // long list the second round goes to the server: two and a half seconds on
-  // each launch, spent on channels far below the top of the feed.
+  // The feed paints after the first page; later rounds can take seconds.
   group('ChatCache.ensureFirstPage', () {
     test('resolves while later pages are still loading', () async {
       final tdlib = _ListTdlib([TdFixtures.chat(id: -1001, mainOrder: 1)])

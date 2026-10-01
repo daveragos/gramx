@@ -10,22 +10,18 @@ import 'package:gramx/features/chats/domain/chat_summary.dart';
 import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_send_state_icon.dart';
 
-/// One conversation in the messages list.
-///
-/// preview in the right column, the time at the top right. Rows are separated
-/// by a hairline, never a gap or a card — the same rule the feed follows.
+/// One conversation in the chat list: avatar on the left, name and preview on
+/// the right, time at the top right, with a hairline between rows.
 class ChatListTile extends StatelessWidget {
   final ChatSummary chat;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  /// Held down on the **avatar** specifically: opens a read-only look into the
-  /// conversation. Two different long presses on one row, and the split is
-  /// deliberate — the row's own long press is the actions sheet, and the face
-  /// is the part of the row that stands for the person you want to look in on.
+  /// Long press on the avatar: opens a read-only preview of the chat. A long
+  /// press elsewhere on the row calls [onLongPress].
   final VoidCallback? onPeek;
 
-  /// Tapping the channel badge beside somebody's name.
+  /// Tap on the personal channel badge beside the name.
   final VoidCallback? onAffiliatedChannelTap;
 
   const ChatListTile({
@@ -51,8 +47,7 @@ class ChatListTile extends StatelessWidget {
 
     return Semantics(
       button: true,
-      // The unread state is a blue dot and a heavier weight — colour and
-      // weight alone, which is exactly the case the accessibility rule names.
+      // Unread is otherwise shown only by colour and weight.
       label: isUnread
           ? '${chat.title}, ${AppStrings.messagesUnreadSemantics(chat.unreadCount)}'
           : chat.title,
@@ -101,7 +96,7 @@ class ChatListTile extends StatelessWidget {
   }
 }
 
-/// The avatar, with the online pip for a person who is online right now.
+/// The avatar, with a dot when the user is online.
 class _Avatar extends StatelessWidget {
   final ChatSummary chat;
   final VoidCallback? onPeek;
@@ -117,8 +112,7 @@ class _Avatar extends StatelessWidget {
       button: true,
       label: AppStrings.chatPeekSemantics(chat.title),
       child: GestureDetector(
-        // Innermost wins the arena, so this takes the press without the row's
-        // own long press — the actions sheet — also firing.
+        // The innermost detector wins, so the row's long press doesn't fire.
         onLongPress: onPeek,
         child: avatar,
       ),
@@ -126,9 +120,7 @@ class _Avatar extends StatelessWidget {
   }
 
   Widget _buildAvatar(BuildContext context) {
-    // Saved Messages is a private chat with yourself, so its "avatar" is your
-    // own face — which reads as a conversation with a stranger who looks
-    // exactly like you. Every Telegram client substitutes a mark instead.
+    // Saved Messages gets a bookmark instead of the user's own photo.
     final avatar = chat.kind == ChatKind.savedMessages
         ? const CircleAvatar(
             radius: AppSpacing.avatarSizeLarge / 2,
@@ -152,17 +144,14 @@ class _Avatar extends StatelessWidget {
         Positioned(
           right: 0,
           bottom: 0,
-          // Ringed in the page's own background so the pip reads as a badge on
-          // the avatar rather than a dot floating over it.
+          // Ringed in the background colour to separate it from the avatar.
           child: Semantics(
             label: AppStrings.chatOnline,
             child: Container(
               width: 13,
               height: 13,
               decoration: BoxDecoration(
-                // Blue, not the green Telegram uses. Green is this app's
-                // repost colour and means something else here; presence is the
-                // accent, which is what the header's live states use too.
+                // Accent rather than green, which this app uses for reposts.
                 color: AppColors.accent,
                 shape: BoxShape.circle,
                 border: Border.all(
@@ -193,12 +182,8 @@ class _TitleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The name side is one Expanded child and the timestamp is a plain trailing
-    // one. It used to be `Flexible(title) … Spacer() … time`, and those two
-    // share the free space by flex factor — so a short name left the Spacer
-    // with only half of what was going spare and the timestamp landed in the
-    // middle of the row. Only long names, which consumed their whole share,
-    // looked right.
+    // The name side is Expanded so the timestamp stays at the right edge. A
+    // Flexible plus Spacer would split the free space and centre it.
     return Row(
       children: [
         Expanded(
@@ -212,11 +197,8 @@ class _TitleRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // The lock comes before every other mark on the row. It is the
-              // only difference between this chat and the ordinary one with the
-              // same person, under the same name and the same face — a reader
-              // who cannot tell them apart at a glance cannot use either
-              // safely.
+              // The lock comes first: it is the only thing that tells a secret
+              // chat apart from the regular chat with the same user.
               if (chat.isSecret) ...[
                 const SizedBox(width: AppSpacing.xs),
                 Tooltip(
@@ -238,17 +220,13 @@ class _TitleRow extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 const Icon(Icons.verified, color: AppColors.verified, size: 15),
               ],
-              // The check, not the person's emoji status: a column of animated
-              // emoji beside the names is a list nobody can scan. The status
-              // belongs to the views about one person. A verified name has its
-              // check already.
+              // The plain check rather than the emoji status, to keep the list
+              // scannable. Verified names already have a check.
               if (chat.isPremium && !chat.isVerified) ...[
                 const SizedBox(width: AppSpacing.xs),
                 const PremiumCheck(size: 15),
               ],
-              // A bot is a private chat in Telegram's model, so nothing about
-              // the row says so by itself — and the difference between a person
-              // and a piece of software is worth one tag.
+              // Telegram models a bot as a private chat, so tag it.
               if (chat.kind == ChatKind.bot) ...[
                 const SizedBox(width: AppSpacing.xs),
                 _Pill(label: AppStrings.messagesBotBadge, color: secondary),
@@ -264,7 +242,6 @@ class _TitleRow extends StatelessWidget {
                   ),
                 ),
               ],
-              // somebody works for — who they speak for, next to who they are.
               if (chat.affiliatedChannelId != null) ...[
                 const SizedBox(width: AppSpacing.xs),
                 _AffiliationBadge(chat: chat, onTap: onAffiliatedChannelTap),
@@ -279,9 +256,7 @@ class _TitleRow extends StatelessWidget {
             style: AppTypography.timestamp(color: secondary),
           ),
         ],
-        // The ordering already puts a pinned chat on top, but nothing said
-        // *why* — so a pin was indistinguishable from a busy conversation, and
-        // an old chat sitting above a new one looked like a sorting bug.
+        // Explains why an older chat sits above newer ones.
         if (chat.isPinned) ...[
           const SizedBox(width: AppSpacing.xs),
           Tooltip(
@@ -318,18 +293,13 @@ class _PreviewRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // The tick sits before the words, which is where every messaging app
-        // puts it: the line already begins with "You: " often enough that the
-        // mark reads as part of the same statement about your own message.
         if (chat.previewSendState case final state?) ...[
           Padding(
             padding: const EdgeInsets.only(top: 2, right: AppSpacing.xxs),
             child: MessageSendStateIcon(
               state: state,
               color: secondary,
-              // On a bubble, read is white against the accent fill. In a list
-              // there is no fill, so it takes the accent itself — otherwise
-              // "read" would be invisible on a light background.
+              // No bubble fill here, so read uses the accent rather than white.
               readColor: AppColors.accent,
             ),
           ),
@@ -340,8 +310,6 @@ class _PreviewRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             text: TextSpan(
               children: [
-                // A draft is marked, because otherwise the thing you started
-                // saying looks exactly like something you already said.
                 if (chat.previewIsDraft)
                   TextSpan(
                     text: '${AppStrings.messagesDraftPrefix}: ',
@@ -370,16 +338,11 @@ class _PreviewRow extends StatelessWidget {
   }
 }
 
-/// A chat marked unread by hand has no count, so the badge is a plain dot —
-/// which is the honest shape for "something here, no number for it".
+/// The unread count, or a plain dot for a chat marked unread by hand.
 class _UnreadBadge extends StatelessWidget {
   final int count;
 
-  /// A muted chat's badge is grey rather than blue — Telegram's own
-  /// convention, and the useful one: the count still says how much is waiting,
-  /// while the colour says none of it will interrupt you. The crossed-out
-  /// speaker beside the name is the same fact stated twice, which is what makes
-  /// mute readable at a glance down a list rather than one icon at a time.
+  /// Muted chats get a grey badge instead of the accent.
   final bool isMuted;
 
   const _UnreadBadge({required this.count, required this.isMuted});
@@ -422,17 +385,8 @@ class _UnreadBadge extends StatelessWidget {
   }
 }
 
-/// The channel a person runs, beside their name.
-///
-/// Present only when Telegram has already told us about it — see
-/// [ChatSummary.affiliatedChannelId] for why this is never fetched per row.
-///
-/// **The picture and nothing else.** Spelling the channel's name out put two
-/// names on one line, competing with the one that actually belongs to the
-/// person — and the row still has to fit a timestamp and a pin. The megaphone
-/// beside it was a third thing saying "channel" when the avatar already looks
-/// like one. The name survives as the label and the tooltip, which is where a
-/// detail nobody needs at a glance belongs.
+/// The user's personal channel as a small avatar beside their name, with the
+/// channel name in the tooltip. See [ChatSummary.affiliatedChannelId].
 class _AffiliationBadge extends StatelessWidget {
   static const double _size = 16;
 
@@ -454,8 +408,7 @@ class _AffiliationBadge extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: ChannelAvatar(
-          // The avatar falls back to an initial, so a channel whose picture has
-          // not arrived is still a mark rather than a hole in the row.
+          // Falls back to an initial until the picture arrives.
           title: title ?? '?',
           avatarPath: chat.affiliatedChannelAvatarPath,
           avatarFileId: chat.affiliatedChannelAvatarFileId,

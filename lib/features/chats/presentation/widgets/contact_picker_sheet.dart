@@ -9,13 +9,8 @@ import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/chats/domain/user_profile.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 
-/// Picks one of this account's Telegram contacts to share.
-///
-/// **Telegram's contacts, not the phone's.** Sharing a contact means sending a
-/// Telegram contact card, so the useful list is the one Telegram already holds
-/// — reading the device address book would mean asking for a permission gramX
-/// does not want and would fill the list with people who are not on Telegram
-/// and cannot be sent as one.
+/// Picks one of the account's Telegram contacts to share. Uses Telegram's
+/// contact list, not the device address book, so no permission is needed.
 class ContactPickerSheet extends ConsumerStatefulWidget {
   const ContactPickerSheet({super.key});
 
@@ -24,8 +19,7 @@ class ContactPickerSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // The shell's tab bar paints over branch navigators, so use the root.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
@@ -51,9 +45,7 @@ class _ContactPickerSheetState extends ConsumerState<ContactPickerSheet> {
     super.dispose();
   }
 
-  /// Filters locally. The whole list arrived in one request and is already
-  /// here, so a search that reached Telegram would cost a request to tell the
-  /// reader something the device already knows.
+  /// Filters the already-loaded list locally, without a request.
   List<UserProfile> _matching(List<UserProfile> contacts) {
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) return contacts;

@@ -10,10 +10,8 @@ import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 
-/// Picks a chat to forward a post into.
-///
-/// Destinations come from [ChatCache], which already holds every chat TDLib
-/// volunteered — so opening this costs no requests.
+/// Picks a chat to forward a post into. Destinations come from [ChatCache],
+/// so opening it makes no requests.
 class ForwardSheet extends ConsumerStatefulWidget {
   final Post post;
 
@@ -23,9 +21,8 @@ class ForwardSheet extends ConsumerStatefulWidget {
   static Future<bool> show(BuildContext context, Post post) async {
     final sent = await showModalBottomSheet<bool>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay
-      // to actually sit above it instead of underneath.
+      // The shell's bottom bar paints over each branch's Navigator, so use
+      // the root one to sit above it.
       useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
@@ -144,7 +141,7 @@ class _ForwardSheetState extends ConsumerState<ForwardSheet> {
                                     ),
                                   )
                                 : null,
-                            // One forward at a time, so a double tap can't send twice.
+                            // One at a time, so a double tap can't send twice.
                             onTap: _sendingTo == null
                                 ? () => _forward(chat)
                                 : null,

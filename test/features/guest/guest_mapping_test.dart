@@ -55,8 +55,7 @@ void main() {
     });
 
     group('the synthetic chat id', () {
-      // hashCode is not stable across Dart runs, and an id that changed on
-      // restart would orphan every bookmark made against it.
+      // Stable across runs (unlike hashCode), so bookmarks keep their ids.
       test('is the same every time for the same channel', () {
         expect(
           GuestPostMapper.syntheticChatId('durov'),
@@ -64,8 +63,7 @@ void main() {
         );
       });
 
-      // Telegram treats @Durov and @durov as one channel; two ids would show
-      // it twice in the feed.
+      // Telegram usernames are case-insensitive.
       test('ignores case', () {
         expect(
           GuestPostMapper.syntheticChatId('Durov'),
@@ -80,10 +78,8 @@ void main() {
         );
       });
 
-      // Real supergroup chat ids are -100 followed by the supergroup id, so
-      // they are all far more negative than this range. A guest id must never
-      // be mistakable for one — that would point a TDLib call at a chat that
-      // does not exist.
+      // Real supergroup ids (-100 followed by the id) are far below this range,
+      // so a guest id is never mistaken for one.
       test('can never be read as a real Telegram chat id', () {
         for (final name in ['durov', 'telegram', 'a', 'zzzzzzzzzzzz']) {
           final id = GuestPostMapper.syntheticChatId(name);
@@ -107,12 +103,10 @@ void main() {
       );
 
       expect(post.reactions, {'⭐': 1, '❤️': 5});
-      // Nothing is chosen: there is no account to have reacted as.
       expect(post.chosenReactions, isEmpty);
     });
 
-    // Read state belongs to a Telegram account. With no account there is
-    // nothing to be unread against, so an unread dot would be meaningless.
+    // Without an account there is no read state, so no unread dot.
     test('guest posts are never unread', () {
       expect(GuestPostMapper.mapPost(_post(), _channel()).isRead, isTrue);
     });
@@ -194,8 +188,7 @@ void main() {
       }
     });
 
-    // A typo should fail here, with a reason, rather than become a row in the
-    // reader's list that is permanently empty.
+    // A typo fails here with a reason instead of adding an empty channel.
     test('rejects what is not a channel username', () {
       for (final input in [
         '',
@@ -216,9 +209,7 @@ void main() {
   });
 
   group('GuestMediaCache', () {
-    // The URLs come out of markup fetched from the network. An image loader
-    // pointed at an arbitrary host by remote input is exactly the leak
-    // closed by removing cached_network_image.
+    // URLs from fetched markup must not point the image loader at any host.
     test('only Telegram\'s own hosts are fetched', () {
       expect(
         GuestMediaCache.isAllowed('https://cdn4.telegram-cdn.org/f.jpg'),
@@ -271,9 +262,8 @@ void main() {
   });
 
   group('ReaderCapabilities', () {
-    // One object rather than an `if (isGuest)` at twenty call sites — that is
-    // how a guest ends up with a button that responds to touch and does
-    // nothing, which is a bug rather than a placeholder.
+    // One capabilities object instead of `if (isGuest)` checks at each call
+    // site, so no control is left that does nothing for a guest.
     test('a guest can do nothing that needs an account', () {
       const guest = ReaderCapabilities.guest;
       expect(guest.canReact, isFalse);
@@ -299,8 +289,8 @@ void main() {
     });
   });
 
-  // Reported against https://t.me/github/11123, which the preview page will not
-  // draw. The card has to say so and offer the one thing that still works.
+  // Posts the preview page can't draw (e.g. https://t.me/github/11123) say so
+  // and offer to open Telegram.
   group('a post the preview page would not draw', () {
     Post mapped() => GuestPostMapper.mapPost(
       GuestPost(
@@ -326,9 +316,8 @@ void main() {
     });
   });
 
-  // The button under that label was dead for guests. TelegramIds.postLink
-  // shifts a TDLib message id right by 20 to recover the server id, and a guest
-  // id is the server id already — so 11123 shifted is 0, and the link was null.
+  // A guest post's id is already the server id, so the link must not shift it
+  // the way TelegramIds.postLink shifts TDLib ids.
   group('GuestPostMapper.postLink', () {
     test('builds the public t.me link without shifting the id', () {
       final post = GuestPostMapper.mapPost(

@@ -15,8 +15,7 @@ class StorageUsage {
 
   bool get isEmpty => totalBytes <= 0;
 
-  /// Human-readable size, e.g. `1.4 GB`. Binary units, matching what phone
-  /// storage screens report.
+  /// Human-readable size, e.g. `1.4 GB`, in binary units.
   String get formattedSize => formatBytes(totalBytes);
 
   static String formatBytes(int bytes) {
@@ -36,16 +35,12 @@ class StorageUsage {
 }
 
 /// Reads and clears TDLib's media cache.
-///
-/// The settings screen previously showed "Storage cache cleared." and deleted
-/// nothing — `OptimizeStorage` was never called.
 class StorageRepository {
   final TdlibService _tdlib;
 
   StorageRepository(this._tdlib);
 
-  /// Current cache usage. Counts only downloaded media, not the message
-  /// database, which is what a user means by "cache".
+  /// Current cache usage: downloaded media only, not the message database.
   Future<StorageUsage> usage() async {
     try {
       final res = await _tdlib.sendRequest(const td.GetStorageStatisticsFast());
@@ -61,10 +56,8 @@ class StorageRepository {
     return StorageUsage.empty;
   }
 
-  /// Deletes cached media and reports how much was actually freed.
-  ///
-  /// `size: 0` asks TDLib to bring the cache down to nothing. Passing -1 for
-  /// the other limits leaves TDLib's own defaults in place.
+  /// Deletes cached media and reports how much was freed. `size: 0` empties
+  /// the cache; -1 for the other limits keeps TDLib's defaults.
   Future<StorageUsage> clear() async {
     final before = await usage();
     try {

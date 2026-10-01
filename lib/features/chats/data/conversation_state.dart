@@ -10,12 +10,10 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 class ChatTyping {
   final int? userId;
 
-  /// Their name, when the chat is a group and the reader needs to know which
-  /// of several people it is. Null in a private chat, where there is only one
-  /// possible answer.
+  /// Their name in a group. Null in a private chat.
   final String? name;
 
-  /// The verb phrase — "typing", "sending a photo".
+  /// The verb phrase, such as "typing" or "sending a photo".
   final String action;
 
   const ChatTyping({this.userId, this.name, required this.action});
@@ -31,25 +29,12 @@ class ChatTyping {
   int get hashCode => Object.hash(userId, name, action);
 }
 
-/// One conversation, and the rules for folding live updates into it.
-///
-/// Pure state with no I/O, exactly like `ChatCacheState`, and for the same
-/// reason: the folding is where the subtle bugs live. An optimistic bubble that
-/// never gets its real id, a deletion that leaves a hole, a read tick that
-/// never arrives — all of them are decisions taken here, and all of them are
-/// testable without a TDLib client.
-///
-/// [messages] is ordered **oldest first**, which is the order a conversation is
-/// read in and the order the list renders bottom-up from.
+/// One conversation, oldest message first, and the pure rules for folding live
+/// updates into it.
 @immutable
 class ConversationState {
-  /// How long a typing indicator survives without another update.
-  ///
-  /// TDLib does not promise a `chatActionCancel` — somebody who types a word
-  /// and closes the app never sends one — so an indicator that waits for it
-  /// stays on screen forever. Telegram's own clients expire on a timer, and
-  /// this is that timer, held here so the notifier and its test agree on one
-  /// number.
+  /// How long a typing indicator survives without another update. TDLib does
+  /// not guarantee a `chatActionCancel`, so indicators expire on a timer.
   static const Duration typingTimeout = Duration(seconds: 6);
 
   final int chatId;
@@ -61,25 +46,15 @@ class ConversationState {
   final int lastReadOutboxMessageId;
   final ChatTyping? typing;
 
-  /// False once a history page comes back short — the top of the chat.
+  /// False once the top of the chat has been reached.
   final bool hasMoreOlder;
 
-  /// True while what is loaded stops short of the newest message.
-  ///
-  /// A conversation normally hangs off its bottom: the newest page is loaded
-  /// and everything arrives below it. Jumping to a search hit further back
-  /// than paging reaches breaks that — see [windowed] — and while it is
-  /// broken a live arrival is *not* adjacent to what is on screen, so it is
-  /// not folded in, and the way down is a page fetch rather than a scroll.
-  /// Cleared by loading down to the bottom, or by going straight back to it.
+  /// True while what is loaded stops short of the newest message, after a
+  /// jump with [windowed]. Live arrivals are not folded in while this is set.
   final bool hasMoreNewer;
 
-  /// The oldest message the reader had not seen when they opened the chat.
-  ///
-  /// Captured **once, on open**, and never recomputed. It is where the unread
-  /// band is drawn and where the list is anchored, and both of those are
-  /// answers about the moment of arrival: recomputing as messages get
-  /// acknowledged would walk the band down the screen under the reader.
+  /// The oldest unseen message when the chat was opened. Set once on open so
+  /// the unread band and the scroll anchor don't move as messages are read.
   final int? firstUnreadMessageId;
 
   const ConversationState({
@@ -115,8 +90,7 @@ class ConversationState {
   }
 
   /// The oldest incoming message past [lastReadInboxMessageId] in what is
-  /// loaded, or null if there is none. Pure, so "where does the band go" is
-  /// testable without a client.
+  /// loaded, or null if there is none.
   static int? firstUnreadIn(
     List<ChatMessage> messages,
     int lastReadInboxMessageId,
@@ -132,16 +106,9 @@ class ConversationState {
     return null;
   }
 
-  /// The order [messages] is kept in: oldest first, with messages that have not
-  /// left the device yet after everything that has.
-  ///
-  /// An optimistic bubble carries a negative id (see
-  /// `ConversationNotifier._optimisticMessage`), and a plain ascending sort put
-  /// it *above* the whole conversation — the reader's own message appeared at
-  /// the top of the chat until Telegram answered, and paging back asked TDLib
-  /// for history older than a negative id. Temporary ids count down as they are
-  /// handed out, so among themselves the order is reversed as well: -1 was
-  /// typed before -2.
+  /// The order [messages] is kept in: oldest first, then unsent messages.
+  /// Optimistic ids are negative and count down as they are handed out, so -1
+  /// sorts before -2.
   static int compareOrder(ChatMessage a, ChatMessage b) {
     final aPending = a.messageId < 0;
     final bPending = b.messageId < 0;
@@ -154,9 +121,8 @@ class ConversationState {
   /// The newest message, or null on an empty chat.
   ChatMessage? get newest => messages.isEmpty ? null : messages.last;
 
-  /// The newest *sent* message id — the cursor the page below is fetched
-  /// from. Skips optimistic bubbles, whose ids are negative and mean nothing
-  /// to TDLib.
+  /// The newest sent message id, used as the cursor for the page below.
+  /// Skips optimistic bubbles, whose negative ids mean nothing to TDLib.
   int? get newestMessageId {
     for (final message in messages.reversed) {
       if (message.messageId > 0) return message.messageId;
@@ -164,15 +130,11 @@ class ConversationState {
     return null;
   }
 
-  /// The oldest loaded message id — the cursor the next page is fetched from.
+  /// The oldest loaded message id, used as the cursor for the next older page.
   int? get oldestMessageId =>
       messages.isEmpty ? null : messages.first.messageId;
 
-  /// Incoming messages the reader has not acknowledged yet, newest first.
-  ///
-  /// Read state is written to every client this account owns, so which messages
-  /// get acknowledged is decided here — in a pure function with a test — rather
-  /// than inferred from what happens to be on screen.
+  /// Incoming messages not yet marked read, newest first.
   List<int> unreadIncomingIds(int lastReadInboxMessageId) => [
     for (final message in messages.reversed)
       if (!message.isOutgoing &&
@@ -182,10 +144,7 @@ class ConversationState {
   ];
 
   /// Folds one event in. Returns null when nothing about this conversation
-  /// changed, so a notifier can skip the rebuild rather than churn the list.
-  ///
-  /// Events for other chats are not this state's business and answer null —
-  /// checked here rather than at the subscription, so a caller cannot forget.
+  /// changed, including for events from other chats.
   ConversationState? apply(
     ChatEvent event, {
     required Map<int, td.User> users,
@@ -195,24 +154,17 @@ class ConversationState {
 
     switch (event) {
       case ChatMessageArrived():
-        // Not adjacent to a window that stops short of the bottom: folding it
-        // in would draw a message from now directly under one from last year.
-        // It is waiting below, and the page fetch that reaches the bottom
-        // brings it in.
+        // Not adjacent to a window that stops short of the bottom. The page
+        // fetch that reaches the bottom brings it in.
         if (hasMoreNewer) return null;
-        // TDLib sends a same-chat reply with no preview of what it answers,
-        // and a page is only filled once, when it loads — so a reply arriving
-        // live drew a bare "Replying to" even with its target right above it.
+        // TDLib sends a same-chat reply without a preview of its target.
         final arrived = ChatMessageMapper.fillReplyExcerpts([
           _map(event.message, users: users, chats: chats),
         ], from: messages).single;
         return _upsert(arrived);
 
       case ChatMessageSent():
-        // The id changed. Replacing by the *old* id is the whole point: the
-        // optimistic bubble is keyed on a temporary id, and inserting the real
-        // message without removing it leaves the reader looking at their own
-        // message twice.
+        // Replace the optimistic bubble, which is keyed on the temporary id.
         return _replaceId(
           event.oldMessageId,
           _map(event.message, users: users, chats: chats),
@@ -238,11 +190,8 @@ class ConversationState {
         return copyWith(messages: kept);
 
       case ChatMessageContentChanged():
-        // Everything the content decides is re-read, not just the caption and
-        // the media. This one update carries an edited caption, a vote landing
-        // on a poll, and self-destructing media expiring into
-        // `messageExpiredPhoto` — and the poll and the expiry were both dropped
-        // while it only looked at two fields.
+        // Re-read everything the content decides: this update carries edited
+        // captions, poll votes and expired self-destructing media.
         return _update(
           event.messageId,
           (message) => ChatMessageMapper.withContent(message, event.content),
@@ -261,8 +210,7 @@ class ConversationState {
         );
 
       case ChatOutboxRead():
-        // A cursor only ever moves forwards. An out-of-order update that moved
-        // it back would un-read messages the reader watched turn read.
+        // The cursor only moves forwards, in case updates arrive out of order.
         if (event.lastReadOutboxMessageId <= lastReadOutboxMessageId) {
           return null;
         }
@@ -290,8 +238,6 @@ class ConversationState {
         );
 
       case ChatActionChanged():
-        // The reader's own actions come back on the stream too. Showing
-        // "typing" to somebody about their own typing is absurd.
         final action = event.action;
         if (action == null) {
           return typing == null ? null : copyWith(clearTyping: true);
@@ -306,11 +252,8 @@ class ConversationState {
     }
   }
 
-  /// Adds a page of older messages above what is already loaded.
-  ///
-  /// [reachedTop] is the caller's answer, not something inferred from the page
-  /// size: TDLib chooses its own batch size and a short page is not an empty
-  /// one.
+  /// Adds a page of older messages above what is loaded. [reachedTop] comes
+  /// from the caller, since TDLib may return short pages before the top.
   ConversationState prepend(
     List<ChatMessage> older, {
     required bool reachedTop,
@@ -322,19 +265,15 @@ class ConversationState {
       ...messages,
     ];
     merged.sort(compareOrder);
-    // Replies already on screen may answer something in the page that just
-    // arrived above them.
+    // Replies already loaded may answer something in the new page.
     return copyWith(
       messages: ChatMessageMapper.fillReplyExcerpts(merged),
       hasMoreOlder: !reachedTop,
     );
   }
 
-  /// Adds a page of newer messages below what is already loaded.
-  ///
-  /// The mirror of [prepend], for a conversation that was opened in the
-  /// middle. [reachedBottom] is the caller's answer, checked against the
-  /// chat's own newest message rather than inferred from the page size.
+  /// Adds a page of newer messages below what is already loaded, for a
+  /// conversation opened in the middle. [reachedBottom] comes from the caller.
   ConversationState append(
     List<ChatMessage> newer, {
     required bool reachedBottom,
@@ -352,11 +291,8 @@ class ConversationState {
     );
   }
 
-  /// Replaces what is loaded with a stretch of history around one message.
-  ///
-  /// What a jump to a search hit does when the hit is further back than
-  /// paging reaches: the conversation now reads from the middle, with more
-  /// above and — unless the window happens to reach it — more below.
+  /// Replaces what is loaded with a stretch of history around one message,
+  /// for jumping to a search hit beyond what paging has loaded.
   ConversationState windowed(
     List<ChatMessage> window, {
     required bool reachedTop,
@@ -367,14 +303,12 @@ class ConversationState {
       messages: sorted,
       hasMoreOlder: !reachedTop,
       hasMoreNewer: !reachedBottom,
-      // Whatever was being typed at is off screen now.
       clearTyping: true,
     );
   }
 
-  /// Puts a message the reader has just sent on screen before Telegram has
-  /// answered, so the bubble appears under their thumb rather than a round
-  /// trip later. The live stream reconciles it — see [ChatMessageSent].
+  /// Shows a just-sent message before Telegram answers. [ChatMessageSent]
+  /// replaces it later.
   ConversationState withOptimistic(ChatMessage message) => _upsert(message);
 
   ChatMessage _map(
@@ -400,8 +334,7 @@ class ConversationState {
     }
 
     final next = [...messages, message];
-    // Sorted rather than appended: a message can arrive out of order, and an
-    // append would put it below something newer.
+    // Sorted, not appended, because messages can arrive out of order.
     next.sort(compareOrder);
     return copyWith(messages: next);
   }
@@ -432,18 +365,8 @@ class ConversationState {
     return name.isEmpty ? 'Someone' : name;
   }
 
-  /// Shows a vote as taken before Telegram has confirmed it.
-  ///
-  /// A poll answer is a round trip, and a card that does nothing until it comes
-  /// back reads as a tap that missed. The real counts land moments later on
-  /// `updateMessageContent` and replace all of this — so the arithmetic here
-  /// only has to be *plausible*, not authoritative: the chosen options are
-  /// marked, one voter is added, and the percentages are recomputed from the
-  /// new total.
-  ///
-  /// Answers null when there is nothing to do — no such message, not a poll,
-  /// already closed, or already voted in — so the caller can tell a no-op from
-  /// a change without comparing states.
+  /// Shows a vote before Telegram confirms it; `updateMessageContent` brings
+  /// the real counts. Null when there is nothing to vote in.
   ConversationState? withOptimisticVote(int messageId, List<int> optionIds) {
     if (optionIds.isEmpty) return null;
 

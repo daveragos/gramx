@@ -2,11 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/stats/data/stat_graph_loads.dart';
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// TDLib sends most statistics graphs as a token rather than as data, so the
-/// charts on this screen are one request each. These are the rules that keep
-/// that to *one* — a card crosses the edge of the viewport every time somebody
-/// scrolls, and a request per crossing is aimed at an account with a rate
-/// limit.
+/// TDLib sends most statistics graphs as a token, one request each. A card
+/// re-enters the viewport on every scroll, so each token is requested once.
 void main() {
   group('StatGraphLoads', () {
     const graph = StatGraph(timestamps: [1, 2], lines: []);
@@ -32,9 +29,7 @@ void main() {
       expect(loads['a'], isA<StatGraphReady>());
     });
 
-    // "Telegram has no graph for this" is an answer, and asking again on every
-    // scroll would spend a request per pass on the one chart that can never
-    // fill.
+    // A missing graph is an answer; asking again would waste a request.
     test('a token that came back unusable is still an answer', () {
       final loads = const StatGraphLoads()
           .starting('a')

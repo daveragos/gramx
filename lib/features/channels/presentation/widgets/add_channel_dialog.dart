@@ -9,11 +9,6 @@ import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// Asks for a public channel's username and joins it.
-///
-/// One dialog, reached from the empty feed and from the Channels tab. There
-/// used to be two — the onboarding one resolved the username and then did not
-/// join, so the channel it "added" never reached the feed — and this is the
-/// one that worked, kept.
 Future<void> showAddChannelDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
@@ -48,8 +43,7 @@ class _AddChannelDialogState extends ConsumerState<AddChannelDialog> {
       _errorMsg = null;
     });
 
-    // Captured before the dialog closes: the toast has to be shown by
-    // whatever is left on screen afterwards, not by the widget that is gone.
+    // Captured before the dialog closes, since the toast outlives it.
     final messenger = ScaffoldMessenger.of(context);
     final repo = ref.read(channelRepositoryProvider);
     try {

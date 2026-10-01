@@ -12,48 +12,32 @@ import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
 
-/// Where in a post's column a reply shape belongs.
-///
-/// The two shapes do not sit in the same place, because they are not doing the
-/// same job. "Replying to Ada" is context for words you have not read yet, so
-/// that **after** the answer — the writer's own words come first, and what
-/// post reads that way round, and gramX had it inverted.
+/// Where in a post's column a reply shape goes. The "Replying to" line sits
+/// above the body; the quote card sits below it.
 enum ReplySlot {
   /// Between the byline and the post's own words.
   aboveBody,
 
-  /// Under everything the post itself says — its text, its media, all of it.
+  /// Under the post's text and media.
   belowBody,
 }
 
-///
-/// Two Telegram conventions had made their way into gramX and stayed: the
-/// tinted block with an accent bar down its left edge for a reply, and the
-/// and neither is a tinted block — a bordered card holding the quoted post
-/// when there is one to hold, and one grey line naming the author when there
-/// is not. [replyPresentationFor] picks between them; this draws the pick, so
-/// the feed, the post screen and a comment all answer the question the same
-/// way.
+/// What a post replies to, drawn as the shape [replyPresentationFor] picks:
+/// a bordered quote card or a single "Replying to" line.
 class ReplyTarget extends StatelessWidget {
   final Post post;
 
   /// Opens the message being answered.
   final VoidCallback onOpenPost;
 
-  /// Opens whoever wrote it.
+  /// Opens the author of the message being answered.
   final VoidCallback onOpenAuthor;
 
-  /// Forces the one-line form.
-  ///
-  /// A comment already sits inside a thread, under a connector, inside the
-  /// post screen. A card there is a box inside a box inside a box, so the
-  /// line is the only shape that fits however much of the quoted post
-  /// Telegram happened to send.
+  /// Forces the one-line form, used for comments.
   final bool compact;
 
-  /// Which of the two positions this call is filling. A host draws
-  /// [ReplyTarget] twice — once in each slot — and each shape appears in the
-  /// one it belongs to.
+  /// The position this instance fills. A host draws [ReplyTarget] once in
+  /// each slot, and each shape appears only in its own.
   final ReplySlot slot;
 
   const ReplyTarget({
@@ -76,28 +60,19 @@ class ReplyTarget extends StatelessWidget {
     final presentation = replyPresentationFor(post);
     if (presentation == ReplyPresentation.none) return const SizedBox.shrink();
 
-    // A passage stands *above* the post on a connector, outside the column
-    // this widget sits in, so the host draws it with [QuotedPassage]. Both
-    // hosts have a test asserting they do — a shape that silently vanished
-    // because a caller forgot would be indistinguishable from no reply.
+    // The host draws a passage with [QuotedPassage].
     if (presentation == ReplyPresentation.passage && !compact) {
       return const SizedBox.shrink();
     }
 
-    // Null means Telegram would not say whose this is. The card and the line
-    // both name somebody, so they fall back to this channel — which is a lie
-    // only when the target is somewhere else, and `replyToAuthorTitle` is now
-    // null exactly in that case. See QuotedPassage for the shape that omits
-    // the byline instead.
+    // Null when Telegram doesn't name the author; the card and line then
+    // fall back to this channel.
     final authorTitle = post.replyToAuthorTitle;
 
     if (compact || presentation == ReplyPresentation.line) {
       if (slot != ReplySlot.aboveBody) return const SizedBox.shrink();
       return _ReplyingToLine(
         authorTitle: authorTitle ?? post.channelTitle,
-        // Absent rather than invented: TDLib sends no excerpt for a reply
-        // inside one channel, and a placeholder sentence in its place is a
-        // line nobody wrote.
         excerpt: compact ? post.replyToText : null,
         color: secondary,
         onTap: onOpenPost,
@@ -106,10 +81,7 @@ class ReplyTarget extends StatelessWidget {
 
     if (slot != ReplySlot.belowBody) return const SizedBox.shrink();
 
-    // A reply inside this channel is answering this channel, so the quoted
-    // post's face and tick are the ones already on this card. Across chats
-    // they belong to a channel this post never carried, and the avatar falls
-    // back to its initial rather than borrowing the wrong picture.
+    // Across chats, this channel's avatar and badge don't apply.
     final isSameChat = post.replyToChatId == null;
 
     return QuotedPostCard(
@@ -128,10 +100,8 @@ class ReplyTarget extends StatelessWidget {
   }
 }
 
-///
-/// For a reply whose parent is already on screen above it, or whose content
-/// Telegram never sent. Nothing is drawn around it — the reply is the thing
-/// being read.
+/// One grey "Replying to" line, for a reply whose parent is already on screen
+/// or whose content Telegram didn't send.
 class _ReplyingToLine extends StatelessWidget {
   final String authorTitle;
   final String? excerpt;
@@ -197,26 +167,14 @@ class _ReplyingToLine extends StatelessWidget {
   }
 }
 
-/// The passage a reply quoted, standing above the reply on a thread connector.
+/// The passage a reply quoted, shown above the reply on a thread connector.
+/// Only the quoted words are drawn, with no media and no action bar.
 ///
-/// picked those words, so those words are what gets drawn — **not** the post
-/// they came out of, and not its media, which would bury the part that was
-/// picked under the part that was not.
-///
-/// It carries **no action bar**. A fragment of a message is not a thing that
-/// can be liked, forwarded, bookmarked or counted, and drawing the controls
-/// under one would be the styled-but-inert affordance the hard rules forbid.
-/// The reply underneath keeps every one of its own.
-///
-/// Drawn by the host rather than by [ReplyTarget], because it sits in the
-/// avatar gutter beside the post rather than inside the post's text column —
-/// which is what lets the connector run from this avatar down to the reply's.
+/// Drawn by the host rather than [ReplyTarget] because it spans the avatar
+/// gutter, so the connector can run down to the reply's avatar.
 class QuotedPassage extends StatelessWidget {
-  /// Whoever wrote the passage. **Null when Telegram would not say** — a
-  /// private origin channel, or one the cache could not name. The byline and
-  /// the avatar are then omitted entirely rather than borrowed from the post
-  /// doing the quoting, which would put one channel's name over another's
-  /// words.
+  /// The passage's author, or null when Telegram doesn't say (such as a
+  /// private channel). The byline and avatar are then omitted.
   final String? authorTitle;
   final String? authorUsername;
   final bool isAuthorVerified;
@@ -224,25 +182,16 @@ class QuotedPassage extends StatelessWidget {
   final int? avatarFileId;
   final String? avatarColorHex;
 
-  /// The selected words. The whole point of this shape, so it is required and
-  /// non-null — [replyPresentationFor] only picks `passage` when there are
-  /// some.
   final String passage;
 
-  /// Matched to the host's own avatar so the connector runs straight down the
-  /// gutter instead of stepping sideways at the join.
+  /// Matched to the host's avatar so the connector runs straight.
   final double avatarRadius;
   final double gutterGap;
 
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
 
-  /// The shortest the connector is allowed to be.
-  ///
-  /// The block's height comes from its content, and a one-line passage under a
-  /// one-line byline leaves the avatar almost touching the reply's — a stub of
-  /// a few pixels that reads as a rendering artefact rather than as a line
-  /// under it; a passage long enough to earn more simply gets more.
+  /// Minimum connector length, so a short passage still shows a visible line.
   static const double minConnectorRun = 26;
 
   const QuotedPassage({
@@ -280,8 +229,7 @@ class QuotedPassage extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        // Stretched so the connector can fill whatever height the passage
-        // turns out to need.
+        // Stretched so the connector fills the passage's height.
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: avatarRadius * 2 + AppSpacing.xs + minConnectorRun,
@@ -302,8 +250,7 @@ class QuotedPassage extends StatelessWidget {
                         onTap: onAuthorTap,
                       )
                     else
-                      // No identity to draw, but the gutter still has to hold
-                      // the connector in line with the reply's own avatar.
+                      // Keeps the connector aligned with the reply's avatar.
                       SizedBox(
                         width: avatarRadius * 2,
                         height: avatarRadius * 2,
@@ -320,8 +267,7 @@ class QuotedPassage extends StatelessWidget {
                 SizedBox(width: gutterGap),
                 Expanded(
                   child: Padding(
-                    // The gap the connector runs through before the reply's own
-                    // avatar picks it up.
+                    // Space for the connector before the reply's avatar.
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,15 +327,8 @@ class QuotedPassage extends StatelessWidget {
   }
 }
 
-///
-/// Telegram draws this as a tinted block with an accent bar down its left edge
-/// puts a whole post inside it — avatar, byline, words, picture — so the thing
-/// you are looking at reads as a post rather than as a decoration on this one.
-/// quoted post is a post.
-///
-/// The border is the only thing separating it from the card around it, so it
-/// carries the whole boundary: no fill, no accent bar, and the media runs to
-/// the box's own edge rather than sitting inset with a second radius.
+/// The post being answered, embedded as a bordered card with its avatar,
+/// byline, text and picture. No fill; the media runs to the card's edge.
 class QuotedPostCard extends ConsumerWidget {
   final String authorTitle;
   final String? authorUsername;
@@ -398,18 +337,16 @@ class QuotedPostCard extends ConsumerWidget {
   final int? avatarFileId;
   final String? avatarColorHex;
 
-  /// The quoted words — Telegram's selected quote when the writer picked one,
-  /// otherwise the target message's own text or a caption.
+  /// The selected quote if any, otherwise the target's text or caption.
   final String? text;
 
   final String? thumbnailPath;
   final int? thumbnailFileId;
 
-  /// Opens the quoted post. Null makes the card inert, which the hard rules
-  /// forbid — every caller passes one.
+  /// Opens the quoted post. Every caller should pass one.
   final VoidCallback? onTap;
 
-  /// Opens whoever wrote it, when that is somewhere different from [onTap].
+  /// Opens the author, when that differs from [onTap].
   final VoidCallback? onAuthorTap;
 
   const QuotedPostCard({
@@ -452,8 +389,7 @@ class QuotedPostCard extends ConsumerWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: Container(
-            // Antialiased so the picture is cut by the box's own radius
-            // instead of needing a second one inset from it.
+            // Clips the picture to the card's radius.
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
@@ -504,7 +440,7 @@ class QuotedPostCard extends ConsumerWidget {
     );
   }
 
-  /// the post header at a smaller size rather than a caption above a block.
+  /// Avatar, name, badge and handle on one line.
   Widget _byline(Color primary, Color secondary) {
     return Row(
       children: [
@@ -549,12 +485,8 @@ class QuotedPostCard extends ConsumerWidget {
   }
 }
 
-/// The quoted post's picture, filling the bottom of the card.
-///
-/// What Telegram sends for a reply target is its smallest thumbnail, so this
-/// is capped short rather than given a post's full media height — a 90px file
-/// stretched down the width of the screen is mush, and the picture here is
-/// there to identify the quoted post, not to be looked at.
+/// The quoted post's picture at the bottom of the card. Kept short because
+/// Telegram only sends a small thumbnail for a reply target.
 class _QuotedMedia extends ConsumerWidget {
   final String? path;
   final int? fileId;
@@ -580,8 +512,7 @@ class _QuotedMedia extends ConsumerWidget {
     if (resolved == null || resolved.isEmpty) return placeholder;
 
     return Image.file(
-      // Keyed off the path so a late download replaces the placeholder rather
-      // than being composited over a stale frame.
+      // Keyed by path so a late download replaces the placeholder.
       key: ValueKey(resolved),
       File(resolved),
       height: _height,

@@ -9,16 +9,12 @@ import 'package:gramx/core/diagnostics/error_log.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 
 void main() {
-  // Before anything else, including the binding: the errors most worth having
-  // are the ones thrown while starting up, and they are also the only ones a
-  // reader can never describe, because the app never got far enough to show
-  // them anything.
+  // Installed first so errors thrown during startup are captured too.
   ErrorHandlers.install();
   StartupTrace.mark('Dart started');
 
-  // `bootstrap()` initialises the binding, so it has to run inside this zone —
-  // Flutter requires the binding and `runApp` to share one, and a mismatch is
-  // reported as an error of its own.
+  // `bootstrap()` initialises the binding, which Flutter requires to be in the
+  // same zone as `runApp`.
   runZonedGuarded(() async {
     final container = await bootstrap();
 

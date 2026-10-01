@@ -10,11 +10,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 
 /// What the Bookmarks tab shows a guest.
 ///
-/// The tab stays — `ShellTab` owns tab order *and* route path, and `goBranch`
-/// addresses branches by index, so quietly dropping one would send every other
-/// tab to the wrong screen (pinned by a test). So the
-/// tab is present and says what it is waiting for, rather than showing an
-/// empty list that reads as a bug.
+/// The tab is kept for guests because `goBranch` addresses branches by index,
+/// so removing one would send the other tabs to the wrong screen.
 class GuestBookmarksPlaceholder extends ConsumerWidget {
   const GuestBookmarksPlaceholder({super.key});
 

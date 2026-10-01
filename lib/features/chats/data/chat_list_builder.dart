@@ -9,40 +9,25 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
-/// Turns cached chats into the rows of the messages list, and filters them.
-///
-/// Pure by construction — every input is passed in — because this is where the
-/// interesting decisions live: what counts as a bot, what counts as a request,
-/// what a row says when there is a draft, and how the list is ordered. All of
-/// that is worth a test, and none of it needs a TDLib client. `ChatCacheState`
-/// is the pattern being copied.
-///
-/// Costs no requests. Everything it reads is already in [ChatCache], put there
-/// by the update stream.
+/// Turns cached chats into rows of the messages list, and filters them. Pure,
+/// and costs no requests: everything it reads is already in [ChatCache].
 abstract class ChatListBuilder {
-  /// Builds one row per chat.
-  ///
-  /// [selfUserId] is the only way to tell Saved Messages from a chat with
-  /// somebody else: TDLib models it as a private chat with yourself. Null while
-  /// the account record is loading, in which case that chat simply reads as a
-  /// direct one.
+  /// Builds one row per chat. [selfUserId] identifies Saved Messages, which
+  /// TDLib models as a private chat with yourself; while it is null, that chat
+  /// reads as a direct one.
   static List<ChatSummary> build(
     List<td.Chat> chats, {
     required Map<int, td.User> users,
     required Map<int, td.Supergroup> supergroups,
     int? selfUserId,
 
-    /// Full user records, for the affiliated-channel badge. Only the ones
-    /// TDLib has already volunteered — see [ChatSummary.affiliatedChannelId].
+    /// Full user records TDLib has already sent, for the channel badge.
     Map<int, td.UserFullInfo> userFullInfos = const {},
 
-    /// Every cached chat, keyed by id, so a personal chat id can be turned
-    /// into a name and a picture without a lookup — and without a `GetChat`,
-    /// which per row would be the fan-out this class exists to avoid.
+    /// Cached chats by id, to name an affiliated channel without a request.
     Map<int, td.Chat> chatsById = const {},
 
-    /// End-to-end chat records, keyed by secret chat id. Only a secret chat
-    /// reads them, and only for its state.
+    /// Secret chat records by secret chat id, read for their state.
     Map<int, td.SecretChat> secretChats = const {},
   }) {
     final rows = [
@@ -67,13 +52,8 @@ abstract class ChatListBuilder {
     for (final chat in chats) chat.id: chat,
   };
 
-  /// Newest activity first, which is TDLib's own `order` — and because Telegram
-  /// expresses a pinned chat as a very high order, sorting by it pins the
-  /// pinned chats for free, exactly where every other client puts them.
-  ///
-  /// Ties break on chat id rather than being left to the sort's stability, so
-  /// two chats with no activity can't swap places between rebuilds under the
-  /// reader's thumb.
+  /// Newest activity first, by TDLib's `order`, which also puts pinned chats
+  /// on top. Ties break on chat id so rows don't swap between rebuilds.
   static int compare(ChatSummary a, ChatSummary b) {
     final byOrder = b.mainListOrder.compareTo(a.mainListOrder);
     if (byOrder != 0) return byOrder;
@@ -99,9 +79,8 @@ abstract class ChatListBuilder {
     Map<int, td.SecretChat> secretChats = const {},
   }) {
     final type = chat.type;
-    // A secret chat is a one-to-one chat with a person, and TDLib carries the
-    // person's id on the type — so it resolves its user the same way a private
-    // chat does, and the row draws their name and face rather than a blank.
+    // A secret chat carries the other person's id on its type, so it resolves
+    // its user like a private chat.
     final user = switch (type) {
       td.ChatTypePrivate() => users[type.userId],
       td.ChatTypeSecret() => users[type.userId],
@@ -117,13 +96,10 @@ abstract class ChatListBuilder {
     final draft = chat.draftMessage;
     final draftText = draft == null ? null : _draftText(draft);
 
-    // A draft wins the preview line: it is the thing the reader left unfinished,
-    // and showing the last received message instead is how somebody forgets
-    // they were mid-sentence with someone.
+    // A draft takes over the preview line.
     final lastMessage = chat.lastMessage;
-    // A join or a pin has no words of its own, so the excerpt came back empty
-    // and the row read "Pearlie:" with nothing after it. It gets the same line
-    // the conversation draws, which already says who.
+    // A service message (a join, a pin) has no excerpt, so it gets the line
+    // the conversation draws for it.
     final lastIsService =
         lastMessage != null &&
         MessageContentSupport.isServiceMessage(lastMessage.content);
@@ -149,10 +125,8 @@ abstract class ChatListBuilder {
 
     return ChatSummary(
       chatId: chat.id,
-      // TDLib titles the chat with yourself with your own name, which in the
-      // forward picker sat beside a channel of the same name with the same
-      // photo — and forwarding into the wrong one publishes. Telegram calls it
-      // Saved Messages everywhere, and so does this.
+      // TDLib titles this chat with your own name, which is easy to confuse
+      // with a same-named channel when forwarding.
       title: isSaved ? AppStrings.savedMessagesTitle : chat.title,
       kind: kind,
       username: _usernameOf(user: user, supergroup: supergroup),
@@ -166,8 +140,7 @@ abstract class ChatListBuilder {
           ? null
           : _previewSender(chat, lastMessage, users: users),
       previewIsDraft: draftText != null,
-      // A draft has not been sent, so it has no delivery state — a tick beside
-      // one would claim the other side had seen something nobody sent.
+      // A draft has no delivery state.
       previewSendState: draftText != null
           ? null
           : sendStateOf(chat, lastMessage),
@@ -190,11 +163,10 @@ abstract class ChatListBuilder {
       unreadReactionCount: chat.unreadReactionCount,
       isMuted: isMuted(chat.notificationSettings),
       isVerified: user?.isVerified ?? supergroup?.isVerified ?? false,
-      // Your own notes are not a person, Premium or not.
+      // Saved Messages shows no Premium mark, emoji status or presence.
       isPremium: !isSaved && (user?.isPremium ?? false),
       emojiStatusId: isSaved ? null : emojiStatusOf(user),
       isRequest: isRequest(chat),
-      // "online" about yourself, in your own notes, says nothing.
       presence: isSaved ? ChatPresence.unknown : presenceOf(user),
       mainListOrder: ChatCacheState.mainListOrder(chat),
       isPinned: isPinned(chat),
@@ -205,13 +177,8 @@ abstract class ChatListBuilder {
     );
   }
 
-  /// The tick beside the preview, for a last message this account sent.
-  ///
-  /// Null for anything incoming: the whole point of the mark is that it is a
-  /// statement about *your* message, and a double tick on somebody else's
-  /// would read as them having read their own words. The read cursor is the
-  /// chat's `lastReadOutboxMessageId`, which is the same value the bubbles in
-  /// the conversation use — so a row and the chat it opens cannot disagree.
+  /// The tick beside the preview for an outgoing last message (from
+  /// `lastReadOutboxMessageId`); null for incoming ones.
   static MessageSendState? sendStateOf(td.Chat chat, td.Message? message) {
     if (message == null || !message.isOutgoing) return null;
 
@@ -226,11 +193,7 @@ abstract class ChatListBuilder {
         : MessageSendState.sent;
   }
 
-  /// Whether Telegram has this chat pinned to the top of the main list.
-  ///
-  /// Read off the main-list position specifically. A chat can be pinned in the
-  /// archive and not in the main list, and treating those the same would put a
-  /// pin marker on a row that is not pinned where the reader is looking.
+  /// Whether this chat is pinned in the main list (not just the archive).
   static bool isPinned(td.Chat chat) {
     for (final position in chat.positions) {
       if (position.list is td.ChatListMain) return position.isPinned;
@@ -238,17 +201,9 @@ abstract class ChatListBuilder {
     return false;
   }
 
-  /// Whether a chat has anything in it worth listing.
-  ///
-  /// Telegram creates a chat the moment it has *anything* to say about someone,
-  /// conversation with them. Those arrive with `messageContactRegistered` as
-  /// their only message and fill the list with people nobody has ever spoken
-  /// to. Same for a chat with no last message at all.
-  ///
-  /// Deliberately narrow: only that one content type, and only when it is the
-  /// *last* message, which for a chat containing nothing else it always is. The
-  /// tempting generalisation — "hide any chat whose last message is a service
-  /// notice" — would hide a real group the moment somebody changed its photo.
+  /// Whether a chat is worth listing. Hides chats with no last message, or
+  /// whose last message is a "joined Telegram" notice
+  /// (`messageContactRegistered`). Other service messages still count.
   static bool hasContent(td.Chat chat) {
     final last = chat.lastMessage;
     if (last == null) return false;
@@ -256,16 +211,12 @@ abstract class ChatListBuilder {
     return true;
   }
 
-  /// Which bucket a chat belongs in.
-  ///
-  /// A bot is a private chat whose user is one, so the user record is what
-  /// decides — not the chat. Without it every bot reads as a person, and the
-  /// reader gets "last seen recently" under a piece of software.
+  /// Which bucket a chat belongs in. Bots are told apart by the user record,
+  /// not the chat.
   static ChatKind kindOf(td.Chat chat, {td.User? user, int? selfUserId}) {
     final type = chat.type;
-    // A secret chat is a one-to-one chat. It reads as `direct` so everything
-    // that asks "is there one other person here" — the presence line, the
-    // profile the header opens, "when they come online" — keeps working.
+    // A secret chat counts as `direct`, so presence and the profile header
+    // work as for a private chat.
     if (type is td.ChatTypeSecret) return ChatKind.direct;
     if (type is td.ChatTypePrivate) {
       if (selfUserId != null && type.userId == selfUserId) {
@@ -277,23 +228,15 @@ abstract class ChatListBuilder {
     return ChatKind.group;
   }
 
-  /// Whether notifications for this chat are silenced.
-  ///
-  /// `muteFor` is a number of seconds and zero means "not muted". When
-  /// `useDefaultMuteFor` is set the chat follows the account-wide default,
-  /// which this app does not read — so it reports unmuted rather than guessing,
-  /// because a bell struck through is a claim about somebody's settings.
+  /// Whether notifications for this chat are silenced. A chat on the
+  /// account-wide default reads as unmuted, since that default isn't loaded.
   static bool isMuted(td.ChatNotificationSettings settings) {
     if (settings.useDefaultMuteFor) return false;
     return settings.muteFor > 0;
   }
 
-  /// Whether this chat is a message request.
-  ///
-  /// it has is the bar it raises over a chat from somebody who is not a
-  /// contact — report / add contact / block — and that is the same population:
-  /// a stranger who wrote to you first. A pending join request on a group is
-  /// the group-shaped version of it.
+  /// Whether this chat is a message request: one with Telegram's non-contact
+  /// bar (report, add contact, block) or a join request bar.
   static bool isRequest(td.Chat chat) {
     final bar = chat.actionBar;
     return bar is td.ChatActionBarReportAddBlock ||
@@ -302,8 +245,6 @@ abstract class ChatListBuilder {
 
   static ChatPresence presenceOf(td.User? user) {
     if (user == null) return ChatPresence.unknown;
-    // A bot's "status" is meaningless — it answers instantly and always — so
-    // reporting one is noise dressed as information.
     if (user.type is td.UserTypeBot) return ChatPresence.unknown;
 
     return switch (user.status) {
@@ -316,11 +257,8 @@ abstract class ChatListBuilder {
     };
   }
 
-  /// Applies the header filter and the search box, in that order.
-  ///
-  /// [query] matches the title and the username, case-insensitively. It filters
-  /// what is already loaded and issues no request, which is what makes typing
-  /// in the search box free.
+  /// Applies the header filter, then [query] against title and username
+  /// (case-insensitive). Works on loaded rows only, with no requests.
   static List<ChatSummary> filter(
     List<ChatSummary> rows, {
     ChatFilter filter = ChatFilter.all,
@@ -350,11 +288,8 @@ abstract class ChatListBuilder {
     return username != null && username.toLowerCase().contains(needle);
   }
 
-  /// The custom emoji [user] shows instead of the Premium star, or null when
-  /// they have none, it has expired, or they are not Premium.
-  ///
-  /// TDLib documents the status as Premium-only, and it can carry an expiry:
-  /// a status set "for an hour" stays on the record after the hour is up.
+  /// The custom emoji [user] shows instead of the Premium star, or null. TDLib
+  /// keeps an expired status on the record, so the expiry is checked here.
   static int? emojiStatusOf(td.User? user, {DateTime? now}) {
     final status = user?.emojiStatus;
     if (user == null || !user.isPremium || status == null) return null;
@@ -367,12 +302,8 @@ abstract class ChatListBuilder {
     return status.customEmojiId;
   }
 
-  /// The number on the tab badge: chats with something unread, not messages.
-  ///
-  /// three people are waiting, which is the number a reader can act on.
-  ///
-  /// Only chats [filter] lets through count, so the badge speaks for the same
-  /// list the Messages tab opens on.
+  /// The tab badge: the number of unread chats (not messages) that [filter]
+  /// lets through.
   static int unreadChatCount(
     List<ChatSummary> rows, {
     ChatFilter filter = ChatFilter.all,
@@ -392,11 +323,8 @@ abstract class ChatListBuilder {
     return names.first;
   }
 
-  /// The "Ada: " prefix on a group's preview line.
-  ///
-  /// Only in groups, and never for your own messages — Telegram writes "You: "
-  /// there, and so does this, because otherwise the last thing *you* said looks
-  /// like something you received.
+  /// The "Ada: " prefix on a group's preview line, or "You" for your own
+  /// messages.
   static String? _previewSender(
     td.Chat chat,
     td.Message? message, {
@@ -417,19 +345,11 @@ abstract class ChatListBuilder {
     return null;
   }
 
-  /// A person's name as Telegram gives it: two fields, either of which can be
-  /// empty. A deleted account has both, which is why the fallback exists.
-  ///
-  /// The rule itself moved to [TdlibMappers.userDisplayName] once the comment
-  /// thread needed the same answer — a feature may not import another
-  /// feature's data layer, and two copies of this would drift.
+  /// A person's display name, via [TdlibMappers.userDisplayName].
   static String displayNameOf(td.User user) =>
       TdlibMappers.userDisplayName(user);
 
   /// The text of an unsent draft, or null when it isn't a text draft.
-  ///
-  /// A draft can hold media, and TDLib models that as an input content this
-  /// cannot turn into a line — showing nothing beats showing "InputMessagePhoto".
   static String? _draftText(td.DraftMessage draft) {
     final content = draft.inputMessageText;
     if (content is! td.InputMessageText) return null;

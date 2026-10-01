@@ -3,38 +3,21 @@ import 'dart:ui';
 
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// Where every point of a [StatGraph] lands inside a box.
-///
-/// The pure half of the chart, split out for the same reason
-/// `ChatCacheState` is: the decisions with a wrong answer live here,
-/// where a test can reach them, and the painter only puts ink where it is told.
-/// The wrong answers this exists to pin are the arithmetic ones — a flat line
-/// dividing by a zero range, a single-point graph dividing by `n - 1`, and a
-/// stacked series drawn from the wrong baseline.
-///
-/// [size] is the **plot area** — axis labels are laid out by the painter and
-/// their gutters are already taken off.
+/// Where every point of a [StatGraph] lands inside a box. [size] is the plot
+/// area, with the axis label gutters already removed.
 class StatChartGeometry {
   final StatGraph graph;
   final Size size;
 
-  /// The lowest and highest values on the y axis after stacking, and after any
-  /// padding the axis needs to be readable.
+  /// The y axis range after stacking and padding.
   final double minY;
   final double maxY;
 
-  /// Per line, per point: the value actually drawn.
-  ///
-  /// Not the raw numbers — a stacked graph plots running totals and a
-  /// percentage graph plots shares of each column, so a painter reading
-  /// `line.values` directly would draw a different chart from the one the axis
-  /// was scaled for.
+  /// Per line, per point: the value drawn. Running totals for a stacked
+  /// graph and column shares for a percentage graph, not the raw values.
   final List<List<double>> plotted;
 
-  /// Per line, per point: where that point's segment starts.
-  ///
-  /// Zero everywhere except in a stacked graph, where a segment sits on top of
-  /// the one below it.
+  /// Per line, per point: where the segment starts. Zero unless stacked.
   final List<List<double>> baselines;
 
   StatChartGeometry._({
@@ -58,10 +41,8 @@ class StatChartGeometry {
         ],
     ];
 
-    // A percentage graph is drawn as each series' share of its own column, not
-    // as the raw counts — Telegram sends the counts and the `percentage` flag,
-    // and scaling an axis to the counts of a chart that means "share of the
-    // audience" produces a chart nobody can read.
+    // Telegram sends raw counts with the `percentage` flag, so convert each
+    // value to its share of the column.
     if (graph.isPercentage) {
       for (var i = 0; i < pointCount; i++) {
         var total = 0.0;
@@ -99,13 +80,9 @@ class StatChartGeometry {
       }
     }
 
-    // Every count graph starts at zero, so a bar's height reads as its value.
-    // Negatives only appear where Telegram sends them, and then the axis opens
-    // downwards to hold them rather than clipping them off.
+    // The axis starts at zero, extending below only for negative values.
     if (graph.isPercentage) max = math.max(max, 100);
-    // A flat graph — a channel with the same member count all month — has a
-    // zero range, and every division by it is an infinity. One unit of headroom
-    // draws the line along the bottom of the box, which is what it is.
+    // One unit of headroom avoids dividing by zero on a flat graph.
     if (max - min < 1e-9) max = min + 1;
 
     return StatChartGeometry._(
@@ -124,11 +101,7 @@ class StatChartGeometry {
 
   bool get isEmpty => pointCount == 0 || lineCount == 0;
 
-  /// The horizontal position of point [index].
-  ///
-  /// A single-point graph is centred: the usual `index / (count - 1)` divides
-  /// by zero there, and a channel one day old is a real thing to open this
-  /// screen on.
+  /// The horizontal position of point [index]. A single point is centred.
   double xAt(int index) {
     if (pointCount <= 1) return size.width / 2;
     return index / (pointCount - 1) * size.width;
@@ -144,9 +117,8 @@ class StatChartGeometry {
   Offset pointAt(int line, int index) =>
       Offset(xAt(index), yFor(plotted[line][index]));
 
-  /// The column a bar occupies. Bars divide the width into equal slots rather
-  /// than sitting on the line positions, so the first and last are fully drawn
-  /// instead of half outside the box.
+  /// The column a bar occupies. Bars use equal slots rather than the line
+  /// positions, so the first and last are not half outside the box.
   Rect barRect(int line, int index, {double gap = 0}) {
     final slot = size.width / math.max(pointCount, 1);
     final left = index * slot + gap / 2;
@@ -168,9 +140,7 @@ class StatChartGeometry {
     return [for (var i = 0; i <= count; i++) minY + step * i];
   }
 
-  /// The timestamps to label the x axis with, as indices into the graph.
-  ///
-  /// per day on a three-month graph is a grey smear.
+  /// Indices of the timestamps to label on the x axis, at most [count].
   List<int> labelIndices({int count = 4}) {
     if (pointCount == 0) return const [];
     if (pointCount <= count) {

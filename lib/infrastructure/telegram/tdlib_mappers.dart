@@ -11,34 +11,19 @@ import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 
 /// A message's reactions, flattened into the two collections `Post` carries.
-///
-/// A record rather than a `Post` fragment because the live update path needs
-/// the same pair without building a post around it.
 typedef MappedReactions = ({Map<String, int> counts, Set<String> chosen});
 
 class TdlibMappers {
-  /// The chip a paid (Telegram Stars) reaction is drawn as.
-  ///
-  /// `ReactionTypePaid` carries no emoji of its own — Telegram renders it as a
-  /// star icon — so the map needs a key, and the key is what the card shows.
+  /// The key for a paid (Telegram Stars) reaction, which has no emoji of its
+  /// own.
   static const String paidReactionEmoji = '⭐';
 
-  /// Fallback glyph for a custom emoji reaction.
-  ///
-  /// Resolving the real artwork means `GetCustomEmojiStickers`, a networked
-  /// request per distinct emoji and squarely against the request
-  /// budget. A count under a placeholder is the honest version of "one
-  /// more person reacted", and it beats dropping the reaction entirely — which
-  /// is what used to happen.
+  /// Placeholder key for custom emoji reactions. Fetching the real artwork
+  /// would cost a `GetCustomEmojiStickers` request per emoji.
   static const String customReactionEmoji = '🩶';
 
-  /// Flattens TDLib's reaction list into counts and the reader's own choices.
-  ///
-  /// One function rather than a loop at each call site: the history mapper and
-  /// the live update path both need this, they had a copy each, and the copies
-  /// agreed only by accident — both kept nothing but [td.ReactionTypeEmoji], so
-  /// paid and custom-emoji reactions vanished from posts that visibly had them
-  /// in Telegram.
+  /// Flattens TDLib's reaction list into counts and the user's own choices.
+  /// Shared by the history mapper and the live update path.
   static MappedReactions mapReactions(td.MessageReactions? reactions) =>
       mapReactionList(reactions?.reactions);
 
@@ -56,9 +41,7 @@ class TdlibMappers {
       };
       if (key == null) continue;
 
-      // Custom emoji all collapse onto one placeholder key, so counts add
-      // rather than overwrite — two different custom reactions on one post are
-      // two reactions, not the second one's count.
+      // Add rather than assign: all custom emoji share one placeholder key.
       counts[key] = (counts[key] ?? 0) + reaction.totalCount;
       if (reaction.isChosen) chosen.add(key);
     }
@@ -67,10 +50,6 @@ class TdlibMappers {
   }
 
   /// The plain text of a TDLib `FormattedText`, or null when it is empty.
-  ///
-  /// Public because the chat mapper needs exactly the same reading of a
-  /// caption that the post mapper does. Two copies of this had already
-  /// disagreed once about what an empty caption is.
   static String? plainTextOf(dynamic raw) => _parseFormattedText(raw);
 
   /// This app's entity models for a TDLib entity list. See [plainTextOf].
@@ -127,18 +106,13 @@ class TdlibMappers {
       isMuted: false,
       isHidden: false,
       isJoined: isJoined,
-      // Only ever true when full info was fetched — the list of channels
-      // deliberately does not fetch it (see `ChannelRepository`), so a row
-      // there answers "no" and the profile, which does fetch it, answers for
-      // real.
+      // False unless full info was fetched, which the channel list skips.
       canViewStatistics: fullInfo?.canGetStatistics ?? false,
     );
   }
 
-  /// A one-line summary of a message, for a reply preview.
-  ///
-  /// Text messages and captions show their own words; everything else falls
-  /// back to a label for its kind, the same way Telegram does.
+  /// A one-line summary of a message for a reply preview: its text or caption,
+  /// else a label for its kind.
   static String? excerptOf(td.Message message, {int maxLength = 120}) {
     final content = message.content;
     String? text;
@@ -150,9 +124,7 @@ class TdlibMappers {
     } else if (content is td.MessageVideo) {
       text = _parseFormattedText(content.caption) ?? '🎬 Video';
     } else if (content is td.MessageVideoNote) {
-      // It has no caption to fall back to, and describe() no longer names it
-      // now that the feed draws it — but a reply preview is still a line of
-      // text and needs one.
+      // No caption, and describe() doesn't label it since the feed draws it.
       text = '🎥 Video message';
     } else if (content is td.MessageAnimation) {
       text = _parseFormattedText(content.caption) ?? 'GIF';
@@ -187,16 +159,12 @@ class TdlibMappers {
     bool isBookmarked = false,
     Map<int, String>? knownChatTitles,
 
-    /// Excerpts for replied-to messages, keyed `chatId_messageId`.
-    ///
-    /// TDLib only fills `replyTo.content` for cross-chat replies and quotes, so
-    /// a reply within the same channel arrives with no preview text at all. The
-    /// repository resolves those and passes them in here.
+    /// Excerpts for replied-to messages, keyed `chatId_messageId`. TDLib only
+    /// fills `replyTo.content` for cross-chat replies and quotes.
     Map<String, String>? knownReplyExcerpts,
 
-    /// Who wrote this, when that is not the chat itself — a commenter in a
-    /// discussion group. Supplied, it is the **whole** answer for the byline
-    /// and the avatar; see [PostSender] for why that matters.
+    /// The author when it isn't the chat itself, such as a commenter in a
+    /// discussion group. When given, it supplies the whole byline and avatar.
     PostSender? sender,
   }) {
     String? bodyText;
@@ -259,14 +227,10 @@ class TdlibMappers {
       bodyText = _parseFormattedText(content.poll.question);
       pollObj = _parsePoll(content.poll);
     } else {
-      // Content we don't draw yet still gets a label. Falling through silently
-      // produced a card with a header, a timestamp, an action bar and nothing
-      // between them — see MessageContentSupport.
+      // Content we don't draw yet still gets a label, so the card isn't empty.
       bodyText = MessageContentSupport.describe(content);
       if (MessageContentSupport.isUnsupported(content)) {
-        // Carried so the card can offer Telegram rather than ending in a
-        // sentence the reader can do nothing with. The type name is logged
-        // because "unsupported" is otherwise unactionable in a bug report.
+        // Lets the card offer to open Telegram; the type name is logged.
         unsupportedKind = content.currentObjectId;
         debugPrint('[Mapper] Unrendered content: ${content.currentObjectId}');
       }
@@ -308,17 +272,13 @@ class TdlibMappers {
     final replyTo = message.replyTo;
     if (replyTo is td.MessageReplyToMessage) {
       replyToMessageId = replyTo.messageId;
-      // 0 means "same chat"; anything else is a reply across chats, and losing
-      // it is what made a reachable post report itself as not found.
+      // 0 means the same chat; anything else is a cross-chat reply.
       replyToChatId = replyTo.chatId != 0 && replyTo.chatId != chat.id
           ? replyTo.chatId
           : null;
 
-      // Author title resolution
-      // Each branch resolves a *name* or gives up. None of them falls back to
-      // this chat: an origin that says the words came from somewhere else has
-      // already ruled this chat out, and answering with it anyway is how a
-      // passage quoted from another channel ended up under this one's byline.
+      // Each branch resolves a name or gives up. Only a reply within this chat
+      // may fall back to this chat's title.
       final origin = replyTo.origin;
       if (origin is td.MessageOriginChannel) {
         replyToAuthorTitle =
@@ -335,18 +295,10 @@ class TdlibMappers {
       } else if (origin is td.MessageOriginHiddenUser) {
         replyToAuthorTitle = origin.senderName;
       }
-      // Only a reply *within* this chat is authored by this chat. Falling back
-      // to it for a reply that came out of somewhere else attributes another
-      // channel's words to this one — which is what put "ragoose cooks" over a
-      // passage quoted from a different channel. Unknown stays unknown; the
-      // shapes that draw it omit the byline rather than invent one.
       if (replyToChatId == null) replyToAuthorTitle ??= chat.title;
 
-      // A quote is the writer selecting a span out of the message they are
-      // answering. TDLib fills this only in that case, so it is the one place
-      // the distinction exists — and it is drawn differently from a reply to
-      // a whole post. Recorded before the two fallbacks below overwrite the
-      // fact by filling the same field from the target's own content.
+      // TDLib sets `quote` only when the writer selected a span of the replied
+      // message. Read it before the fallbacks below fill the same field.
       final quote = replyTo.quote;
       if (quote != null) {
         replyToText = _parseFormattedText(quote.text);
@@ -357,16 +309,10 @@ class TdlibMappers {
       replyToText ??=
           knownReplyExcerpts?['${replyToChatId ?? chat.id}_${replyTo.messageId}'];
 
-      // Every branch below assigns replyToText unconditionally, to say what
-      // the answered message *is* — "📷 Photo" for a picture, the file name
-      // for a document. That is the right preview for a reply to the whole
-      // message and the wrong one for a quote, which is a span the writer
-      // chose out of it. Only the MessageText branch used `??=`, so quoting
-      // words out of a photo's caption showed "📷 Photo" instead of the words.
-      // Held here and put back below, so the branches stay simple.
+      // Most branches below overwrite replyToText with a label for the
+      // message, so a quote is saved here and restored after them.
       final selectedQuote = replyToIsQuote ? replyToText : null;
 
-      // Content preview resolution & thumbnail extraction
       final content = replyTo.content;
       if (content is td.MessageText) {
         // Only use full content text if no quote was set
@@ -489,8 +435,7 @@ class TdlibMappers {
             : '🎵 ${content.audio.fileName}';
       }
 
-      // The passage the writer picked outranks whatever the branch above
-      // decided the message it came from "is".
+      // A quoted span wins over the label chosen above.
       if (selectedQuote != null) replyToText = selectedQuote;
     }
 
@@ -505,8 +450,8 @@ class TdlibMappers {
       channelTitle: sender?.title ?? chat.title,
       channelUsername: sender?.username,
       senderUserId: sender?.userId,
-      // All-or-nothing, deliberately. Falling back field by field is how a
-      // commenter with no profile photo ended up wearing the channel's.
+      // All or nothing, so a commenter without a photo never gets the
+      // channel's avatar.
       channelAvatarUrl: sender != null
           ? sender.avatarPath
           : _chatAvatarPath(chat),
@@ -550,13 +495,8 @@ class TdlibMappers {
     );
   }
 
-  /// A person's name as Telegram gives it: two fields, either of which can be
-  /// empty.
-  ///
-  /// Lives here rather than in a feature because two features need it — the
-  /// chat list and the comment thread — and a feature may not import another
-  /// feature's data layer. A deleted account has both names empty, which is
-  /// why the fallbacks exist.
+  /// A user's display name, with fallbacks for deleted accounts and empty
+  /// names. Shared by the chat list and comment thread.
   static String userDisplayName(td.User user) {
     final name = '${user.firstName} ${user.lastName}'.trim();
     if (name.isNotEmpty) return name;
@@ -579,12 +519,8 @@ class TdlibMappers {
   static List<MediaItem> extractMediaItems(td.Message message) =>
       extractMediaFromContent(message.content);
 
-  /// The media in a message content, without needing the message around it.
-  ///
-  /// Split out because `updateMessageContent` hands over a bare content — an
-  /// edited message arrives with no `Message` to read it from — and rebuilding
-  /// a synthetic one just to reach this code would be a lie with dozens of
-  /// invented fields in it.
+  /// The media in a message content. Separate from [extractMediaItems] because
+  /// `updateMessageContent` delivers content without its `Message`.
   static List<MediaItem> extractMediaFromContent(td.MessageContent content) {
     final list = <MediaItem>[];
 
@@ -608,7 +544,6 @@ class TdlibMappers {
                 ? thumbFile.remote.id
                 : thumbFile.id.toString());
 
-      // Extract minithumbnail if available
       final minithumbnailBase64 = photo.minithumbnail?.data;
 
       list.add(
@@ -648,7 +583,6 @@ class TdlibMappers {
                       : thumbFile.id.toString()))
           : null;
 
-      // Extract minithumbnail
       final minithumbnailBase64 = video.minithumbnail?.data;
 
       list.add(
@@ -674,9 +608,7 @@ class TdlibMappers {
         ),
       );
     } else if (content is td.MessageVideoNote) {
-      // A round video message. It is a video, and it used to be labelled
-      // instead of drawn — so a channel that posts them showed a line of text
-      // where the video was. Square by construction: `length` is both sides.
+      // A round video message; `length` is both width and height.
       final note = content.videoNote;
       final noteFile = note.video;
       final notePath =
@@ -734,7 +666,6 @@ class TdlibMappers {
                       : thumbFile.id.toString()))
           : null;
 
-      // Extract minithumbnail
       final minithumbnailBase64 = anim.minithumbnail?.data;
 
       list.add(
@@ -813,9 +744,8 @@ class TdlibMappers {
       list.add(
         MediaItem(
           id: stickerPath,
-          // Not MediaType.photo: a TGS sticker is gzipped Lottie JSON and a WebM
-          // sticker is video, so handing either to an image widget renders
-          // nothing. The tile picks a renderer from stickerFormat.
+          // Not a photo: TGS stickers are gzipped Lottie and WebM ones are
+          // video. The tile picks a renderer from stickerFormat.
           type: MediaType.sticker,
           url: stickerPath,
           thumbnailUrl: thumbPath,
@@ -912,8 +842,7 @@ class TdlibMappers {
     final result = <Post>[];
 
     for (final m in messages) {
-      // Telegram's own notices about the chat — pins, renames, joins — are
-      // noise in a reading feed.
+      // Skip service messages such as pins, renames and joins.
       if (!MessageContentSupport.belongsInFeed(m.content)) continue;
 
       final albumId = m.mediaAlbumId.toInt();
@@ -990,16 +919,8 @@ class TdlibMappers {
     return result;
   }
 
-  /// The image to show for a link preview, whatever shape TDLib describes it in.
-  ///
-  /// `LinkPreviewType` is a union of thirty-odd branches and each carries its
-  /// picture somewhere different. Handling only a handful of them is why a
-  /// YouTube link showed a bare card: those arrive as
-  /// `linkPreviewTypeEmbeddedVideoPlayer`, whose thumbnail lives in a `Photo`
-  /// rather than on a `Video` — a branch nothing looked at.
-  ///
-  /// Returns null for links that genuinely have no image (a voice note, a
-  /// boost link), so the card renders without a blank banner.
+  /// The image to show for a link preview, or null when the link type has
+  /// none. Each `LinkPreviewType` branch keeps its picture in a different place.
   static td.File? linkPreviewImage(td.LinkPreviewType type) {
     td.File? fromPhoto(td.Photo? photo) {
       if (photo == null || photo.sizes.isEmpty) return null;
@@ -1012,7 +933,6 @@ class TdlibMappers {
       td.LinkPreviewTypeArticle() => fromPhoto(type.photo),
       td.LinkPreviewTypeApp() => fromPhoto(type.photo),
       td.LinkPreviewTypeWebApp() => fromPhoto(type.photo),
-      // The embedded players — YouTube, Vimeo, SoundCloud and friends.
       td.LinkPreviewTypeEmbeddedVideoPlayer() => fromPhoto(type.thumbnail),
       td.LinkPreviewTypeEmbeddedAnimationPlayer() => fromPhoto(type.thumbnail),
       td.LinkPreviewTypeEmbeddedAudioPlayer() => fromPhoto(type.thumbnail),
@@ -1058,13 +978,8 @@ class TdlibMappers {
         .toList();
   }
 
-  /// A TDLib poll as the app's own model.
-  ///
-  /// Public because a poll now reaches two surfaces — the feed card and the
-  /// chat bubble — and both must read it the same way. It routes through
-  /// [serializePoll] rather than constructing the model directly so that the
-  /// field names stay in one place; the round-trip is a handful of maps once
-  /// per poll, against a message the reader is looking at.
+  /// A TDLib poll as the app's own model, via [serializePoll] so the field
+  /// names live in one place.
   static Poll? mapPoll(td.Poll? poll) => _parsePoll(poll);
 
   static Poll? _parsePoll(td.Poll? poll) {
@@ -1084,9 +999,7 @@ class TdlibMappers {
 
         String? language;
 
-        // Every branch of TDLib's union gets a name. Anything left out arrives
-        // as 'unknown' and renders as plain text, which is how block quotes and
-        // fenced code lost their formatting.
+        // Any entity type not named here renders as plain text.
         if (type is td.TextEntityTypeBold) {
           typeStr = 'bold';
         } else if (type is td.TextEntityTypeItalic) {
@@ -1098,8 +1011,6 @@ class TdlibMappers {
         } else if (type is td.TextEntityTypeCode) {
           typeStr = 'code';
         } else if (type is td.TextEntityTypePreCode) {
-          // Checked before Pre: PreCode is not a subclass, but keeping the
-          // language-bearing case first makes the intent obvious.
           typeStr = 'codeBlock';
           language = type.language;
         } else if (type is td.TextEntityTypePre) {
@@ -1182,10 +1093,7 @@ class TdlibMappers {
         'isAnonymous': poll.isAnonymous,
         'isClosed': poll.isClosed,
         'isQuiz': isQuiz,
-        // Regular polls only. A quiz has one right answer by definition, so
-        // TDLib does not carry the flag on one — and a card that offered
-        // several selections on a quiz would be offering a vote Telegram
-        // refuses.
+        // Only regular polls carry this flag; a quiz always takes one answer.
         'allowsMultipleAnswers':
             poll.type is td.PollTypeRegular &&
             (poll.type as td.PollTypeRegular).allowMultipleAnswers,
@@ -1203,11 +1111,8 @@ class TdlibMappers {
     }
   }
 
-  /// The fallback avatar colour for an id, when there is no photo to draw.
-  ///
-  /// Public because the chat list needs the same colour for the same person
-  /// that the feed and the forward picker already give them — a second copy of
-  /// this table is a contact whose initials change colour between screens.
+  /// The fallback avatar colour for an id. Shared so a contact gets the same
+  /// colour on every screen.
   static String avatarColorFor(int seedId) => _generateRandomHexColor(seedId);
 
   static String _generateRandomHexColor(int seedId) {

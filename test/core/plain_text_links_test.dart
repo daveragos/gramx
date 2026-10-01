@@ -2,11 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/core/text/plain_text_links.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 
-/// A channel's bio is the one piece of text Telegram hands over with no
-/// entities at all, so every link in it rendered as grey prose. These entities
-/// are re-derived, which means the offsets have to be right against the same
-/// string [TextEntityRenderer] will slice — an entity one code unit out puts
-/// the link on the wrong words.
+/// Telegram sends a channel bio without entities, so links are found locally.
+/// Offsets must match the string [TextEntityRenderer] slices.
 void main() {
   String sliceOf(String text, TextEntity entity) =>
       text.substring(entity.offset, entity.offset + entity.length);
@@ -39,8 +36,6 @@ void main() {
       expect(sliceOf(text, entities.single), 'www.example.org');
     });
 
-    // The classic over-eager-linkifier bug: the sentence's full stop becomes
-    // part of the host and the tap goes nowhere.
     test('trailing punctuation belongs to the sentence', () {
       const text = 'See https://gramx.dev.';
       final entities = linkifyPlainText(text);
@@ -63,8 +58,7 @@ void main() {
       expect(sliceOf(text, entities.single), '@gramxchat');
     });
 
-    // Telegram usernames are at least five characters. Without the floor an
-    // email's local part and every "@me" became a channel that cannot open.
+    // Telegram usernames are at least five characters.
     test('something too short to be a username is not a mention', () {
       expect(linkifyPlainText('ping @me'), isEmpty);
     });
@@ -77,8 +71,6 @@ void main() {
       expect(sliceOf(text, entities.single), '#release');
     });
 
-    // An address contains an @handle-shaped run. Claiming ranges in order is
-    // what stops it being read as both.
     test('an email is one entity, not an email plus a mention', () {
       const text = 'Write to hello@gramx.dev';
       final entities = linkifyPlainText(text);
@@ -100,8 +92,7 @@ void main() {
       }
     });
 
-    // The offsets are UTF-16 code units, the same units substring counts in.
-    // A bio with an emoji in it is where an offset scheme goes wrong.
+    // Offsets are UTF-16 code units, as `substring` uses.
     test('offsets survive text with emoji before the link', () {
       const text = '🇪🇹 news · https://gramx.dev';
       final entities = linkifyPlainText(text);

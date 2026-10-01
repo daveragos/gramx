@@ -44,8 +44,7 @@ void main() {
       expect(followers.isRising, isTrue);
     });
 
-    // The only figure Telegram sends as a bare number, with no period behind
-    // it — an arrow on it would be an invention.
+    // Telegram sends this as a bare number with no previous period.
     test('the notifications figure is a percentage with no growth', () {
       final stats = StatsMapper.mapChannel(
         TdFixtures.channelStatistics(enabledNotificationsPercentage: 42.5),
@@ -83,8 +82,7 @@ void main() {
       expect((growth as StatGraphReady).graph.lines.single.values, [10, 20]);
     });
 
-    // Unreadable is not empty: an empty chart frame reads as a channel with no
-    // activity, so it has to arrive as "unavailable" instead.
+    // An empty chart would look like a channel with no activity.
     test('an unreadable graph becomes missing, not an empty chart', () {
       final stats = StatsMapper.mapChannel(
         TdFixtures.channelStatistics(
@@ -106,8 +104,7 @@ void main() {
       expect(growth.reason, 'NOT_ENOUGH_DATA');
     });
 
-    // The supergroup variant describes senders and administrators, which is a
-    // different screen for a different thing.
+    // Supergroup statistics describe senders and admins, a different screen.
     test('refuses a supergroup\'s statistics', () {
       expect(StatsMapper.mapChannel(TdFixtures.supergroupStatistics()), isNull);
     });
@@ -135,9 +132,7 @@ void main() {
       expect(post.reactionCount, 15);
     });
 
-    // gramX has no screen to open a story on, so a row for one would go
-    // nowhere — the inert control the hard rules forbid, wearing a list's
-    // clothes.
+    // gramX has no story screen, so a story row would go nowhere.
     test('drops stories', () {
       final stats = StatsMapper.mapChannel(
         TdFixtures.channelStatistics(
@@ -165,8 +160,7 @@ void main() {
       expect(stats.recentPosts.map((p) => p.messageId), [30, 20, 10]);
     });
 
-    // Each row's words are one local read, and Telegram sends hundreds of
-    // these. The cap is what keeps the Content tab from becoming a sweep.
+    // Each row costs a local read, and Telegram sends hundreds.
     test('is capped, keeping the newest', () {
       final stats = StatsMapper.mapChannel(
         TdFixtures.channelStatistics(

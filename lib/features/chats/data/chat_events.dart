@@ -4,19 +4,12 @@ import 'package:gramx/core/l10n/app_strings.dart';
 
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
-/// A change to a conversation, distilled from the raw TDLib update stream.
-///
-/// A reader with a chat open is watching something two-sided and live, so the
-/// set of updates that matter is much wider than the feed's: messages arrive,
-/// get edited, get deleted, fail to send, and the other side reads them and
-/// starts typing. Each of those is a distinct event here rather than a flag on
-/// one, so [ConversationState] can fold them with an exhaustive switch and a
-/// new one cannot be forgotten silently.
+/// A change to a conversation, taken from the TDLib update stream. Sealed so
+/// [ConversationState] folds events with an exhaustive switch.
 sealed class ChatEvent {
   const ChatEvent();
 
-  /// The chat this event belongs to. Every conversation screen filters on it,
-  /// so it is on the base class rather than repeated at each call site.
+  /// The chat this event belongs to.
   int get chatId;
 }
 
@@ -29,9 +22,7 @@ class ChatMessageArrived extends ChatEvent {
   int get chatId => message.chatId;
 }
 
-/// Messages were removed. TDLib deletes from the local cache and from the
-/// server through the same update, distinguished by [isPermanent] — only a
-/// permanent one means "this is gone for everybody".
+/// Messages were removed. Only an [isPermanent] deletion is gone for everyone.
 class ChatMessagesDeleted extends ChatEvent {
   @override
   final int chatId;
@@ -40,12 +31,9 @@ class ChatMessagesDeleted extends ChatEvent {
   const ChatMessagesDeleted(this.chatId, this.messageIds, this.isPermanent);
 }
 
-/// Telegram accepted a message this account sent, and gave it its real id.
-///
-/// The id changes: a queued message carries a temporary one, and every id-keyed
-/// thing about the bubble — the reply target, the reaction, the delete — has to
-/// move with it. Dropping [oldMessageId] leaves the optimistic bubble on screen
-/// next to the real one.
+/// Telegram accepted a sent message and gave it its real id. Anything keyed by
+/// [oldMessageId] (the temporary id) must move to the new one, or the pending
+/// bubble stays next to the real one.
 class ChatMessageSent extends ChatEvent {
   final td.Message message;
   final int oldMessageId;
@@ -66,7 +54,7 @@ class ChatMessageFailed extends ChatEvent {
   int get chatId => message.chatId;
 }
 
-/// A message's content changed — an edit, or media finishing its upload.
+/// A message's content changed: an edit, or media finishing its upload.
 class ChatMessageContentChanged extends ChatEvent {
   @override
   final int chatId;
@@ -84,8 +72,8 @@ class ChatMessageEdited extends ChatEvent {
   const ChatMessageEdited(this.chatId, this.messageId, this.editedAt);
 }
 
-/// The other side read up to this message id. The only source for the read
-/// tick — TDLib sends no per-message "was read" flag.
+/// The other side read up to this message id. TDLib has no per-message read
+/// flag, so this drives the read tick.
 class ChatOutboxRead extends ChatEvent {
   @override
   final int chatId;
@@ -93,10 +81,7 @@ class ChatOutboxRead extends ChatEvent {
   const ChatOutboxRead(this.chatId, this.lastReadOutboxMessageId);
 }
 
-/// Reaction counts as TDLib now sees them.
-///
-/// An empty map is meaningful and different from absent: it is how the last
-/// reaction being taken back arrives.
+/// Current reaction counts. An empty map means the last reaction was removed.
 class ChatReactionsChanged extends ChatEvent {
   @override
   final int chatId;
@@ -111,11 +96,7 @@ class ChatReactionsChanged extends ChatEvent {
   );
 }
 
-/// A message was pinned to the top of the chat, or unpinned from it.
-///
-/// Its own event rather than a content change: nothing about the message
-/// itself moved, and folding it through the content decoder would re-read a
-/// body that has not changed.
+/// A message was pinned or unpinned (its body is unchanged).
 class ChatMessagePinChanged extends ChatEvent {
   @override
   final int chatId;
@@ -124,25 +105,19 @@ class ChatMessagePinChanged extends ChatEvent {
   const ChatMessagePinChanged(this.chatId, this.messageId, this.isPinned);
 }
 
-/// Somebody in the chat started or stopped doing something — typing, recording
-/// a voice note, sending a photo. [action] is null when they stopped.
+/// Somebody started or stopped typing, recording or sending media.
 class ChatActionChanged extends ChatEvent {
   @override
   final int chatId;
   final int? userId;
 
-  /// A short phrase for what they are doing, already in the reader's words —
-  /// "typing", "recording audio". Null means they stopped.
+  /// A short phrase such as "typing". Null means they stopped.
   final String? action;
   const ChatActionChanged(this.chatId, this.userId, this.action);
 }
 
-/// Turns raw TDLib updates into [ChatEvent]s.
-///
-/// Pure and top-level, so the whole translation is testable without a client, a
-/// database or a subscription — the seam the tests
-/// need. Returns null for every update a conversation
-/// does not care about, which is the vast majority of them.
+/// Turns raw TDLib updates into [ChatEvent]s, or null for updates a
+/// conversation ignores.
 abstract class ChatEvents {
   static ChatEvent? map(td.TdObject update) {
     switch (update) {
@@ -150,9 +125,8 @@ abstract class ChatEvents {
         return ChatMessageArrived(update.message);
 
       case td.UpdateDeleteMessages():
-        // `fromCache` means TDLib dropped it locally to save room — the message
-        // still exists for everybody, including this reader on their phone.
-        // Folding it in as a deletion is how a scrollback develops holes.
+        // `fromCache` means TDLib only evicted it locally; the message still
+        // exists, so treating it as deleted would leave gaps in the history.
         if (update.fromCache) return null;
         return ChatMessagesDeleted(
           update.chatId,
@@ -189,8 +163,8 @@ abstract class ChatEvents {
 
       case td.UpdateMessageInteractionInfo():
         final info = update.interactionInfo;
-        // Reactions reach a user client through this field and nowhere else —
-        // `updateMessageReactions` is documented bots-only.
+        // User clients get reactions only through this field;
+        // `updateMessageReactions` is for bots.
         if (info == null) {
           return ChatReactionsChanged(
             update.chatId,
@@ -199,10 +173,7 @@ abstract class ChatEvents {
             const {},
           );
         }
-        // Through TdlibMappers rather than a loop here: it is the one place
-        // that flattens emoji, custom-emoji and paid reactions together, and
-        // the last time two copies of this existed they disagreed and dropped
-        // two of the three kinds.
+        // Shared mapping for emoji, custom-emoji and paid reactions.
         final mapped = TdlibMappers.mapReactions(info.reactions);
         return ChatReactionsChanged(
           update.chatId,
@@ -231,10 +202,8 @@ abstract class ChatEvents {
     }
   }
 
-  /// What somebody is doing, in the words the header shows.
-  ///
-  /// Null for `ChatActionCancel`, which is TDLib's way of saying they stopped —
-  /// and for the actions that have no honest short phrase.
+  /// What somebody is doing, as the header shows it. Null for
+  /// `ChatActionCancel` (they stopped) and for actions with no short phrase.
   static String? describeAction(td.ChatAction action) => switch (action) {
     td.ChatActionTyping() => AppStrings.chatActionTyping,
     td.ChatActionRecordingVideo() => AppStrings.chatActionRecordingVideo,

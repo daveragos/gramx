@@ -1,30 +1,23 @@
 import 'package:flutter/foundation.dart';
 
-/// What kind of place a post is going to.
-///
-/// Ordering, not decoration: gramX is a channel reader, so the channels a
-/// writer actually runs belong at the top of the picker, and the person they
-/// last messaged does not. The icon each one wears follows from this too.
+/// What kind of place a post is going to. Also sets the order in the picker,
+/// with channels first.
 enum ComposeTargetKind {
-  /// A broadcast channel this account may post to — creator or an admin with
-  /// posting rights.
+  /// A broadcast channel this account may post to.
   channel,
 
   /// A group this account may write in.
   group,
 
-  /// The account's own cloud storage. Always available, which is what keeps
-  /// the compose button from being dead for a reader who runs no channel.
+  /// The account's own cloud storage. Always available, so the compose button
+  /// works for an account with no channel.
   savedMessages,
 
   /// A one-to-one chat.
   direct,
 }
 
-/// One destination in the compose picker.
-///
-/// A flattened view of a `td.Chat`, so the picker and the pill don't each
-/// re-derive the same three facts from TDLib's object.
+/// One destination in the compose picker, flattened from a `td.Chat`.
 @immutable
 class ComposeTarget {
   final int chatId;
@@ -37,17 +30,11 @@ class ComposeTarget {
   /// TDLib's file id for that photo, so the avatar can fetch it if it hasn't.
   final int? avatarFileId;
 
-  /// Sort order within TDLib's main chat list — the recency the picker keeps
-  /// inside each [kind].
+  /// Position in TDLib's main chat list, used to sort within each [kind].
   final int mainListOrder;
 
-  /// Whether Telegram will take a poll here.
-  ///
-  /// Carried on the target rather than asked for when the toolbar is drawn:
-  /// the answer needs the chat *and* its supergroup, which is a cache lookup,
-  /// and `build()` is not allowed to reach for one. Decided once, where the
-  /// list is built. Narrower than "can post here" — polls are their own group
-  /// permission, and a private chat with a person never takes one.
+  /// Whether Telegram accepts a poll here. Worked out when the list is built,
+  /// since it needs the supergroup from the cache, which `build()` can't read.
   final bool allowsPolls;
 
   const ComposeTarget({

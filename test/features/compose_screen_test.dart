@@ -39,8 +39,7 @@ Widget _host(
 }) => ProviderScope(
   overrides: [
     composeTargetsProvider.overrideWith(() => _FixedTargets(targets)),
-    // Real limits come from TDLib, which a widget test has no business
-    // starting. See composeLengthLimitsProvider.
+    // The real limits come from TDLib. See composeLengthLimitsProvider.
     composeLengthLimitsProvider.overrideWith((ref) async => limits),
     activeAccountProvider.overrideWith(
       (ref) => Stream.value(
@@ -60,8 +59,7 @@ Widget _host(
 
 /// Whether the Post button would do anything if tapped.
 bool _postEnabled(WidgetTester tester) {
-  // The pill is drawn by an ElevatedButton inside PillButton; that is the
-  // widget that knows whether a tap would land.
+  // PillButton draws an ElevatedButton, which holds the enabled state.
   final button = tester.widget<ElevatedButton>(
     find.descendant(
       of: find.byType(PillButton),
@@ -125,8 +123,7 @@ void main() {
       expect(_postEnabled(tester), isFalse);
     });
 
-    // The hard rule: a control that renders and does nothing is a bug. With
-    // nowhere to post, the screen says so instead of offering a live button.
+    // A control that renders but does nothing is a bug.
     testWidgets('with nowhere to post, it says so and offers nothing', (
       tester,
     ) async {
@@ -148,7 +145,7 @@ void main() {
       expect(find.text(AppStrings.composeDiscardTitle), findsNothing);
     });
 
-    // Discarding writing is irreversible, and UI.md says those ask first.
+    // Discarding is irreversible, so it asks first.
     testWidgets('closing a written draft asks before throwing it away', (
       tester,
     ) async {
@@ -169,8 +166,8 @@ void main() {
       expect(find.text('half a thought'), findsOneWidget);
     });
 
-    // tree: close top-left, Post top-right, avatar in the gutter, and the
-    // destination pill above the writing — not beside it, and not below.
+    // Checked as geometry: close top-left, Post top-right, avatar in the
+    // gutter, and the destination pill above the text field.
     testWidgets('puts the destination above the writing', (tester) async {
       await tester.pumpWidget(_host(const [_channel]));
       await tester.pump();
@@ -211,8 +208,7 @@ void main() {
       );
     });
 
-    // Premium quadruples the caption allowance. A composer that assumed the
-    // free tier would refuse a post the account is entitled to make.
+    // Premium accounts get a larger caption limit.
     testWidgets('a Premium account gets the room it pays for', (tester) async {
       await tester.pumpWidget(
         _host(const [_channel], limits: ComposeLengthLimits.premium),

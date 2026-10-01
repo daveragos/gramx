@@ -13,16 +13,12 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:handy_tdlib/handy_tdlib.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// A failed TDLib request, carrying the numeric error code.
+/// A failed TDLib request, carrying the numeric error code so rate limits can
+/// be told apart from other errors.
 ///
-/// The code is what makes rate limiting detectable — collapsing a [td.TdError]
-/// into a bare `Exception` throws it away and leaves 420/429 indistinguishable
-/// from a bad request.
-///
-/// [toString] deliberately returns only [message]: the auth screens surface it
-/// to the user verbatim, so a type prefix would leak internals into sign-in.
+/// [toString] returns only [message] because the auth screens show it as is.
 class TdlibRequestException implements Exception {
-  /// TDLib error code — 400 bad request, 401 unauthorised, 420/429 flood wait.
+  /// TDLib error code: 400 bad request, 401 unauthorised, 420/429 flood wait.
   final int code;
 
   /// Raw Telegram error string, e.g. `PHONE_NUMBER_INVALID`.
@@ -62,9 +58,8 @@ class TdlibService {
     caseSensitive: false,
   );
 
-  /// Extracts the retry delay from a TDLib error message.
-  ///
-  /// Handles both `FLOOD_WAIT_30` and `Too Many Requests: retry after 30`.
+  /// Extracts the retry delay from a TDLib error message, in either the
+  /// `FLOOD_WAIT_30` or `Too Many Requests: retry after 30` form.
   static int? parseRetryAfter(String message) {
     final match = _retryAfterPattern.firstMatch(message);
     if (match == null) return null;
@@ -90,8 +85,8 @@ class TdlibService {
   String _lastStatusMessage = 'Initializing TDLib...';
   final Completer<void> _tdlibReadyCompleter = Completer<void>();
 
-  /// Single client-wide flood-wait deadline. One gate for every request — a
-  /// per-call-site retry races on release and immediately re-floods.
+  /// One flood-wait deadline for the whole client. Per-call retries would all
+  /// fire together when the limit lifts and trip it again.
   DateTime? _floodWaitUntil;
   final _floodWaitController = StreamController<DateTime?>.broadcast();
 
@@ -110,10 +105,8 @@ class TdlibService {
   /// Emits the new deadline whenever rate limiting starts, and null when it lifts.
   Stream<DateTime?> get floodWaitUpdates => _floodWaitController.stream;
 
-  /// Records a flood-wait deadline if [code] is a rate-limit code.
-  ///
-  /// Called for both request replies and global updates — TDLib's own
-  /// background requests can trip the limit without any call of ours failing.
+  /// Records a flood-wait deadline if [code] is a rate-limit code. Called for
+  /// global errors too, since TDLib's background requests can hit the limit.
   void _noteError(int code, String message) {
     if (code != floodWaitCode && code != tooManyRequestsCode) return;
 
@@ -141,55 +134,34 @@ class TdlibService {
     debugPrint('[TDLib] Rate limit lifted — resuming requests');
   }
 
-  /// True for requests TDLib answers from its own database without reaching the
-  /// server.
-  ///
-  /// These bypass the flood gate: a rate limit must not stop the app from
-  /// reading content it already has on disk, or a flood wait would black out
-  /// the cached feed instead of just pausing new fetches.
+  /// True for requests TDLib answers locally. These bypass the flood gate so
+  /// cached content stays readable during a rate limit.
   @visibleForTesting
   static bool isLocalOnlyRequest(td.TdFunction function) =>
       _isLocalOnlyRequest(function);
 
   static bool _isLocalOnlyRequest(td.TdFunction function) {
     if (function is td.GetChatHistory) return function.onlyLocal;
-    // Options live in TDLib's own store, pushed there by `updateOption` — a
-    // read never leaves the device. TDLib documents `getOption` as callable
-    // before authorization, which is only possible because it is local.
+    // Options are read from TDLib's local store.
     if (function is td.GetOption) return true;
-    // TDLib documents `searchChats` as an offline method: it searches the
-    // titles and usernames of chats it has *already* loaded and never asks the
-    // server. That is what makes the new-message picker free to type in.
+    // TDLib documents `searchChats` as offline: it only searches loaded chats.
     if (function is td.SearchChats) return true;
-    // TDLib's own documentation on `getMessageProperties`: "this is an offline
-    // request". It is what the message long-press menu asks before deciding
-    // which actions to offer, so it must not be gated behind a flood wait the
-    // reader would experience as a menu that never opens.
+    // Documented as offline; the message long-press menu depends on it.
     if (function is td.GetMessageProperties) return true;
-    // Client configuration, not content. `setNetworkType` is documented as
-    // callable before authorization, and both of these have to work *while*
-    // rate limited: telling TDLib the app went away, or that the network
-    // changed, is how a flood wait ends sooner rather than later. Gating them
-    // would park the one call that reopens a dead connection behind the
-    // deadline that dead connection caused.
+    // Client configuration. These must work during a rate limit, since
+    // reopening connections after a network change is how it recovers.
     if (function is td.SetNetworkType) return true;
     if (function is td.SetOption) return true;
-    // TDLib's own documentation: "Returns a 404 error if the link is not
-    // internal. Can be called before authorization." Callable pre-auth is only
-    // possible for a request that never reaches the server, so classifying a
-    // tapped link is off the budget — and it has to work while rate limited,
-    // since a reader who taps a t.me link during a flood wait should still
-    // land somewhere rather than watch nothing happen.
+    // Callable before authorization, so it never reaches the server. Keeps
+    // t.me links working during a flood wait.
     if (function is td.GetInternalLinkType) return true;
-    // Shutting down must never wait on anything.
+    // Shutting down must never wait.
     if (function is td.Close) return true;
     return function is td.GetMessageLocally;
   }
 
-  /// Parks until the flood-wait deadline lifts.
-  ///
-  /// Loops rather than sleeping once, so a fresh flood recorded while we are
-  /// parked extends the wait instead of releasing a burst of requests early.
+  /// Waits until the flood-wait deadline lifts. Loops so a deadline extended
+  /// during the wait is honoured.
   Future<void> _awaitFloodGate(td.TdFunction function) async {
     while (true) {
       final until = _floodWaitUntil;
@@ -208,7 +180,7 @@ class TdlibService {
         );
       }
 
-      // Small grace so the deadline is genuinely past when we re-check.
+      // A small margin so the deadline has passed on the next check.
       await Future<void>.delayed(remaining + const Duration(milliseconds: 50));
     }
   }
@@ -307,10 +279,9 @@ class TdlibService {
       _clientId = TdPlugin.instance.tdCreateClientId();
       _updateStatus('TDLib client initialized (ID: $_clientId)');
 
-      // Start receiving (isolate if possible, polling otherwise)
       await _startReceiving();
 
-      // Query current authorization state immediately to seed the service
+      // Seed the current authorization state.
       try {
         _updateStatus('Connecting to Telegram network...');
         final stateRes = await sendRequest(const td.GetAuthorizationState());
@@ -335,30 +306,21 @@ class TdlibService {
   /// Fastest poll, used while updates are actually arriving.
   static const Duration _activePollInterval = Duration(milliseconds: 50);
 
-  /// Slowest poll, used once the queue has been empty for a while. A fixed
-  /// 50 ms timer woke the app twenty times a second even on an idle screen.
+  /// Slowest poll, used once the queue has been empty for a while.
   static const Duration _idlePollInterval = Duration(milliseconds: 250);
 
   /// Empty drains before backing off.
   static const int _idleThreshold = 8;
 
-  /// Updates decoded per drain before yielding to the event loop, so a burst —
-  /// a media download emits `UpdateFile` continuously — can't monopolise a frame.
+  /// Updates decoded per drain before yielding, so a burst of `UpdateFile`
+  /// during a download can't hold up a frame.
   static const int _maxDrainBatch = 64;
 
   int _emptyDrains = 0;
   Duration _pollInterval = _activePollInterval;
 
-  /// Starts receiving updates.
-  ///
-  /// Prefers a background isolate running TDLib's blocking receive, which keeps
-  /// both the native wait and the JSON parse off the UI thread. Falls back to
-  /// polling here if the isolate can't be started — on a platform that links
-  /// TDLib statically, for instance — so a failure degrades to the previous
-  /// behaviour rather than a client that receives nothing.
-  ///
-  /// Exactly one of the two runs: `td_receive` must not be called concurrently
-  /// for the same client.
+  /// Starts receiving on a background isolate, or polls here if that fails.
+  /// Only one runs, since `td_receive` must not be called concurrently.
   Future<void> _startReceiving() async {
     _receiver = TdlibReceiver(onPayload: _handlePayload);
     if (await _receiver!.start()) return;
@@ -396,12 +358,7 @@ class TdlibService {
 
   final Map<String, Completer<td.TdObject>> _pendingRequests = {};
 
-  /// Drains pending updates from the native queue.
-  ///
-  /// Decodes each payload exactly once. The previous version parsed every
-  /// update twice — once for the `@extra` check and again inside
-  /// `convertJsonToObject` — and request replies were additionally re-encoded
-  /// back to a string in between, so a reply cost two parses and one encode.
+  /// Drains pending updates from the native queue, decoding each payload once.
   void _drainUpdates() {
     var drained = 0;
 
@@ -420,11 +377,8 @@ class TdlibService {
     _adjustPollRate(drainedAnything: drained > 0);
   }
 
-  /// Whether a payload is a reply to a request we sent.
-  ///
-  /// Presence of the key — not a non-null value — is what marks a reply,
-  /// matching how TDLib echoes `@extra` back. Checking for a non-null value
-  /// instead would misroute a reply carrying a null one into the update stream.
+  /// Whether a payload is a reply to a request we sent. The presence of
+  /// `@extra` marks a reply, even when its value is null.
   @visibleForTesting
   static bool isRequestReply(Map<String, dynamic> payload) =>
       payload.containsKey('@extra');
@@ -477,9 +431,8 @@ class TdlibService {
       await initialize();
     }
 
-    // Gate non-init requests until TDLib parameters are configured, then behind
-    // the flood-wait deadline. Bootstrap calls bypass both — without them the
-    // client can never recover from a rate limit.
+    // Hold requests until TDLib parameters are set, then behind the flood
+    // gate. Bootstrap calls bypass both so the client can always start.
     if (function is! td.SetTdlibParameters &&
         function is! td.GetAuthorizationState) {
       try {
@@ -527,8 +480,7 @@ class TdlibService {
     } else if (object is td.UpdateChatFolders) {
       _chatFolders = object.chatFolders;
     } else if (object is td.TdError) {
-      // TDLib's own background requests can trip the rate limit without any
-      // request of ours failing, so global errors feed the gate too.
+      // TDLib's background requests can hit the rate limit too.
       _noteError(object.code, object.message);
       debugPrint('[TDLib Global Error] ${object.code}: ${object.message}');
     }
@@ -536,8 +488,7 @@ class TdlibService {
     _updatesController.add(object);
   }
 
-  /// Keeps download progress affordable to draw. See [FileUpdateThrottle] —
-  /// the rule lives there so it can be tested without a client.
+  /// Limits how often download progress reaches the UI.
   final FileUpdateThrottle _fileThrottle = FileUpdateThrottle();
 
   /// Forwards a file update to the UI stream, rate-limited per file.
@@ -564,9 +515,8 @@ class TdlibService {
         await Directory(databaseDir).create(recursive: true);
         await Directory(filesDir).create(recursive: true);
 
-        // A null stored key means either a fresh install or a database created
-        // before encryption existed. Both are opened with an empty key and then
-        // encrypted in place below, so an upgrade doesn't orphan the cache.
+        // No stored key means a fresh install or an unencrypted database. Open
+        // with an empty key and encrypt in place below.
         final storedKey = await _keyStore.read();
 
         final request = td.SetTdlibParameters(
@@ -583,8 +533,7 @@ class TdlibService {
           systemLanguageCode: 'en',
           deviceModel: 'gramX',
           systemVersion: 'Android/iOS',
-          // What Telegram shows for this session under Settings → Devices,
-          // so it has to be the version actually installed.
+          // Shown for this session in Telegram's list of devices.
           applicationVersion: AppStrings.appVersion,
         );
 
@@ -616,18 +565,15 @@ class TdlibService {
       if (state is td.AuthorizationStateWaitPhoneNumber) {
         _updateStatus('Ready for authentication.');
       } else if (state is td.AuthorizationStateReady) {
-        // The chat list is loaded by ChatCache, which the auth controller
-        // starts once the account is known. See `_handleAuthReady`.
+        // ChatCache loads the chat list; see `_handleAuthReady`.
         _updateStatus('Authenticated with Telegram!');
       }
     }
   }
 
   /// Encrypts the local database and stores the key in the platform keystore.
-  ///
-  /// Runs once, right after an unencrypted open. The key is persisted only
-  /// after TDLib confirms the change — storing it first would leave a key that
-  /// doesn't open the database, which is unrecoverable without a wipe.
+  /// The key is saved only after TDLib confirms, so it always matches the
+  /// database.
   Future<void> _encryptDatabase() async {
     final key = DatabaseKeyStore.generate();
     try {
@@ -635,19 +581,13 @@ class TdlibService {
       await _keyStore.write(key);
       debugPrint('[TDLib] Local database encrypted');
     } catch (e) {
-      // The database stays readable with an empty key; we simply try again on
-      // the next launch rather than leaving a mismatched key behind.
+      // Still readable with the empty key; retried on the next launch.
       debugPrint('[TDLib] Could not encrypt local database: $e');
     }
   }
 
-  /// Brings the client back after TDLib closed it, keeping the local data.
-  ///
-  /// TDLib closes the client after a log out and answers nothing further until
-  /// a new one exists. On the next launch that read as a broken app —
-  /// "Telegram session closed", offering to wipe local data — when all that is
-  /// needed is a fresh client on the same database. It comes back at
-  /// `WaitPhoneNumber`, which is the sign-in screen.
+  /// Creates a new client on the same database after TDLib closed the old one,
+  /// as it does after a log out. The new client starts at `WaitPhoneNumber`.
   Future<void> restartClient() async {
     _updateStatus('Reconnecting to Telegram...');
     _pollTimer?.cancel();
@@ -677,8 +617,7 @@ class TdlibService {
       if (await databaseDir.exists()) {
         await databaseDir.delete(recursive: true);
       }
-      // The key belongs to the database we just deleted. Keeping it would make
-      // the next launch open a fresh database with a stale key and fail.
+      // The key belonged to the deleted database.
       await _keyStore.clear();
       _updateStatus('Local session reset. Re-initializing...');
       await initialize();
@@ -687,25 +626,16 @@ class TdlibService {
     }
   }
 
-  /// Whether TDLib has been told this account is at the keyboard.
-  ///
-  /// Tracked so a run of `inactive` → `resumed` transitions — which Android and
-  /// iOS both emit freely — doesn't spend a request each time to repeat what
-  /// TDLib already believes.
+  /// The last online state sent, so repeated transitions don't resend it.
   bool? _isOnline;
 
-  /// Set once `Close` has been sent. A closed client answers nothing, so
-  /// anything still in flight is better refused here than left to time out.
+  /// Set once `Close` has been sent; a closed client answers nothing.
   bool _isClosing = false;
 
   bool get isClosing => _isClosing;
 
-  /// Tells Telegram whether the reader is at the keyboard.
-  ///
-  /// This is what drives the "online" dot other people see, and it is also how
-  /// Telegram decides whether to bother pushing a notification to this device.
-  /// An app that never says it left keeps the account looking permanently
-  /// present.
+  /// Sets the account's online status. Telegram also uses it to decide
+  /// whether to push notifications to this device.
   Future<void> setOnline(bool online) async {
     if (_isClosing) return;
     if (_isOnline == online) return;
@@ -719,20 +649,14 @@ class TdlibService {
         timeout: const Duration(seconds: 5),
       );
     } catch (e) {
-      // The next transition will try again; a missed presence update is not
-      // worth surfacing to the reader.
+      // Cleared so the next transition retries.
       _isOnline = null;
       debugPrint('[TDLib] setOnline($online) failed: $e');
     }
   }
 
-  /// Tells TDLib which network it is on.
-  ///
-  /// TDLib's own documentation is emphatic that this "must be called whenever
-  /// the network is changed, even if the network type remains the same",
-  /// because the call is what forces every connection to reopen. Without it a
-  /// client that went to sleep on one network wakes up still waiting on a
-  /// socket that will never answer.
+  /// Tells TDLib which network it is on. TDLib requires this on every network
+  /// change, even to the same type, because it reopens all connections.
   Future<void> setNetworkType(td.NetworkType type) async {
     if (_isClosing) return;
     try {
@@ -745,12 +669,8 @@ class TdlibService {
     }
   }
 
-  /// Asks TDLib to shut down cleanly.
-  ///
-  /// TDLib buffers writes, so a process killed without this leaves a database
-  /// that has to be recovered on the next launch — which is slow, and is the
-  /// one startup cost the reader pays for nothing. Best-effort and short:
-  /// the platform is already taking the process away.
+  /// Asks TDLib to shut down cleanly so its buffered writes are flushed and the
+  /// next launch skips database recovery. Best effort, with a short timeout.
   Future<void> close() async {
     if (_isClosing || _clientId == null) return;
     _isClosing = true;

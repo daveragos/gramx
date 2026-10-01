@@ -33,8 +33,7 @@ List<bool> backlogFlags(List<FeedEntry> entries) => [
 
 void main() {
   group('orderBacklogIds', () {
-    // Straight chronological order clusters: one quiet channel contributes a
-    // run of consecutive rows and the mix reads as that channel.
+    // Plain chronological order would give one channel a run of rows.
     test('rotates channels instead of emptying one at a time', () {
       final ordered = orderBacklogIds([
         post('-100_1', 500, chatId: -100),
@@ -87,9 +86,8 @@ void main() {
       expect(candidates, contains('-100_40'));
     });
 
-    // The first painted feed is short — one post per channel plus whatever
-    // TDLib had cached — so the window has to be small enough that a cold
-    // start still has something to mix in.
+    // The first painted feed is short (one post per channel plus TDLib's
+    // cache), so the fresh window must leave candidates behind it.
     test('a cold start has candidates as soon as the feed is painted', () {
       final posts = [for (var i = 1; i <= 30; i++) post('-100_$i', i)];
 
@@ -105,8 +103,6 @@ void main() {
       expect(selectBacklogCandidates(posts, freshWindow: 25), isEmpty);
     });
 
-    // Unread is unread: one that arrived with the ordinary backfill belongs in
-    // the mix on the same terms as one the unread sweep went and fetched.
     test('a short feed has nothing behind the window to offer', () {
       final posts = [for (var i = 1; i <= 10; i++) post('-100_$i', i)];
       expect(selectBacklogCandidates(posts, freshWindow: 25), isEmpty);
@@ -129,7 +125,7 @@ void main() {
       expect(buildFeedEntries(const []), isEmpty);
     });
 
-    // The feed's one promise: the top is the most recent thing.
+    // The top of the feed is always the most recent post.
     test('the first row is never a backlog post', () {
       final entries = buildFeedEntries(
         [
@@ -159,7 +155,6 @@ void main() {
       ]);
     });
 
-    // Read forwards, the way the channel wrote it.
     test('the backlog is woven in oldest first', () {
       final entries = buildFeedEntries(
         [
@@ -206,8 +201,6 @@ void main() {
       expect(entries.last.isBacklog, isTrue);
     });
 
-    // Too short to weave into: the feed stays exactly as it was rather than
-    // opening on something from last week.
     test('a feed shorter than one cadence is left alone', () {
       final entries = buildFeedEntries(
         [
@@ -221,8 +214,7 @@ void main() {
       expect(backlogFlags(entries), everyElement(isFalse));
     });
 
-    // The cadence sets the ceiling: lifting everything unread would leave a
-    // reverse-ordered tail of week-old posts under the fresh ones.
+    // The cadence caps how many backlog posts are lifted into the feed.
     test('only as many rows are lifted as there are slots for', () {
       final entries = buildFeedEntries(
         [
@@ -232,19 +224,15 @@ void main() {
         backlogOrder: [for (var i = 1; i <= 6; i++) '-200_$i'],
       );
 
-      // Twelve rows, so four slots — the other two backlog posts keep their
-      // chronological place at the end.
+      // Twelve rows give four slots; the other two backlog posts stay at the
+      // end in date order.
       expect(backlogFlags(entries).where((flag) => flag), hasLength(4));
       expect(entries, hasLength(12));
     });
 
-    // The reason the backlog set is fixed rather than recomputed: pagination
-    // must not reshuffle what the reader is looking at.
-    //
-    // Posts are spaced an hour apart on purpose. Anything closer together than
-    // [kBurstWindow] is a burst, and scatterChannelBursts is *allowed* to move
-    // those as more of the feed loads — that is the trade it makes. This test
-    // is about the backlog pool, so it stays out of that case deliberately.
+    // The backlog set is fixed so pagination doesn't reshuffle the feed. Posts
+    // are an hour apart to stay outside [kBurstWindow], since
+    // scatterChannelBursts may move bursts as more loads.
     test('loading older posts does not move the rows already on screen', () {
       final firstPage = [for (var i = 1; i <= 8; i++) post('-100_$i', i * 60)];
       const backlog = ['-200_1'];
@@ -264,8 +252,7 @@ void main() {
       expect(idsOf(after).take(before.length), idsOf(before));
     });
 
-    // "Stays until you refresh": reading a backlog post must not make it jump
-    // back to its chronological place under the reader's thumb.
+    // A backlog post stays in place until refresh, even once read.
     test('reading a backlog post leaves it where it is', () {
       List<FeedEntry> build({required bool read}) => buildFeedEntries(
         [

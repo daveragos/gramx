@@ -5,15 +5,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
-/// The bug: a comment left by somebody with **no profile photo** was
-/// drawn wearing the channel's avatar, so a stranger appeared to be posting as
-/// the channel itself.
-///
-/// The cause was a fallback per field. Title, avatar path and avatar file id
-/// were three loose optional arguments, each falling back to the chat on its
-/// own, so a sender who supplied two of the three silently inherited the third
-/// from a channel they have nothing to do with. [PostSender] makes the answer
-/// all-or-nothing.
+/// [PostSender] is all-or-nothing, so a sender with no photo never inherits
+/// the channel's avatar.
 void main() {
   final channel = TdFixtures.chatWithPhoto(
     id: -1001,
@@ -57,7 +50,6 @@ void main() {
       expect(post.senderUserId, 42);
     });
 
-    // The regression itself.
     test('a sender with no picture gets none — not the channel\'s', () {
       final post = TdlibMappers.mapMessageToPost(
         TdFixtures.textMessage(id: 5, chatId: -1001),

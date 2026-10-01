@@ -51,11 +51,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  /// Turning notifications on is also what asks the operating system for
-  /// permission — which is why the setting defaults off and lives here rather
-  /// than being asked for at launch. A refusal is reported rather than
-  /// silently leaving a switch on that does nothing: Android 13+ declines
-  /// without telling the app anything the reader would notice.
+  /// Turns notifications on or off. Turning them on asks Android for the
+  /// permission, and a refusal is reported since Android 13+ declines quietly.
   Future<void> _setNotifications(
     BuildContext context,
     WidgetRef ref,
@@ -128,6 +125,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: ListView(
         children: [
+          // Account row
           accountAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(AppSpacing.lg),
@@ -265,9 +263,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
 
-          // The account section is gone: it linked to the profile, which linked
-          // back here. The drawer reaches both directly.
-
           _SectionHeader(
             title: AppStrings.settingsSectionNotifications,
             secondaryColor: secondaryColor,
@@ -350,8 +345,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          // than a fourth tile beside them: it is not a look, it is a rule
-          // for choosing one, and it does not have a colour to show.
+          // Follow the device theme. A row rather than a fourth tile, since
+          // it picks between looks and has no colour of its own.
           SwitchListTile(
             activeThumbColor: AppColors.accent,
             title: Text(
@@ -370,7 +365,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // 4. PREFERENCES SECTION
           _SectionHeader(
             title: AppStrings.settingsSectionPreferences,
             secondaryColor: secondaryColor,
@@ -408,7 +402,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // 5. DATA AND STORAGE SECTION
           _SectionHeader(
             title: AppStrings.settingsSectionData,
             secondaryColor: secondaryColor,
@@ -452,7 +445,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // 6. ABOUT & SUPPORT SECTION
           _SectionHeader(
             title: AppStrings.settingsSectionAbout,
             secondaryColor: secondaryColor,
@@ -534,9 +526,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
 
-          // Logging out lives here, quietly, as the last row — not as a red
-          // band across the profile. The profile is what a reader looks at;
-          // bottom of Settings for the same reason.
           if (accountAsync.value != null) ...[
             Divider(height: 1, thickness: 0.5, color: borderColor),
             ListTile(
@@ -550,9 +539,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          // The way out of guest mode. Logging out lives on the profile beside
-          // the account it ends; a guest has no account and no profile, so
-          // their equivalent belongs here.
+          // A guest has no account to log out of, so this leaves guest mode.
           if (ref.watch(isGuestModeProvider)) ...[
             ListTile(
               leading: const Icon(Icons.login_rounded, color: AppColors.accent),
@@ -575,8 +562,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  /// Signs out, after asking. TDLib wipes its database on logout, so this is
-  /// not a state to fall into by a mis-tap.
+  /// Signs out after confirming, since TDLib wipes its database on logout.
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
     final confirmed = await showAppDialog<bool>(
       context,
@@ -598,10 +584,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (context.mounted) context.go('/auth');
   }
 
-  /// Leaves guest mode, after saying what that deletes.
-  ///
-  /// Destructive and irreversible — the channel list and the cached pictures
-  /// both go — so it asks first, the way logging out and leaving a channel do.
+  /// Leaves guest mode after a confirmation, since it deletes the channel list
+  /// and cached pictures.
   Future<void> _leaveGuestMode(BuildContext context, WidgetRef ref) async {
     final confirmed = await showAppDialog<bool>(
       context,
@@ -721,10 +705,7 @@ class _XThemeSegmentTile extends StatelessWidget {
   }
 }
 
-/// A row that leaves the app.
-///
-/// Says so with the open-in-new glyph, and reports a failure rather than
-/// swallowing it — the same rule the link previews follow.
+/// A row that opens an external link and reports a failure to open.
 class _LinkTile extends StatelessWidget {
   final IconData icon;
   final String title;

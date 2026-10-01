@@ -9,16 +9,12 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 
-/// What is attached to the post being written, and the way to take it back off.
-///
-/// A row rather than a grid: the order matters — the first attachment is the
-/// one that carries the caption when the post goes out as an album — and a row
-/// is the only layout where "first" is unambiguous.
+/// What is attached to the post being written, with a way to remove each.
+/// A row, since order matters: the first item carries an album's caption.
 class ComposeAttachmentStrip extends StatelessWidget {
   final List<ComposeAttachment> attachments;
   final ValueChanged<int> onRemove;
 
-  /// How tall each preview is.
   static const double tileHeight = 180;
 
   const ComposeAttachmentStrip({
@@ -62,11 +58,9 @@ class _AttachmentTile extends StatelessWidget {
     required this.onRemove,
   });
 
-  /// Width the tile takes, from the file's own aspect ratio.
-  ///
-  /// Clamped so one panorama can't take the whole strip and one very tall photo
-  /// doesn't become a sliver. A file the probe couldn't measure falls back to a
-  /// square — see [ComposeAttachment.hasUnknownSize].
+  /// Tile width from the file's aspect ratio, clamped so panoramas and tall
+  /// photos stay usable. Unmeasured files are square; see
+  /// [ComposeAttachment.hasUnknownSize].
   double get _width {
     if (attachment.hasUnknownSize) return ComposeAttachmentStrip.tileHeight;
     final ratio = attachment.width / attachment.height;
@@ -108,8 +102,8 @@ class _AttachmentTile extends StatelessWidget {
                     ? Image.file(
                         File(attachment.path),
                         fit: BoxFit.cover,
-                        // A file the gallery handed us but the decoder won't
-                        // read still uploads; only the preview is missing.
+                        // An unreadable file still uploads; only the preview
+                        // is missing.
                         errorBuilder: (_, _, _) => const _VideoFace(),
                       )
                     : const _VideoFace(),
@@ -142,9 +136,7 @@ class _AttachmentTile extends StatelessWidget {
   }
 }
 
-/// The play badge a video preview wears. Rendering an actual frame would mean
-/// spinning up a platform player per attachment, which is a lot of machinery
-/// for a thumbnail the writer picked ten seconds ago and still remembers.
+/// The play badge on a video preview, shown instead of a rendered frame.
 class _VideoFace extends StatelessWidget {
   const _VideoFace();
 
@@ -160,7 +152,7 @@ class _VideoFace extends StatelessWidget {
   }
 }
 
-/// A dark rounded chip over media — the duration badge.
+/// A dark rounded chip over media, used for the duration.
 class _MediaChip extends StatelessWidget {
   final Widget child;
 
@@ -184,7 +176,7 @@ class _MediaChip extends StatelessWidget {
   }
 }
 
-/// The round tappable badge over media — taking an attachment back off.
+/// The round button over media that removes an attachment.
 class _MediaButton extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;

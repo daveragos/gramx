@@ -11,29 +11,15 @@ class ChannelRepository {
   final TdlibService _tdlib;
   final ChatCache _chatCache;
 
-  /// Ceiling on `GetSupergroup` calls issued while building the channel list.
-  ///
-  /// The cache normally answers every one of these for free; this only covers
-  /// supergroups whose `UpdateSupergroup` we somehow missed, and exists so a
-  /// gap in the cache degrades into slightly stale rows rather than a fan-out.
+  /// Cap on `GetSupergroup` calls while building the channel list. The cache
+  /// normally has every supergroup; this bounds the cost of any it missed.
   static const int _maxSupergroupLookups = 15;
 
   ChannelRepository(this._tdlib, this._chatCache);
 
-  /// Channels Telegram thinks this reader would want, given the ones they
-  /// already follow.
-  ///
-  ///
-  /// **One request, and the names are free.** `getRecommendedChats` answers
-  /// with chat *ids*, and TDLib always pushes `updateNewChat` for a chat before
-  /// it names it in a reply — so `ChatCache` already holds every one of them by
-  /// the time this returns. That is the same property the cold start leans on, and it is
-  /// what keeps this off the per-chat fan-out the rules forbid: there is no
-  /// `GetChat` per result, because there does not need to be.
-  ///
-  /// Channels the reader is already in are dropped. Telegram usually excludes
-  /// them itself, but a suggestion to follow something you follow is the kind
-  /// of thing that reads as the app not knowing you.
+  /// Telegram's recommended channels, minus any already followed. One
+  /// request: TDLib pushes `updateNewChat` before naming a chat, so
+  /// [ChatCache] already has every result.
   Future<List<Channel>> recommendedChannels() async {
     try {
       final res = await _tdlib.sendRequest(const td.GetRecommendedChats());
@@ -63,15 +49,8 @@ class ChannelRepository {
     }
   }
 
-  /// Every subscribed broadcast channel, most recently active first.
-  ///
-  /// Reads entirely from [ChatCache] — chats and supergroups both arrive on the
-  /// update stream, so the common path costs zero requests.
-  ///
-  /// Deliberately does **not** fetch `SupergroupFullInfo` here. That call is
-  /// networked (TDLib caches it for about a minute), it was previously issued
-  /// once per channel, and the only field it contributes is the description,
-  /// which this list does not show. The channel profile fetches it on demand.
+  /// Every subscribed broadcast channel, most recently active first, read
+  /// from [ChatCache]. Full info is networked, so the profile fetches it.
   Future<List<Channel>> getSubscribedChannels() async {
     await _chatCache.ensureLoaded();
     final channelChats = _chatCache.channels;
@@ -93,7 +72,7 @@ class ChannelRepository {
             );
             if (res is td.Supergroup) supergroup = res;
           } catch (_) {
-            // Fall through — the row renders without member count or username.
+            // The row renders without member count or username.
           }
         }
       }
@@ -104,19 +83,19 @@ class ChannelRepository {
     return channels;
   }
 
-  /// Get a channel by its TDLib chatId.
+  /// A channel by its TDLib chat id.
   Future<Channel?> getChannelByChatId(int chatId) async {
     return getChannelByIdentifier(chatId.toString());
   }
 
-  /// Get a channel by identifier (chatId, supergroupId, username, or link).
+  /// A channel by chat id, supergroup id, username or link.
   Future<Channel?> getChannelByIdentifier(String identifier) async {
     final trimmed = identifier.trim();
     if (trimmed.isEmpty) return null;
 
     td.Chat? chatObj;
 
-    // 1. If numeric string, check the cache, then try GetChat.
+    // A numeric id: the cache first, then GetChat.
     final rawId = int.tryParse(trimmed);
     if (rawId != null) {
       chatObj = _chatCache.chat(rawId);
@@ -129,7 +108,7 @@ class ChannelRepository {
         }
       } catch (_) {}
 
-      // If GetChat failed (e.g. non-joined channel not in local chat list), try CreateSupergroupChat
+      // GetChat can fail for a channel the user hasn't joined.
       if (chatObj == null) {
         final supergroupId = _extractSupergroupId(rawId);
         if (supergroupId != null) {
@@ -145,7 +124,7 @@ class ChannelRepository {
       }
     }
 
-    // 2. If not numeric or GetChat/CreateSupergroupChat failed, try resolving as username
+    // Not numeric, or not found by id: resolve it as a username or link.
     if (chatObj == null) {
       final cleanUsername = trimmed
           .replaceAll(RegExp(r'^(https?://)?(t\.me/)?@?'), '')
@@ -194,7 +173,7 @@ class ChannelRepository {
     return null;
   }
 
-  /// Join a channel by chatId.
+  /// Joins a channel.
   Future<bool> joinChannel(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(td.JoinChat(chatId: chatId));
@@ -204,7 +183,7 @@ class ChannelRepository {
     }
   }
 
-  /// Leave a channel by chatId.
+  /// Leaves a channel.
   Future<bool> leaveChannel(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(td.LeaveChat(chatId: chatId));
@@ -223,13 +202,8 @@ class ChannelRepository {
     return null;
   }
 
-  /// Public channels matching [query], searched across all of Telegram.
-  ///
-  /// Capped at [maxSearchResults]. This used to call `getChannelByIdentifier`
-  /// per hit, which meant `GetChat` + `GetSupergroup` + `GetSupergroupFullInfo`
-  /// for every result — three networked requests each, on a path the user
-  /// triggers by typing. Search rows only need the title, avatar, username and
-  /// member count, so full info is left for the profile screen.
+  /// The most results a channel search returns. Rows skip full info, which
+  /// is networked, and leave it to the profile screen.
   static const int maxSearchResults = 20;
 
   Future<List<Channel>> searchPublicChannels(String query) async {

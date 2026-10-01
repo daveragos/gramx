@@ -6,17 +6,9 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * Receives text shared into gramX.
- *
- * Pull rather than push: the shared text is parked here and Dart asks for it,
- * at startup and on every resume. Pushing would mean invoking a method on an
- * engine whose Dart handler may not be registered yet — a share that launches
- * the app is exactly that case — and the two paths would then have to agree on
- * which of them delivered it.
- *
- * Only `text/plain`. The composer takes photos and videos from the gallery
- * picker, and accepting them here as well would be two ways into one screen
- * with different rules; the manifest's intent filter says the same thing.
+ * Receives text shared into gramX. The text is held here until Dart asks for
+ * it, since a share that launches the app arrives before the Dart handler is
+ * registered.
  */
 class MainActivity : FlutterActivity() {
     private var pendingSharedText: String? = null
@@ -27,9 +19,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    // Taken, not read: whoever asks gets it once, so a resume
-                    // right after the composer opened cannot open a second one
-                    // with the same text in it.
+                    // Cleared once taken, so a resume cannot open it twice.
                     "takeSharedText" -> {
                         result.success(pendingSharedText)
                         pendingSharedText = null
@@ -56,8 +46,7 @@ class MainActivity : FlutterActivity() {
 
         pendingSharedText = text
 
-        // Consumed, so a configuration change — a rotation, a theme switch —
-        // does not replay the same share on the way back.
+        // Cleared so a configuration change does not replay the share.
         intent.action = null
     }
 

@@ -16,10 +16,7 @@ void main() {
       expect(intent.close, isFalse);
     });
 
-    // Both platforms emit `inactive` for an incoming call, the notification
-    // shade, the app switcher and a permission dialog. None of those mean the
-    // reader left, and acting on them would flicker the account's presence on
-    // and off all day — one request per flicker.
+    // `inactive` fires for calls, the shade and dialogs, not for leaving.
     test('inactive changes nothing at all', () {
       expect(
         TdlibLifecycleRules.forState(AppLifecycleState.inactive),
@@ -39,9 +36,7 @@ void main() {
       }
     });
 
-    // The database is flushed on close. A process killed without it leaves one
-    // that has to be recovered on the next launch, which the reader pays for
-    // as a slow start.
+    // Closing flushes the database; an unflushed one slows the next launch.
     test('detached closes the client and stops claiming presence', () {
       final intent = TdlibLifecycleRules.forState(AppLifecycleState.detached);
 
@@ -79,8 +74,7 @@ void main() {
       );
     });
 
-    // A device can be on both at once. Wi-Fi is the one TDLib should be told
-    // about, because it is the one that decides whether a download is free.
+    // Wi-Fi decides whether a download is free, so it wins over mobile.
     test('wifi wins when both are up', () {
       expect(
         TdlibLifecycleRules.networkTypeFor([
@@ -98,9 +92,7 @@ void main() {
       );
     });
 
-    // A VPN is reported alongside whatever carries it, but on some platforms
-    // it arrives alone. It is still a usable link, so it must not be reported
-    // as no network at all — that would stop TDLib trying.
+    // On some platforms a VPN is reported alone; it is still a usable link.
     test('a lone VPN is a usable network, not an absent one', () {
       final type = TdlibLifecycleRules.networkTypeFor([ConnectivityResult.vpn]);
 
@@ -116,10 +108,7 @@ void main() {
     });
   });
 
-  // These three have to work while the account is rate limited: telling TDLib
-  // the app went away, or that the network changed, is how a flood wait ends
-  // sooner rather than later. Gating them parks the one call that reopens a
-  // dead connection behind the deadline that connection caused.
+  // These must work during a flood wait, since they help a connection recover.
   group('lifecycle requests bypass the flood gate', () {
     test('setNetworkType, setOption and close are all local-only', () {
       expect(

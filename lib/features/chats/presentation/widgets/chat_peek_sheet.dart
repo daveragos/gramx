@@ -15,34 +15,23 @@ import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/widgets/chat_date_separator.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_bubble.dart';
 
-/// A read-only look into a conversation, without opening it.
+/// A read-only preview of a chat that doesn't mark anything as read.
 ///
-/// The point is the thing it does **not** do. Opening a chat is an `OpenChat`
-/// followed by read acknowledgements, and those are pushed to Telegram — so
-/// every device the reader is signed in on, and the person on the other end,
-/// learn that the message was seen. Sometimes you want to know what somebody
-/// said without telling them you know.
-///
-/// So this issues exactly one `GetChatHistory` and nothing else: no `OpenChat`,
-/// no `ViewMessages`, no typing signal, no live subscription. Everything that
-/// makes the conversation screen *interactive* is what would make this leave a
-/// trace, which is why it is a separate surface rather than a flag on that one.
-///
-/// One request per peek, user-driven — the shape the request budget allows.
+/// Issues a single `GetChatHistory` and nothing else: no `OpenChat`, no
+/// `ViewMessages` and no typing updates, any of which would tell the other
+/// side the messages were seen.
 class ChatPeekSheet extends ConsumerWidget {
   final ChatSummary chat;
 
   const ChatPeekSheet({super.key, required this.chat});
 
-  /// How much history a peek pulls. Enough to see what was said, short enough
-  /// to be one request.
+  /// Number of messages a peek loads in its one request.
   static const int pageSize = 30;
 
   static Future<void> show(BuildContext context, ChatSummary chat) {
     return showModalBottomSheet<void>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // The shell's tab bar paints over branch navigators, so use the root.
       useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
@@ -99,9 +88,7 @@ class ChatPeekSheet extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  // The way out of read-only and into the real thing. Opening
-                  // it from here is an ordinary open — it marks things read,
-                  // because that is what opening a chat means.
+                  // Opens the chat normally, which does mark messages read.
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
@@ -112,9 +99,7 @@ class ChatPeekSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            // Said plainly rather than implied by the absence of a composer:
-            // "this does not mark anything read" is the entire reason somebody
-            // would use this instead of just opening the chat.
+            // States that peeking doesn't mark messages read.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
@@ -168,10 +153,8 @@ class ChatPeekSheet extends ConsumerWidget {
   }
 }
 
-/// The history behind a peek: one `GetChatHistory`, and no `OpenChat`.
-///
-/// Auto-disposed, so closing the sheet drops it and re-peeking is a fresh
-/// look rather than a stale one.
+/// The history for a peek, loaded with `GetChatHistory` and no `OpenChat`.
+/// Auto-disposed so each peek fetches fresh.
 final chatPeekProvider = FutureProvider.autoDispose
     .family<List<ChatMessage>, int>((ref, chatId) async {
       final page = await ref
@@ -180,11 +163,8 @@ final chatPeekProvider = FutureProvider.autoDispose
       return page.messages;
     });
 
-/// The same bubbles the conversation draws, with every handler left off.
-///
-/// Nothing here is tappable, and that is the design: a reply, a reaction or a
-/// long press would all reach Telegram, and reaching Telegram is what a peek
-/// is defined by not doing.
+/// The conversation's bubbles with no handlers, so nothing here can send a
+/// request to Telegram.
 class _PeekList extends StatelessWidget {
   final List<ChatMessage> messages;
   final bool isGroup;

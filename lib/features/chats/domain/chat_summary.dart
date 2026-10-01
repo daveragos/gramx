@@ -5,15 +5,10 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 part 'chat_summary.freezed.dart';
 part 'chat_summary.g.dart';
 
-/// What sort of conversation a row in the chat list is.
-///
-/// Ordered the way the filter menu reads it: your own notes first, then people,
-/// then bots, then rooms with more than one person in them. A bot is a private
-/// chat in TDLib's model, and it is split out here because the reader treats one
-/// differently from a person — it is the difference between a conversation and
-/// a tool.
+/// What sort of conversation a row in the chat list is. Bots are private chats
+/// in TDLib but get their own kind here.
 enum ChatKind {
-  /// The private chat with yourself. Telegram's notes-to-self.
+  /// The private chat with yourself (Saved Messages).
   savedMessages,
 
   /// A one-to-one chat with another person.
@@ -25,22 +20,14 @@ enum ChatKind {
   /// A basic group or a supergroup that is not a broadcast channel.
   group;
 
-  /// Whether this kind counts as "Direct" in the filter menu.
-  ///
-  /// A bot is deliberately **not** direct. It is a private chat in Telegram's
-  /// model, but it is not a person, and Bots is its own filter — folding them
-  /// in here would leave that filter's contents also showing up under Direct,
-  /// which makes both of them mean less.
+  /// Whether this kind counts as "Direct" in the filter menu. Bots are not
+  /// direct; they have their own filter.
   bool get isDirect =>
       this == ChatKind.direct || this == ChatKind.savedMessages;
 }
 
-/// Whether the other side is around, as far as Telegram will say.
-///
-/// Telegram deliberately blurs this — a contact who hides their last-seen time
-/// reports [recently] rather than a timestamp — so this is an enum rather than
-/// a `DateTime?`. Rendering "last seen recently" from a null date is how a
-/// privacy setting turns into a lie about someone being offline.
+/// Whether the other side is around. An enum, since a hidden last-seen time
+/// only comes through as a bucket such as [recently].
 enum ChatPresence {
   online,
   offline,
@@ -52,12 +39,8 @@ enum ChatPresence {
   unknown,
 }
 
-/// One row of the chat list.
-///
-/// Built entirely from what [ChatCache] already holds, so drawing the whole
-/// list costs zero TDLib requests. Nothing here is
-/// fetched per-chat; if a field cannot be answered from the cache it is null
-/// and the row draws without it.
+/// One row of the chat list, built only from [ChatCache] so drawing the list
+/// costs no TDLib requests.
 @freezed
 abstract class ChatSummary with _$ChatSummary {
   const factory ChatSummary({
@@ -69,44 +52,23 @@ abstract class ChatSummary with _$ChatSummary {
     int? avatarFileId,
     String? avatarColorHex,
 
-    /// The one-line preview under the title. Already collapsed to a single
-    /// line by `TdlibMappers.excerptOf`.
+    /// The one-line preview under the title, already collapsed by
+    /// `TdlibMappers.excerptOf`.
     String? preview,
 
-    /// The sender's name, prefixed to [preview] in a group — "Ada: on my way".
-    /// Null in a private chat, where the only two possible senders are obvious.
+    /// The sender's name, prefixed to [preview] in a group ("Ada: on my way").
+    /// Null in a private chat.
     String? previewSender,
 
     /// Set when [preview] is an unsent draft rather than a received message.
-    /// something you already said otherwise.
     @Default(false) bool previewIsDraft,
 
-    /// Delivery state of the last message, when **this account** sent it.
-    ///
-    /// Null in every other case — a message from the other side, a draft, an
-    /// empty chat — because the tick is a claim about your own message, and
-    /// drawing one over somebody else's says they read their own words. It is
-    /// the same state the bubbles use, so a row and the conversation it opens
-    /// cannot disagree about whether something has been read.
+    /// Delivery state of the last message, only when this account sent it.
+    /// Uses the same state as the bubbles so the row and the conversation agree.
     MessageSendState? previewSendState,
 
-    /// The channel this person runs, when Telegram has said so.
-    ///
-    /// Telegram calls it a *personal chat*: a channel a user pins to their own
-    /// it is shown in the same place for the same reason — who somebody speaks
-    /// for is part of who they are.
-    ///
-    /// **Only ever read from what is already cached.** It lives on
-    /// `UserFullInfo`, which TDLib volunteers through `UpdateUserFullInfo` for
-    /// users it has loaded fully and otherwise costs one `GetUserFullInfo` per
-    /// user — and a request per row down a scrolling list is precisely the
-    /// fan-out the request budget forbids. So the badge appears for people whose
-    /// profile the reader has actually opened, and is simply absent otherwise.
-    ///
-    /// The title is carried for the label and the tooltip rather than for the
-    /// row: the badge is the channel's *picture*, because a second name beside
-    /// somebody's own name is two names competing for one line, and the row
-    /// already has a timestamp and a pin to fit.
+    /// The user's personal channel, shown as a badge on the row. Read only
+    /// from the cached `UserFullInfo`, never fetched per row.
     int? affiliatedChannelId,
     String? affiliatedChannelTitle,
     String? affiliatedChannelAvatarPath,
@@ -115,58 +77,42 @@ abstract class ChatSummary with _$ChatSummary {
     DateTime? lastMessageAt,
     @Default(0) int unreadCount,
 
-    /// Someone marked the chat unread by hand. It carries no count, so a row
-    /// showing only [unreadCount] renders it as read.
+    /// Marked unread by hand. It carries no count, so a row checking only
+    /// [unreadCount] would show it as read.
     @Default(false) bool isMarkedAsUnread,
     @Default(0) int unreadMentionCount,
 
-    /// How many reactions to this account's own messages are still unseen.
-    ///
-    /// Arrives free on the update stream, exactly like [unreadMentionCount].
-    /// It is what the Activity screen counts as "somebody reacted to you",
+    /// Unseen reactions to this account's own messages. Comes on the update
+    /// stream like [unreadMentionCount], and feeds the Activity screen.
     @Default(0) int unreadReactionCount,
     @Default(false) bool isMuted,
     @Default(false) bool isVerified,
 
-    /// A Telegram Premium account. The row shows Premium's own star for it,
-    /// never [emojiStatusId]: a list of animated emoji down the side of the
-    /// names is a list nobody can scan.
+    /// A Telegram Premium account. The row shows the Premium star, never
+    /// [emojiStatusId], to keep the list easy to scan.
     @Default(false) bool isPremium,
 
-    /// The custom emoji a Premium account shows in place of the star, while it
-    /// has one that has not expired. For the conversation header, which is
-    /// about this one person; see [isPremium] for why the row ignores it.
+    /// The unexpired custom emoji a Premium account shows in place of the star.
+    /// Used in the conversation header only.
     int? emojiStatusId,
 
-    /// A chat from somebody not in the reader's contacts — Telegram raises its
-    /// "report / add / block" bar for these. It is the nearest thing Telegram
+    /// A chat from somebody not in the user's contacts, the kind Telegram
+    /// shows its "report / add / block" bar on.
     @Default(false) bool isRequest,
     @Default(ChatPresence.unknown) ChatPresence presence,
 
-    /// TDLib's own ordering value for the main chat list. Carried so the list
-    /// can sort exactly the way every other Telegram client does — pinned
-    /// chats included, since Telegram expresses a pin as a very high order.
+    /// TDLib's ordering value for the main chat list. Pinned chats get a very
+    /// high order, so sorting by this puts them first.
     @Default(0) int mainListOrder,
 
-    /// Pinned to the top of the main chat list.
-    ///
-    /// The ordering already follows from [mainListOrder] — Telegram expresses a
-    /// pin as a very high order — but the *reason* a chat is at the top does
-    /// not, and without saying so a pinned chat is indistinguishable from a
-    /// busy one.
+    /// Pinned in the main chat list, so the row can show a pin.
     @Default(false) bool isPinned,
 
-    /// An end-to-end chat. Drawn with a lock, because that is the whole
-    /// difference between it and the ordinary chat with the same person — and
-    /// a reader who cannot tell them apart cannot use either safely.
+    /// An end-to-end encrypted chat, drawn with a lock.
     @Default(false) bool isSecret,
 
-    /// True while a secret chat's key exchange is still going.
-    ///
-    /// A secret chat is *pending* until the other person's device comes online,
-    /// which can be hours, and Telegram refuses messages sent into one before
-    /// then. Kept apart from [isSecret] so the composer can say "waiting for
-    /// them" rather than failing.
+    /// True while a secret chat's key exchange is pending. Telegram refuses
+    /// messages until the other device comes online.
     @Default(false) bool isSecretPending,
   }) = _ChatSummary;
 

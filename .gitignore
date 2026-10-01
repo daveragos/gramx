@@ -18,9 +18,7 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# Uncomment to ignore VS Code settings.
 #.vscode/
 
 # Flutter/Dart/Pub related
@@ -49,8 +47,7 @@ app.*.map.json
 # Telegram API credentials. Copy app_config.example.dart and fill it in.
 /lib/core/config/app_config.dart
 
-# Release signing. The keystore lives outside the repository; key.properties
-# holds its passwords. Losing either means no signed update is possible.
+# Release signing. Back these up: losing either blocks signed updates.
 android/key.properties
 *.jks
 *.keystore

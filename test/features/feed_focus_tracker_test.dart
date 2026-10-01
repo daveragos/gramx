@@ -9,9 +9,8 @@ void main() {
   setUp(() => tracker = FeedFocusTracker());
 
   group('read dwell', () {
-    // The regression this replaces: PostCard marked posts read from build(),
-    // so Flutter's build-ahead marked posts the user never saw — and pushed
-    // that read state to every Telegram client they own.
+    // Flutter builds cards ahead of the viewport, and read state syncs to
+    // every device, so being built is not being seen.
     test('a post only counts as read after it has been on screen', () {
       tracker.onVisibilityChanged('a', 1.0, at(0));
 
@@ -82,9 +81,8 @@ void main() {
       expect(tracker.focusedPostId, 'a');
     });
 
-    // TDLib streams reaction and view counts only for open chats, and expects
-    // roughly one open at a time — so the *most* visible card wins, not the
-    // first one built, which on full-width cards is often a clipped neighbour.
+    // TDLib streams counts only for open chats and expects about one open at a
+    // time, so the most visible card gets focus.
     test('the most visible post wins, not the first reported', () {
       tracker.onVisibilityChanged('a', 0.55, at(0));
       tracker.onVisibilityChanged('b', 0.95, at(0));
@@ -130,8 +128,7 @@ void main() {
   });
 
   group('releasing focus', () {
-    // Navigating away leaves an open chat streaming updates for a screen the
-    // user is no longer looking at, and TDLib expects ~one open chat at a time.
+    // Otherwise an open chat keeps streaming updates to a hidden screen.
     test('focus is released once nothing is visible', () {
       tracker.onVisibilityChanged('a', 0.9, at(0));
       tracker.settleFocus(at(600));
@@ -181,8 +178,8 @@ void main() {
       expect(tracker.hasPendingWork, isTrue);
     });
 
-    // Regression: checking only for a non-null candidate stopped the ticker
-    // before focus could be released, leaking an open chat.
+    // The ticker must keep running until focus is released, or a chat stays
+    // open.
     test('is true while focus still needs releasing', () {
       tracker.onVisibilityChanged('a', 0.9, at(0));
       tracker.takeNewlyRead(at(600));

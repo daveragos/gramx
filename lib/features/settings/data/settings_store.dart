@@ -7,10 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:gramx/features/settings/data/app_settings.dart';
 
 /// Reads and writes [AppSettings] as a JSON file in app documents.
-///
-/// A file rather than a key-value store because settings are one small object
-/// that is always read and written together, and it matches how hidden channels
-/// are already persisted.
 class SettingsStore {
   static const String fileName = 'settings.json';
 
@@ -19,8 +15,8 @@ class SettingsStore {
     return File('${dir.path}/$fileName');
   }
 
-  /// Returns defaults if nothing is saved, or if the file is unreadable — a
-  /// corrupt settings file should never stop the app from starting.
+  /// Returns defaults if nothing is saved or the file is unreadable, so a
+  /// corrupt file never stops the app from starting.
   Future<AppSettings> load() async {
     try {
       final file = await _file();
@@ -45,9 +41,7 @@ class SettingsStore {
 final settingsStoreProvider = Provider<SettingsStore>((ref) => SettingsStore());
 
 /// The live settings, restored from disk on start and saved on every change.
-///
-/// Starts from the defaults and swaps in the saved values once the read
-/// completes, so the first frame never waits on disk.
+/// Starts from defaults so the first frame never waits on disk.
 class SettingsNotifier extends Notifier<AppSettings> {
   bool _loaded = false;
 
@@ -69,9 +63,8 @@ class SettingsNotifier extends Notifier<AppSettings> {
     unawaited(ref.read(settingsStoreProvider).save(next));
   }
 
-  /// True once the saved settings have been read.
-  ///
-  /// Lets callers avoid writing a default over a value still being loaded.
+  /// True once the saved settings have been read, so callers don't write a
+  /// default over a value still loading.
   bool get isLoaded => _loaded;
 
   void setThemeMode(AppThemeMode mode) =>
@@ -90,11 +83,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
     enabled ? AutoDownloadPolicy.always : AutoDownloadPolicy.never,
   );
 
-  /// Enters or leaves browse-without-an-account.
-  ///
-  /// Persisted, because it decides whether the shell is reachable: a guest who
-  /// closes the app must reopen into their feed rather than onto the sign-in
-  /// screen they walked past.
+  /// Enters or leaves guest mode (browsing without an account).
   void setNotificationsEnabled(bool enabled) =>
       _update(state.copyWith(notificationsEnabled: enabled));
 

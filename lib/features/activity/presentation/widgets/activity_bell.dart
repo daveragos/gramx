@@ -8,13 +8,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/activity/presentation/activity_providers.dart';
 import 'package:gramx/features/activity/presentation/activity_screen.dart';
 
-/// The way into Activity from the feed header.
-///
-/// Channels and stays that way, so this is the header entry point instead —
-///
-/// The count costs nothing: it is summed from what the update stream has
-/// already pushed into the chat cache, never from the Activity list itself,
-/// which spends requests and is only built when the screen is opened.
+/// The feed header's entry point to Activity, with a badge from
+/// [activityBadgeProvider].
 class ActivityBell extends ConsumerWidget {
   const ActivityBell({super.key});
 
@@ -51,8 +46,7 @@ class ActivityBell extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: AppColors.accent,
                     borderRadius: BorderRadius.circular(8),
-                    // A ring in the header's own colour, so the badge reads as
-                    // sitting on the bell rather than behind it.
+                    // A ring to separate the badge from the bell.
                     border: Border.all(
                       color: theme.scaffoldBackgroundColor,
                       width: 1.5,

@@ -10,9 +10,6 @@ import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
 
 /// The destination picker behind the compose screen's pill.
-///
-/// Telegram has no audience, so the same control answers the question this app
-/// actually has to ask: *which channel*. Same gesture, same place on screen.
 class ComposeTargetSheet extends ConsumerStatefulWidget {
   /// What is currently selected, so the sheet can mark it.
   final ComposeTarget? selected;
@@ -26,8 +23,7 @@ class ComposeTargetSheet extends ConsumerStatefulWidget {
   }) {
     return showModalBottomSheet<ComposeTarget>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // Above the shell's bottom bar; see mute_sheet.dart.
       useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
@@ -121,9 +117,8 @@ class _ComposeTargetSheetState extends ConsumerState<ComposeTargetSheet> {
   }
 }
 
-/// The grouped list. Section headers come from the ordering, which is already
-/// kind-major — see [ComposeTargets.fromChats] — so a header is simply the
-/// point where the kind changes.
+/// The grouped list. Targets are already sorted by kind (see
+/// [ComposeTargets.fromChats]), so a header goes wherever the kind changes.
 class _TargetList extends StatelessWidget {
   final List<ComposeTarget> targets;
   final ComposeTarget? selected;
@@ -189,11 +184,8 @@ class _TargetList extends StatelessWidget {
   }
 }
 
-/// The avatar for one destination.
-///
-/// Saved Messages is drawn rather than photographed: TDLib hands back the
-/// account's own profile picture for it, and a post-to-yourself row wearing
-/// your own face reads as a message *from* you.
+/// The avatar for one destination. Saved Messages gets an icon, since TDLib
+/// gives it the account's own photo, which looks like a message from you.
 class ComposeTargetAvatar extends StatelessWidget {
   final ComposeTarget target;
   final double radius;
@@ -223,10 +215,8 @@ class ComposeTargetAvatar extends StatelessWidget {
   }
 }
 
-/// What a destination is called on screen.
-///
-/// Everything but Saved Messages uses its chat title; that one is named for
-/// what it is, because TDLib titles it with the account holder's own name.
+/// What a destination is called on screen. Saved Messages gets its own name,
+/// since TDLib titles it with the account holder's name.
 String composeTargetLabel(ComposeTarget target) =>
     target.kind == ComposeTargetKind.savedMessages
     ? AppStrings.composeSavedMessages

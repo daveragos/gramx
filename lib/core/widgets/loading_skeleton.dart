@@ -26,7 +26,6 @@ class PostSkeleton extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar
             Container(
               width: AppSpacing.avatarSize,
               height: AppSpacing.avatarSize,
@@ -131,8 +130,7 @@ class PostSkeleton extends StatelessWidget {
 class FeedSkeleton extends StatelessWidget {
   final int itemCount;
 
-  /// Space the header is covering, so the first card starts below it rather
-  /// than under it.
+  /// Space covered by the header, so the first card starts below it.
   final EdgeInsets padding;
 
   const FeedSkeleton({
@@ -153,16 +151,9 @@ class FeedSkeleton extends StatelessWidget {
   }
 }
 
-/// The folder strip while the folders are still being worked out.
-///
-/// The feed's header used to be absent entirely during the first load — the
-/// bottom bar was already drawn, the wordmark and the tab strip were not, so
-/// the app opened looking like it had lost its navigation and then grew it
-/// back. The header is real from the first frame now; only the part that is
-/// genuinely unknown — which folders this account has — is a skeleton.
+/// Placeholder for the folder strip until the account's folders are known.
 class FolderTabsSkeleton extends StatelessWidget {
-  /// Placeholder pill widths. Uneven on purpose: four identical blocks read as
-  /// a loading bar, and varied ones read as words that have not arrived.
+  /// Uneven pill widths, so they read as words rather than a loading bar.
   static const List<double> _widths = [34, 68, 52, 80];
 
   const FolderTabsSkeleton({super.key});

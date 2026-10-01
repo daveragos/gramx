@@ -16,18 +16,10 @@ import 'package:gramx/features/stats/presentation/widgets/stat_figure_tile.dart'
 import 'package:gramx/features/stats/presentation/widgets/stat_post_row.dart';
 import 'package:gramx/features/stats/presentation/widgets/stat_section.dart';
 
-/// What a channel's own numbers look like, for the person who runs it.
-///
-/// this does not (Video, Live, Spaces) are absent rather than empty, because
-/// Telegram has no equivalent to put in them and a tab that opens onto nothing
-/// is the inert control the hard rules forbid.
-///
-/// **What it costs.** One `getChatStatistics` on open, then one
-/// `getStatisticalGraph` per chart the reader actually scrolls to — see
-/// `StatSection`, which is where that rule is enforced. Nothing here runs
-/// without somebody looking at it.
+/// A channel's statistics in Overview, Audience and Content tabs. Costs one
+/// `getChatStatistics` on open, then one `getStatisticalGraph` per chart
+/// scrolled into view.
 class ChannelStatsScreen extends ConsumerStatefulWidget {
-  /// The route, with the channel's chat id in it.
   static const String route = '/channel/:channelId/stats';
 
   static String routeFor(int chatId) => '/channel/$chatId/stats';
@@ -66,9 +58,7 @@ class _ChannelStatsScreenState extends ConsumerState<ChannelStatsScreen>
       style: AppTypography.heading(color: theme.colorScheme.onSurface),
     );
 
-    // Nothing to ask Telegram about: a malformed link, or a guest channel,
-    // whose posts come from a public preview page and have no account behind
-    // them to hold statistics.
+    // A malformed link, or a guest channel, which has no statistics.
     if (chatId == null) {
       return Scaffold(
         appBar: AppBar(title: title),
@@ -127,10 +117,8 @@ class _ChannelStatsScreenState extends ConsumerState<ChannelStatsScreen>
   }
 }
 
-/// Telegram produces statistics only for a channel past a member threshold of
-/// its own, and only for somebody who administers it. The entry point is
-/// hidden unless `SupergroupFullInfo.canGetStatistics` says otherwise, so this
-/// covers the window where that changed under the reader.
+/// Shown when Telegram declines to produce statistics, which it only has for
+/// admins of channels above a member threshold.
 class _Unavailable extends StatelessWidget {
   const _Unavailable();
 
@@ -203,11 +191,8 @@ class _AudienceTab extends StatelessWidget {
   }
 }
 
-///
-/// The counts come with the statistics reply and cost nothing extra. The words
-/// are fetched separately and **locally** — see `StatsRepository.postExcerpts` —
-/// which is why a row draws as soon as its numbers are there and fills in its
-/// text a beat later rather than holding the list back.
+/// The Content tab: recent posts with their counts. Each row's text fills in
+/// when its local read completes.
 class _ContentTab extends ConsumerWidget {
   final int chatId;
   final ChannelStats stats;
@@ -257,7 +242,7 @@ class _ContentTab extends ConsumerWidget {
   }
 }
 
-/// One chart, titled. Absent entirely when Telegram sent no such graph.
+/// One titled chart, or nothing when Telegram sent no such graph.
 Widget _section(int chatId, ChannelStats stats, ChannelStatGraph graph) {
   final source = stats.graphs[graph];
   if (source == null) return const SizedBox.shrink();
@@ -291,6 +276,7 @@ String _figureLabel(ChannelStatFigure figure) => switch (figure) {
   ChannelStatFigure.reactionsPerPost => AppStrings.statsReactionsPerPost,
 };
 
+/// The overview heading with the period Telegram chose.
 class _PeriodHeader extends StatelessWidget {
   final ChannelStats stats;
 
@@ -333,7 +319,7 @@ class _PeriodHeader extends StatelessWidget {
   }
 }
 
-/// needs to sit next to its arrow without wrapping.
+/// The figure tiles, two to a row so values fit beside their arrows.
 class _FigureGrid extends StatelessWidget {
   final Map<ChannelStatFigure, StatFigure> figures;
 

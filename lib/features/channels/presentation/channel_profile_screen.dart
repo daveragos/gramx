@@ -27,13 +27,8 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/features/stats/presentation/channel_stats_screen.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 
-/// the pinned post, then tabs over the channel's own content.
-///
-/// **The request rule this screen exists under.** Four of the five tabs are
-/// backed by `SearchChatMessages`, which is networked. Opening a channel must
-/// not spend four requests on content nobody asked to see, so a tab fetches
-/// only when it is first selected — `ChannelTabNotifier.ensureLoaded`, driven
-/// from the tab controller rather than from `build`.
+/// A channel profile: cover, avatar, identity, pinned post and content tabs.
+/// A tab fetches only when first selected (see `ChannelTabNotifier`).
 class ChannelProfileScreen extends ConsumerStatefulWidget {
   final String channelId;
   final int? highlightMessageId;
@@ -57,20 +52,13 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   bool _isActionLoading = false;
   int? _openedChatId;
 
-  /// Bounds the auto-fill above, so a channel that keeps answering with a
-  /// short page can't turn into a request loop.
+  /// Bounds [_fillViewport] so short pages can't cause a request loop.
   static const int _maxAutoFills = 3;
   int _autoFills = 0;
   late final bool _isGuestChannel;
 
-  /// The tabs this channel actually has.
-  ///
-  /// Four of the five are backed by `SearchChatMessages`, which needs a real
-  /// TDLib chat. A guest channel has a synthetic id and its posts come from an
-  /// HTML page with no search behind it, so every one of those tabs could only
-  /// ever fail — and a tab that always errors is worse than a tab that isn't
-  /// there. Read once in initState: it fixes the TabController's length, and a
-  /// guest cannot become signed-in without leaving this screen.
+  /// The tabs this channel has: only Posts for a guest channel, since the
+  /// others need TDLib search. Fixed in initState, as it sets the tab count.
   late final List<ChannelTab> _tabs;
 
   @override
@@ -85,15 +73,13 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(_onTabChanged);
 
-    // Opening a chat is a TDLib request, so it must not happen as a side effect
-    // of rendering. listenManual belongs in initState and fireImmediately
-    // covers the case where the channel is already cached.
+    // Opening a chat is a TDLib request, so it can't happen during build.
+    // fireImmediately covers a channel that is already cached.
     ref.listenManual<AsyncValue<Channel?>>(
       channelDetailProvider(widget.channelId),
       (_, next) {
         _syncOpenChat(next.value?.chatId);
-        // A tab selected before the channel resolved has no chat id to fetch
-        // with; this is the retry, and it is a no-op once loaded.
+        // Retries a tab selected before the channel resolved.
         _loadSelectedTab();
       },
       fireImmediately: true,
@@ -116,8 +102,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
 
   /// Keeps this screen's open chat in step with the channel it is showing.
   void _syncOpenChat(int? chatId) {
-    // There is no chat to open: the id is one this app invented, and TDLib
-    // would reject it. Nothing a guest does is written to Telegram anyway.
+    // A guest channel's id is synthetic, so there is no chat to open.
     if (_isGuestChannel) return;
     if (chatId == null || chatId == _openedChatId) return;
     final previous = _openedChatId;
@@ -127,8 +112,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   }
 
   void _onTabChanged() {
-    // Fires twice per swipe — once when the animation starts and once when the
-    // index settles. Only the settled one should spend a request.
+    // Fires when the animation starts and again when it settles; only the
+    // settled index fetches.
     if (_tabController.indexIsChanging) return;
     setState(() {});
     _loadSelectedTab();
@@ -150,14 +135,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
         .ensureLoaded(ChannelTabKey(widget.channelId, tab), chatId);
   }
 
-  /// Pagination, driven by the tab that is actually scrolling.
-  ///
-  /// A `NotificationListener` rather than a `ScrollController`: swiping needs a
-  /// scrollable per tab, and `NestedScrollView` hands each of them a controller
-  /// of its own so the header can collapse with whichever one is on screen —
-  /// which leaves nothing for one shared controller to read. The notification
-  /// carries the metrics, and the tab is passed in rather than read from the
-  /// controller so a body still settling cannot page its neighbour.
+  /// Pagination for the tab that is scrolling. Uses notifications because
+  /// `NestedScrollView` gives each tab its own scroll controller; [tab] is
+  /// passed in so a tab still settling can't page its neighbour.
   bool _onTabScroll(ChannelTab tab, ScrollNotification notification) {
     if (notification.depth != 0) return false;
 
@@ -181,19 +161,12 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     return false;
   }
 
-  /// Loads another page when the first one doesn't fill the screen.
-  ///
-  /// Pagination hangs off the scroll listener, and a list too short to scroll
-  /// never fires it — so a channel that opened with two posts had no way to
-  /// show a third. Bounded, and it stops as soon as the channel says it has
-  /// nothing older. History tab only: a media grid that doesn't fill the
-  /// viewport has genuinely run out.
+  /// Loads another page when the first doesn't fill the screen, since a list
+  /// too short to scroll never triggers pagination. History tab only.
   void _fillViewport({ScrollMetrics? metrics}) {
     if (!_selectedTab.isHistory) return;
     if (_autoFills >= _maxAutoFills) return;
-    // No metrics yet means nothing has been laid out, which is not the same as
-    // a list too short to scroll — and acting on it would page a tab that has
-    // not drawn a single row.
+    // No metrics means nothing is laid out yet, which is not a short list.
     if (metrics == null || metrics.maxScrollExtent > 0) return;
 
     final older = ref.read(olderChannelPostsProvider.notifier);
@@ -202,9 +175,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       return;
     }
 
-    // No recursion here: a page that lays out emits another
-    // `ScrollMetricsNotification`, which calls this again if the list is still
-    // too short. The bound is what stops that becoming a loop.
+    // The new page's layout calls this again if the list is still short;
+    // _maxAutoFills ends the loop.
     _autoFills++;
     unawaited(older.loadMore(widget.channelId));
   }
@@ -215,12 +187,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     if (mounted) _loadSelectedTab();
   }
 
-  /// Asks before leaving, and only before leaving.
-  ///
-  /// Joining is one tap away from being undone; leaving is not — a private
-  /// channel needs a fresh invite, and the change is pushed to every device
-  /// signed in to the account. That asymmetry is the whole reason this is here
-  /// rather than a confirmation on both halves of the same button.
+  /// Confirms before leaving. Only leaving asks, since rejoining a private
+  /// channel needs a fresh invite.
   Future<bool> _confirmLeave(Channel channel) async {
     final confirmed = await showAppDialog<bool>(
       context,
@@ -302,11 +270,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
           style: AppTypography.heading(color: primaryColor),
         ),
         actions: [
-          // Analytics, for the person who runs this channel and nobody else.
-          // `canViewStatistics` is Telegram's own answer — it is false for a
-          // reader, for a guest channel, and for a channel too small for
-          // Telegram to produce statistics on — so this control is absent
-          // rather than present and refused.
+          // Shown only when Telegram offers statistics for this channel.
           if (channel?.canViewStatistics == true)
             IconButton(
               tooltip: AppStrings.a11yChannelAnalytics,
@@ -322,8 +286,6 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
                         )
                       : AppStrings.channelsUnmuteAction)
                 : AppStrings.channelsMuteAction,
-            // Asks for how long, rather than muting forever by default —
-            // see MuteSheet.
             onPressed: () => MuteSheet.show(
               context,
               ref,
@@ -367,19 +329,12 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
 
     return RefreshIndicator(
       color: AppColors.accent,
-      // channelPostsProvider is derived; invalidating it recomputed the same
-      // cached fetch and the pull did nothing at all. The refresh has to reach
-      // the future that does the work.
+      // Refreshes the underlying fetch; channelPostsProvider is derived, so
+      // invalidating it alone would do nothing.
       onRefresh: _refresh,
-      // A `NestedScrollView`, so the tabs can be swiped between — which is what
-      // every tab's body in *one* `CustomScrollView`, which made the header
-      // scroll away for free and gave pagination a single position to read; the
-      // price was that a tab could only be reached by tapping it.
-      //
-      // What replaces those two properties: the header slivers move into
-      // `headerSliverBuilder`, which collapses them for whichever body is on
-      // screen, and pagination moves from a shared `ScrollController` to a
-      // `NotificationListener` per body — see `_onTabScroll`.
+      // A `NestedScrollView` so tabs can be swiped. The header collapses with
+      // whichever body is on screen, and each body paginates through its own
+      // `NotificationListener` (see `_onTabScroll`).
       child: NestedScrollView(
         headerSliverBuilder: (context, _) => [
           SliverToBoxAdapter(
@@ -408,18 +363,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     );
   }
 
-  /// One tab's scrollable.
-  ///
-  /// Two listeners, for two different questions. `ScrollNotification` is "the
-  /// reader has got near the end, fetch more"; `ScrollMetricsNotification` is
-  /// "this list changed shape without being scrolled", which is the only way to
-  /// notice a first page too short to scroll at all — the case that used to
-  /// leave a channel with two posts and no way to ask for a third.
-  ///
-  /// No `ScrollController`: `NestedScrollView` gives each body its own so the
-  /// header collapses with whichever one is on screen, and taking that over
-  /// would break the collapse. The `PageStorageKey` is what keeps each tab's
-  /// position while the reader is on another one.
+  /// One tab's scrollable. `ScrollNotification` drives pagination and
+  /// `ScrollMetricsNotification` catches a first page too short to scroll.
+  /// No `ScrollController`, so the shared header can still collapse.
   Widget _tabBody(Channel channel, ChannelTab tab) {
     return NotificationListener<ScrollMetricsNotification>(
       onNotification: (notification) {
@@ -544,10 +490,8 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
           },
         );
 
-        // Read tracking on the history tab only. The Links and Voice tabs are
-        // a search result rather than a reading position, and acknowledging a
-        // post because it scrolled past in a filtered list would write that
-        // to every Telegram client the reader owns.
+        // Read tracking on the history tab only, so scrolling a filtered list
+        // doesn't mark posts read on every device.
         return trackReads
             ? PostVisibilityReporter(postId: post.id, child: card)
             : card;
@@ -569,7 +513,7 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
   final TabController controller;
   final Color background;
 
-  /// Which tabs to draw. A guest channel has only Posts — see `_tabs`.
+  /// Which tabs to draw (only Posts for a guest channel).
   final List<ChannelTab> tabs;
 
   static const double _height = 46;
@@ -694,11 +638,7 @@ class _LoadingFooter extends StatelessWidget {
   }
 }
 
-/// A dead end with a way out of it.
-///
-/// Every failure on this screen used to end in a line of text: no retry, and
-/// no scrollable to pull down on either, so a channel that failed to load was
-/// simply stuck until the reader backed out.
+/// An error message with a retry button.
 class ChannelRetry extends StatelessWidget {
   final String message;
   final String? detail;

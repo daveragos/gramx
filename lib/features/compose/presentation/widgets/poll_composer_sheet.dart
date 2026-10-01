@@ -8,20 +8,11 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 
-/// Writing a poll.
-///
-/// A full-height sheet rather than a screen: a poll is written *into* something
-/// — a post being composed, or a conversation — and pushing a route would take
-/// the writer away from the thing they were already writing.
-///
-/// All the rules about when a poll may be sent live in [PollDraft], which is
-/// pure and tested. This owns the controllers and the layout, and asks the
-/// draft whether the Create button is on.
+/// Writing a poll, in a full-height sheet so the user stays on what they were
+/// writing. The sending rules live in [PollDraft].
 class PollComposerSheet extends StatefulWidget {
-  /// Whether the destination allows a poll whose voters are named.
-  ///
-  /// Telegram refuses a non-anonymous poll in a channel, so the switch is
-  /// hidden there rather than offered and rejected on send.
+  /// Whether the destination allows a poll with named voters. Telegram refuses
+  /// one in a channel, so the switch is hidden there.
   final bool allowsPublicVotes;
 
   const PollComposerSheet({super.key, this.allowsPublicVotes = true});
@@ -34,8 +25,7 @@ class PollComposerSheet extends StatefulWidget {
     return showModalBottomSheet<PollDraft>(
       context: context,
       isScrollControlled: true,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // Above the shell's bottom bar; see mute_sheet.dart.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) =>
@@ -50,11 +40,8 @@ class PollComposerSheet extends StatefulWidget {
 class _PollComposerSheetState extends State<PollComposerSheet> {
   final TextEditingController _question = TextEditingController();
 
-  /// One controller per option row, kept in step with `_draft.options`.
-  ///
-  /// The draft holds the strings and the controllers hold the cursors, and the
-  /// two are only ever changed together — a row added to one and not the other
-  /// is a field that types into the wrong option.
+  /// One controller per option row. Always changed together with
+  /// `_draft.options`, or a field types into the wrong option.
   final List<TextEditingController> _options = [];
 
   PollDraft _draft = const PollDraft();
@@ -65,8 +52,7 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
     for (var i = 0; i < PollDraft.initialOptions; i++) {
       _options.add(TextEditingController());
     }
-    // A channel cannot take a named vote, so the draft starts where the
-    // destination allows rather than at a setting that would be refused.
+    // Start anonymous where named voters aren't allowed.
     if (!widget.allowsPublicVotes) _draft = _draft.withAnonymous(true);
   }
 
@@ -137,8 +123,7 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
         if (!didPop) _close();
       },
       child: Padding(
-        // Lifts the sheet clear of the keyboard, which is up the whole time
-        // somebody is writing a poll.
+        // Keeps the sheet above the keyboard.
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
@@ -202,8 +187,8 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
                         primary: primary,
                         secondary: secondary,
                         canRemove: _draft.canRemoveOption,
-                        // The quiz answer indexes the filled options, so a
-                        // blank row above this one shifts what "correct" means.
+                        // The quiz answer indexes the filled options, so blank
+                        // rows above shift it.
                         isCorrect:
                             _draft.isQuiz &&
                             _draft.correctOptionIndex != null &&
@@ -253,9 +238,7 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
                         ),
                       ),
                     ),
-                    // A quiz has exactly one right answer, so it cannot also
-                    // take several. The switch goes rather than sitting there
-                    // disabled.
+                    // A quiz has one right answer, so the switch is hidden.
                     if (!_draft.isQuiz)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -286,8 +269,8 @@ class _PollComposerSheetState extends State<PollComposerSheet> {
     );
   }
 
-  /// Where option [index] sits once the blank rows are dropped, or null if it
-  /// is itself blank. This is the index a quiz answer is recorded against.
+  /// Where option [index] sits once blank rows are dropped, or null if it is
+  /// blank. Quiz answers are recorded against this index.
   int? _filledIndexOf(int index) {
     if (index >= _draft.options.length) return null;
     if (_draft.options[index].trim().isEmpty) return null;

@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/features/compose/data/sticker_repository.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 
-/// Where the stickers on screen are coming from.
-///
-/// Favourites and recents are lists Telegram keeps for the account; everything
-/// else is one installed set, named by its id.
+/// Where the stickers on screen come from: the account's favourites or
+/// recents, or one installed set.
 sealed class StickerSource {
   const StickerSource();
 }
@@ -44,28 +42,21 @@ class InstalledSet extends StickerSource {
   int get hashCode => setId.hashCode;
 }
 
-/// The account's saved GIFs. One request, and only once the GIF tab is opened —
-/// a `FutureProvider` does not run until something watches it.
+/// The account's saved GIFs, fetched only once the GIF tab is opened.
 final savedGifsProvider = FutureProvider<List<ComposeRemoteMedia>>((ref) {
   return ref.watch(stickerRepositoryProvider).savedGifs();
 });
 
-/// The installed sets, titles and icons only — one request for the whole strip.
-/// Deliberately not the stickers inside them; see [StickerRepository].
+/// The installed sets, titles and icons only, in one request. See
+/// [StickerRepository].
 final installedStickerSetsProvider = FutureProvider<List<ComposeStickerSet>>((
   ref,
 ) {
   return ref.watch(stickerRepositoryProvider).installedSets();
 });
 
-/// The stickers for one source.
-///
-/// **This is the provider that keeps the picker off the request budget.** A
-/// family is lazy: `stickersProvider(InstalledSet(id))` issues its
-/// `GetStickerSet` the first time something watches *that* id and never again
-/// while it stays alive. So opening the picker costs the sources actually shown
-/// — not one request per installed set, which is the fan-out shape the channel
-/// tabs already had to be taught to avoid.
+/// The stickers for one source. As a family, each set's `GetStickerSet` is
+/// sent only when that set is first shown, not once per installed set.
 final stickersProvider =
     FutureProvider.family<List<ComposeRemoteMedia>, StickerSource>((
       ref,

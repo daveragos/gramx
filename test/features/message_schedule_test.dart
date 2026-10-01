@@ -5,9 +5,8 @@ import 'package:gramx/features/chats/domain/message_schedule.dart';
 
 void main() {
   group('MessageSchedule', () {
-    // The load-bearing one. TDLib reads the *presence* of a scheduling state as
-    // "this message is scheduled", so an immediate send has to omit the field
-    // — a zero date here queues the message for 1970.
+    // TDLib treats any scheduling state as scheduled, so an immediate send
+    // omits it. A zero date would queue the message for 1970.
     test('sending now carries no scheduling state at all', () {
       expect(MessageSchedule.now.isImmediate, isTrue);
       expect(MessageSchedule.now.toTdlib(), isNull);
@@ -51,8 +50,7 @@ void main() {
       expect(MessageSchedule.at(soon).isValid, isTrue);
     });
 
-    // Neither dateless state can be out of range, so neither must be refused by
-    // a check written for dates.
+    // The date range check must not refuse the dateless states.
     test('the two dateless states are always valid', () {
       expect(MessageSchedule.now.isValid, isTrue);
       expect(MessageSchedule.whenOnline.isValid, isTrue);

@@ -4,11 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/features/compose/domain/voice_waveform.dart';
 
-/// Reads the 5-bit samples back out of an encoded waveform.
-///
-/// The test's own decoder rather than a second copy of the encoder: a round
-/// trip through code that shares the packing logic would pass with the packing
-/// wrong in both directions, which is exactly the bug this is guarding.
+/// Reads the 5-bit samples back out of an encoded waveform. Written apart from
+/// the encoder so a packing bug cannot cancel itself out.
 List<int> decode(String encoded, int count) {
   final bytes = base64Decode(encoded);
   return [
@@ -30,9 +27,7 @@ List<int> decode(String encoded, int count) {
 
 void main() {
   group('encoding', () {
-    // TDLib's own spelling of "no waveform" is an empty string, not a run of
-    // zeroes — and a voice note sent with zeroes draws a flat bar rather than
-    // letting the client fall back.
+    // TDLib expects an empty string for no waveform; zeroes draw a flat bar.
     test('nothing encodes to nothing', () {
       expect(VoiceWaveform.encode(const []), '');
     });
@@ -42,17 +37,14 @@ void main() {
       expect(decode(VoiceWaveform.encode(samples), samples.length), samples);
     });
 
-    // The case that is easy to get silently wrong: five bits do not divide into
-    // eight, so sample 1 straddles bytes 0 and 1 and every later one is offset
-    // differently again.
+    // Five bits do not divide eight, so samples straddle byte boundaries.
     test('samples that straddle a byte boundary survive', () {
       final samples = List<int>.generate(100, (i) => i % 32);
       expect(decode(VoiceWaveform.encode(samples), samples.length), samples);
     });
 
     test('a sample above the five-bit ceiling is clamped, not wrapped', () {
-      // 40 wrapped into five bits would be 8 — a loud moment drawn as a quiet
-      // one, which is worse than a clipped bar.
+      // Wrapped, 40 would become 8 and a loud moment would look quiet.
       expect(decode(VoiceWaveform.encode(const [40]), 1), const [31]);
     });
   });
@@ -63,8 +55,7 @@ void main() {
       expect(VoiceWaveform.downsample(samples, to: 10), samples);
     });
 
-    // The peak, not the mean. Averaged buckets flatten speech into a low ridge;
-    // the peaks are what make a waveform look like somebody talking.
+    // Peaks, not means: averaging flattens speech into a low ridge.
     test('each bucket keeps its loudest sample', () {
       expect(
         VoiceWaveform.downsample(const [0, 31, 0, 0, 0, 20], to: 2),
@@ -94,8 +85,7 @@ void main() {
       expect(VoiceWaveform.fromDecibels(const [-25]).single, 16);
     });
 
-    // Recorders report NaN before the first buffer arrives, and a NaN through
-    // the arithmetic becomes a clamp failure rather than a quiet bar.
+    // Recorders report NaN before the first buffer arrives.
     test('a NaN reading is silence, not a crash', () {
       expect(VoiceWaveform.fromDecibels(const [double.nan]), const [0]);
     });

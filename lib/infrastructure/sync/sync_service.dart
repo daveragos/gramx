@@ -18,10 +18,7 @@ class LiveReactionsUpdate extends LivePostUpdate {
   LiveReactionsUpdate(this.postId, this.reactions, this.chosenReactions);
 }
 
-/// A message that just arrived in a chat we follow.
-///
-/// Previously `UpdateNewMessage` only triggered a media download and the
-/// message itself was dropped, so a feed left open never gained a post.
+/// A message that just arrived in a followed chat.
 class LiveNewMessage extends LivePostUpdate {
   final td.Message message;
   LiveNewMessage(this.message);
@@ -32,11 +29,8 @@ class LiveInteractionUpdate extends LivePostUpdate {
   final int? viewCount;
   final int? forwardCount;
 
-  /// Reaction counts as TDLib now sees them, or null if the update carried no
-  /// interaction info to speak for them.
-  ///
-  /// An *empty* map is meaningful and different from null: it says the post has
-  /// no reactions, which is how the last one being taken back arrives.
+  /// Current reaction counts, or null if the update carried none. An empty
+  /// map means the post has no reactions left.
   final Map<String, int>? reactions;
   final Set<String>? chosenReactions;
 
@@ -49,19 +43,9 @@ class LiveInteractionUpdate extends LivePostUpdate {
   });
 }
 
-/// Turns a counter-bearing TDLib update into the event the feed folds in.
-///
-/// Pure and top-level so it can be tested without standing up a client, a
-/// database and a subscription — the seam the tests
-/// need. Returns null for updates that carry no
-/// counters.
-///
-/// The reaction path is the whole reason this exists. `updateMessageReactions`
-/// is documented **"for bots only"**, so on a user client it never fires — the
-/// only place a reader is ever told about a reaction is
-/// `updateMessageInteractionInfo.interactionInfo.reactions`, and that field
-/// used to be read past and dropped. Everything downstream was already wired up
-/// and waiting for it.
+/// Turns a TDLib update carrying counters into a feed event, or null.
+/// `updateMessageReactions` is bots-only, so a user client learns about
+/// reactions only from `updateMessageInteractionInfo.interactionInfo`.
 LivePostUpdate? mapCounterUpdate(td.TdObject update) {
   if (update is td.UpdateMessageInteractionInfo) {
     final info = update.interactionInfo;
@@ -78,8 +62,7 @@ LivePostUpdate? mapCounterUpdate(td.TdObject update) {
   }
 
   if (update is td.UpdateMessageReactions) {
-    // Bots-only, so unreachable for this app. Kept because handling it costs
-    // nothing and a future TDLib could widen it.
+    // Bots-only, so not expected here, but cheap to handle.
     final mapped = TdlibMappers.mapReactionList(update.reactions);
     return LiveReactionsUpdate(
       '${update.chatId}_${update.messageId}',
@@ -101,11 +84,8 @@ class SyncService {
 
   final Completer<void> _authReady = Completer<void>();
 
-  /// Whether photos may be prefetched as messages arrive.
-  ///
-  /// A getter rather than a value: the reader can flip the setting mid-session
-  /// and this service outlives that — it owns the update subscription, so
-  /// rebuilding it to pick up a preference would drop the stream.
+  /// Whether photos may be prefetched as messages arrive. A function so a
+  /// settings change applies without rebuilding the service.
   final bool Function() _autoDownloadImages;
 
   SyncService(this._db, this._tdlib, {bool Function()? autoDownloadImages})
@@ -118,10 +98,8 @@ class SyncService {
     }
   }
 
-  /// Wait for authentication to be ready.
   Future<void> waitForAuth() => _authReady.future;
 
-  /// Start listening to real-time Telegram updates.
   void startListening() {
     _updateSub?.cancel();
     _updateSub = _tdlib.updatesStream.listen((update) {
@@ -129,13 +107,12 @@ class SyncService {
     });
   }
 
-  /// Stop listening to updates.
   void stopListening() {
     _updateSub?.cancel();
     _updateSub = null;
   }
 
-  /// Queue background file download in TDLib.
+  /// Queues a background file download in TDLib.
   Future<void> _downloadFile(int fileId, {int priority = 1}) async {
     if (fileId == 0) return;
     try {
@@ -153,26 +130,23 @@ class SyncService {
     }
   }
 
-  /// Download a file with viewport-aware priority.
-  /// Use priority 32 for visible/viewport media, 1 for background prefetch.
+  /// Downloads a file. Use priority 32 for visible media and 1 for
+  /// background prefetch.
   Future<void> downloadFileWithPriority(int fileId, {int priority = 32}) async {
     await _downloadFile(fileId, priority: priority);
   }
 
-  /// Download small chat photo if available.
   Future<void> downloadChatAvatar(td.Chat chat) async {
     if (chat.photo != null) {
       await _downloadFile(chat.photo!.small.id);
     }
   }
 
-  /// Download photo thumbnails for message previews (heavy media/files are downloaded on-demand).
+  /// Prefetches thumbnails for message previews.
   void _downloadMessageMedia(td.Message message) {
     final content = message.content;
     if (content is td.MessagePhoto) {
-      // Off means off at the source: with auto-download disabled, a photo
-      // costs nothing until it is tapped. The minithumbnail travels inside the
-      // message itself, so the card still shows something.
+      // With auto-download off, photos wait for a tap.
       if (!_autoDownloadImages()) return;
       for (final size in content.photo.sizes) {
         _downloadFile(size.photo.id);
@@ -181,16 +155,12 @@ class SyncService {
       _downloadFile(content.video.thumbnail!.file.id);
     } else if (content is td.MessageVideoNote &&
         content.videoNote.thumbnail != null) {
-      // Queued now that round video messages are drawn rather than labelled;
-      // without this the tile has nothing to show until it is tapped.
       _downloadFile(content.videoNote.thumbnail!.file.id);
     } else if (content is td.MessageAnimation &&
         content.animation.thumbnail != null) {
       _downloadFile(content.animation.thumbnail!.file.id);
     } else if (content is td.MessageSticker) {
-      // Stickers were never queued, so their file never landed and the tile
-      // rendered its "can't show this" fallback forever. The sticker *is* the
-      // message, so it downloads in full rather than as a thumbnail.
+      // The sticker is the message, so it downloads in full.
       _downloadFile(content.sticker.sticker.id);
       final thumbnail = content.sticker.thumbnail;
       if (thumbnail != null) _downloadFile(thumbnail.file.id);
@@ -210,7 +180,6 @@ class SyncService {
     }
   }
 
-  /// Handles real-time updates from TDLib update streams.
   Future<void> _handleLiveUpdate(td.TdObject update) async {
     if (!_authReady.isCompleted) return;
 
@@ -237,7 +206,7 @@ class SyncService {
     }
   }
 
-  /// Toggle post reaction (like) via TDLib
+  /// Adds or removes a reaction on a post.
   Future<void> togglePostReaction({
     required int chatId,
     required int messageId,
@@ -269,7 +238,7 @@ class SyncService {
     }
   }
 
-  /// Toggle bookmark status in local database
+  /// Toggles a bookmark in the local database.
   Future<void> toggleBookmark(int chatId, int messageId) async {
     final existing =
         await (_db.select(_db.bookmarkEntries)..where(
@@ -300,7 +269,7 @@ class SyncService {
     }
   }
 
-  /// Set poll answers (vote) in TDLib.
+  /// Votes in a poll.
   Future<void> voteInPoll({
     required int chatId,
     required int messageId,
@@ -321,15 +290,14 @@ class SyncService {
   }
 }
 
-/// Riverpod provider for SyncService.
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final tdlib = ref.watch(tdlibServiceProvider);
   return SyncService(
     db,
     tdlib,
-    // Read, not watched: watching would rebuild the service on every toggle
-    // and take its update subscription with it.
+    // Read, not watched, so a toggle doesn't rebuild the service and drop
+    // its update subscription.
     autoDownloadImages: () =>
         ref.read(settingsProvider).autoDownloadImagesEnabled,
   );

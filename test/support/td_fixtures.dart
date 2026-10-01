@@ -2,14 +2,10 @@ import 'dart:convert';
 
 import 'package:handy_tdlib/api.dart' as td;
 
-/// Builders for the TDLib objects tests need.
-///
-/// `td.Chat` and `td.Message` have several dozen required fields, so tests
-/// construct them from JSON through TDLib's own `fromJson` — shorter to write
-/// and it exercises the same decoding path the real client uses.
+/// Builders for the TDLib objects tests need. They go through TDLib's own
+/// `fromJson`, the same decoding path the client uses.
 abstract class TdFixtures {
-  /// TDLib's `fromJson` casts these straight to `bool`, so every key has to be
-  /// present — a missing one throws "Null is not a subtype of bool".
+  /// TDLib's `fromJson` casts these to `bool`, so every key must be present.
   static const Map<String, dynamic> _permissions = {
     '@type': 'chatPermissions',
     'can_send_basic_messages': false,
@@ -55,9 +51,7 @@ abstract class TdFixtures {
   };
 
   /// A supergroup chat. [isChannel] false makes it a group instead.
-  ///
-  /// [canSendBasicMessages] is the chat's default member permission, which is
-  /// what decides whether a post can be forwarded into a group.
+  /// [canSendBasicMessages] is the default member permission for a group.
   static td.Chat chat({
     required int id,
     String title = 'Test Channel',
@@ -88,17 +82,14 @@ abstract class TdFixtures {
     );
   }
 
-  /// A one-to-one chat — always a valid forward destination.
+  /// A one-to-one chat, always a valid forward destination.
   static td.Chat privateChat({required int id, String title = 'A Person'}) {
     final json = _chatJson(id: id, title: title, mainOrder: 100);
     json['type'] = {'@type': 'chatTypePrivate', 'user_id': id.abs()};
     return td.Chat.fromJson(json);
   }
 
-  /// The same chat, but with a photo on it.
-  ///
-  /// The photo is the interesting half of the comment-avatar rule: a chat that
-  /// *has* one is what a commenter's missing avatar used to fall back to.
+  /// The same chat with a photo, which a commenter's avatar must not borrow.
   static td.Chat chatWithPhoto({
     required int id,
     required int photoFileId,
@@ -166,8 +157,7 @@ abstract class TdFixtures {
     },
   };
 
-  /// A full user record. Only the fields gramX reads are interesting; the rest
-  /// exist because TDLib's decoder requires them.
+  /// A full user record. Most fields exist only for TDLib's decoder.
   static td.UserFullInfo userFullInfo({
     String? bio,
     int personalChatId = 0,
@@ -317,10 +307,8 @@ abstract class TdFixtures {
     },
   };
 
-  /// A message carrying a photo, with one `photoSize` per id given.
-  ///
-  /// Sizes ascend, so the last id is the largest — which is the one the upload
-  /// tracker counts, and the reason this takes a list rather than one id.
+  /// A message carrying a photo, with one `photoSize` per id given. Sizes
+  /// ascend, so the last id is the largest.
   static td.Message photoMessage({
     required int id,
     required int chatId,
@@ -397,10 +385,7 @@ abstract class TdFixtures {
     return td.Message.fromJson(json);
   }
 
-  /// A message carrying a poll.
-  ///
-  /// Every field TDLib requires, because a poll bubble is the case that used to
-  /// render empty — a fixture that skipped one would let that come back.
+  /// A message carrying a poll, with every field TDLib requires.
   static td.Message pollMessage({
     required int id,
     required int chatId,
@@ -462,11 +447,8 @@ abstract class TdFixtures {
     return td.Message.fromJson(json);
   }
 
-  /// A photo that disappears once it is opened.
-  ///
-  /// [viewOnce] chooses which of TDLib's two self-destruct shapes it carries;
-  /// [seconds] is the timer for the other one. `is_secret` is the flag that
-  /// says it has not been opened yet, and it is what the cover is drawn from.
+  /// A photo that disappears once opened. [viewOnce] picks one of TDLib's two
+  /// self-destruct shapes and [seconds] times the other.
   static td.Message secretPhotoMessage({
     required int id,
     required int chatId,
@@ -487,11 +469,8 @@ abstract class TdFixtures {
     return td.Message.fromJson(json);
   }
 
-  /// A chat that is end-to-end encrypted.
-  ///
-  /// [secretChatId] is what the `SecretChat` record is keyed by — a different
-  /// number from the chat id, which is the distinction the cache exists to keep
-  /// straight.
+  /// An end-to-end encrypted chat. [secretChatId] keys the `SecretChat` record
+  /// and differs from the chat id.
   static td.Chat secretChat({
     required int id,
     required int userId,
@@ -507,11 +486,8 @@ abstract class TdFixtures {
     return td.Chat.fromJson(json);
   }
 
-  /// The end-to-end record behind a secret chat.
-  ///
-  /// [isReady] is the whole point of it: a secret chat is pending until the
-  /// other device finishes the key exchange, and Telegram refuses messages
-  /// sent into a pending one.
+  /// The end-to-end record behind a secret chat. Until [isReady], Telegram
+  /// refuses messages sent into it.
   static td.UpdateSecretChat secretChatUpdate({
     int secretChatId = 5,
     required int userId,
@@ -619,17 +595,9 @@ abstract class TdFixtures {
     textMessageJson(id: id, chatId: chatId, text: text, date: date),
   );
 
-  /// A channel post that answers another message.
-  ///
-  /// [quote] is the passage the writer *selected* out of what they answered.
-  /// TDLib fills `reply_to.quote` only in that case, which is the one thing
-  /// separating a quoted passage from a reply to a whole post — and the two
-  /// are drawn differently, so a fixture that could not express the difference
-  /// could not test it.
-  ///
-  /// [targetText] is the answered message's own content, which TDLib inlines
-  /// for cross-chat replies and quotes. Supplying it alongside [quote] is the
-  /// case that matters: both arrive, and the selected passage must win.
+  /// A channel post that answers another message. [quote] is a passage the
+  /// writer selected (TDLib fills `reply_to.quote` only then). [targetText] is
+  /// the answered message's content, inlined for cross-chat replies and quotes.
   static td.Message replyingMessage({
     required int id,
     required int chatId,
@@ -647,8 +615,7 @@ abstract class TdFixtures {
       '@type': 'messageReplyToMessage',
       'chat_id': replyToChatId,
       'message_id': replyToMessageId,
-      // Non-nullable in TDLib's decoder even though it is meaningless for a
-      // same-chat reply — a missing key throws "Null is not a subtype of int".
+      // Required by TDLib's decoder, even for a same-chat reply.
       'origin_send_date': 0,
     };
     if (quote != null) {
@@ -704,11 +671,8 @@ abstract class TdFixtures {
     return td.Message.fromJson(json);
   }
 
-  /// One entry in a message's reaction list.
-  ///
-  /// [type] is the raw `ReactionType` JSON, so a test can build the emoji, paid
-  /// and custom-emoji forms — all three appear on real channel posts and only
-  /// the first used to survive the mapper.
+  /// One entry in a message's reaction list. [type] is raw `ReactionType` JSON,
+  /// so tests can build the emoji, paid and custom-emoji forms.
   static Map<String, dynamic> reactionJson({
     required Map<String, dynamic> type,
     required int totalCount,
@@ -750,10 +714,7 @@ abstract class TdFixtures {
     List<Map<String, dynamic>> reactions,
   ) => td.MessageReactions.fromJson(messageReactionsJson(reactions));
 
-  /// The update that actually carries reactions to a user client.
-  ///
-  /// `updateMessageReactions` is bots-only, so this is the only one that fires
-  /// for a reader.
+  /// The update that carries reactions to a user client.
   static td.UpdateMessageInteractionInfo interactionInfo({
     required int chatId,
     required int messageId,
@@ -789,15 +750,14 @@ abstract class TdFixtures {
     return td.Message.fromJson(json);
   }
 
-  /// A basic-group chat — used to check supergroup lookups degrade safely.
+  /// A basic-group chat, for checking that supergroup lookups degrade safely.
   static td.Chat basicGroupChat({required int id, String title = 'Group'}) {
     final json = _chatJson(id: id, title: title);
     json['type'] = {'@type': 'chatTypeBasicGroup', 'basic_group_id': id.abs()};
     return td.Chat.fromJson(json);
   }
 
-  /// [status] is the raw `ChatMemberStatus` JSON — what decides whether the
-  /// account may post into a channel.
+  /// [status] is raw `ChatMemberStatus` JSON, which decides posting rights.
   static td.UpdateSupergroup supergroup({
     required int id,
     int memberCount = 0,
@@ -890,12 +850,7 @@ abstract class TdFixtures {
 
   // ── Conversations ──────────────────────────────────────────────────────────
 
-  /// A private chat, with everything the messages list reads off one.
-  ///
-  /// The plain [privateChat] above is enough for the forward picker, which only
-  /// asks "can I post here". A chat *row* reads a dozen more fields — unread
-  /// state, mute, draft, the action bar — and every one of them has been the
-  /// difference between a correct row and a wrong one.
+  /// A private chat with every field a chat list row reads.
   static td.Chat conversation({
     required int id,
     String title = 'A Person',
@@ -958,8 +913,7 @@ abstract class TdFixtures {
     return td.Chat.fromJson(json);
   }
 
-  /// A group chat that belongs in the messages list: a supergroup that is not
-  /// a broadcast channel.
+  /// A group chat for the messages list: a supergroup that is not a channel.
   static td.Chat groupChat({
     required int id,
     String title = 'The Group',
@@ -979,19 +933,15 @@ abstract class TdFixtures {
     },
   );
 
-  /// Telegram's "you don't know this person" bar — what the Requests filter is
-  /// built on.
+  /// Telegram's bar for an unknown sender, which the Requests filter uses.
   static Map<String, dynamic> reportAddBlockBar() => {
     '@type': 'chatActionBarReportAddBlock',
     'can_unarchive': false,
     'distance': -1,
   };
 
-  /// A user record, as `UpdateUser` delivers one.
-  ///
-  /// [status] is the raw `UserStatus` JSON. It decides the presence line, and
-  /// Telegram deliberately blurs it — "last seen recently" is a real answer
-  /// rather than a missing timestamp.
+  /// A user record, as `UpdateUser` delivers one. [status] is raw `UserStatus`
+  /// JSON; Telegram blurs it, so "last seen recently" is a real answer.
   static td.User user({
     required int id,
     String firstName = 'Ada',
@@ -1072,10 +1022,8 @@ abstract class TdFixtures {
 
   static td.UpdateUser userUpdate(td.User user) => td.UpdateUser(user: user);
 
-  ///
-  /// A message *about* a contact rather than a conversation with one — it is
-  /// the only content a chat that has never been used ever contains, which is
-  /// what makes it safe to filter a whole chat on.
+  /// Telegram's "contact joined Telegram" notice. A chat that was never used
+  /// contains only this, so it is safe to filter a chat on.
   static Map<String, dynamic> contactRegisteredMessageJson({
     required int id,
     required int chatId,
@@ -1085,11 +1033,7 @@ abstract class TdFixtures {
     return json;
   }
 
-  /// A message in a conversation: sent by a person, on one side or the other.
-  ///
-  /// The channel-post [textMessage] above is sent by a *chat* and is never
-  /// outgoing, which is the wrong shape for every assertion a conversation
-  /// makes.
+  /// A message sent by a person in a conversation, incoming or outgoing.
   static td.Message chatMessage({
     required int id,
     required int chatId,
@@ -1134,8 +1078,7 @@ abstract class TdFixtures {
         '@type': 'messageReplyToMessage',
         'chat_id': replyToChatId,
         'message_id': replyToMessageId,
-        // Non-nullable in TDLib's decoder even though it is meaningless for a
-        // same-chat reply — a missing key throws "Null is not a subtype of int".
+        // Required by TDLib's decoder, even for a same-chat reply.
         'origin_send_date': 0,
       };
     }
@@ -1166,8 +1109,7 @@ abstract class TdFixtures {
     'zoom_token': zoomToken,
   };
 
-  /// A graph Telegram sent a token for instead — the common case, and the one
-  /// the lazy loading in `StatSection` exists for.
+  /// A graph Telegram sent a token for instead, which is the common case.
   static Map<String, dynamic> graphAsyncJson(String token) => {
     '@type': 'statisticalGraphAsync',
     'token': token,
@@ -1220,10 +1162,7 @@ abstract class TdFixtures {
     'reaction_count': reactionCount,
   };
 
-  /// A channel's statistics.
-  ///
-  /// Every graph defaults to an async token, because that is what TDLib
-  /// actually sends; pass one in to test the resolved path.
+  /// A channel's statistics. Graphs default to async tokens, as TDLib sends.
   static td.ChatStatisticsChannel channelStatistics({
     int startDate = 1719792000,
     int endDate = 1727654400,
@@ -1270,7 +1209,7 @@ abstract class TdFixtures {
     });
   }
 
-  /// A supergroup's statistics — the variant the channel screen must refuse.
+  /// A supergroup's statistics, which the channel screen must refuse.
   static td.ChatStatisticsSupergroup supergroupStatistics() {
     final async = graphAsyncJson('token');
     final value = statisticalValueJson(value: 0);

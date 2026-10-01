@@ -10,39 +10,20 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// Telegram's own statistics for a channel the reader administers.
-///
-/// **What this costs, and why it is allowed.** Every call here is networked and
-/// every one of them is a tap: opening the Analytics screen, scrolling a chart
-/// into view, opening one post's numbers. That is the on-demand shape
-/// the request budget permits, and it is deliberately *not* the shape the rest of
-/// the app avoids — nothing here runs on a timer, in a loop over chats, or
-/// while the screen that would show it is closed.
-///
-/// The one place that could have become a fan-out is the graphs: TDLib answers
-/// `getChatStatistics` with most of them unresolved, and resolving all ten on
-/// open would be ten requests for charts nobody has scrolled to yet — the same
-/// fault as fetching a channel's four tabs eagerly. So [resolveGraph] is called
-/// one chart at a time, from visibility, and never from the reply.
+/// Telegram's statistics for a channel the user administers. Every call is
+/// networked and on demand; graphs sent as tokens are resolved one at a time
+/// through [resolveGraph] as they scroll into view.
 class StatsRepository {
   final TdlibService _tdlib;
   final ChatCache _chatCache;
 
-  /// Public forwards asked for in one page. Telegram pages this; gramX shows
-  /// the first page and says how many there are in total, because a reader
-  /// looking at one post's numbers wants the shape of the sharing, not a
-  /// directory of it.
+  /// Public forwards requested. Only the first page is shown.
   static const int publicSharesLimit = 20;
 
   StatsRepository(this._tdlib, this._chatCache);
 
   /// A channel's statistics, or null if Telegram will not produce them.
-  ///
-  /// [isDark] is not cosmetic. Telegram picks the **series colours** for the
-  /// graphs it returns, and it picks them for the theme it is told about — ask
-  /// with the wrong one and a channel's growth line comes back in a colour
-  /// chosen to sit on the opposite background. It is why the provider behind
-  /// this is keyed on brightness rather than on the chat alone.
+  /// Telegram picks the series colours for the theme given by [isDark].
   Future<ChannelStats?> channelStats({
     required int chatId,
     required bool isDark,
@@ -54,12 +35,8 @@ class StatsRepository {
     return StatsMapper.mapChannel(res);
   }
 
-  /// Resolves one graph Telegram sent as a token.
-  ///
-  /// `x: 0` asks for the whole period rather than a zoomed slice — the zoom is
-  /// a second interaction Telegram's own clients offer and gramX does not, and
-  /// passing a real x here would silently return one day of a three-month
-  /// chart.
+  /// Resolves one graph Telegram sent as a token. `x: 0` asks for the whole
+  /// period; any other x returns a zoomed slice of one day.
   Future<StatGraphSource> resolveGraph({
     required int chatId,
     required String token,
@@ -76,16 +53,9 @@ class StatsRepository {
     }
   }
 
-  /// The words behind the Content rows, keyed by message id.
-  ///
-  /// **`getMessageLocally`, once per id, and deliberately not one batched
-  /// `getMessages`.** The batch is a single request and looks like the obvious
-  /// win, but TDLib answers a message it cannot find with `null` *in the
-  /// array*, and `handy_tdlib` decodes the array with a non-nullable cast — so
-  /// one deleted post, which statistics still counts and still lists, throws
-  /// away the whole page of excerpts. These are local reads: off the request
-  /// budget, exempt from the flood gate (`TdlibService._isLocalOnlyRequest`),
-  /// and a miss costs exactly the one row it belongs to.
+  /// The text of the Content rows, keyed by message id. Uses local reads per
+  /// id rather than one `getMessages`, whose reply has `null` for a deleted
+  /// post and fails `handy_tdlib`'s non-nullable cast.
   Future<Map<int, PostExcerpt>> postExcerpts({
     required int chatId,
     required List<int> messageIds,
@@ -128,16 +98,8 @@ class StatsRepository {
     return StatsMapper.mapMessage(res);
   }
 
-  /// Whether this post has statistics to open at all.
-  ///
-  /// Asked per post, from the screen showing that post — the same rule as
-  /// `ChatsRepository.messageActions`, and the same request, which TDLib
-  /// documents as offline. Working the answer out locally was the alternative
-  /// ("is this my channel, is it big enough, is the post recent enough") and it
-  /// produces a control that opens onto an error.
-  ///
-  /// A failed lookup answers **no**: an absent entry point is a smaller fault
-  /// than one that leads nowhere.
+  /// Whether this post has statistics, from the offline
+  /// `getMessageProperties`. A failed lookup answers false.
   Future<bool> canViewPostStats({
     required int chatId,
     required int messageId,
@@ -154,14 +116,9 @@ class StatsRepository {
     }
   }
 
-  /// The public channels that forwarded this post.
-  ///
-  /// **The names are free.** TDLib pushes `updateNewChat` for a chat before it
-  /// names one in a reply, so `ChatCache` already holds every channel in this
-  /// list — the same property `getRecommendedChats` leans on, and what keeps
-  /// this to one request instead of one per row. A chat the cache somehow does
-  /// not have is dropped rather than fetched: a row per miss is exactly the
-  /// per-chat fan-out the rules forbid, and this is a list you glance at.
+  /// The public channels that forwarded this post. Names come from
+  /// [ChatCache], which TDLib fills before replying; uncached chats are
+  /// dropped rather than fetched one by one.
   Future<List<PublicShare>> publicShares({
     required int chatId,
     required int messageId,
@@ -180,8 +137,7 @@ class StatsRepository {
 
       final shares = <PublicShare>[];
       for (final forward in res.forwards) {
-        // A story forward has no post to open and no screen in gramX to open
-        // it on. Dropped for the same reason story statistics are.
+        // Story forwards are dropped: the app has no screen for stories.
         if (forward is! td.PublicForwardMessage) continue;
 
         final message = forward.message;

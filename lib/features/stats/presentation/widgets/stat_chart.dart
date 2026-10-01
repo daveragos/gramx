@@ -9,20 +9,13 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 import 'package:gramx/features/stats/presentation/stat_chart_geometry.dart';
 
-/// One statistics graph, drawn.
-///
-/// abbreviated y axis, a handful of dates along the bottom, and a legend when
-/// there is more than one series. The shape of each series is Telegram's own
-/// choice — see [StatGraphShape] — so a growth chart is a line and a day's
-/// joins are columns without this widget being told which is which.
-///
-/// here would mean either a real hit-test over every point or a control that
-/// responds and says nothing, and the hard rules are clear about the second.
-/// The numbers a reader actually needs are in the tiles above the chart.
+/// One statistics graph: a gridded plot with a y axis, a few dates along the
+/// bottom, and a legend when there is more than one series. Each series uses
+/// the shape Telegram declares (see [StatGraphShape]). Not interactive.
 class StatChart extends StatelessWidget {
   final StatGraph graph;
 
-  /// Spoken description. A chart is unreachable without one.
+  /// The screen reader description.
   final String semanticLabel;
 
   final double height;
@@ -34,7 +27,7 @@ class StatChart extends StatelessWidget {
     this.height = 168,
   });
 
-  /// Used for a series Telegram sent no colour for, in order.
+  /// Colours for series Telegram sent no colour for, in order.
   static const List<Color> fallbackPalette = [
     AppColors.accent,
     AppColors.repost,
@@ -93,10 +86,8 @@ class StatChart extends StatelessWidget {
   }
 }
 
-///
-/// The swatch is not decoration: two lines on one chart are told apart by
-/// colour and nothing else, which is exactly the case that needs
-/// a label rather than a hue.
+/// A legend entry: the series colour and its name, so series are not told
+/// apart by colour alone.
 class _LegendChip extends StatelessWidget {
   final String label;
   final Color color;
@@ -127,10 +118,7 @@ class _LegendChip extends StatelessWidget {
   }
 }
 
-/// Puts the ink where [StatChartGeometry] says.
-///
-/// Every arithmetic decision belongs to the geometry, which is testable
-/// without a canvas; what is left here is stroking and filling.
+/// Paints a chart from [StatChartGeometry], which does all the arithmetic.
 @visibleForTesting
 class StatChartPainter extends CustomPainter {
   final StatGraph graph;
@@ -138,10 +126,10 @@ class StatChartPainter extends CustomPainter {
   final Color gridColor;
   final TextStyle labelStyle;
 
-  /// Room for the y-axis labels, which sit outside the plot on the left.
+  /// Room for the y-axis labels, left of the plot.
   static const double leftGutter = 44;
 
-  /// Room for the dates under it.
+  /// Room for the dates below the plot.
   static const double bottomGutter = 18;
 
   const StatChartPainter({
@@ -195,8 +183,7 @@ class StatChartPainter extends CustomPainter {
   }
 
   void _paintSeries(Canvas canvas, StatChartGeometry geometry) {
-    // Grouped bars share a slot. Stacked ones do not — they sit on each
-    // other's shoulders, which the geometry has already worked out.
+    // Grouped bars share a slot; the geometry already stacks stacked ones.
     final barLines = [
       for (var i = 0; i < graph.lines.length; i++)
         if (graph.lines[i].shape.isColumnar) i,
@@ -236,8 +223,7 @@ class StatChartPainter extends CustomPainter {
         rect.left + width * (slot + 1),
         rect.bottom,
       );
-      // A bar for a real but tiny value must still be visible, or a quiet day
-      // reads as a day with no data at all.
+      // Keep a tiny nonzero bar visible so it doesn't read as no data.
       final drawn = bar.height < 1 && geometry.plotted[index][i] != 0
           ? Rect.fromLTRB(bar.left, bar.bottom - 1, bar.right, bar.bottom)
           : bar;
@@ -291,8 +277,7 @@ class StatChartPainter extends CustomPainter {
 
     for (final index in geometry.labelIndices()) {
       final painter = _text(TimeUtils.axisLabel(geometry.dateAt(index), span));
-      // The first and last labels are pulled inside the plot so neither hangs
-      // off the edge of the card.
+      // Pull the first and last labels inside the plot edges.
       var x = leftGutter + geometry.xAt(index) - painter.width / 2;
       x = x.clamp(0.0, leftGutter + plot.width - painter.width);
       painter.paint(canvas, Offset(x, plot.height + AppSpacing.xs));

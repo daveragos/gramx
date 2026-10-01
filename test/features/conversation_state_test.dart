@@ -97,9 +97,8 @@ void main() {
   });
 
   group('sending', () {
-    // The optimistic bubble is keyed on a temporary id. Inserting the real
-    // message without removing it leaves the sender looking at their own
-    // message twice.
+    // The optimistic bubble has a temporary id and must not linger next to
+    // the real message.
     test('the real message replaces the optimistic one, id and all', () {
       final placeholder = ChatMessage(
         id: '${_chatId}_-1',
@@ -137,9 +136,8 @@ void main() {
       expect(state.messages.single.sendState, MessageSendState.failed);
     });
 
-    // Optimistic ids are negative. Sorted as plain numbers, the reader's own
-    // message jumped to the top of the chat until Telegram answered — which
-    // the empty-chat tests above could never show.
+    // Optimistic ids are negative, so a plain numeric sort would put them on
+    // top.
     test('an optimistic bubble sits below the conversation, not above it', () {
       var state = _apply(_empty(), ChatMessageArrived(_incoming(100)));
       state = _apply(state, ChatMessageArrived(_incoming(200)));
@@ -212,8 +210,7 @@ void main() {
       ]);
     });
 
-    // An out-of-order update that moved it back would un-read messages the
-    // reader watched turn read.
+    // An out-of-order update must not mark read messages unread again.
     test('the cursor only ever moves forwards', () {
       var state = _apply(_empty(), ChatMessageArrived(_outgoing(300)));
       state = _apply(state, const ChatOutboxRead(_chatId, 300));
@@ -288,8 +285,7 @@ void main() {
       expect(state.messages.single.chosenReactions, {'❤️'});
     });
 
-    // An empty map is meaningful and different from absent: it is how the last
-    // reaction being taken back arrives.
+    // An empty map, unlike an absent one, means the last reaction was removed.
     test('an empty map clears them', () {
       var state = _apply(_empty(), ChatMessageArrived(_incoming(100)));
       state = _apply(
@@ -342,9 +338,8 @@ void main() {
     });
   });
 
-  // TDLib sends a same-chat reply with no preview of what it answers. Only a
-  // freshly loaded page was ever filled, so a reply arriving live — the
-  // commonest reply there is — drew a bare "Replying to".
+  // TDLib sends a same-chat reply with no preview, so live replies are filled
+  // from loaded messages too.
   group('reply previews', () {
     test('a reply arriving live is filled from what is on screen', () {
       var state = _apply(
@@ -412,8 +407,7 @@ void main() {
       expect(state.hasMoreOlder, isTrue);
     });
 
-    // TDLib chooses its own batch size, so exhaustion is the caller's answer
-    // rather than something inferred from a short page.
+    // TDLib picks its own batch size, so a short page doesn't mean the top.
     test('the caller decides when the top is reached', () {
       final state = _empty().prepend(const [], reachedTop: true);
       expect(state.hasMoreOlder, isFalse);
@@ -426,17 +420,16 @@ void main() {
       state = _apply(state, ChatMessageArrived(_incoming(200)));
       state = _apply(state, ChatMessageArrived(_outgoing(300)));
 
-      // Read state is pushed to every client this account owns, so what is
-      // acknowledged is decided here rather than inferred from the viewport.
+      // Read state syncs to every device on the account, so it is decided
+      // here rather than inferred from the viewport.
       expect(state.unreadIncomingIds(100), [200]);
       expect(state.unreadIncomingIds(0), [200, 100]);
       expect(state.unreadIncomingIds(999), isEmpty);
     });
   });
 
-  // A jump to a search hit far back loads a window around it, and the chat
-  // then reads from the middle: more above, more below, and the live stream
-  // no longer adjacent to what is on screen.
+  // Jumping to an old search hit loads a window around it, detached from the
+  // live end of the chat.
   group('a window in the middle', () {
     ConversationState window() =>
         _apply(
@@ -470,7 +463,7 @@ void main() {
 
       state = state.append([_mapped(53)], reachedBottom: true);
       expect(state.hasMoreNewer, isFalse);
-      // Adjacent again: arrivals fold in as they always did.
+      // Adjacent again, so arrivals fold in.
       expect(
         _apply(
           state,

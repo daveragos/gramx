@@ -9,8 +9,7 @@ UnreadMessage shown(int id, {int album = 0}) =>
 UnreadMessage hidden(int id) => (id: id, albumId: 0, isShown: false);
 
 void main() {
-  // Telegram's read state is a cursor. The feed shows a channel's newest post
-  // first, and acknowledging it used to mark every older post read unseen.
+  // Telegram's read state is a cursor, but the feed shows newest posts first.
   group('readableUpTo', () {
     test('moves over an unbroken run of seen posts', () {
       expect(
@@ -34,8 +33,7 @@ void main() {
       );
     });
 
-    // A pin or a rename is dropped from the feed, so the reader can never
-    // see it; it must not hold the cursor back for good.
+    // Hidden notices (pins, renames) must not hold the cursor back.
     test('passes notices the feed never shows', () {
       expect(
         readableUpTo(
@@ -102,8 +100,7 @@ void main() {
       expect(seen.add(-1, 5), isFalse);
     });
 
-    // Once Telegram's cursor covers a post, the cursor hides it; the record
-    // has nothing left to add.
+    // Posts the cursor covers are already hidden, so the record drops them.
     test('forgets what the cursor now covers', () {
       final seen = SeenPosts()
         ..add(-1, 5)

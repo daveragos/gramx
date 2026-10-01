@@ -34,8 +34,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // A guest has no folders, no chat cache and no unread state, so none of
-    // the machinery below applies to them. Their feed is its own screen.
+    // A guest has no folders, chat cache or unread state.
     if (ref.watch(isGuestModeProvider)) return const GuestFeedScreen();
 
     final theme = Theme.of(context);
@@ -49,29 +48,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accountAsync = ref.watch(activeAccountProvider);
     final feedAsync = ref.watch(feedPostsProvider);
     final isSyncing = feedAsync.isLoading;
-    // The feed can have posts before the channel list has answered: the
-    // headline stage paints straight from the chat cache, and the channel
-    // list is a request behind it. Posts on screen outrank a skeleton for them.
+    // The feed can paint from the chat cache before the channel list loads.
     final feedHasPosts = feedAsync.value?.isNotEmpty ?? false;
     final String displayName = accountAsync.value?.displayName ?? 'User';
 
     final foldersAsync = ref.watch(foldersProvider);
     final dynamicFolders = foldersAsync.value ?? [];
 
-    // Hide a folder only when we positively know it holds no channels. While
-    // it is loading, if the lookup failed, or if the chat cache has nothing to
-    // resolve ids against yet, the tab stays — a folder that vanishes because
-    // of a race is much worse than a briefly empty tab, and that race is
-    // exactly what emptied the tab strip for a whole session after signing in.
+    // Hide a folder only when known to be empty, so a pending or failed
+    // lookup at sign-in can't empty the tab strip.
     final channelsKnown = ref.watch(channelsKnownProvider);
 
     bool folderHasChannels(int folderId) {
-      // An "unread" style folder resolves to whichever chats currently have
-      // something unread, so it empties out the moment the reader catches
-      // up. That is the filter working as intended, not an empty folder —
-      // hiding its tab along with it would make the tab strip reshuffle
-      // itself every time something gets read, which is the inconsistency
-      // this guards against.
+      // An unread-only folder empties whenever everything is read. Keep its
+      // tab so the strip doesn't reshuffle on every read.
       if (ref.watch(folderExcludesReadProvider(folderId)).value == true) {
         return true;
       }
@@ -90,14 +80,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .map((f) => (title: parseFolderTitle(f.title), id: f.id.toString())),
     ];
 
-    // Built once and used by both the loading branch and the loaded one, so
-    // the header does not appear, disappear and reappear across the first
-    // frames of a cold start.
+    // Shared by both branches so the header stays put on a cold start.
     final header = ChromeHeaderRow(
-      // else, and the word was already on the splash and the drawer.
       titleWidget: const BrandGlyph(),
       centerTitle: true,
-      // Channels and stays that way, so the bell lives here — which is where
       actions: const [ActivityBell()],
       leading: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -108,31 +94,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: displayName,
             avatarPath: accountAsync.value?.avatarPath,
             radius: AppSpacing.avatarSizeSmall / 2,
-            // The drawer belongs to the shell's scaffold, not to this
-            // screen's — `Scaffold.of` here finds the wrong one and the tap
-            // does nothing.
+            // The drawer is on the shell's scaffold, not this screen's.
             onTap: openAppDrawer,
           ),
         ),
       ),
     );
 
-    // The feed proper, built the same whether the channel list has answered
-    // or is still on its way: with posts on screen the reader is reading,
-    // and the tabs fill in around them.
+    // Used before and after the channel list loads.
     Widget feedScaffold() => DefaultTabController(
       length: tabItems.length,
       child: _FolderTabSync(
         folderIds: tabItems.map((t) => t.id).toList(),
         child: ChromeScaffold(
-          // The feed owns four scrollables, one per tab, so each reports
-          // its own scrolling rather than the scaffold guessing which is
-          // on screen.
+          // Each tab's list reports its own scrolling.
           observeScroll: false,
-          // Nothing to post to — a guest, or an account that runs no
-          // channel and shares no group — means no button at all, rather
-          // than one that opens a screen saying no. Decided here because
-          // the scaffold needs a null to leave the slot empty.
+          // No button when there is nowhere to post.
           floatingActionButton: ref.watch(canComposeProvider)
               ? const ComposeFab()
               : null,
@@ -142,9 +119,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             titles: tabItems.map((t) => t.title).toList(),
             onTabTap: (index) {
               final folderId = tabItems[index].id;
-              // Compared against the folder actually on screen, not a
-              // remembered tap: swiping to a tab and then tapping it is a
-              // re-tap, and used to be treated as a switch.
+              // Compared with the folder on screen, so tapping a tab that
+              // was swiped to counts as a re-tap.
               final isRetap = ref.read(activeFolderProvider) == folderId;
               ref.read(activeFolderProvider.notifier).set(folderId);
               if (isRetap) {
@@ -169,11 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     return channelsAsync.when(
-      // The bottom bar is drawn by the shell from the first frame, so a body
-      // with no header at all left the app looking half-built. What is
-      // genuinely unknown at this point is which folders exist and what is in
-      // them — so those are the parts that shimmer, and the header is simply
-      // there.
+      // The header shows at once; the tabs and feed shimmer.
       loading: () => feedHasPosts
           ? feedScaffold()
           : ChromeScaffold(
@@ -203,10 +175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // The mark, still drawing itself: the same motion the
-                      // splash and the connecting screen carry, so the wait
-                      // between sign-in and the first channel reads as the
-                      // tail of one start-up rather than a third spinner.
+                      // Same animated mark as the splash screen.
                       const BrandMark(size: 96),
                       const SizedBox(height: 24),
                       Text(
@@ -234,19 +203,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// Keeps the folder tabs and the rest of the app in step.
-///
-/// Three jobs, all of which need the `TabController` that lives above the feed:
-///
-/// * selects the tab another screen asked for, consuming the request so it
-///   fires once rather than on every rebuild;
-/// * records which folder is on screen — a *swiped* tab never went through the
-///   tab bar's onTap, so re-tapping Home scrolled whichever folder was last
-///   tapped back to the top, not the one being read;
-/// * brings the header back the moment a tab starts moving. Each tab reserves
-///   the header's height at the top of its list, so arriving on one with the
-///   header retired showed a band of empty space where it should have been —
-///   and it only reappeared, unanimated, once the outgoing tab was disposed.
+/// Keeps the folder tabs in step with the app: selects requested tabs,
+/// records the folder on screen (swiped tabs included), and shows the header
+/// as soon as a tab starts moving.
 class _FolderTabSync extends ConsumerStatefulWidget {
   final List<String> folderIds;
   final Widget child;
@@ -282,8 +241,7 @@ class _FolderTabSyncState extends ConsumerState<_FolderTabSync> {
     final controller = _controller;
     if (controller == null) return;
 
-    // The listener fires continuously through a drag, so this catches the
-    // start of a swipe rather than waiting for it to land.
+    // Fires throughout a drag, so this catches the start of a swipe.
     final moving = tabIsMoving(
       position: controller.animation?.value ?? controller.index.toDouble(),
       index: controller.index,
@@ -308,8 +266,6 @@ class _FolderTabSyncState extends ConsumerState<_FolderTabSync> {
       if (index < 0) return;
 
       ref.read(requestedFolderProvider.notifier).consume();
-      // The controller lives above this widget but below the listener's
-      // callback, which runs outside build — safe to touch here.
       DefaultTabController.of(context).animateTo(index);
     });
 
@@ -317,10 +273,8 @@ class _FolderTabSyncState extends ConsumerState<_FolderTabSync> {
   }
 }
 
-/// The folder tabs under the feed's app bar.
-///
-/// Part of the sliding header rather than the list, so switching folders never
-/// costs a relayout of what is being read.
+/// The folder tabs under the feed's app bar, part of the sliding header so
+/// switching folders doesn't relayout the list.
 class _FolderTabBar extends StatelessWidget {
   final List<String> titles;
   final ValueChanged<int> onTabTap;

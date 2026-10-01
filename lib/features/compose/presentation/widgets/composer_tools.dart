@@ -3,25 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 
-/// The buttons beside a message field, which fold away while somebody types.
+/// The buttons beside a message field, which fold into a chevron while the
+/// user types so the field has room. Tapping the chevron brings them back.
 ///
-/// A composer wants an attach button and a sticker button, and a field wide
-/// enough to see what is being written. On a phone those three fight for the
-/// same row, and with both buttons out the field was a slot two words wide.
-/// the field is empty, because that is when somebody is choosing what to
-/// send, and fold into a single chevron once words appear, because that is
-/// when the words are the point. Tapping the chevron brings them back for
-/// the reader who wants a picture mid-sentence.
-///
-/// This widget only draws the fold; the owner decides when, because the
-/// owner has the text. [collapsed] true draws the chevron, false the tools.
+/// The owner decides when to fold: [collapsed] true draws the chevron, false
+/// the tools.
 class CollapsibleComposerTools extends StatelessWidget {
   final bool collapsed;
   final VoidCallback onExpand;
   final List<Widget> tools;
 
-  /// How long the fold takes. Quick — it happens on the first keystroke and
-  /// must not lag behind the letter.
+  /// How long the fold takes. Short, so it keeps up with the first keystroke.
   static const Duration duration = Duration(milliseconds: 160);
 
   const CollapsibleComposerTools({
@@ -57,12 +49,8 @@ class CollapsibleComposerTools extends StatelessWidget {
   }
 }
 
-/// Whether the tools should be folded right now.
-///
-/// Pure, and the one rule both composers share: folded while there are words
-/// and the reader has not asked for the tools back, and only when there is
-/// more than one tool to fold — a single button folded into a single chevron
-/// saves nothing and moves a control for no reason.
+/// Whether the tools should be folded: there is text, the user hasn't
+/// expanded them, and there is more than one tool to fold.
 bool composerToolsFolded({
   required bool hasText,
   required bool expandedByHand,

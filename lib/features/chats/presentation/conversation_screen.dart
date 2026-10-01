@@ -46,13 +46,8 @@ import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 
-/// One conversation, open.
-///
-/// A plain `Scaffold` with a real `AppBar`, not a `ChromeScaffold`. The sliding
-/// chrome exists so a *reading* surface gives its height back to the content
-/// being scrolled through; a conversation is anchored to its bottom, and a
-/// header that slid away while somebody typed would take the name of the person
-/// they are talking to with it.
+/// One open conversation. Uses a plain `Scaffold` with a fixed `AppBar`
+/// rather than `ChromeScaffold`, so the header never scrolls away.
 class ConversationScreen extends ConsumerStatefulWidget {
   final int chatId;
 
@@ -63,28 +58,23 @@ class ConversationScreen extends ConsumerStatefulWidget {
 }
 
 class _ConversationScreenState extends ConsumerState<ConversationScreen> {
-  /// How close to the top the reader has to get before the next page is asked
-  /// for. Far enough that the page usually lands before they reach the end of
-  /// what is loaded.
+  /// How close to the loaded edge the scroll gets before the next page is
+  /// requested.
   static const double _loadOlderThreshold = 400;
 
-  /// How far off the bottom counts as "not at the bottom", which is what puts
-  /// the jump-to-latest button on screen.
+  /// How far off the bottom counts as "not at the bottom", which shows the
+  /// jump-to-latest button.
   static const double _atBottomSlack = 200;
 
   final ScrollController _scroll = ScrollController();
 
-  /// The search field's own controller, so closing the field clears it.
   final TextEditingController _searchController = TextEditingController();
 
   /// Attached to the unread band, so the first frame can bring it into view.
   final GlobalKey _unreadBandKey = GlobalKey();
 
-  /// Attached to whichever message a reply is currently jumping to.
-  ///
-  /// One key rather than one per message: there is only ever one target at a
-  /// time, and a key per bubble would hold a `GlobalKey` for every message
-  /// loaded.
+  /// Attached to whichever message a reply is currently jumping to. There is
+  /// only one target at a time, so one key is enough.
   final GlobalKey _jumpKey = GlobalKey();
 
   /// The message a tapped reply points at, flashed while it is found.
@@ -92,21 +82,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   ChatMessage? _replyTo;
 
-  /// The messages the reader has ticked, in the order they ticked them.
-  ///
-  /// Null — not empty — when selection mode is off. An empty *set* is a real
-  /// state the reader can reach by unticking the last one, and it has to look
-  /// different from never having started: one keeps the selection bar up, the
-  /// other puts the header back.
+  /// The selected messages, in selection order. Null when selection mode is
+  /// off; an empty set (after unticking the last one) keeps the selection bar.
   Set<int>? _selected;
 
-  /// What Telegram says may be done to each selected message, kept as it is
-  /// ticked.
-  ///
-  /// One `getMessageProperties` per tick — user-driven and bounded, which is
-  /// the on-demand shape the request budget allows, and the same request the
-  /// long-press menu already makes for one message. Unticking costs nothing:
-  /// the answer is still here, and the bar recomputes from what is left.
+  /// What may be done with each selected message, fetched once per tick with
+  /// `getMessageProperties`.
   final Map<int, MessageActions> _selectionRights = {};
 
   bool _showJumpButton = false;
@@ -118,19 +99,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// The list itself, which rows are measured against.
   final GlobalKey _listKey = GlobalKey();
 
-  /// A row, and how far below the top of the list it sat, taken just before
-  /// the conversation changed. See [_holdPosition].
+  /// A row and its offset from the top of the list, taken just before the
+  /// conversation changed. See [_holdPosition].
   ({Key key, double top})? _heldRow;
 
-  /// Above zero while the screen is scrolling the list on purpose — landing on
-  /// the unread band, or walking to a reply. Holding a row still then would
-  /// fight the walk.
+  /// Above zero while the screen scrolls the list itself (to the unread band
+  /// or a reply), so [_holdPosition] stays out of the way.
   int _walking = 0;
 
-  /// Held from the start, because the composer saves its draft from its own
-  /// `dispose()` — after this screen has been deactivated, when `ref` can no
-  /// longer be read. Reading it there threw, and the draft somebody walked
-  /// away from was never saved.
+  /// Read in `initState` because the composer saves its draft from its own
+  /// `dispose()`, when `ref` can no longer be used.
   late final ChatsRepository _repository;
   bool _hasAnchoredToUnread = false;
   bool _hasCheckedViewport = false;
@@ -140,15 +118,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.initState();
     _repository = ref.read(chatsRepositoryProvider);
     _scroll.addListener(_onScroll);
-    // Called as the conversation changes, before the list is rebuilt — so the
-    // layout being measured is still the one the reader is looking at.
+    // Runs before the list rebuilds, so it measures the current layout.
     ref.listenManual(
       conversationProvider(widget.chatId),
       (previous, _) =>
           _holdPosition(wasWindowed: previous?.value?.hasMoreNewer ?? false),
     );
-    // Read state is written to every client the account owns, so the notifier
-    // acknowledges nothing until a screen says it is actually showing.
+    // The notifier marks nothing read until the screen is showing.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref
@@ -164,9 +140,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     super.dispose();
   }
 
-  /// The list is `reverse: true`, so offset 0 is the newest message and the
-  /// *maximum* extent is the oldest — which is why paging back watches the far
-  /// end rather than the near one.
+  /// The list is reversed: offset 0 is the newest message.
   void _onScroll() {
     if (!_scroll.hasClients) return;
 
@@ -174,8 +148,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (position.maxScrollExtent - position.pixels < _loadOlderThreshold) {
       _loadOlder();
     }
-    // Opened in the middle — after a jump to a search hit — the bottom edge
-    // is a page boundary too, and scrolling towards it pages down.
+    // After a jump into the middle, the bottom edge is a page boundary too.
     if (position.pixels < _loadOlderThreshold) {
       final state = ref.read(conversationProvider(widget.chatId)).value;
       if (state?.hasMoreNewer ?? false) {
@@ -189,15 +162,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
-  /// Asks for the page above, then checks whether it was enough.
-  ///
-  /// The scroll listener alone was not: it only fires while something is
-  /// *being* scrolled, and a page that does not fill the viewport can never be
-  /// scrolled. TDLib chooses its own batch size and will happily answer a
-  /// forty-message request with three, so a chat could open, show three
-  /// messages and sit there — the history was there, nothing had asked for it.
-  /// So each page ends by asking whether the list can scroll at all, and pulls
-  /// again until it can or the chat runs out.
+  /// Loads the page above, and keeps loading while the list is too short to
+  /// scroll (TDLib can return very short pages).
   Future<void> _loadOlder() async {
     final notifier = ref.read(conversationProvider(widget.chatId).notifier);
     await notifier.loadOlder();
@@ -207,16 +173,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       if (!mounted || !_scroll.hasClients) return;
       final state = ref.read(conversationProvider(widget.chatId)).value;
       if (state == null || !state.hasMoreOlder) return;
-      // Nothing to scroll means nothing will ever ask again.
       if (_scroll.position.maxScrollExtent <= 0) _loadOlder();
     });
   }
 
-  /// Goes to the newest message.
-  ///
-  /// From a window loaded around a search hit, "the newest message" is not on
-  /// screen or anywhere near it, so the tail is loaded first and the scroll
-  /// lands once it is there.
+  /// Goes to the newest message, loading it first if a window in the middle
+  /// of the history is loaded.
   Future<void> _jumpToLatest() async {
     final state = ref.read(conversationProvider(widget.chatId)).value;
     if (state?.hasMoreNewer ?? false) {
@@ -242,40 +204,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
-  /// Acknowledges the backlog once, after the first page is on screen.
-  ///
-  /// Deliberately not in `build`, and deliberately not per visible bubble: read
-  /// state is pushed to every client this account owns. Opening a conversation
-  /// *is* reading it, which is the one place the feed's dwell rules do not
-  /// apply — a feed is a list you scroll past, a chat is a thing you opened.
-  /// How many times the anchor will step up the scrollback looking for the
-  /// band before it gives up and leaves the reader at the newest message.
-  ///
-  /// Bounded so a chat whose band is not in the loaded window cannot spin, and
-  /// sized for what opening can load: up to
-  /// [ChatsRepository.backlogMaxMessages] between the band and the bottom,
-  /// plus the pages a jump may add. Each step is one viewport and one frame,
-  /// and the walk ends the moment the target is built.
+  /// How many viewport steps the anchor takes looking for the unread band
+  /// before giving up. Sized to cover [ChatsRepository.backlogMaxMessages].
   static const int _anchorSteps = 40;
 
-  /// Brings the unread band to the top of the viewport, once.
-  ///
-  /// This is the whole point of loading a window around the read cursor: an
-  /// unread chat opens *at the line*, and the reader goes down from there to
-  /// the latest. Landing them on the newest message means scrolling up through
-  /// a conversation to read it forwards, which is backwards.
-  ///
-  /// Finding the band is two-step, for the same reason `_jumpToReply` is.
-  /// `ListView.builder` only builds near the viewport, so a band twenty rows up
-  /// has no `BuildContext` and `ensureVisible` silently does nothing — which is
-  /// exactly what the first version of this did, on every chat with more than a
-  /// screen of backlog. So: walk up a viewport at a time until the band is
-  /// built, then let `ensureVisible` land it exactly.
-  ///
-  /// Stepping rather than estimating from an average row height, because on the
-  /// first frame `maxScrollExtent` only covers what has been laid out so far —
-  /// an average taken then is an average of the wrong thing, and it
-  /// underestimates by however much of the chat has not been built.
+  /// Brings the unread band to the top of the viewport, once. Steps up a
+  /// viewport at a time until `ListView.builder` has built the band, then
+  /// lets `ensureVisible` land it.
   void _anchorToUnreadOnce() {
     if (_hasAnchoredToUnread) return;
     _hasAnchoredToUnread = true;
@@ -298,8 +233,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final state = ref.read(conversationProvider(widget.chatId)).value;
     if (state == null || state.firstUnreadMessageId == null) return;
 
-    // The band has to exist in the rows at all. It does not when the first
-    // unread message is older than the window that was loaded.
+    // No band when the first unread message is older than what was loaded.
     final rows = ConversationRows.build(
       state.messages,
       firstUnreadMessageId: state.firstUnreadMessageId,
@@ -310,14 +244,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       if (!mounted || !_scroll.hasClients) return;
 
       final bandContext = _unreadBandKey.currentContext;
-      // `mounted` on the band's own context, not this State's: the band is
-      // rebuilt as the walk scrolls past it, so the element found on the
-      // previous turn of the loop may already be gone.
+      // Check the band's own context: it may have been rebuilt during the walk.
       if (bandContext != null && bandContext.mounted) {
         await Scrollable.ensureVisible(
           bandContext,
-          // 1.0 in a reversed list puts the band at the top of the viewport, so
-          // the unread run reads downwards from it — which is the whole point.
+          // In a reversed list, 1.0 puts the band at the top of the viewport.
           alignment: 1,
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
@@ -327,8 +258,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
       final position = _scroll.position;
       final target = position.pixels + position.viewportDimension * 0.8;
-      // Nothing further up has been loaded. Stepping again would land on the
-      // same pixel and burn the remaining tries.
+      // Already at the oldest loaded row.
       if (position.pixels >= position.maxScrollExtent) return;
 
       _scroll.jumpTo(target.clamp(0.0, position.maxScrollExtent));
@@ -336,32 +266,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     }
   }
 
-  /// Keeps what the reader is looking at where it is while the conversation
-  /// changes around it.
-  ///
-  /// The list is `reverse: true`, so it is laid out from the bottom up, and a
-  /// row that grows pushes everything *above* it up the screen. Reactions,
-  /// edits and votes all land on bubbles after they are drawn — TDLib
-  /// refreshes an open chat's messages as soon as it is opened — so the unread
-  /// band the screen had just scrolled to was shoved off the top, and anybody
-  /// reading back through history had it slide away under them.
-  ///
-  /// So: before the change, note the topmost visible row and how far down the
-  /// list it sits; after the frame that applies the change, put it back. Only
-  /// away from the bottom. At the bottom the list is *meant* to move — a new
-  /// message pushing the conversation up is how the reader sees it arrive.
-  ///
-  /// [wasWindowed] says the conversation was showing a stretch of history that
-  /// stopped short of the newest message. Then the bottom edge is a page
-  /// boundary, not the bottom of the chat, and a page landing below is a
-  /// change to hold still through — the same as one landing above — rather
-  /// than a new message to let the list move for.
+  /// Keeps the topmost visible row in place while the conversation changes,
+  /// since in a reversed list a growing row pushes everything above it up.
+  /// Skipped at the bottom, where new messages should move the list, unless
+  /// [wasWindowed] (the bottom edge was then only a page boundary).
   void _holdPosition({bool wasWindowed = false}) {
     if (_heldRow != null || _walking > 0 || !_scroll.hasClients) return;
     final position = _scroll.position;
     if (!wasWindowed && position.pixels <= _atBottomSlack) return;
-    // The reader's own finger, or a fling, is moving it. Nothing here should
-    // fight that.
+    // Don't fight a drag or fling in progress.
     if (position.isScrollingNotifier.value) return;
 
     final held = _rows.topmostVisible(_listKey);
@@ -377,7 +290,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
     final top = _rows.topOf(held.key, _listKey);
     if (top == null) return;
-    // Reversed: more pixels is further back, which moves the content down.
+    // Reversed list: adding pixels moves the content down.
     final drift = held.top - top;
     if (drift.abs() < 0.5) return;
 
@@ -401,8 +314,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
-  /// Kicks off [_loadOlder] once if the first page came back too short to
-  /// scroll. Everything after that is driven by the scroll listener.
+  /// Calls [_loadOlder] once if the first page is too short to scroll.
   void _fillViewportOnce() {
     if (_hasCheckedViewport) return;
     _hasCheckedViewport = true;
@@ -429,9 +341,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         );
     if (sent && mounted) {
       setState(() => _replyTo = null);
-      // A scheduled message is not in the conversation — Telegram holds it
-      // apart until it goes — so there is nothing at the bottom to scroll to,
-      // and saying where it went is the only feedback there can be.
+      // A scheduled message doesn't appear in the chat, so confirm it instead.
       if (schedule.isImmediate) {
         _jumpToLatest();
       } else {
@@ -446,12 +356,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return sent;
   }
 
-  /// Asks when a message should go, and refuses a time Telegram would.
+  /// Asks when a message should go, and rejects a time Telegram would refuse.
   Future<MessageSchedule?> _pickSchedule() async {
     final schedule = await ScheduleSheet.show(
       context,
-      // "When they come online" needs a *they*. There is no such moment for a
-      // group, so the row is absent rather than present and meaningless.
+      // "When online" only makes sense in a private chat.
       allowsWhenOnline: ref
           .read(chatsRepositoryProvider)
           .isPrivateChat(widget.chatId),
@@ -470,11 +379,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return schedule;
   }
 
-  /// Opens a location or venue in whatever maps app the device has.
-  ///
-  /// A `geo:` URI, which every platform routes to its own maps app — gramX
-  /// draws no map of its own and has no tile provider to draw one from, so the
-  /// honest thing is to hand the place to something that does.
+  /// Opens a location or venue in the device's maps app via a `geo:` URI.
   Future<void> _openPlace(MessagePlace place) async {
     final opened = await openExternalUrl(Uri.parse(place.geoUri));
     if (opened || !mounted) return;
@@ -490,12 +395,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   Future<ComposeAttachment?> _recordVideoNote() =>
       VideoNoteRecorderScreen.show(context);
 
-  /// Asks the device where it is and sends that.
-  ///
-  /// The permission is requested inside [LocationService], at this moment and
-  /// nowhere else. Both failures say something the reader can act on — one is
-  /// fixable in Settings, the other is not fixable at all — so they are told
-  /// apart rather than collapsed into "couldn't send".
+  /// Gets the device's location and sends it. [LocationService] asks for the
+  /// permission at this point.
   Future<bool> _sendLocation() async {
     final result = await const LocationService().current();
     if (!mounted) return false;
@@ -512,8 +413,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      // True, so the composer does not add a second message on top of the one
-      // just shown. The reader has been told why; saying it twice is noise.
+      // True so the composer doesn't show a second error.
       return true;
     }
 
@@ -534,7 +434,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   Future<bool> _sendContact() async {
     final userId = await ContactPickerSheet.show(context);
-    // Backing out of the picker is not a failure, and must not draw one.
+    // Backing out of the picker is not a failure.
     if (userId == null || !mounted) return true;
 
     final sent = await ref
@@ -570,13 +470,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     return sent;
   }
 
-  /// Opens media that disappears once opened.
-  ///
-  /// The confirmation is not ceremony. Opening is irreversible: Telegram tells
-  /// the sender it was seen, the clock starts, and for view-once media the
-  /// content is gone the moment the viewer closes it. Somebody who taps a
-  /// bubble by accident should not lose the thing they were sent, so the tap
-  /// asks, and the answer is what reaches TDLib.
+  /// Opens self-destructing media after a confirmation, since opening is
+  /// irreversible and tells the sender.
   Future<void> _openSecretMedia(ChatMessage message) async {
     if (message.isOutgoing || !message.isSecretMedia) return;
 
@@ -619,15 +514,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
-  /// A failed bubble is tappable, and that is its only way out.
-  ///
-  /// Nothing else on a bubble responds to a plain tap, so the gesture is free
-  /// — and a warning icon with no action behind it is the inert control the
-  /// hard rules forbid.
+  /// A plain tap on a bubble: toggles selection while selecting, and resends
+  /// a failed message.
   Future<void> _handleTap(ChatMessage message) async {
-    // While selecting, a tap is a tick. Every other meaning a tap has in a
-    // conversation is suspended for as long as the bar is up, which is what
-    // makes selection mode a mode rather than a second gesture to remember.
     if (_isSelecting) {
       await _toggleSelected(message);
       return;
@@ -648,41 +537,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   /// Jumps to the message a reply is answering.
-  ///
-  /// The quoted block looks exactly like the tappable thing it is in every
-  /// other chat app, and did nothing — the styled-but-inert control the hard
-  /// rules forbid.
-  ///
-  /// Finding it is two-step on purpose. `ListView.builder` only builds near the
-  /// viewport, so a target far up the scrollback has no `BuildContext` for
-  /// `ensureVisible` to work with. So: estimate the offset from the average row
-  /// height and jump roughly there, then let `ensureVisible` land it exactly on
-  /// the next frame. The estimate only has to be close enough to get the row
-  /// built.
   Future<void> _jumpToReply(ChatMessage message) async {
     final targetId = message.replyToMessageId;
-    // A cross-chat reply points somewhere this screen cannot scroll to.
+    // A cross-chat reply points somewhere this screen can't scroll to.
     if (targetId == null || message.replyToChatId != null) return;
 
     await _jumpToMessage(targetId);
   }
 
-  /// Scrolls to one message and flashes it.
-  ///
-  /// Two-step, then a walk. `ListView.builder` only builds near the viewport,
-  /// so a target far up the scrollback has no `BuildContext` for
-  /// `ensureVisible` to work with: estimate the offset from the average row
-  /// height and jump roughly there, then — because that estimate is only as
-  /// good as the part of the list already laid out — step the rest of the way
-  /// until the target is built. The estimate alone turned out not to be
-  /// enough.
-  ///
-  /// A target older than what is loaded is paged back to when it is close and
-  /// loaded as a window around itself when it is not — see
-  /// [ConversationNotifier.reveal]. Only a message Telegram no longer has ends
-  /// in a message rather than a jump, and it always ends in one of the two:
-  /// the pinned bar used to do nothing at all for a pin older than the first
-  /// page, and a search hit from last year answered "scroll up to reach it".
+  /// Loads, scrolls to and flashes one message. Jumps to an estimate from the
+  /// average row height, steps until `ListView.builder` has built the target,
+  /// then lets `ensureVisible` land it.
   Future<void> _jumpToMessage(int targetId) async {
     _walking++;
     try {
@@ -712,16 +577,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       return;
     }
 
-    // The page that brought it in has to be laid out before the walk below
-    // can measure anything.
+    // Let the new page lay out before measuring.
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) return;
 
     HapticFeedback.lightImpact();
     setState(() => _jumpTargetId = targetId);
 
-    // Reversed list: index 0 is the newest, so the target's distance is
-    // measured from the end.
+    // Reversed list, so measure from the newest message.
     final rowsFromBottom = state.messages.length - 1 - index;
     if (_scroll.hasClients && _scroll.position.maxScrollExtent > 0) {
       final average = _scroll.position.maxScrollExtent / state.messages.length;
@@ -755,29 +618,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       );
     }
 
-    // A flash, not a state: it says "here", and a bubble that stayed tinted
-    // would read as selected.
+    // Brief, so the tint isn't mistaken for selection.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (mounted) setState(() => _jumpTargetId = null);
   }
 
   /// Jumps to the pinned message.
-  ///
-  /// The same two-step walk a reply uses, and for the same reason: a pin is
-  /// usually the oldest thing in the chat, which is the furthest a
-  /// `ListView.builder` will not have built.
   Future<void> _jumpToPinned() async {
     final pinned = ref.read(pinnedMessageProvider(widget.chatId)).value;
     if (pinned == null) return;
     await _jumpToMessage(pinned.messageId);
   }
 
-  /// Closes the search field and goes to the result.
-  ///
-  /// A hit is nearly always far back — that is what search is for — so this
-  /// pages at most once before loading the window around it. A hit Telegram
-  /// no longer has keeps the field open and says so, rather than closing onto
-  /// a list that did not move.
+  /// Closes the search field and goes to the result. Pages back at most once
+  /// before loading a window around it, since hits are usually far back.
   Future<void> _openSearchResult(ChatMessage message) async {
     final found = await ref
         .read(conversationProvider(widget.chatId).notifier)
@@ -798,12 +652,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     await _jumpToMessage(message.messageId);
   }
 
-  /// Opens whatever an `@name` refers to.
-  ///
-  /// A mention in a channel post is always a channel; in a conversation it is
-  /// usually a person, and the app has somewhere to put a person now. Which one
-  /// it is has to be asked — one networked lookup per tap, which is on-demand
-  /// and bounded, the shape the request budget allows.
+  /// Opens whatever an `@name` refers to, after one lookup per tap.
   Future<void> _openMention(String username) async {
     final resolved = await ref
         .read(chatsRepositoryProvider)
@@ -820,8 +669,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       return;
     }
 
-    // A person or a group opens a conversation; only a channel belongs on the
-    // channel screen, which used to be where groups went too.
+    // People and groups open a conversation; channels open the channel screen.
     switch (resolved.kind) {
       case ResolvedChatKind.person:
       case ResolvedChatKind.group:
@@ -838,11 +686,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   bool get _isSelecting => _selected != null;
 
-  /// Whether every ticked message may be taken back from everybody.
-  ///
-  /// An `AND` across the selection, from the answers Telegram already gave for
-  /// each one — so "Delete for everyone" is offered exactly when it would work
-  /// for all of them, rather than for some and failing on the rest.
+  /// Whether every selected message can be deleted for everyone.
   bool get _canRevokeSelection {
     final selected = _selected;
     if (selected == null || selected.isEmpty) return false;
@@ -889,7 +733,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
     setState(() => selected.add(message.messageId));
 
-    // Asked once per message and remembered, so re-ticking one costs nothing.
+    // Fetched once per message and kept.
     if (_selectionRights.containsKey(message.messageId)) return;
     final rights = await ref
         .read(chatsRepositoryProvider)
@@ -905,8 +749,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final toChatId = await ForwardMessageSheet.show(context);
     if (toChatId == null || !mounted) return;
 
-    // Oldest first, so they land in the order they were written rather than
-    // the order they happened to be tapped in.
+    // Oldest first, not in tap order.
     ids.sort();
     final ok = await ref
         .read(chatsRepositoryProvider)
@@ -939,8 +782,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       title: AppStrings.chatDeleteCountTitle(ids.length),
       body: AppStrings.chatDeleteBody,
       actions: [
-        // Only when it would work for every one of them — see
-        // [_canRevokeSelection].
         if (_canRevokeSelection)
           const AppDialogAction(
             label: AppStrings.chatActionDeleteForEveryone,
@@ -974,11 +815,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
-  /// Ends an end-to-end chat, asking first.
-  ///
-  /// Irreversible and two-sided — Telegram deletes the messages from both
-  /// devices — so it confirms, and the confirmation says which of those two
-  /// things is about to happen.
+  /// Ends an end-to-end chat after confirming. Irreversible, and Telegram
+  /// deletes the messages on both devices.
   Future<void> _closeSecretChat() async {
     final confirmed = await showAppDialog<bool>(
       context,
@@ -1002,8 +840,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     if (!mounted) return;
 
     if (ok) {
-      // The chat is gone. Staying on a screen for one would leave the reader
-      // looking at a conversation that no longer exists on either device.
       Navigator.of(context).maybePop();
       return;
     }
@@ -1015,11 +851,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
-  /// Sets how long messages live in this chat.
-  ///
-  /// Chat-wide and two-sided, which is why it sits in the header's overflow
-  /// rather than on the composer: it is a property of the conversation, not of
-  /// the message being written.
+  /// Sets the chat's auto-delete timer, from the header's overflow menu.
   Future<void> _setAutoDelete() async {
     final repository = ref.read(chatsRepositoryProvider);
     final seconds = await AutoDeleteSheet.show(
@@ -1050,8 +882,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       ? summary.chatId
       : null;
 
-  /// Leaves this group or deletes this chat, then leaves the screen — there is
-  /// no conversation left to be looking at.
+  /// Leaves this group or deletes this chat, then closes the screen.
   Future<void> _removeChat(ChatSummary summary) async {
     final ok = await confirmAndRemoveChat(
       context,
@@ -1063,9 +894,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<void> _openActions(ChatMessage message) async {
-    // A long press while selecting would open a menu about one message on top
-    // of a bar about several. It ticks instead, which is the same thing a tap
-    // does and the only sensible reading of the gesture in this mode.
+    // While selecting, a long press toggles selection like a tap.
     if (_isSelecting) {
       await _toggleSelected(message);
       return;
@@ -1127,9 +956,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                       .canSetAutoDelete(widget.chatId)
                   ? _setAutoDelete
                   : null,
-              // Only when there is something on it. TDLib keeps
-              // `hasScheduledMessages` current, so this costs nothing to ask
-              // and there is no way into an empty screen.
+              // Only offered when there are scheduled messages.
               onScheduled:
                   ref
                       .read(chatsRepositoryProvider)
@@ -1140,7 +967,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   ref.read(chatsRepositoryProvider).isSecretChat(widget.chatId)
                   ? _closeSecretChat
                   : null,
-              // Saved Messages has nobody to leave or block.
+              // Saved Messages can't be left or blocked.
               onRemove:
                   summary == null || summary.kind == ChatKind.savedMessages
                   ? null
@@ -1167,15 +994,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             ),
       body: Column(
         children: [
-          // Above the list rather than over it: a pinned message is part of
-          // the chat's furniture, and one that floated would sit on top of
-          // whatever the reader had scrolled to.
+          // Above the list, not overlaid, so it never covers a message.
           if (searchQuery == null)
             _PinnedBar(chatId: widget.chatId, onTap: _jumpToPinned),
-          // Somebody the reader does not know started this chat. Telegram's
-          // own clients put the choice right here, above what they said, and
-          // without it the only way to block a stranger was to find their
-          // profile first.
+          // A chat started by a non-contact: offer to block or dismiss.
           if (searchQuery == null &&
               summary != null &&
               summary.isRequest &&
@@ -1212,10 +1034,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   _markReadOnce();
                   if (state.firstUnreadMessageId != null) _anchorToUnreadOnce();
                   _fillViewportOnce();
-                  // The jump button floats over the list rather than over the
-                  // whole screen. As the Scaffold's floating button it sat on
-                  // the composer's right edge — on top of the send and
-                  // microphone buttons.
+                  // Over the list only, so the button can't cover the composer.
                   return Stack(
                     children: [
                       _MessageList(
@@ -1260,19 +1079,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 },
               ),
             ),
-          // A secret chat that has not finished its key exchange takes nothing.
-          // Telegram refuses the send outright, so the composer goes and a line
-          // says what is being waited for — a composer that swallowed messages
-          // until the other person happened to open Telegram is the worst
-          // possible reading of "sent".
+          // Telegram refuses sends until a secret chat's key exchange is done.
           if (ref
               .read(chatsRepositoryProvider)
               .isSecretChatPending(widget.chatId))
             const _SecretChatPendingNotice()
           else
             MessageComposer(
-              // TDLib holds the draft, so one typed on a laptop is here and one
-              // typed here is there. Read once, when the composer is built.
+              // The draft is TDLib's, so it syncs across devices.
               initialText: ref
                   .read(chatsRepositoryProvider)
                   .draftText(widget.chatId),
@@ -1281,10 +1095,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               replyTo: _replyTo,
               onCancelReply: () => setState(() => _replyTo = null),
               onSend: _send,
-              // Both are the chat's own answer, read from the cache rather than
-              // guessed: Telegram takes a poll only where polls are permitted and
-              // disappearing media only in a one-to-one chat, and a control that
-              // is offered and then refused is worse than one that is not there.
+              // Controls Telegram would refuse in this chat are hidden.
               onSendPoll:
                   ref
                       .read(chatsRepositoryProvider)
@@ -1294,10 +1105,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               allowsSelfDestruct: ref
                   .read(chatsRepositoryProvider)
                   .isPrivateChat(widget.chatId),
-              // Telegram permissions media by kind, so each control asks its own
-              // question. A group that allows photos and forbids voice messages
-              // is a common setting, and a microphone that fails when held is
-              // exactly the inert control the hard rules forbid.
+              // Telegram grants media rights per kind.
               allowsVoiceNotes: ref
                   .read(chatsRepositoryProvider)
                   .canSendIn(widget.chatId, ChatSendRight.voiceNotes),
@@ -1310,8 +1118,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               onRecordVideoNote: _recordVideoNote,
               onSendLocation: _sendLocation,
               onSendContact: _sendContact,
-              // Stickers and GIFs are one permission in Telegram's model, and
-              // a group can withhold it; the button goes rather than failing.
+              // Stickers and GIFs share one permission.
               onSendRemote:
                   ref
                       .read(chatsRepositoryProvider)
@@ -1334,7 +1141,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 }
 
-/// What sits where the composer would, in a secret chat that is not ready yet.
+/// Shown in place of the composer while a secret chat is pending.
 class _SecretChatPendingNotice extends StatelessWidget {
   const _SecretChatPendingNotice();
 
@@ -1374,18 +1181,11 @@ class _SecretChatPendingNotice extends StatelessWidget {
   }
 }
 
-/// The header while several messages are ticked.
-///
-/// Replaces the header rather than sitting under it, the same way the search
-/// bar does and for the same reason: selecting is a mode, and a screen showing
-/// both who you are talking to and how many of their messages you have ticked
-/// is two headers arguing.
+/// Replaces the header while messages are selected.
 class _SelectionAppBar extends StatelessWidget implements PreferredSizeWidget {
   final int count;
 
-  /// Whether Telegram would forward every one of them. False hides the button
-  /// rather than disabling it — a greyed control with no explanation is the
-  /// same dead end as one that fails.
+  /// Whether every selected message can be forwarded. False hides the button.
   final bool canForward;
 
   final VoidCallback onClose;
@@ -1420,9 +1220,7 @@ class _SelectionAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: AppTypography.displayName(color: theme.colorScheme.onSurface),
       ),
       actions: [
-        // Both are absent at zero rather than greyed: unticking the last
-        // message leaves the bar up so the mode is still obvious, and there is
-        // nothing for either button to act on.
+        // Hidden, not greyed, when nothing is selected.
         if (count > 0 && canForward)
           IconButton(
             icon: const Icon(Icons.forward_rounded),
@@ -1441,11 +1239,7 @@ class _SelectionAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// The header while a chat is being searched.
-///
-/// Replaces the header rather than sitting under it: searching a conversation
-/// is a mode, and a screen showing both who you are talking to and a field
-/// asking what you are looking for is two headers arguing.
+/// Replaces the header while the chat is being searched.
 class _ChatSearchAppBar extends StatelessWidget implements PreferredSizeWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -1493,7 +1287,7 @@ class _ChatSearchAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// Matches for what is being searched for.
+/// Results for the in-chat search.
 class _ChatSearchResults extends ConsumerWidget {
   final int chatId;
   final ValueChanged<ChatMessage> onTap;
@@ -1513,8 +1307,7 @@ class _ChatSearchResults extends ConsumerWidget {
     final query = ref.watch(inChatSearchQueryProvider) ?? '';
     final results = ref.watch(inChatSearchResultsProvider(chatId));
 
-    // Nothing typed yet is not "no results". A screen saying nothing matched
-    // an empty query has answered a question nobody asked.
+    // An empty query shows a prompt, not "no results".
     if (query.trim().isEmpty) {
       return _SearchMessage(
         text: AppStrings.chatSearchPrompt,
@@ -1634,11 +1427,8 @@ class _RequestBar extends StatelessWidget {
   }
 }
 
-/// The pinned message, above the conversation.
-///
-/// Absent entirely when there is no pin — and while the one request that
-/// answers that is in flight, because a bar that appears a second after the
-/// chat does moves what somebody has already started reading.
+/// The pinned message, above the conversation. Hidden when there is no pin
+/// and while the lookup is in flight.
 class _PinnedBar extends ConsumerWidget {
   final int chatId;
   final VoidCallback onTap;
@@ -1670,8 +1460,7 @@ class _PinnedBar extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // A short accent rule, which is how Telegram marks a pin and how
-            // this app already marks a quoted reply.
+            // Accent rule, matching the quoted-reply style.
             Container(width: 2, height: 30, color: AppColors.accent),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -1705,32 +1494,28 @@ class _ConversationAppBar extends StatelessWidget
   final ChatSummary? summary;
   final ChatTyping? typing;
 
-  /// Opens the search field. Null when there is nothing to search — a chat
-  /// still loading — so the control is absent rather than inert.
+  /// Opens the search field. Null hides the control.
   final VoidCallback? onSearch;
 
-  /// Opens the auto-delete timer. Null in a chat where Telegram does not offer
-  /// one, so the overflow menu is absent rather than carrying a dead row.
+  /// Opens the auto-delete timer. Null where Telegram doesn't allow one.
   final VoidCallback? onAutoDelete;
 
-  /// Opens the queue of messages waiting to be sent. Null when there is none.
+  /// Opens the scheduled messages. Null when there are none.
   final VoidCallback? onScheduled;
 
-  /// Ends an end-to-end chat. Null in every chat that is not one.
+  /// Ends an end-to-end chat. Null for any other chat.
   final VoidCallback? onCloseSecretChat;
 
   /// Leaves the group or deletes the chat. Null where there is neither.
   final VoidCallback? onRemove;
 
-  /// Which of the two [onRemove] is, for its label.
+  /// Whether [onRemove] leaves a group rather than deleting a chat.
   final bool isGroup;
 
   /// Blocks or unblocks the person. Null in a group.
   final VoidCallback? onToggleBlock;
 
-  /// Asked when the menu opens rather than when the header was built: a block
-  /// lands on the chat record, which does not rebuild this screen, and a label
-  /// read at build time went on saying "Block" after the block.
+  /// Read when the menu opens, since blocking doesn't rebuild this screen.
   final ValueGetter<bool> isBlocked;
 
   const _ConversationAppBar({
@@ -1751,12 +1536,8 @@ class _ConversationAppBar extends StatelessWidget
   @override
   Size get preferredSize => const Size.fromHeight(56);
 
-  /// The "…" sheet. Rows only for what this chat can do — see the fields
-  /// above for why each one may be null.
-  ///
-  /// The sheet closes before any row's callback runs, and the callbacks are
-  /// the screen's own, so what they open afterwards is opened on a context
-  /// that is still there.
+  /// The overflow sheet, with a row for each non-null action. The sheet closes
+  /// before a row's callback runs.
   Future<void> _showMore(BuildContext context) {
     return showAppSheet<void>(
       context,
@@ -1809,15 +1590,13 @@ class _ConversationAppBar extends StatelessWidget
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    // The typing line replaces the presence line rather than sitting beside it:
-    // both answer "where are they right now", and the live one is the answer.
+    // Typing replaces the presence line.
     final subtitle = typing != null
         ? AppStrings.chatTyping(typing!.action, name: typing!.name)
         : _presenceLabel(summary);
     final isLive = typing != null || summary?.presence == ChatPresence.online;
 
-    // Only a person has a profile to open. A group's header stays inert rather
-    // than leading somewhere that would have to say "this is not a person".
+    // Only people and bots have a profile to open.
     final userId =
         summary?.kind.isDirect == true || summary?.kind == ChatKind.bot
         ? summary?.chatId
@@ -1866,10 +1645,8 @@ class _ConversationAppBar extends StatelessWidget
                 children: [
                   Row(
                     children: [
-                      // The lock leads, before the name. It is the only visible
-                      // difference between this chat and the ordinary one with
-                      // the same person, and the header is where somebody
-                      // checks which one they are typing into.
+                      // The lock tells a secret chat apart from the ordinary
+                      // one with the same person.
                       if (summary?.isSecret == true) ...[
                         Tooltip(
                           message: AppStrings.secretChatLockLabel,
@@ -1915,9 +1692,7 @@ class _ConversationAppBar extends StatelessWidget
                   if (subtitle != null)
                     Text(
                       subtitle,
-                      // Typing and online are both *live* facts — someone is
-                      // there, right now — so they share the accent. "last seen
-                      // within a week" is history and stays secondary.
+                      // Live states (typing, online) use the accent colour.
                       style: AppTypography.timestamp(
                         color: isLive ? AppColors.accent : secondary,
                       ),
@@ -1933,11 +1708,7 @@ class _ConversationAppBar extends StatelessWidget
     );
   }
 
-  /// Telegram's hedged presence words, or nothing at all.
-  ///
-  /// Nothing is the right answer for a group, a bot, and a person whose
-  /// last-seen is hidden without even a bucket — inventing "offline" for those
-  /// would be a claim about somebody the server never made.
+  /// The presence line, or null for groups, bots and hidden last-seen.
   static String? _presenceLabel(ChatSummary? summary) =>
       switch (summary?.presence) {
         ChatPresence.online => AppStrings.chatOnline,
@@ -1949,11 +1720,8 @@ class _ConversationAppBar extends StatelessWidget
       };
 }
 
-/// Makes its child tappable, or leaves it exactly as it was.
-///
-/// A `GestureDetector` with a null `onTap` still joins the gesture arena and
-/// still swallows a long press aimed at what is underneath it, so "no handler"
-/// has to mean *no detector* rather than a detector with nothing in it.
+/// Makes its child tappable, or leaves it as is. A `GestureDetector` with a
+/// null `onTap` still joins the gesture arena, so none is added in that case.
 class _MaybeTappable extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget child;
@@ -1971,12 +1739,7 @@ class _MaybeTappable extends StatelessWidget {
   }
 }
 
-/// The scrollback.
-///
-/// `reverse: true`, so the list is anchored to the newest message and a new
-/// arrival extends it downwards without moving what is being read — the same
-/// property the feed's arrival pill protects, achieved here by the layout
-/// rather than by holding messages back.
+/// The scrollback, reversed so it stays anchored to the newest message.
 class _MessageList extends StatelessWidget {
   final GlobalKey listKey;
 
@@ -2024,14 +1787,8 @@ class _MessageList extends StatelessWidget {
     required this.selected,
   });
 
-  /// A key that follows a row wherever it moves in the list.
-  ///
-  /// The list is reversed, so every arrival is inserted at index 0 and shifts
-  /// every other row up by one. Unkeyed, Flutter matched rows by *position*:
-  /// the element that held a playing voice message was handed the next
-  /// message along, and the player carried on under the wrong bubble. A key
-  /// per row, and [ListView.builder]'s `findChildIndexCallback`, keep each
-  /// bubble's state with its own message.
+  /// A stable key per row, so a bubble's state (such as a playing voice
+  /// message) stays with its message when arrivals shift the indexes.
   static Key _keyFor(ConversationRow row) => switch (row) {
     ConversationDateRow() => ValueKey<String>(
       'date-${row.date.millisecondsSinceEpoch}',
@@ -2052,19 +1809,13 @@ class _MessageList extends StatelessWidget {
       for (var i = 0; i < rows.length; i++) _keyFor(rows[i]): i,
     };
 
-    // Reversed, so index 0 is the bottom. A conversation opened in the middle
-    // has a page waiting below as well as above, and says so with a spinner
-    // at each end.
+    // A spinner at the bottom too when opened in the middle.
     final newerRows = state.hasMoreNewer ? 1 : 0;
 
     return ListView.builder(
       key: listKey,
       controller: controller,
       reverse: true,
-      // Dragging the conversation puts the keyboard away, which is what the
-      // gesture means everywhere else — scrolling back through a chat with a
-      // keyboard covering half of it is the commonest annoyance in a messaging
-      // app, and it costs one line to not have.
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       itemCount: rows.length + newerRows + (state.hasMoreOlder ? 1 : 0),
@@ -2077,7 +1828,7 @@ class _MessageList extends StatelessWidget {
           return const _LoadingRow(key: ValueKey<String>('loading-newer'));
         }
         final rowIndex = index - newerRows;
-        // Reversed, so the loading row for older messages is the *last* item.
+        // Reversed, so the loading row for older messages is the last item.
         if (rowIndex >= rows.length) {
           return const _LoadingRow(key: ValueKey<String>('loading-older'));
         }
@@ -2142,12 +1893,8 @@ class _LoadingRow extends StatelessWidget {
   );
 }
 
-/// Where each built row is on screen, by its key.
-///
-/// `ListView.builder` only builds rows near the viewport, and a row has no
-/// position until it is built — so rather than a `GlobalKey` per message, each
-/// built row registers its own context here and takes it back out when it is
-/// dropped. What is registered is only ever what is on or near the screen.
+/// The contexts of the rows currently built, by key, so their positions can
+/// be measured without a `GlobalKey` per message.
 class _RowRegistry {
   final Map<Key, BuildContext> _contexts = {};
 
@@ -2179,7 +1926,6 @@ class _RowRegistry {
       if (row == null) continue;
       final top = row.localToGlobal(Offset.zero).dy - listTop;
       final bottom = top + row.size.height;
-      // Off the top, or off the bottom, of the list.
       if (bottom <= 0 || top >= list.size.height) continue;
       if (best == null || top < best.top) best = (key: key, top: top);
     }
@@ -2193,9 +1939,8 @@ class _RowRegistry {
   }
 }
 
-/// One row of the list, registered in a [_RowRegistry] for as long as it is
-/// built. Its key is the row's key, which is also what the list uses to follow
-/// the row when it moves — see `_MessageList._keyFor`.
+/// One row of the list, registered in a [_RowRegistry] while it is built.
+/// Keyed by `_MessageList._keyFor`.
 class _TrackedRow extends StatefulWidget {
   final _RowRegistry registry;
   final Widget child;

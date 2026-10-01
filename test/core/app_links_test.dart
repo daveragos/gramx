@@ -18,8 +18,7 @@ void main() {
       }
     });
 
-    // Nothing about the reader is added to these: they are the same addresses
-    // for everybody, which is what the privacy policy says of them.
+    // The privacy policy says these links are the same for everybody.
     test('no link carries a query or a fragment', () {
       for (final entry in links.entries) {
         final uri = Uri.parse(entry.value);

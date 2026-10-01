@@ -18,9 +18,6 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// What the long-press menu may offer for one message.
-///
-/// A record rather than a model: it has no identity, it is never stored, and it
-/// is thrown away when the sheet closes.
 typedef MessageActions = ({
   bool canEdit,
   bool canDeleteForSelf,
@@ -29,16 +26,12 @@ typedef MessageActions = ({
   bool canForward,
   bool canCopy,
 
-  /// Whether Telegram would take a pin for this message. Its rules depend on
-  /// the chat type and this account's rights, which is exactly the kind of
-  /// thing `getMessageProperties` answers and a guess here would get wrong.
+  /// Whether Telegram allows pinning this message, per `getMessageProperties`.
   bool canPin,
 });
 
-/// Nothing is allowed — the honest answer when TDLib could not be asked.
-///
-/// Deliberately the *closed* default. A failed lookup that answered "everything
-/// is allowed" would draw a Delete that fails when tapped.
+/// Nothing allowed. Used when TDLib could not be asked, so the menu never
+/// offers an action that would fail.
 extension MessageActionsNone on MessageActions {
   static const MessageActions none = (
     canEdit: false,
@@ -51,35 +44,20 @@ extension MessageActionsNone on MessageActions {
   );
 }
 
-/// A page of history, and whether it reached the top of the chat.
-///
-/// The two are returned together because the second cannot be inferred from the
-/// first: TDLib chooses its own batch size, so a short page is not the end of
-/// the history.
+/// A page of history, and whether it reached the top of the chat. TDLib picks
+/// its own batch size, so a short page doesn't mean the top was reached.
 typedef HistoryPage = ({List<ChatMessage> messages, bool reachedTop});
 
-/// A stretch of history that may end short of the newest message.
-///
-/// What a jump to a search hit loads: the messages around one point, with the
-/// chat continuing both above and below. [reachedBottom] is the half
-/// [HistoryPage] never had to answer, because a page fetched from the newest
-/// message always is the bottom.
+/// A stretch of history that may end short of the newest message, such as
+/// the messages around a search hit.
 typedef HistoryWindow = ({
   List<ChatMessage> messages,
   bool reachedTop,
   bool reachedBottom,
 });
 
-/// Everything a conversation does that reaches Telegram.
-///
-/// Stateless, like every repository here: it takes its collaborators in the
-/// constructor and exposes futures. Cross-request state belongs in a notifier.
-///
-/// **On the request budget.** The chat list costs nothing at all — it is read
-/// straight out of [ChatCache], which the update stream fills. Everything else
-/// on this class is user-driven and bounded: opening one chat, sending one
-/// message, asking for one more page. There is no path here that walks the chat
-/// list issuing a request per chat, and there must never be one.
+/// Everything a conversation does that reaches Telegram. Every request here is
+/// user-driven and bounded; never issue one per chat in the list.
 class ChatsRepository {
   final TdlibService _tdlib;
   final ChatCache _chatCache;
@@ -89,15 +67,11 @@ class ChatsRepository {
   /// How many messages one history page asks for. TDLib may answer with fewer.
   static const int historyPageSize = 40;
 
-  /// How many rounds a single page is willing to spend before giving up.
-  ///
-  /// `GetChatHistory` returns fewer messages than asked for, and a reply of one
-  /// message does not mean the history ended — so a page asks again from the
-  /// oldest id it was given. Bounded, because "ask until full" against a chat
-  /// that genuinely has three messages left is an unbounded loop on the budget.
+  /// How many requests one page may make. `GetChatHistory` often returns fewer
+  /// messages than asked, so a page asks again from the oldest id it got.
   static const int historyMaxRequests = 3;
 
-  /// The chat list, straight from the cache. Costs zero requests.
+  /// The chat list, straight from the cache.
   List<ChatSummary> chatList({int? selfUserId}) => ChatListBuilder.build(
     _chatCache.conversations,
     users: _chatCache.usersById,
@@ -123,29 +97,20 @@ class ChatsRepository {
     );
   }
 
-  /// Whether this chat has more than two people in it, which decides whether
-  /// bubbles carry a sender name.
+  /// Whether bubbles in this chat carry a sender name.
   bool isGroupChat(int chatId) {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return false;
     return chat.type is! td.ChatTypePrivate;
   }
 
-  /// Whether this is a one-to-one chat with another person.
-  ///
-  /// Not simply the inverse of [isGroupChat]: a secret chat is private but is
-  /// not a `chatTypePrivate`, and self-destructing media is exactly the feature
-  /// that would be offered wrongly if the two were treated as the same
-  /// question. Telegram takes a self-destruct timer only in a `chatTypePrivate`.
+  /// Whether this is a `chatTypePrivate`, the only chat type Telegram accepts
+  /// a self-destruct timer in. Secret chats are not.
   bool isPrivateChat(int chatId) =>
       _chatCache.chat(chatId)?.type is td.ChatTypePrivate;
 
-  /// Whether a poll may be sent into this chat.
-  ///
-  /// Telegram's rules, not a guess: a poll cannot go into a private chat with a
-  /// person at all (only into one with a bot), a group has to permit them, and
-  /// a channel needs posting rights. The control is hidden where this is false
-  /// rather than offered and rejected on send.
+  /// Whether a poll may be sent into this chat. Telegram refuses them in
+  /// private chats with people and wherever the chat's rights forbid them.
   bool canSendPollsIn(int chatId) {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return false;
@@ -155,10 +120,8 @@ class ChatsRepository {
     );
   }
 
-  /// Whether one kind of thing may be sent into this chat.
-  ///
-  /// The composer asks this per control, so a group that forbids voice messages
-  /// shows no microphone rather than one that fails when held.
+  /// Whether one kind of content may be sent into this chat. The composer
+  /// checks it per control.
   bool canSendIn(int chatId, ChatSendRight right) {
     final chat = _chatCache.chat(chatId);
     if (chat == null) return false;
@@ -169,7 +132,7 @@ class ChatsRepository {
     );
   }
 
-  /// The chat's outbox cursor — everything at or below it has been read by the
+  /// The chat's outbox cursor: everything at or below it has been read by the
   /// other side.
   int lastReadOutboxMessageId(int chatId) =>
       _chatCache.chat(chatId)?.lastReadOutboxMessageId ?? 0;
@@ -177,14 +140,10 @@ class ChatsRepository {
   int lastReadInboxMessageId(int chatId) =>
       _chatCache.chat(chatId)?.lastReadInboxMessageId ?? 0;
 
-  /// How many messages the reader has not seen in this chat.
   int unreadCount(int chatId) => _chatCache.chat(chatId)?.unreadCount ?? 0;
 
-  /// A page of history, oldest first.
-  ///
-  /// [fromMessageId] is the cursor: 0 for the newest messages, otherwise the
-  /// oldest id already loaded. One tap is one page — this is the on-demand
-  /// shape the request budget allows, not a fan-out.
+  /// A page of history, oldest first. [fromMessageId] is 0 for the newest
+  /// messages, otherwise the oldest id already loaded.
   Future<HistoryPage> history(
     int chatId, {
     int fromMessageId = 0,
@@ -197,9 +156,8 @@ class ChatsRepository {
     for (var round = 0; round < historyMaxRequests; round++) {
       final batch = await _historyBatch(chatId, cursor, 0, limit);
       if (batch.isEmpty) {
-        // Nothing came back from the cursor we asked from. With a real cursor
-        // that is the top of the chat; on the very first page it means TDLib
-        // has nothing yet, which is not the same claim.
+        // Empty from a real cursor is the top. Empty on the first page only
+        // means TDLib has nothing loaded yet.
         reachedTop = cursor != 0;
         break;
       }
@@ -229,21 +187,9 @@ class ChatsRepository {
     );
   }
 
-  /// The messages around one message — for landing on a search hit, a reply
-  /// target or a pin that is further back than paging would reach.
-  ///
-  /// One request. A negative offset is TDLib's "and some newer than this
-  /// one", so the target lands in the middle of the window with the chat
-  /// continuing on both sides. Paging back to a message a year up the
-  /// scrollback used to mean forty requests or a shrug; this is what
-  /// Telegram's own clients do instead, and it is the on-demand, one-tap
-  /// one-request shape the request budget allows.
-  ///
-  /// [reachedTop] is always false — nothing here asked about the top — and
-  /// the first page above will find it if it is there. [reachedBottom] is
-  /// answered against the chat's own last message, which the cache already
-  /// holds: TDLib chooses its own batch size, so a short window is not proof
-  /// of anything.
+  /// The messages around one message, for jumping to a search hit, reply
+  /// target or pin beyond what is loaded. A negative offset centres the target.
+  /// `reachedTop` is always false; the next page up finds the top.
   Future<HistoryWindow> historyAround(
     int chatId, {
     required int messageId,
@@ -264,11 +210,8 @@ class ChatsRepository {
     );
   }
 
-  /// The page below what is loaded, for a conversation opened in the middle.
-  ///
-  /// The mirror of [history]: [fromMessageId] is the newest id already on
-  /// screen, and the answer is what comes after it. TDLib returns the cursor
-  /// message itself along with the newer ones, so it is dropped here.
+  /// The page below [fromMessageId], for a conversation opened in the middle.
+  /// TDLib includes the cursor message itself, so it is dropped.
   Future<HistoryWindow> historyAfter(
     int chatId, {
     required int fromMessageId,
@@ -300,9 +243,8 @@ class ChatsRepository {
     );
   }
 
-  /// Whether [messageId] is the chat's newest message, as far as the cache
-  /// knows. The chat record's `lastMessage` is kept current by the update
-  /// stream, so this costs nothing and is not fooled by a short page.
+  /// Whether [messageId] is the chat's newest message, per the cached
+  /// `lastMessage` the update stream keeps current.
   bool isAtLatest(int chatId, int messageId) {
     final last = _chatCache.chat(chatId)?.lastMessage;
     return last == null || last.id <= messageId;
@@ -311,18 +253,8 @@ class ChatsRepository {
   static int _newestIdIn(List<td.Message> messages) =>
       messages.map((m) => m.id).fold(0, (a, b) => a > b ? a : b);
 
-  /// Messages in one chat matching [query].
-  ///
-  /// The half of a chat app that is only ever missed when you need it, and
-  /// named in the T15 notes as absent rather than half-built.
-  ///
-  /// **On the budget, and driven by a person typing** — so it must reach TDLib
-  /// only after the 300 ms debounce the request budget requires, which is the
-  /// caller's job and is why this takes a settled query rather than a
-  /// controller. One page per call; [fromMessageId] pages back through the
-  /// results using TDLib's own `nextFromMessageId`, which answers 0 when they
-  /// end — inferring exhaustion from a short page would stop early, because
-  /// TDLib chooses its own batch size.
+  /// Messages in one chat matching [query], one page per call; the caller
+  /// debounces. Page with `nextFromMessageId`, which is 0 at the end.
   Future<({List<ChatMessage> messages, int nextFromMessageId})> searchInChat(
     int chatId,
     String query, {
@@ -365,20 +297,8 @@ class ChatsRepository {
     }
   }
 
-  /// The message pinned at the top of a chat, if there is one.
-  ///
-  /// **This costs a request even when the answer is "none".** TDLib 2.x carries
-  /// no `pinnedMessageId` on `Chat`, so the only way to ask is a networked
-  /// `SearchChatMessages` with the pinned filter — there is no free version of
-  /// this question. It is therefore issued once per chat, when a conversation
-  /// is opened, and the provider that calls it holds the answer for the rest of
-  /// the session: one tap, one request, which is the on-demand shape
-  /// the request budget allows.
-  ///
-  /// Only the newest pin is returned. Telegram allows several and shows a
-  /// counter to page through them; that is a control gramX does not have, and
-  /// a bar that showed one of five without saying so would be lying about
-  /// which one.
+  /// The newest message pinned in a chat, if any. Always a request: TDLib 2.x
+  /// has no `pinnedMessageId` on `Chat`, so this searches with the pinned filter.
   Future<ChatMessage?> pinnedMessage(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -409,29 +329,12 @@ class ChatsRepository {
     }
   }
 
-  /// The most messages opening an unread chat will load before it stops
-  /// reaching for the read line.
-  ///
-  /// Past this the chat opens on the newest [backlogMaxMessages] with the
-  /// unread band above the oldest of them, and scrolling up pages back the
-  /// ordinary way. Bounded because a group left for a month is thousands of
-  /// messages, and opening it must cost the same few requests as any other.
+  /// The most messages opening an unread chat loads while reaching back for
+  /// the read line, so a long backlog costs only a few requests.
   static const int backlogMaxMessages = 120;
 
-  /// The newest messages, reaching back far enough to include [messageId].
-  ///
-  /// This is how an unread chat opens: everything from the read line down to
-  /// the newest message, with nothing missing in between. It replaced a
-  /// window *centred* on the read cursor, which loaded twenty unread messages
-  /// and nothing after them — in a chat with more than that waiting, the
-  /// newest messages were simply not there, "jump to latest" stopped short of
-  /// them, and a message arriving live was appended below the hole. Loading
-  /// from the bottom up means the list is always one unbroken run ending at
-  /// the newest message, which every other part of the screen assumes.
-  ///
-  /// Stops when the read line is covered, when the chat runs out, or at
-  /// [backlogMaxMessages] — whichever comes first. Each round asks for a full
-  /// page from the oldest id so far, since TDLib answers with fewer than asked.
+  /// The newest messages, reaching back to include [messageId] or up to
+  /// [maxMessages]. Opens an unread chat as one unbroken run to the newest.
   Future<HistoryPage> historyReaching(
     int chatId, {
     required int messageId,
@@ -443,8 +346,7 @@ class ChatsRepository {
     var cursor = 0;
     var reachedTop = false;
 
-    // Enough rounds to fill [maxMessages] even when TDLib answers each with a
-    // short page, and never unbounded.
+    // Enough rounds to fill [maxMessages] even with short pages, but bounded.
     final maxRounds =
         (maxMessages / historyPageSize).ceil() + historyMaxRequests;
     for (var round = 0; round < maxRounds; round++) {
@@ -477,14 +379,8 @@ class ChatsRepository {
     );
   }
 
-  /// Fills in what the replies on a page are answering.
-  ///
-  /// Most answers are on the page already, and cost nothing — see
-  /// [ChatMessageMapper.fillReplyExcerpts]. The rest point further back than
-  /// the page reaches, and drew as a bare "Replying to" with nothing after it,
-  /// which in a busy group was most of the replies on screen. They are fetched
-  /// together: one `GetMessages` per page, bounded by the page size and only
-  /// ever for a page somebody asked to see.
+  /// Fills in what the replies on a page are answering. Targets on the page
+  /// cost nothing; the rest are fetched with one `GetMessages` per page.
   Future<List<ChatMessage>> _withReplyTargets(
     int chatId,
     List<ChatMessage> page,
@@ -545,12 +441,9 @@ class ChatsRepository {
     }
   }
 
-  /// Tells TDLib the reader has this chat open.
-  ///
-  /// Returns whether TDLib acknowledged it, and the caller needs that answer: a
-  /// read acknowledgement sent with `forceRead: false` against a chat TDLib does
-  /// not consider open is quietly declined and still answers `Ok`, so nothing
-  /// retries it.
+  /// Tells TDLib the chat is open, and returns whether it accepted. An unforced
+  /// `ViewMessages` in a chat TDLib doesn't consider open is silently ignored
+  /// but still answers `Ok`.
   Future<bool> openChat(int chatId) async {
     try {
       return await _tdlib.sendRequest(td.OpenChat(chatId: chatId)) is td.Ok;
@@ -568,11 +461,8 @@ class ChatsRepository {
     }
   }
 
-  /// Acknowledges messages as read. Returns null on success, or the error.
-  ///
-  /// Read state is written to every client this account owns and cannot be
-  /// reconstructed, so failures are reported rather than swallowed — the caller
-  /// retries.
+  /// Marks messages as read. Returns null on success, or the error so the
+  /// caller can retry.
   Future<String?> markRead({
     required int chatId,
     required List<int> messageIds,
@@ -594,15 +484,8 @@ class ChatsRepository {
     }
   }
 
-  /// Acknowledges a whole chat as read, up to its last message.
-  ///
-  /// `ViewMessages` moves the read cursor to the highest id it is given, so
-  /// acknowledging the last message acknowledges everything behind it — one
-  /// request per chat rather than one per unread message. Returns null on
-  /// success, or the error to log.
-  ///
-  /// Forced, because the chat is not open: an unforced ack against an unopened
-  /// chat is declined silently and still answers `Ok`.
+  /// Marks a whole chat read by viewing its last message. Forced, because
+  /// TDLib ignores an unforced read in a chat that isn't open.
   Future<String?> markChatRead(int chatId) async {
     final lastMessageId = _chatCache.chat(chatId)?.lastMessage?.id;
     if (lastMessageId == null) return null;
@@ -613,24 +496,14 @@ class ChatsRepository {
     );
   }
 
-  /// Sends a message. Returns the queued message, or null if TDLib refused it.
-  ///
-  /// "Queued" is the honest word — `SendMessage` answers as soon as the message
-  /// is on its way and any attachment uploads afterwards, so the reply means
-  /// "accepted", not "delivered". The bubble shows that state rather than
-  /// claiming a delivery it cannot know about.
-  ///
-  /// The content shapes come from [ComposeMessages], which already knows that
-  /// one file is a captioned message and several are an album whose caption
-  /// belongs to the first item only. A second copy of those rules is how the
-  /// caption ends up repeated under every picture.
+  /// Sends a message, or an album when [ComposeMessages] says so. Returns the
+  /// queued message, or null if TDLib refused it.
   Future<td.Message?> send({
     required int chatId,
     required String text,
     List<ComposeAttachment> attachments = const [],
 
-    /// A sticker or GIF out of the account's collection. Already on
-    /// Telegram's servers, so nothing is uploaded — see [ComposeRemoteMedia].
+    /// A sticker or GIF already on Telegram's servers, so nothing is uploaded.
     ComposeRemoteMedia? remote,
     int? replyToMessageId,
     MessageSchedule schedule = MessageSchedule.now,
@@ -656,8 +529,7 @@ class ChatsRepository {
             inputMessageContents: contents,
           ),
         );
-        // An album is several messages; the first is the one carrying the
-        // caption, and the one the screen scrolls to.
+        // The first message of an album carries the caption.
         if (res is td.Messages) {
           return res.messages.isEmpty ? null : res.messages.first;
         }
@@ -680,29 +552,20 @@ class ChatsRepository {
     }
   }
 
-  /// The send options for one schedule.
-  ///
-  /// A null `schedulingState` is "send it now", and it is the *absence* of the
-  /// field rather than a date of zero — TDLib reads a present state as "this is
-  /// scheduled", so a zero date would queue the message for 1970.
+  /// The send options for one schedule. An immediate send leaves
+  /// `schedulingState` unset; see [MessageSchedule.toTdlib].
   static td.MessageSendOptions _optionsFor(MessageSchedule schedule) =>
       schedule.isImmediate
       ? _sendOptions
       : _sendOptions.copyWith(schedulingState: schedule.toTdlib());
 
-  /// Whether this chat has messages waiting to be sent.
-  ///
-  /// Read from the cache, which mirrors `updateChatHasScheduledMessages`, so
-  /// the header can offer the scheduled screen only when there is something on
-  /// it — and costs nothing to ask.
+  /// Whether this chat has scheduled messages, from the cached
+  /// `updateChatHasScheduledMessages`.
   bool hasScheduledMessages(int chatId) =>
       _chatCache.chat(chatId)?.hasScheduledMessages ?? false;
 
-  /// The messages waiting to be sent in this chat, soonest first.
-  ///
-  /// One request, when the scheduled screen is opened. Telegram keeps the queue
-  /// server-side — it sends them whether or not this app is running — so there
-  /// is nothing local to read it from.
+  /// The scheduled messages in this chat, soonest first. Telegram keeps them
+  /// server-side, so this is a request.
   Future<List<ChatMessage>> scheduledMessages(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -717,8 +580,8 @@ class ChatsRepository {
         chats: _chatCache.chatsById,
         isGroup: isGroupChat(chatId),
       );
-      // Soonest first. `mapHistory` orders by message id, which for a scheduled
-      // message is the order it was *written* rather than the order it goes.
+      // `mapHistory` orders by id, which for scheduled messages is the order
+      // they were written, not sent.
       messages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
       return messages;
     } catch (e) {
@@ -727,10 +590,7 @@ class ChatsRepository {
     }
   }
 
-  /// Moves a scheduled message, or sends it now.
-  ///
-  /// [MessageSchedule.now] is how a message is sent immediately: TDLib takes a
-  /// null scheduling state on this call to mean "send it".
+  /// Moves a scheduled message, or sends it now with [MessageSchedule.now].
   Future<bool> reschedule({
     required int chatId,
     required int messageId,
@@ -752,11 +612,6 @@ class ChatsRepository {
   }
 
   /// Sends a poll. Returns the queued message, or null if Telegram refused it.
-  ///
-  /// Separate from [send] rather than a branch inside it: a poll carries no
-  /// text and no attachments, and threading a nullable draft through the media
-  /// path would put a `if (poll != null) ignore everything else` at the top of
-  /// the one method that decides what a message *is*.
   Future<td.Message?> sendPoll({
     required int chatId,
     required PollDraft draft,
@@ -783,17 +638,8 @@ class ChatsRepository {
     }
   }
 
-  /// Starts an end-to-end chat with somebody. Returns the new chat's id.
-  ///
-  /// The chat exists immediately and is **pending**: TDLib has generated this
-  /// side of the key exchange, and nothing can be sent until the other person's
-  /// device comes online and finishes it. That can be hours, so the screen it
-  /// opens says so rather than showing a composer that would be refused.
-  ///
-  /// Always a *new* chat. `createNewSecretChat` is deliberate rather than
-  /// `createSecretChat`, which joins an existing one by id — two people who
-  /// have talked secretly before and want to again are starting a new
-  /// end-to-end session, which is the point of the feature.
+  /// Starts a new end-to-end chat and returns its id. It stays pending until
+  /// the other person's device comes online, which can take hours.
   Future<int?> createSecretChat(int userId) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -827,23 +673,16 @@ class ChatsRepository {
   bool isSecretChat(int chatId) =>
       _chatCache.chat(chatId)?.type is td.ChatTypeSecret;
 
-  /// Whether an end-to-end chat is still waiting on the other device.
-  ///
-  /// False for every chat that is not a secret one, so a caller can ask without
-  /// checking the type first.
+  /// Whether an end-to-end chat is still waiting on the other device. False
+  /// for any other chat.
   bool isSecretChatPending(int chatId) {
     final chat = _chatCache.chat(chatId);
     if (chat == null || chat.type is! td.ChatTypeSecret) return false;
     return !ChatCacheState.isSecretChatReady(_chatCache.secretChatFor(chat));
   }
 
-  /// Sends where this device is. Returns whether Telegram queued it.
-  ///
-  /// A still location, never a live one: `livePeriod` of zero is Telegram's
-  /// spelling of "this is where I was when I sent it". A live location would
-  /// need a position stream running while the app is in the background, which
-  /// is a different permission and a foreground service — see
-  /// [LocationService].
+  /// Sends this device's location as a still (not live) location. Returns the
+  /// queued message, or null.
   Future<td.Message?> sendLocation({
     required int chatId,
     required double latitude,
@@ -867,9 +706,7 @@ class ChatsRepository {
               horizontalAccuracy: accuracy,
             ),
             livePeriod: 0,
-            // Both are live-location machinery: a compass heading to draw an
-            // arrow with, and a radius to alert on approach. Zero is "none" for
-            // each, and neither means anything on a still location.
+            // Live-location only; zero means none.
             heading: 0,
             proximityAlertRadius: 0,
           ),
@@ -905,9 +742,7 @@ class ChatsRepository {
               phoneNumber: user.phoneNumber,
               firstName: user.firstName,
               lastName: user.lastName,
-              // Telegram builds the vCard itself from the fields above when
-              // this is empty. Writing one here would mean this app deciding
-              // what a contact card says, which is not its call.
+              // Left empty so Telegram builds the vCard from the fields above.
               vcard: '',
               userId: userId,
             ),
@@ -921,17 +756,8 @@ class ChatsRepository {
     }
   }
 
-  /// This account's Telegram contacts, by name.
-  ///
-  /// **No device permission.** These are the contacts Telegram already holds
-  /// for this account, which is what somebody sharing a contact from a Telegram
-  /// client is choosing from anyway — reading the phone's address book would
-  /// mean asking for it, and would offer people who are not on Telegram and
-  /// therefore cannot be sent as a Telegram contact.
-  ///
-  /// One request, when the picker opens. `GetContacts` answers with ids and
-  /// TDLib has already volunteered the user records behind them through
-  /// `UpdateUser`, so there is no per-contact lookup after it.
+  /// This account's Telegram contacts (not the device address book), sorted
+  /// by name. One `GetContacts`; the users are already cached.
   Future<List<UserProfile>> contacts() async {
     try {
       final res = await _tdlib.sendRequest(const td.GetContacts());
@@ -954,16 +780,8 @@ class ChatsRepository {
     }
   }
 
-  /// Opens self-destructing media, which starts its clock.
-  ///
-  /// This is the one request in the app that *destroys* something, and it is
-  /// irreversible: Telegram treats the call as "this person has now seen it",
-  /// tells the sender so, and — for view-once media — the content is gone the
-  /// moment the viewer closes it. Nothing calls this on the reader's behalf.
-  /// It is wired to a deliberate tap on a cover that says what will happen.
-  ///
-  /// The expiry itself arrives back on `updateMessageContent` as
-  /// `messageExpiredPhoto`, so nothing here has to guess when it happened.
+  /// Opens self-destructing media, which starts its clock and tells the
+  /// sender. Irreversible, so only call it from an explicit user tap.
   Future<bool> openSecretMedia({
     required int chatId,
     required int messageId,
@@ -998,9 +816,8 @@ class ChatsRepository {
   }) async {
     final formatted = td.FormattedText(text: text, entities: const []);
     try {
-      // A photo's or a file's words are its caption, and Telegram refuses to
-      // turn media into text — so "Edit" on one always failed while it sent
-      // `EditMessageText`.
+      // Media messages need `EditMessageCaption`; Telegram rejects
+      // `EditMessageText` for them.
       final res = await _tdlib.sendRequest(
         isCaption
             ? td.EditMessageCaption(
@@ -1025,8 +842,8 @@ class ChatsRepository {
     }
   }
 
-  /// Deletes messages. [revoke] deletes them for everybody rather than just
-  /// this account — irreversible, which is why the caller confirms first.
+  /// Deletes messages. [revoke] deletes them for everybody, not just this
+  /// account.
   Future<bool> deleteMessages({
     required int chatId,
     required List<int> messageIds,
@@ -1048,20 +865,8 @@ class ChatsRepository {
     }
   }
 
-  /// What this account may do with one message.
-  ///
-  /// Asked per message and only when the reader long-presses one, never for a
-  /// page of them. TDLib documents `getMessageProperties` as an **offline**
-  /// request, so this costs no network round trip — but the fan-out rule
-  /// is about shape as much as cost, and forty of anything on
-  /// opening a screen is the shape that goes wrong when a future TDLib changes
-  /// its mind about what is local.
-  ///
-  /// The alternative was worse: guessing. Telegram's rules for what can be
-  /// edited or revoked depend on the chat type, the age of the message, who
-  /// sent it and the account's own rights — reimplementing that here would
-  /// offer a Delete that fails and an Edit that isn't allowed, which is the
-  /// inert-control bug the hard rules name.
+  /// What this account may do with one message, from TDLib's offline
+  /// `getMessageProperties`. Asked on long-press only, never for a whole page.
   Future<MessageActions> messageActions({
     required int chatId,
     required int messageId,
@@ -1086,16 +891,8 @@ class ChatsRepository {
     }
   }
 
-  /// Pins a message to the top of the chat, or takes the pin off.
-  ///
-  /// [isPinned] is the state being moved *to*, matching [setPinned] and
-  /// [setMuted] — every toggle in this repository takes the destination rather
-  /// than the current value, so a caller cannot invert one by accident.
-  ///
-  /// A pin is visible to everybody in the chat and notifies them, which is why
-  /// `disableNotification` is true: gramX pins from a long-press menu with no
-  /// second step, and silently pinning is the recoverable half of a mis-tap.
-  /// Telegram's own clients ask; ours does too, at the call site.
+  /// Pins or unpins a message, without notifying the chat. [isPinned] is the
+  /// target state, as with every toggle here.
   Future<bool> setMessagePinned({
     required int chatId,
     required int messageId,
@@ -1129,17 +926,12 @@ class ChatsRepository {
     );
   }
 
-  /// How long a message survives in this chat before Telegram deletes it, in
-  /// seconds. Zero means never, which is every chat's default.
+  /// The chat's auto-delete timer in seconds. Zero (the default) means never.
   int autoDeleteTime(int chatId) =>
       _chatCache.chat(chatId)?.messageAutoDeleteTime ?? 0;
 
-  /// Sets the chat's auto-delete timer. [seconds] of zero turns it off.
-  ///
-  /// Chat-wide and two-sided: it applies to everything either side sends from
-  /// now on, both people see the change, and Telegram posts a service notice
-  /// about it. Distinct from the per-message self-destruct, which the
-  /// sender chooses for one picture.
+  /// Sets the chat's auto-delete timer. [seconds] of zero turns it off. Applies
+  /// to both sides from now on, and Telegram posts a service notice about it.
   Future<bool> setAutoDeleteTime(int chatId, int seconds) async {
     try {
       await _tdlib.sendRequest(
@@ -1187,20 +979,9 @@ class ChatsRepository {
     }
   }
 
-  /// The reactions offered for one message, best first.
-  ///
-  /// Asked per message, alongside [messageActions], and for the same reason:
-  /// it is the long-press that needs the answer, and never a page of bubbles.
-  ///
-  /// Reading `chat.availableReactions` instead was the obvious shortcut and it
-  /// was **wrong**: that field is a `ChatAvailableReactionsSome` only where a
-  /// group has restricted the set, and every ordinary private chat reports
-  /// `ChatAvailableReactionsAll` — which names no emoji at all. So the picker
-  /// came up empty in exactly the chats a reader spends their time in, and the
-  /// reaction row looked unimplemented. `getMessageAvailableReactions` answers
-  /// the real question, ordered the way Telegram itself orders it.
-  ///
-  /// Premium-only reactions are dropped rather than offered and refused.
+  /// The reactions offered for one message, best first, minus Premium-only
+  /// ones. `chat.availableReactions` won't do: most chats report
+  /// `ChatAvailableReactionsAll`, which lists no emoji.
   Future<List<String>> messageReactions({
     required int chatId,
     required int messageId,
@@ -1217,7 +998,7 @@ class ChatsRepository {
       if (res is! td.AvailableReactions) return const [];
 
       final emojis = <String>[];
-      // Top first, then recent, then popular — Telegram's own precedence.
+      // Top, then recent, then popular, as Telegram orders them.
       for (final group in [
         res.topReactions,
         res.recentReactions,
@@ -1238,15 +1019,11 @@ class ChatsRepository {
     }
   }
 
-  /// How many reactions the picker shows in its row. Telegram takes this as a
-  /// layout hint and orders its answer around it.
+  /// How many reactions the picker shows in its row; Telegram orders around it.
   static const int reactionRowSize = 8;
 
-  /// Tells the other side this account is typing, or has stopped.
-  ///
-  /// Telegram expects this roughly every five seconds while typing continues,
-  /// and the caller throttles to that — a per-keystroke send is exactly the
-  /// shape the request budget forbids.
+  /// Tells the other side this account is typing, or has stopped. Telegram
+  /// expects it about every five seconds while typing; the caller throttles.
   Future<void> setTyping(int chatId, {required bool isTyping}) async {
     try {
       await _tdlib.sendRequest(
@@ -1264,9 +1041,8 @@ class ChatsRepository {
     }
   }
 
-  /// Saves what the reader has typed but not sent, so it survives leaving the
-  /// screen — and follows them to their other Telegram clients, which is what
-  /// a draft means everywhere else.
+  /// Saves unsent text as the chat's Telegram draft, which syncs across the
+  /// account's devices.
   Future<void> saveDraft(
     int chatId,
     String text, {
@@ -1307,16 +1083,8 @@ class ChatsRepository {
     return content.text.text.isEmpty ? null : content.text.text;
   }
 
-  /// The chat id for Saved Messages, creating it if it does not exist yet.
-  ///
-  /// Telegram models notes-to-self as a private chat with your own user, so the
-  /// id *is* [selfUserId] — but the chat only exists once something has opened
-  /// it, and on a fresh account nothing has. `CreatePrivateChat` is idempotent:
-  /// it returns the existing chat when there is one, so this is safe to call on
-  /// every tap and costs nothing once the cache knows the chat.
-  ///
-  /// Null when the account record has not loaded, which is the honest answer —
-  /// there is no way to know which private chat is yours without it.
+  /// The Saved Messages chat id, which is [selfUserId]. Creates the chat if a
+  /// fresh account doesn't have it yet. Null when [selfUserId] hasn't loaded.
   Future<int?> savedMessagesChatId(int? selfUserId) async {
     if (selfUserId == null) return null;
     if (_chatCache.chat(selfUserId) != null) return selfUserId;
@@ -1332,11 +1100,8 @@ class ChatsRepository {
     }
   }
 
-  /// Pins a chat to the top of the main list, or unpins it.
-  ///
-  /// Scoped to `ChatListMain` explicitly: a pin is per chat list, and pinning
-  /// into the archive from a screen that shows the main list would move a chat
-  /// the reader cannot see.
+  /// Pins a chat to the top of the main list, or unpins it. Pins are per chat
+  /// list, so this targets `ChatListMain`.
   Future<bool> setPinned(int chatId, {required bool isPinned}) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -1348,21 +1113,15 @@ class ChatsRepository {
       );
       return res is td.Ok;
     } catch (e) {
-      // Telegram caps how many chats may be pinned, and answers with an error
-      // rather than silently ignoring the extra one — so this is a real
-      // failure the caller has to be able to report.
+      // Telegram caps the number of pinned chats and errors past the limit.
       debugPrint('[ChatsRepo] pin($chatId) failed: $e');
       return false;
     }
   }
 
-  /// Silences a chat, or unsilences it.
-  ///
-  /// `muteFor` is seconds and TDLib takes the *maximum* int as "forever", which
-  /// is what Telegram's own mute-with-no-end-date sends. Unmuting hands the
-  /// chat back to the account-wide default rather than pinning it to zero —
-  /// otherwise a chat unmuted here would stop following a default the reader
-  /// later changes.
+  /// Mutes a chat forever, or unmutes it. Unmuting returns the chat to the
+  /// account-wide default instead of setting it to zero, so it keeps following
+  /// later changes to that default.
   Future<bool> setMuted(int chatId, {required bool isMuted}) async {
     final current = _chatCache.chat(chatId)?.notificationSettings;
     if (current == null) return false;
@@ -1384,30 +1143,23 @@ class ChatsRepository {
     }
   }
 
-  /// Telegram's "muted with no end date". Not a magic number of this app's
-  /// choosing — it is what the official clients send.
+  /// Telegram's "muted with no end date": the maximum 32-bit int.
   static const int muteForever = 2147483647;
 
-  /// Whether a chat is somewhere this account can *leave* — a group — as
-  /// opposed to a one-to-one chat, which can only be deleted.
+  /// Whether this is a group that can be left. One-to-one chats can only be
+  /// deleted.
   bool canLeave(int chatId) {
     final type = _chatCache.chat(chatId)?.type;
     return type is td.ChatTypeBasicGroup ||
         (type is td.ChatTypeSupergroup && !type.isChannel);
   }
 
-  /// Whether deleting this chat can take the history away from the other
-  /// person too. Telegram's own answer, carried on the chat.
+  /// Whether deleting this chat can also delete it for the other person.
   bool canDeleteForBoth(int chatId) =>
       _chatCache.chat(chatId)?.canBeDeletedForAllUsers ?? false;
 
-  /// Takes a one-to-one chat off the list, with its history.
-  ///
-  /// Irreversible, so the screen confirms first. [revoke] deletes it for the
-  /// other person as well, and is only offered where [canDeleteForBoth] says
-  /// Telegram allows it. A secret chat is closed before it is deleted:
-  /// deleting the history of a live end-to-end session would leave the session
-  /// itself open on both devices.
+  /// Deletes a one-to-one chat and its history; [revoke] deletes it for the
+  /// other person too. A secret chat is closed first so the session ends.
   Future<bool> deleteChat(int chatId, {required bool revoke}) async {
     try {
       if (isSecretChat(chatId)) await closeSecretChat(chatId);
@@ -1425,11 +1177,8 @@ class ChatsRepository {
     }
   }
 
-  /// Leaves a group, and takes it off the list.
-  ///
-  /// A supergroup drops off the list by itself once left. A basic group does
-  /// not — Telegram keeps it as a read-only chat — so its history is deleted
-  /// from the list as well, which is what "Leave" means in every client.
+  /// Leaves a group and removes it from the list. Telegram keeps a left basic
+  /// group as a read-only chat, so its history is deleted as well.
   Future<bool> leaveChat(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(td.LeaveChat(chatId: chatId));
@@ -1450,12 +1199,10 @@ class ChatsRepository {
     }
   }
 
-  /// Whether this account has blocked [userId]. Read from the chat with them,
-  /// which TDLib keeps current, so asking costs nothing.
+  /// Whether this account has blocked [userId], read from the cached chat.
   bool isBlocked(int userId) => _chatCache.chat(userId)?.blockList != null;
 
-  /// Blocks or unblocks a person. They can no longer message this account, and
-  /// Telegram tells nobody.
+  /// Blocks or unblocks a person. Telegram doesn't notify them.
   Future<bool> setBlocked(int userId, {required bool isBlocked}) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -1471,8 +1218,7 @@ class ChatsRepository {
     }
   }
 
-  /// Puts away the "you don't know this person" bar without doing anything
-  /// else — the reader looked, and the chat is fine.
+  /// Dismisses the chat's action bar (report / add / block) without acting.
   Future<void> dismissRequest(int chatId) async {
     try {
       await _tdlib.sendRequest(td.RemoveChatActionBar(chatId: chatId));
@@ -1481,11 +1227,8 @@ class ChatsRepository {
     }
   }
 
-  /// Forwards messages into another chat, with attribution.
-  ///
-  /// `sendCopy: false`, so the destination shows "Forwarded from …" rather than
-  /// silently reattributing somebody else's words to the sender — the same
-  /// choice `FeedRepository.forwardPost` makes, for the same reason.
+  /// Forwards messages into another chat. `sendCopy: false` keeps the
+  /// "Forwarded from" attribution.
   Future<bool> forward({
     required int fromChatId,
     required List<int> messageIds,
@@ -1511,10 +1254,8 @@ class ChatsRepository {
     }
   }
 
-  /// Chats this account can forward into, best destination first.
-  ///
-  /// Read straight from [ChatCache] — the same source and the same rules the
-  /// post forward picker uses, so opening it costs no requests.
+  /// Chats this account can forward into, best destination first. Read from
+  /// [ChatCache], so it costs no requests.
   List<ChatSummary> forwardTargets({int? selfUserId}) => ChatListBuilder.build(
     _chatCache.forwardTargets,
     users: _chatCache.usersById,
@@ -1522,13 +1263,8 @@ class ChatsRepository {
     selfUserId: selfUserId,
   );
 
-  /// What a `@username` refers to, so a tap can go to the right screen.
-  ///
-  /// Networked and one request per tap, which is the on-demand shape
-  /// the request budget allows — a mention is only resolved when somebody touches
-  /// it. Answers the chat id and what kind of chat it is, because those go to
-  /// different places: a channel to the channel screen, a group to its
-  /// conversation, a person to them. Null when Telegram does not know the name.
+  /// What a `@username` refers to, so a tap can open the right screen. One
+  /// request per tap. Null when Telegram doesn't know the name.
   Future<({int chatId, ResolvedChatKind kind})?> resolveUsername(
     String username,
   ) async {
@@ -1547,7 +1283,7 @@ class ChatsRepository {
     }
   }
 
-  /// Which screen a resolved chat belongs on. Pure, so the rule is testable.
+  /// Which screen a resolved chat belongs on.
   static ResolvedChatKind resolvedKindOf(td.ChatType type) => switch (type) {
     td.ChatTypePrivate() || td.ChatTypeSecret() => ResolvedChatKind.person,
     td.ChatTypeSupergroup(:final isChannel) when isChannel =>
@@ -1555,19 +1291,8 @@ class ChatsRepository {
     _ => ResolvedChatKind.group,
   };
 
-  /// One person's profile.
-  ///
-  /// **Two requests, and only when somebody opens a profile.** `GetUser` is
-  /// skipped entirely when the chat cache already holds the record, which it
-  /// usually does — TDLib volunteers a `User` for everyone it loads a chat
-  /// for. `GetUserFullInfo` is the one that always costs something, and it is
-  /// the half that carries the bio, the groups in common and the channel this
-  /// person runs. That is the on-demand, user-driven, bounded shape
-  /// the request budget allows; what it must never become is a lookup per row of
-  /// a list — see [ChatSummary.affiliatedChannelId].
-  ///
-  /// The full record is filed back into the cache on the way out, so the chat
-  /// list can show that person's channel afterwards for free.
+  /// One person's profile: at most a `GetUser` and a `GetUserFullInfo`, so
+  /// never call it per list row. Caches the full info for the chat list.
   Future<UserProfile?> userProfile(int userId) async {
     try {
       var user = _chatCache.user(userId);
@@ -1592,9 +1317,7 @@ class ChatsRepository {
       return UserProfileMapper.from(
         user,
         fullInfo: fullInfo,
-        // Only if the cache already knows the channel. Fetching it would be a
-        // third request for a line of text, and the row simply says less
-        // without it.
+        // Only from cache, to avoid a third request.
         personalChannelTitle: personalChatId == 0
             ? null
             : _chatCache.chat(personalChatId)?.title,
@@ -1605,14 +1328,9 @@ class ChatsRepository {
     }
   }
 
-  /// Fetches one person's full record into the cache, if it is not there.
-  ///
-  /// Returns whether the cache now has it. What it carries that the chat list
-  /// wants is the channel they run — see [ChatSummary.affiliatedChannelId] —
-  /// and the channel itself is fetched too when the cache has never met it,
-  /// otherwise the badge would draw as a question mark. Two requests at
-  /// most, and only ever from [AffiliationPrefetcher], which decides who is
-  /// worth asking about and how fast.
+  /// Fetches one person's `UserFullInfo` into the cache if missing, and their
+  /// personal channel if the cache doesn't know it. Returns whether the cache
+  /// now has the full info. Only [AffiliationPrefetcher] calls this.
   Future<bool> ensureUserFullInfo(int userId) async {
     if (_chatCache.userFullInfosById.containsKey(userId)) return true;
     final res = await _tdlib.sendRequest(td.GetUserFullInfo(userId: userId));
@@ -1621,8 +1339,7 @@ class ChatsRepository {
 
     final personalChatId = res.personalChatId;
     if (personalChatId != 0 && _chatCache.chat(personalChatId) == null) {
-      // A `GetChat` answers through `updateNewChat`, which is how the cache
-      // learns titles; the reply itself is not needed.
+      // The cache picks the chat up from the resulting `updateNewChat`.
       try {
         await _tdlib.sendRequest(td.GetChat(chatId: personalChatId));
       } catch (e) {
@@ -1632,12 +1349,8 @@ class ChatsRepository {
     return true;
   }
 
-  /// Sends a failed message again.
-  ///
-  /// The one recovery path for `MessageSendState.failed`: Telegram will not
-  /// retry by itself, so without this a refused message sits in the chat
-  /// forever with a warning on it and nothing the reader can do. TDLib keeps
-  /// the content, so this needs the id and nothing else.
+  /// Sends failed messages again. Telegram doesn't retry by itself; TDLib
+  /// keeps the content, so only the ids are needed.
   Future<bool> resend(int chatId, List<int> messageIds) async {
     if (messageIds.isEmpty) return true;
     try {
@@ -1662,12 +1375,8 @@ class ChatsRepository {
     }
   }
 
-  /// Chats matching [query], for the "new message" picker.
-  ///
-  /// `SearchChats` is one of TDLib's offline methods — it searches the titles
-  /// and usernames of chats already loaded and never reaches the server — so
-  /// this is free to call as somebody types. It is registered as local-only in
-  /// `TdlibService`, which keeps it off the budget and out of the flood gate.
+  /// Chats matching [query], for the "new message" picker. `SearchChats` is
+  /// offline, so it can run on every keystroke.
   Future<List<ChatSummary>> searchChats(
     String query, {
     int? selfUserId,

@@ -1,9 +1,5 @@
-/// Every address this app can send someone to on purpose.
-///
-/// Kept together and kept short deliberately: these are the only outbound
-/// destinations the app itself offers — everything else it opens came from a
-/// post the reader tapped. The privacy policy says as much, so a new entry
-/// here means a line there too.
+/// The outbound links the app itself offers. The privacy policy lists them,
+/// so a new entry here needs a matching line there.
 abstract class AppLinks {
   /// Where the developer can be supported.
   static const String support = 'https://gurshaplus.com/ragoose';

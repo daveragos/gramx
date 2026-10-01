@@ -8,11 +8,8 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// The standing reminder that this is a preview, with the way out of it.
-///
-/// Not a dismissible toast: a guest is missing reactions, comments, bookmarks
-/// and read state, and the honest thing is to say so wherever they are rather
-/// than once at the start. Draws nothing at all when signed in.
+/// A persistent banner telling a guest they are in preview mode, with a
+/// sign-in button. Not dismissible. Draws nothing when signed in.
 class GuestBanner extends ConsumerWidget {
   const GuestBanner({super.key});
 
@@ -71,17 +68,13 @@ class GuestBanner extends ConsumerWidget {
   }
 }
 
-/// What a guest gets instead of a control that would need an account.
-///
-/// Shown from the tap, rather than leaving the control inert. A button that
-/// responds to touch and changes nothing is a bug; a button
-/// that explains itself is a control that works.
+/// The sheet a guest sees on tapping a control that needs an account.
 abstract class GuestSignInSheet {
   static Future<void> show(BuildContext context) {
     return showModalBottomSheet<void>(
       context: context,
       // The root navigator, so the sheet is not painted under the shell's
-      // bottom bar — the same fix as `0b3ba3d`.
+      // bottom bar.
       useRootNavigator: true,
       showDragHandle: true,
       builder: (context) {

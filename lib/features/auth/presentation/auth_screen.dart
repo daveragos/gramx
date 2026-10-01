@@ -46,14 +46,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
 
-        // If on sub-step (phone input, code, password, QR), pop to method selection
+        // On a sub-step, back returns to the method chooser.
         if (authState.step != AuthStep.loginMethodSelection &&
             authState.step != AuthStep.loading) {
           controller.goBackToSelection();
           return;
         }
 
-        // On root selection step: "Press back again to exit" UX
+        // On the chooser, a second back press within the window exits.
         final now = DateTime.now();
         if (_lastBackPressTime == null ||
             now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {

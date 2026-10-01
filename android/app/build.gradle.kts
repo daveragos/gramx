@@ -17,10 +17,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// AGP 9 removed `android { kotlinOptions { } }`; the Kotlin plugin owns this
-// now. Same value as `compileOptions` below, which is the point — a mismatch
-// between the Java and Kotlin targets is a link error at assembly time rather
-// than a compile error here.
+// AGP 9 moved the Kotlin JVM target here. Keep it matching `compileOptions`.
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
@@ -33,10 +30,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // `flutter_local_notifications` uses java.time, which is not in the
-        // Android API level this app supports. Desugaring is how that library
-        // reaches an older device, and the build refuses outright without it —
-        // which is the right kind of failure: loud, and at assembly time.
+        // `flutter_local_notifications` uses java.time, which older Android
+        // versions lack, so the build requires desugaring.
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -45,8 +40,6 @@ android {
 
     defaultConfig {
         applicationId = "dev.ragoose.gramx"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -66,10 +59,8 @@ android {
 
     buildTypes {
         release {
-            // Falls back to the debug key so a checkout without the keystore
-            // still builds — but says so loudly, because a debug-signed build
-            // handed to someone is one they have to uninstall before they can
-            // ever take an update.
+            // Without a keystore, release builds use the debug key and warn,
+            // since a debug-signed install cannot take a release update.
             signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
@@ -84,8 +75,7 @@ android {
 }
 
 dependencies {
-    // Required by the compileOptions flag above. Version tracks what AGP asks
-    // for; a mismatch is reported at assembly time rather than silently.
+    // Required by isCoreLibraryDesugaringEnabled above.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

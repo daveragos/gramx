@@ -4,35 +4,23 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 
-/// How a [PillButton] is filled.
-///
-/// white-on-black one for the alternative, the outlined one for a state that
-/// is already true ("Following"), and the red one for the way out.
+/// How a [PillButton] is filled. Outlined suits a state that is already true,
+/// such as "Joined".
 enum PillStyle { filled, outlined, danger, dangerOutlined, ghost }
 
-/// The one button shape in the app.
-///
-/// A rounded pill, weight 700, the same height everywhere it appears — Join
-/// and Joined on a channel, Message on a person, Post on the composer, Log out
-/// in settings, and both halves of every confirmation. Before this each of
-/// those was its own `ElevatedButton.styleFrom`, and no two of them agreed on
-/// a radius or a padding. One widget, one shape, and the shape is decided
-/// here rather than at forty call sites.
+/// The app's standard button: a bold rounded pill with a consistent height.
 class PillButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final PillStyle style;
 
-  /// Drawn before the label, small. Optional: most pills are a word.
+  /// A small icon before the label.
   final IconData? icon;
 
-  /// Replaces the label with a spinner and disables the button, for the
-  /// moment between a tap and Telegram's answer.
+  /// Replaces the label with a spinner and disables the button.
   final bool isBusy;
 
-  /// Stretches to the width it is given. Off by default, because a pill is
-  /// as wide as its word — full width is for the stacked buttons of a
-  /// confirmation, where the two have to read as a column.
+  /// Stretches to the available width, as in stacked dialog buttons.
   final bool expand;
 
   /// A smaller pill, for a row of controls beside an avatar.
@@ -134,10 +122,7 @@ class PillButton extends StatelessWidget {
   }
 }
 
-/// A round icon-only control, the size of a compact pill.
-///
-/// actions, the envelope that starts a conversation. Outlined, never filled —
-/// the filled pill beside them is the one thing the row is asking you to do.
+/// A round, outlined icon-only button the size of a compact pill.
 class RoundIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;

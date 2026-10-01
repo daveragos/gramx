@@ -3,16 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/domain/message_schedule.dart';
 
-/// When a message should go out.
-///
-/// Three ways, and the third is the one worth having: *send when they are next
-/// online* is a Telegram feature with no equivalent anywhere else, and it is
-/// the answer to "I want them to see this, not to be woken by it".
-///
-/// Offered only where each makes sense — "when they are online" needs a
-/// *they*, so it is absent in a group, where the concept does not exist.
+/// Picks when to send a message: a quick offset, a chosen date and time, or
+/// (in a private chat) when the other user is next online.
 abstract class ScheduleSheet {
-  /// The quick offsets, so the common case does not open a date picker.
+  /// The quick offsets offered before the date picker.
   static const List<Duration> quickChoices = [
     Duration(hours: 1),
     Duration(hours: 8),
@@ -20,17 +14,14 @@ abstract class ScheduleSheet {
   ];
 
   /// Returns the chosen schedule, or null if the sheet was dismissed.
-  ///
-  /// [allowsWhenOnline] is the caller's answer to "is there one other person
-  /// here", not a preference.
+  /// [allowsWhenOnline] should be true only in a chat with one other user.
   static Future<MessageSchedule?> show(
     BuildContext context, {
     required bool allowsWhenOnline,
   }) {
     return showModalBottomSheet<MessageSchedule>(
       context: context,
-      // See mute_sheet.dart: the shell's bottom tab bar paints over each
-      // branch's own Navigator, so this needs the root Navigator's Overlay.
+      // The shell's tab bar paints over branch navigators, so use the root.
       useRootNavigator: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) => SafeArea(
@@ -73,12 +64,8 @@ abstract class ScheduleSheet {
     );
   }
 
-  /// A date, then a time. Two dialogs because Flutter has no combined picker,
-  /// and backing out of either means the whole choice was abandoned.
-  ///
-  /// The range is Telegram's: no earlier than now, no further ahead than
-  /// [MessageSchedule.maxAhead]. A picker that allowed a date in the past would
-  /// send somebody into a rejection with no explanation.
+  /// Picks a date then a time, within Telegram's range of now to
+  /// [MessageSchedule.maxAhead]. Returns null if either dialog is dismissed.
   static Future<DateTime?> _pickMoment(BuildContext context) async {
     final now = DateTime.now();
 

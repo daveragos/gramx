@@ -15,7 +15,7 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 
 import 'package:gramx/features/feed/data/feed_repository.dart';
 
-/// Provider to fetch bookmarked posts directly from database and TDLib.
+/// Bookmarked posts, from the database and TDLib.
 final bookmarkedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final repo = ref.watch(feedRepositoryProvider);
   final posts = await repo.fetchBookmarkedPosts();
@@ -41,8 +41,7 @@ class BookmarksScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Bookmarks are stored against the signed-in account, so a guest has none
-    // and never will. Saying so beats an empty list that looks broken.
+    // Bookmarks belong to an account; a guest sees a placeholder.
     if (!ref.watch(readerCapabilitiesProvider).canBookmark) {
       return const GuestBookmarksPlaceholder();
     }
@@ -59,10 +58,8 @@ class BookmarksScreen extends ConsumerWidget {
       header: ChromeHeaderRow(
         title: AppStrings.bookmarksTitle,
         actions: [
-          // A bookmark is mirrored into Saved Messages so it survives a
-          // reinstall; this is the way back in. Offered rather than run
-          // automatically: a reader who cleared their bookmarks should not
-          // have them reappear because the app decided to be helpful.
+          // Restores bookmarks mirrored to Saved Messages (after a reinstall,
+          // say). Manual, so cleared bookmarks don't return on their own.
           IconButton(
             icon: const Icon(Icons.restore_rounded),
             tooltip: AppStrings.bookmarksRestore,

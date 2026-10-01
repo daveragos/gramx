@@ -6,8 +6,7 @@ import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_selection_page.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_top_bar.dart';
 
-/// The page only reads its [AuthState] to build; the controller is touched on
-/// tap, which these tests don't do.
+/// The page only reads [AuthState] to build; these tests don't tap.
 final controller = AuthController();
 
 Widget host(Widget child, {Brightness brightness = Brightness.light}) =>
@@ -35,12 +34,8 @@ void main() {
       );
     });
 
-    // The icon is drawn on its own ground, so the variant has to be picked
-    // for the surface: the dark-ground icon on a dark screen is a black square
-    // on black, which is the fault the two files exist to avoid. Each
-    // brightness gets its own pump — swapping the theme under a live tree
-    // makes MaterialApp lerp it, and drags the page's Riverpod consumers
-    // through a rebuild this host has no scope for.
+    // Each brightness has its own icon file. Each gets a fresh pump, since
+    // swapping the theme on a live tree makes MaterialApp animate it.
     for (final brightness in Brightness.values) {
       testWidgets(
         'picks the icon variant a ${brightness.name} screen can show',
@@ -71,8 +66,6 @@ void main() {
       );
     });
 
-    // The reported complaint: spacers pushed the welcome block and the buttons
-    // to opposite ends, leaving a hand's width of nothing between them.
     testWidgets('keeps the welcome and the buttons together', (tester) async {
       await tester.pumpWidget(
         host(
@@ -137,8 +130,7 @@ void main() {
   });
 
   group('the top bar', () {
-    // The app names itself once, under its own icon. A wordmark above that is
-    // furniture.
+    // The app name appears once, under the icon.
     testWidgets('carries no wordmark', (tester) async {
       await tester.pumpWidget(
         host(

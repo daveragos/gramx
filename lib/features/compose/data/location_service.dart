@@ -1,49 +1,31 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-/// Where the device is, and why it could not say.
+/// Why the device location could not be read.
 enum LocationFailure {
-  /// The reader declined, or the OS did.
+  /// The user or the OS denied permission.
   noPermission,
 
-  /// Location services are switched off at the device level, or the fix
-  /// failed.
+  /// Location services are off, or the fix failed.
   unavailable,
 }
 
-/// One position, and what may be sent with it.
+/// One position fix.
 typedef DeviceLocation = ({double latitude, double longitude, double accuracy});
 
-/// Asks the device where it is, once.
-///
-/// **Once** is the whole design. A live location — Telegram's "share for the
-/// next hour" — needs a position stream that keeps running while the app is in
-/// the background, which is a foreground service on Android, a background mode
-/// on iOS, and a different permission on both. gramX asks for a single fix at
-/// the moment somebody taps "send my location" and stops, so the permission it
-/// declares is the while-in-use one and nothing here can leave a location
-/// stream running behind the reader's back.
+/// Reads the device location once. Live location would need background
+/// location access, so only the while-in-use permission is used.
 class LocationService {
   /// How long to wait for a fix before giving up.
-  ///
-  /// A cold GPS fix indoors can take longer than anyone will hold a phone
-  /// still for. Giving up and saying so beats a spinner that never resolves.
   static const Duration timeout = Duration(seconds: 15);
 
-  /// The accuracy asked for.
-  ///
-  /// Medium, not best: Telegram is being told roughly where somebody is, not
-  /// navigating them, and asking for the best fix is what turns a two-second
-  /// answer into a thirty-second one.
+  /// Medium accuracy, since the best accuracy can take much longer to fix.
   static const LocationAccuracy accuracy = LocationAccuracy.medium;
 
   const LocationService();
 
-  /// A single position, or why there is none.
-  ///
-  /// The permission is asked for here, at the moment it is needed and after
-  /// the reader has chosen to send a location — never at launch, where a
-  /// location prompt with no context is the one every reader declines.
+  /// A single position, or the reason there is none. Requests the permission
+  /// if needed, so it is only asked for when the user sends a location.
   Future<({DeviceLocation? location, LocationFailure? failure})>
   current() async {
     try {

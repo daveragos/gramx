@@ -1,18 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Caps how many inline video players run at the same time.
-///
-/// Each GIF tile used to create a `VideoPlayerController`, loop it and play it
-/// the moment it was built — for every GIF Flutter built, on screen or not. A
-/// GIF-heavy feed spun up a decoder per tile, which is a battery and memory
-/// problem on a surface people scroll for minutes.
-///
-/// Players ask for a slot before initialising and give it back when they stop.
-/// Losing the race just means showing the still preview, which is the correct
-/// fallback anyway.
+/// Caps how many inline video players run at once, to bound decoder memory
+/// and battery use. Players take a slot before initialising and release it
+/// when they stop; a player without a slot shows its still preview.
 class InlinePlayerBudget {
-  /// Enough for the tile being read plus its neighbours, few enough that a
-  /// fast scroll can't leave a dozen decoders running.
+  /// The visible tile plus its neighbours.
   static const int maxConcurrent = 3;
 
   int _active = 0;
@@ -27,8 +19,8 @@ class InlinePlayerBudget {
     return true;
   }
 
-  /// Returns a slot. Safe to call more than once for the same player — a
-  /// widget can be disposed after already releasing on going off screen.
+  /// Returns a slot. Safe to call twice for the same player, since a widget
+  /// can release on going off screen and again on dispose.
   void release() {
     if (_active > 0) _active--;
   }

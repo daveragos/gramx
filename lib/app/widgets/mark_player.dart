@@ -6,25 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-/// Plays an animated image on the clock rather than on the decoder.
-///
-/// An animated `Image` decodes each frame only once the previous one is on
-/// screen, then waits for the next vsync to show it. When the app is busy —
-/// starting up, signing in, pulling in the first channels, which are exactly
-/// when the mark is on screen — that came to about two vsyncs a frame, and the
-/// gramX mark's 1.4 s drawing took three seconds: slow motion. This decodes a
-/// few frames ahead instead, which the phone manages faster than the
-/// animation plays, and on each vsync shows the frame the clock says is due,
-/// dropping any it is late for. A short stall costs a frame, never the pace.
-///
-/// A long one — the screen hidden, the app in the background — is not caught
-/// up frame by frame: past [maxLag] the clock moves to wherever the animation
-/// is, so it carries on from there instead of decoding its way through the
-/// time it was away. Something that has to finish on time sets [maxLag] high
-/// and skips instead.
-///
-/// Loops for as long as it runs, unless [stopAt] is set: then it stops on that
-/// frame, keeps it on screen, and calls [onStopped].
+/// Plays an animated image by wall-clock time, unlike an animated `Image`,
+/// which slows down when the app is busy. Decodes a few frames ahead and drops
+/// late ones. Loops unless [stopAt] is set.
 class MarkPlayer {
   final String asset;
   final TickerProvider vsync;
@@ -35,12 +19,11 @@ class MarkPlayer {
   /// The frame to end on, counted from 0, or null to loop.
   final int? stopAt;
 
-  /// Called once [stopAt] has been shown, or if the image cannot be played at
-  /// all — whoever is waiting on the animation is not left waiting.
+  /// Called once [stopAt] has been shown, or if the image cannot be played.
   final VoidCallback? onStopped;
 
-  /// How far behind the clock playback may fall before the clock is moved to
-  /// it, rather than frames being skipped to catch up.
+  /// How far playback may fall behind before the clock is moved instead of
+  /// skipping frames.
   final Duration maxLag;
 
   MarkPlayer({
@@ -62,8 +45,7 @@ class MarkPlayer {
   int _decoded = 0;
   Duration _nextAt = Duration.zero;
 
-  /// How much later than its own timeline the animation is being shown, from
-  /// every time the clock was moved. See [maxLag].
+  /// Total shift applied to the clock. See [maxLag].
   Duration _offset = Duration.zero;
   bool _decoding = false;
   bool _stopped = false;
@@ -92,8 +74,7 @@ class MarkPlayer {
       while (!_stopped &&
           _queue.length < _lookahead &&
           (last == null || _decoded <= last)) {
-        // A codec wraps round to the first frame after the last, which is
-        // the loop.
+        // The codec wraps to the first frame after the last.
         final frame = await codec.getNextFrame();
         if (_stopped) {
           frame.image.dispose();
@@ -119,7 +100,7 @@ class MarkPlayer {
 
     ({ui.Image image, int index, Duration at})? due;
     while (_queue.isNotEmpty && _queue.first.at <= now) {
-      // Late for this one: the next is due as well, so it is skipped.
+      // Skip frames that are already late.
       due?.image.dispose();
       due = _queue.removeFirst();
     }
@@ -140,8 +121,7 @@ class MarkPlayer {
     onStopped?.call();
   }
 
-  /// Stops playing and lets go of everything not yet shown. The frame on
-  /// screen belongs to whoever [onFrame] gave it to.
+  /// Stops and disposes frames not yet shown.
   void stop() {
     if (_stopped) return;
     _stopped = true;

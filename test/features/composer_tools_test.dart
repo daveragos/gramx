@@ -3,9 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/compose/presentation/widgets/composer_tools.dart';
 
 void main() {
-  // The attach and sticker buttons fold into one chevron while somebody
-  // types, so the field gets its width back — and unfold the moment they
-  // ask, or the moment the field is empty again.
+  // The attach and sticker buttons fold into one chevron while typing, and
+  // unfold on request or when the field is empty.
   group('composerToolsFolded', () {
     test('an empty field shows every tool', () {
       expect(
@@ -32,8 +31,7 @@ void main() {
       );
     });
 
-    // A single button folded into a single chevron saves nothing and moves a
-    // control for no reason.
+    // Folding a single button into a chevron saves no space.
     test('one tool is never folded', () {
       expect(
         composerToolsFolded(hasText: true, expandedByHand: false, toolCount: 1),

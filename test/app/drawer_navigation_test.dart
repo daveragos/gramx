@@ -13,12 +13,8 @@ import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
-/// A router with just enough in it for the drawer's two kinds of entry.
-///
-/// The drawer does two different things: tab entries hand an index back to the
-/// shell, and everything else pushes a root route. Testing only the first left
-/// the second unexercised, which is how "bookmarks pushes now" could have gone
-/// out reaching for a GoRouter that was not there.
+/// A router for the drawer's two kinds of entry: tab entries hand an index to
+/// the shell, and the rest push a root route.
 GoRouter testRouter(void Function(ShellTab) onSelectTab) => GoRouter(
   initialLocation: '/home',
   routes: [
@@ -34,8 +30,7 @@ GoRouter testRouter(void Function(ShellTab) onSelectTab) => GoRouter(
         ),
       ),
     ),
-    // Stubs: this test is about where the drawer sends you, not about what
-    // is drawn when you get there.
+    // Stubs: only the destination matters here.
     GoRoute(
       path: '/bookmarks',
       builder: (context, state) => const Scaffold(body: Text('bookmarks')),
@@ -44,13 +39,9 @@ GoRouter testRouter(void Function(ShellTab) onSelectTab) => GoRouter(
 );
 
 Widget host(void Function(ShellTab) onSelectTab) => ProviderScope(
-  // The drawer shows counts and an account, so those providers exist —
-  // none of them should reach TDLib or a database to answer a tap.
+  // Keep the drawer's providers away from TDLib and the database.
   overrides: [
-    // The drawer hides Saved Messages from a guest, and asking whether this
-    // reader is one runs through the auth controller — which builds a real
-    // TDLib client. Overridden so the drawer's *navigation* can be tested
-    // without one; none of these tests are about capabilities.
+    // The real provider goes through the auth controller and a TDLib client.
     readerCapabilitiesProvider.overrideWith(
       (ref) => ReaderCapabilities.signedIn,
     ),
@@ -80,10 +71,8 @@ Future<void> openDrawer(WidgetTester tester) async {
 }
 
 void main() {
-  // The reported failure: these two closed the drawer and did nothing else.
-  // `StatefulNavigationShell.of` searches the widget tree, and the drawer is a
-  // sibling of the navigation shell rather than a descendant of it, so the
-  // lookup could never have succeeded. The shell hands the action down now.
+  // The drawer is a sibling of the navigation shell, so
+  // `StatefulNavigationShell.of` can't find it; the shell passes the action in.
   group('drawer tab entries', () {
     testWidgets('messages asks the shell to switch', (tester) async {
       final chosen = <ShellTab>[];
@@ -96,10 +85,7 @@ void main() {
       expect(chosen, [ShellTab.messages]);
     });
 
-    // Bookmarks left the bottom bar when Messages took the fourth slot, so it
-    // is a pushed route now rather than a branch. Asking the shell to switch to
-    // a tab that no longer exists is exactly the bug the enum is pinned
-    // against, so this asserts it does *not* happen.
+    // Bookmarks is a pushed route, not a shell branch.
     testWidgets('bookmarks pushes its route instead of switching tabs', (
       tester,
     ) async {

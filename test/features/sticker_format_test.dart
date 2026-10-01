@@ -3,8 +3,6 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 
 void main() {
   group('StickerFormat.fromTdName', () {
-    // Mapping every sticker to MediaType.photo is what left TGS and WebM
-    // stickers drawing nothing: neither is an image.
     test('recognises the three Telegram formats', () {
       expect(StickerFormat.fromTdName('stickerFormatWebp'), StickerFormat.webp);
       expect(StickerFormat.fromTdName('stickerFormatTgs'), StickerFormat.tgs);
@@ -27,8 +25,7 @@ void main() {
       expect(StickerFormat.tgs.isAnimatable, isTrue);
     });
 
-    // WebM stickers are VP9 with an alpha channel, which Android's hardware
-    // decoder drops — so they fall back to the still thumbnail.
+    // WebM stickers are VP9 with alpha, which Android's hardware decoder drops.
     test('false for formats that fall back to a thumbnail', () {
       expect(StickerFormat.webm.isAnimatable, isFalse);
       expect(StickerFormat.unknown.isAnimatable, isFalse);

@@ -15,41 +15,25 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 
-/// The frame around full-screen media: who posted it, what they said, and the
+/// The frame around full-screen media: the post's author, caption and the
 /// same actions the feed card offers.
-///
-/// Opening media used to drop the reader into a bare black screen with only a
-/// identity and actions attached, so a photo can be liked or shared without
-/// backing out first — this mirrors that.
 class MediaViewerChrome extends ConsumerWidget {
-  /// The post the media belongs to. Null for media opened without one, in
-  /// which case only the close button is drawn.
+  /// The post the media belongs to. When null, only the close button shows.
   final Post? post;
 
-  /// The media itself, filling the space between the bars.
   final Widget child;
 
-  /// Extra controls pinned above the action bar — the video scrubber.
+  /// Extra controls pinned above the action bar, such as the video scrubber.
   final Widget? controls;
 
   /// Page indicator dots for an album.
   final Widget? pageIndicator;
 
-  /// Whether the chrome is currently shown. Tapping the media toggles it, so
-  /// the picture can be looked at without furniture over it.
+  /// Whether the chrome is shown. Tapping the media toggles it.
   final bool showChrome;
 
-  /// The downloaded file behind what is on screen, when there is one.
-  ///
-  /// Drives the "open with" control, which is absent rather than disabled while
-  /// the file is still arriving — a share icon that says "not yet" is furniture.
-  ///
-  /// It sits in the action bar at the bottom, at the same weight as bookmark
-  /// and share, rather than as a filled chip over the top-right corner of the
-  /// picture. Handing a photo to another app is a thing you *can* do with it,
-  /// not the thing you came here for, and a button that size on top of every
-  /// image said otherwise. The only place it still rides in the top bar is a
-  /// viewer opened without a post, which has no bottom bar to put it in.
+  /// The downloaded file on screen. The "open with" button shows only once
+  /// it is set.
   final String? localPath;
 
   const MediaViewerChrome({
@@ -72,8 +56,7 @@ class MediaViewerChrome extends ConsumerWidget {
         children: [
           Positioned.fill(child: child),
 
-          // Positioned has to stay a direct child of Stack — wrapping it in
-          // the fade throws "Incorrect use of ParentDataWidget" at runtime.
+          // Positioned must stay a direct child of the Stack.
           Positioned(
             top: 0,
             left: 0,
@@ -94,9 +77,7 @@ class MediaViewerChrome extends ConsumerWidget {
                         onTap: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
-                      // Only when there is no post, and therefore no action bar
-                      // below to carry it. With a post it lives down there
-                      // instead — see [localPath].
+                      // Only without a post; otherwise it is in the action bar.
                       if (localPath != null && currentPost == null)
                         _OpenWithButton(
                           path: localPath!,
@@ -146,10 +127,8 @@ class MediaViewerChrome extends ConsumerWidget {
   }
 }
 
-/// Author, caption, page dots, controls and actions, over a gradient.
-///
-/// The gradient exists so white controls stay legible over a light photo —
-/// without it the whole row disappears against a bright image.
+/// Author, caption, page dots, controls and actions, over a gradient that
+/// keeps white controls legible on light photos.
 class _BottomSheetChrome extends ConsumerWidget {
   /// Lines of caption shown before "Show more".
   static const int _captionLines = 3;
@@ -158,8 +137,7 @@ class _BottomSheetChrome extends ConsumerWidget {
   final Widget? controls;
   final Widget? pageIndicator;
 
-  /// The file on screen, when it has finished arriving. See
-  /// [MediaViewerChrome.localPath].
+  /// See [MediaViewerChrome.localPath].
   final String? localPath;
 
   const _BottomSheetChrome({
@@ -247,9 +225,7 @@ class _BottomSheetChrome extends ConsumerWidget {
               ),
               if (post.text != null && post.text!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
-                // Collapsed to a few lines with its own toggle. A long caption
-                // rendered in full pushed the picture off the top of the
-                // screen, which is the opposite of what a viewer is for.
+                // Capped so a long caption can't cover the picture.
                 ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.4,
@@ -293,9 +269,7 @@ class _BottomSheetChrome extends ConsumerWidget {
                         isCurrentlyLiked: post.chosenReactions.contains(emoji),
                       );
                 },
-                // Comments live on the post, so close the viewer and open
-                // it — popping alone just dropped the reader back in the feed
-                // with nothing to show for the tap.
+                // Comments are on the post screen.
                 onReplyTap: () {
                   final router = GoRouter.of(context);
                   final atPost = router.state.uri.path == '/post/${post.id}';
@@ -312,25 +286,13 @@ class _BottomSheetChrome extends ConsumerWidget {
   }
 }
 
-/// A vertical drag that is only recognised when it is *mostly* vertical.
-///
-/// Flutter's own vertical recogniser accepts as soon as the pointer has moved
-/// past the touch slop along its axis, regardless of how far it moved along
-/// the other. In a gallery that is a race it wins too often: a page swipe
-/// that drifts eighteen points downward before it has gone eighteen sideways
-/// is a vertical drag as far as the arena is concerned. This one keeps its
-/// own account of the whole movement since the finger landed, and accepts
-/// only when the vertical part is clearly the larger — [dominance] times the
-/// horizontal. Anything more sideways than that is left for the page view.
-///
-/// [onlyAcceptDragOnThreshold] is on for the same reason: when nothing else
-/// wants a drag the arena hands it to its last member when the finger lifts,
-/// and without this that handover started a dismiss for a drag that never
-/// met the rule.
+/// A vertical drag recogniser that accepts only when the total movement is
+/// mostly vertical ([dominance] times the horizontal), leaving diagonal
+/// swipes to the page view. [onlyAcceptDragOnThreshold] stops the arena
+/// handing it an unmatched drag on release.
 class MostlyVerticalDragGestureRecognizer
     extends VerticalDragGestureRecognizer {
-  /// How much larger than the sideways movement the vertical movement has to
-  /// be. A touch more than equal, so a true diagonal goes to the page.
+  /// How much larger the vertical movement must be than the horizontal.
   static const double dominance = 1.25;
 
   MostlyVerticalDragGestureRecognizer({
@@ -372,7 +334,6 @@ class MostlyVerticalDragGestureRecognizer
     return total;
   }
 
-  /// Pure, so the rule has a test of its own.
   static bool isMostlyVertical(Offset travelled, double slop) =>
       travelled.dy.abs() > slop &&
       travelled.dy.abs() > travelled.dx.abs() * dominance;
@@ -398,14 +359,12 @@ class MostlyVerticalDragGestureRecognizer
   String get debugDescription => 'mostly vertical drag';
 }
 
-/// Lets a downward (or upward) drag close the viewer, the way every gallery
-/// does. The media follows the finger and fades, so a half-committed pull
-/// shows what letting go would do.
+/// Closes the viewer on a vertical drag. The media follows the finger and
+/// fades as it goes.
 class DragToDismiss extends StatefulWidget {
   final Widget child;
 
-  /// Where the drag is allowed to start from. Zoomed images consume their own
-  /// pans, so the viewer disables this while the image is scaled up.
+  /// Disabled while an image is zoomed, so drags pan instead.
   final bool enabled;
 
   const DragToDismiss({super.key, required this.child, this.enabled = true});
@@ -415,8 +374,7 @@ class DragToDismiss extends StatefulWidget {
 }
 
 class _DragToDismissState extends State<DragToDismiss> {
-  /// How far the drag has to travel, or how fast it has to be thrown, before
-  /// letting go dismisses rather than snapping back.
+  /// Distance or velocity past which letting go dismisses.
   static const double _dismissDistance = 120;
   static const double _dismissVelocity = 700;
 
@@ -430,13 +388,7 @@ class _DragToDismissState extends State<DragToDismiss> {
     final height = MediaQuery.of(context).size.height;
     final progress = (_offset.abs() / height).clamp(0.0, 1.0);
 
-    // Not a plain vertical-drag detector. That one claims a drag the moment
-    // it has moved eighteen points up or down — before a swipe to the next
-    // picture has moved eighteen points sideways, if the thumb is at all
-    // diagonal — and then the picture slid down and faded instead of paging,
-    // and past the distance below the viewer closed on a swipe that was never
-    // meant for it. This recogniser only takes a drag that is clearly
-    // vertical, and leaves the rest to the gallery.
+    // Only clearly vertical drags; diagonal swipes go to the gallery.
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
         MostlyVerticalDragGestureRecognizer:
@@ -486,11 +438,7 @@ class _Fade extends StatelessWidget {
   }
 }
 
-/// Hands the file on screen to whatever app owns it.
-///
-/// A bare icon at the action bar's own weight — 18pt, the secondary colour, no
-/// chip behind it — so it reads as one more thing in the row rather than as a
-/// control pinned over the picture.
+/// Opens the file on screen in another app.
 class _OpenWithButton extends StatelessWidget {
   final String path;
   final Color color;
@@ -541,6 +489,7 @@ class _CircleButton extends StatelessWidget {
   }
 }
 
+/// Page dots for an album.
 class MediaPageDots extends StatelessWidget {
   final int count;
   final int index;

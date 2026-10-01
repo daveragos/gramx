@@ -5,16 +5,9 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
 
-/// The emoji-and-count chips a post has collected.
-///
-/// emoji the channel allows. The data stays — it is part of what the post
-/// looks like — but the chips are drawn quietly: no border, a faint fill, the
-/// count in secondary grey, and only the reader's own choice gets the accent.
-/// In the feed ([compact]) they shrink a step further, so a post with six
-/// reactions does not carry a second action bar above its real one.
-///
-/// One widget for the feed card and the post screen, which used to hold two
-/// copies of the same forty lines and had already started to differ.
+/// A post's reaction chips (emoji and count), drawn quietly so they don't
+/// compete with the action bar. Only the user's own reaction gets the accent;
+/// [compact] shrinks them for the feed.
 class ReactionChipsRow extends StatelessWidget {
   final Map<String, int> reactions;
   final Set<String> chosen;
@@ -38,8 +31,7 @@ class ReactionChipsRow extends StatelessWidget {
         : AppColors.lightTextSecondary;
     final fill = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
 
-    // Swallows taps so scrolling the strip, or missing a chip, does not open
-    // the post underneath.
+    // Swallows taps so a missed chip doesn't open the post underneath.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {},

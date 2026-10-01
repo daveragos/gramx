@@ -49,10 +49,7 @@ Post threadPost(
 
 void main() {
   group('reply targets', () {
-    // The reported bug: tapping the quoted reply on a perfectly ordinary post
-    // opened "post not found". Telegram lets a message reply across chats, and
-    // dropping the chat id meant asking for that message id in *this* chat,
-    // where it does not exist.
+    // Telegram replies can cross chats; without the chat id the lookup fails.
     test('a reply into another chat keeps that chat id', () {
       final post = TdlibMappers.mapMessageToPost(
         replyMessage(chatId: -1001, messageId: 50, replyChatId: -1002),
@@ -63,8 +60,7 @@ void main() {
       expect(post.replyToChatId, -1002);
     });
 
-    // 0 is TDLib's "same chat", and so is the chat's own id. Neither should
-    // become an override, or every reply would carry redundant state.
+    // 0 means the same chat, as does the chat's own id.
     test('a reply within the same chat carries no chat id', () {
       for (final replyChatId in [0, -1001]) {
         final post = TdlibMappers.mapMessageToPost(
@@ -99,9 +95,7 @@ void main() {
       expect(threads.single.replies, hasLength(1));
     });
 
-    // Message ids are only unique within a chat, so a cross-chat reply whose
-    // target id happens to match a loaded post would otherwise collapse two
-    // unrelated posts into one card.
+    // Message ids are only unique within a chat.
     test('a cross-chat reply is a quote, not a thread', () {
       final threads = groupIntoThreads([
         threadPost('-1_1', minutesAgo: 20),

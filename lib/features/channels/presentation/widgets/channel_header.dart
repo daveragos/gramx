@@ -17,20 +17,14 @@ import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 import 'package:gramx/app/widgets/pill_button.dart';
 
-/// name, handle, subscriber count, description, and the join control.
-///
-/// Telegram has no separate cover image — a channel owns exactly one photo —
-/// so the banner is that photo, shown as it is. It used to be blurred, on the
-/// theory that a small square blown up to a wide band would look wrong; in
-/// practice the blur threw away the only picture the channel has and left a
-/// coloured smear, which is the empty band the profile screen already lost to
-/// once before. A bottom-weighted scrim is what keeps the controls over it
-/// legible now, and it costs the image nothing.
+/// The top of a channel profile: cover (the channel's photo), overlapping
+/// avatar, name, handle, subscriber count, description and join button.
 class ChannelHeader extends ConsumerWidget {
   final Channel channel;
   final bool isActionBusy;
   final VoidCallback onJoinPressed;
 
+  /// Height of the cover band, roughly a 3:1 crop at phone widths.
   static const double bannerHeight = 132;
 
   static const double _avatarRadius = 38;
@@ -58,8 +52,7 @@ class ChannelHeader extends ConsumerWidget {
           clipBehavior: Clip.none,
           children: [
             _Banner(channel: channel, isDark: isDark),
-            // The avatar straddles the banner's lower edge, which is the shape
-            // that makes the block read as a profile rather than as a card.
+            // The avatar overlaps the banner's lower edge.
             Positioned(
               left: AppSpacing.postPadding,
               bottom: -_avatarRadius,
@@ -81,8 +74,8 @@ class ChannelHeader extends ConsumerWidget {
           ],
         ),
 
-        // The join button sits on the row below the banner, opposite the
-        // avatar's overhang at every text scale.
+        // The join button sits below the banner, opposite the avatar, so it
+        // clears the avatar's overhang at any text scale.
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.postPadding,
@@ -142,11 +135,8 @@ class ChannelHeader extends ConsumerWidget {
               if (channel.description != null &&
                   channel.description!.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
-                // A bio is where a channel puts its site, its discussion group
-                // and its owner, and TDLib hands it over as a bare string with
-                // no entities — so all of that rendered as grey prose. The
-                // links are re-derived rather than left flat; see
-                // linkifyPlainText for what is and is not matched.
+                // TDLib sends the description without entities, so links are
+                // found with linkifyPlainText.
                 TextEntityRenderer(
                   text: channel.description!,
                   entities: linkifyPlainText(channel.description!),
@@ -212,11 +202,7 @@ class _Banner extends ConsumerWidget {
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => ColoredBox(color: fallback),
                     ),
-                    // Not a flat wash over the whole picture: a gradient that
-                    // is strongest at the top, where the back button sits, and
-                    // clear by the middle. The photo stays the photo; only the
-                    // band under the control is darkened enough to carry it
-                    // over a bright image.
+                    // Darkest at the top, behind the back button.
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -267,7 +253,7 @@ class _JoinButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Filled for the thing the screen asks you to do, outlined once it is
+    // Filled until joined, then outlined.
     return PillButton(
       label: isJoined
           ? AppStrings.channelJoinedAction

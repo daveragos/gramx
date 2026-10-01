@@ -1,15 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-/// Where a cold start spends its time.
-///
-/// One line in the debug log per milestone, stamped with the milliseconds
-/// since the Dart side came up, so "the app takes too long to load" can be
-/// answered with a number for each stage rather than a guess about which one.
-/// Each milestone is recorded once — the feed rebuilds itself several times
-/// on the way up, and only the first time it has posts is a startup fact.
-///
-/// Nothing in release: it is for reading a `flutter run` log or `adb logcat`,
-/// not for the reader.
+/// Logs cold start milestones with milliseconds since the Dart side started.
+/// Each milestone is logged once. Disabled in release builds.
 abstract final class StartupTrace {
   static final Stopwatch _clock = Stopwatch()..start();
   static final Set<String> _seen = {};

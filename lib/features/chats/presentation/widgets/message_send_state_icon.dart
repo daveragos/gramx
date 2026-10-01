@@ -3,24 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
 
-/// The tick under a message this account sent.
-///
-/// Shape alone carries the state — one tick, two ticks, a clock, a warning —
-/// which is precisely the case a label is for, so every
-/// one of them has one.
-///
-/// Read is the accent blue and sent is not, because the difference between "it
-/// arrived" and "they read it" is the one thing anybody actually looks at here.
+/// The send-state icon on an outgoing message: clock, one tick, two ticks or
+/// a warning, each with a semantic label.
 class MessageSendStateIcon extends StatelessWidget {
   final MessageSendState state;
 
-  /// The bubble's meta colour, used for everything except read and failed —
-  /// those two say something the bubble's own colour should not soften.
+  /// The colour for every state except read and failed.
   final Color color;
 
-  /// What "read" is drawn in. White on an outgoing bubble, whose fill is
-  /// already the accent; the accent itself anywhere with no fill behind it,
-  /// like a row of the chat list — where white would simply not be there.
+  /// The colour for read: white on an outgoing bubble, the accent where there
+  /// is no bubble fill (such as the chat list).
   final Color readColor;
 
   const MessageSendStateIcon({

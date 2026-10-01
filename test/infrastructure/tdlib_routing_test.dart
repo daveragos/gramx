@@ -11,9 +11,7 @@ void main() {
       );
     });
 
-    // Presence of the key is the signal, not its value. Checking for a non-null
-    // value would misroute a reply with a null @extra into the update stream,
-    // where it would be parsed as an update and its caller would hang.
+    // The key's presence marks a reply, even when its value is null.
     test('a present-but-null @extra is still a reply', () {
       expect(
         TdlibService.isRequestReply({'@type': 'ok', '@extra': null}),
@@ -45,8 +43,7 @@ void main() {
       expect(receiver.isRunning, isFalse);
     });
 
-    // bootstrap() awaits initialisation before the first frame, so a platform
-    // where the isolate can't open TDLib must not stall startup for long.
+    // bootstrap() awaits TDLib before the first frame, so this bounds startup.
     test('readiness timeout is short enough not to stall startup', () {
       expect(TdlibReceiver.readyTimeout.inSeconds, lessThanOrEqualTo(3));
     });

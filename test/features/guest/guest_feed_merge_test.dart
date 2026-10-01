@@ -6,18 +6,11 @@ import 'package:gramx/features/guest/domain/guest_page.dart';
 import 'package:gramx/features/guest/data/tme_preview_client.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// The guest feed is supposed to be every added channel, merged newest first.
+/// The guest feed merges every added channel, newest first.
 ///
-/// It was one channel: the last one added, alone. `GuestFeedNotifier` guarded
-/// its parallel fetch with a `bool _disposed` set from `ref.onDispose`, and
-/// Riverpod fires that on a *rebuild* while keeping the notifier instance — so
-/// the flag latched true the first time the channel list changed and every
-/// later pass fetched `channels.first` and stopped. Channels are stored newest
-/// first, which is why what survived was the most recently added one.
-///
-/// The regression check is not "the feed has posts from three channels" —
-/// posts now survive a refresh, so that would pass on the broken code too. It
-/// is that every channel is *asked for* on every pass.
+/// Riverpod calls `onDispose` on a rebuild but keeps the notifier, so a
+/// disposed flag would stop later passes after one channel. The tests check
+/// that every channel is requested on every pass, not just that posts appear.
 void main() {
   // ── Fixtures ───────────────────────────────────────────────────────────────
 
@@ -38,8 +31,7 @@ void main() {
         GuestPost(
           id: '$username/$seq',
           seq: seq,
-          // Higher sequence number, more recent post — the ordering the
-          // merge is supposed to produce.
+          // Higher sequence number, more recent post.
           publishedAt: DateTime.utc(
             2026,
             8,
@@ -51,10 +43,8 @@ void main() {
     olderCursor: olderCursor,
   );
 
-  /// Answers `t.me/s/` from a script, and records everything it was asked.
-  ///
-  /// Keyed `<username>` for the newest page and `<username>|<before>` for a
-  /// page of history, which is exactly the distinction the client draws.
+  /// Answers `t.me/s/` from a script and records every request, keyed
+  /// `<username>` for the newest page and `<username>|<before>` for history.
   ScriptedTme client(Map<String, GuestChannelPage> pages) => ScriptedTme(pages);
 
   ProviderContainer containerWith(
@@ -68,15 +58,13 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    // The feed must stay alive between reads: without a listener Riverpod
-    // disposes it and the next read builds a fresh notifier, which is the one
-    // arrangement in which the bug under test cannot happen.
+    // Keep the feed alive between reads, so rebuilds reuse the same notifier.
     container.listen(guestFeedProvider, (_, _) {});
     return container;
   }
 
-  /// Waits for the fill-in workers, which [GuestFeedNotifier.build] starts and
-  /// deliberately does not await.
+  /// Waits for the fill-in workers, which [GuestFeedNotifier.build] does not
+  /// await.
   Future<GuestFeed> settle(ProviderContainer container) async {
     var feed = await container.read(guestFeedProvider.future);
     for (var turn = 0; turn < 200 && feed.isFilling; turn++) {
@@ -115,8 +103,7 @@ void main() {
       expect(feed.total, 3);
     });
 
-    // The regression. Adding a channel rebuilds the feed, and it is the second
-    // build that used to stop after one channel.
+    // Adding a channel rebuilds the feed; the second build must fetch them all.
     test('asks every channel again after one is added', () async {
       final tme = client({
         'alpha': page('alpha', seqs: [30]),
@@ -141,8 +128,7 @@ void main() {
       expect(channelsOf(feed), ['alpha', 'bravo', 'delta']);
     });
 
-    // The same latch, reached the other way: pull-to-refresh invalidates the
-    // provider, which rebuilds the notifier that is already there.
+    // Pull-to-refresh rebuilds the existing notifier the same way.
     test('asks every channel again on a refresh', () async {
       final tme = client({
         'alpha': page('alpha', seqs: [30]),
@@ -212,8 +198,7 @@ void main() {
       expect(feed.hasFailedEntirely, isFalse);
     });
 
-    // What the reader used to be shown here was "Nothing here yet — add a
-    // public channel", to someone who had added two.
+    // Someone who has added channels should not see the empty-state text.
     test('is not mistaken for an empty reading list', () async {
       final tme = client({})..failing.addAll({'alpha', 'bravo'});
       final container = containerWith(
@@ -236,8 +221,7 @@ void main() {
       expect(feed.hasFailedEntirely, isFalse);
     });
 
-    // A private or deleted channel used to come back as zero posts, which on
-    // screen is indistinguishable from a channel that never posts.
+    // A private or deleted channel is reported, not shown as zero posts.
     test('a channel that has gone private is a failure, not silence', () async {
       final tme = client({
         'alpha': page('alpha', seqs: [30]),
@@ -320,9 +304,8 @@ void main() {
       expect(tme.requested, isEmpty, reason: 'an exhausted feed stops asking');
     });
 
-    // The scroll listener fires on every frame near the bottom, and `t.me/s/`
-    // rate-limits the whole client — so a second call while one is in flight
-    // must not become a second request.
+    // The scroll listener fires every frame near the bottom and t.me
+    // rate-limits the client, so a call while one is in flight sends nothing.
     test('two overlapping calls make one pass', () async {
       final tme = client({
         'alpha': page('alpha', seqs: [30], olderCursor: 30),
@@ -339,8 +322,7 @@ void main() {
       expect(tme.requested, ['alpha|30']);
     });
 
-    // A refresh re-fetches the newest page, whose cursor points back at ground
-    // the reader has already scrolled past. Letting it win would re-page it.
+    // A refresh's cursor points at pages already loaded; it must not win.
     test(
       'a refresh does not rewind how far back the reader has paged',
       () async {
@@ -390,8 +372,7 @@ class ScriptedTme extends TmePreviewClient {
   }) async {
     final key = before == null ? username : '$username|$before';
     requested.add(key);
-    // A real request is never instant, and the fill-in workers only interleave
-    // if this yields.
+    // Yield, so the fill-in workers interleave as they would on a network.
     await Future<void>.delayed(Duration.zero);
 
     if (failing.contains(username)) {
@@ -401,8 +382,7 @@ class ScriptedTme extends TmePreviewClient {
 
     final page = pages[key];
     if (page == null) {
-      // No scripted history means the channel has none, which is what an
-      // exhausted `before=` page looks like.
+      // No scripted history: an exhausted `before=` page.
       if (before != null) {
         return TmeFetchSuccess(
           GuestChannelPage(

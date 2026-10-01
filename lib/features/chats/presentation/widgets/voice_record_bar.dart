@@ -6,20 +6,14 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/domain/voice_waveform.dart';
 
-/// The composer while a voice message is being recorded.
-///
-/// Replaces the field rather than sitting beside it. Recording is a mode with
-/// exactly two ways out — send it or throw it away — and leaving the text field
-/// there would offer a third that means nothing.
-///
-/// The bars are the amplitudes actually being captured, not decoration: they
-/// are the same numbers that travel with the message, so what the recorder
-/// shows is what the other side will see under it.
+/// Replaces the composer field while a voice message records, with cancel
+/// and send buttons. The bars are the captured waveform that is sent with the
+/// message.
 class VoiceRecordBar extends StatelessWidget {
   /// How long the recording has been running.
   final Duration elapsed;
 
-  /// Amplitudes so far, in Telegram's 0–31 range, oldest first.
+  /// Amplitudes so far, in Telegram's 0 to 31 range, oldest first.
   final List<int> waveform;
 
   final VoidCallback onCancel;
@@ -33,9 +27,7 @@ class VoiceRecordBar extends StatelessWidget {
     required this.onSend,
   });
 
-  /// How many bars the bar itself draws. The tail of the recording, so the
-  /// display scrolls rather than compressing an ever-longer take into the same
-  /// width and going still.
+  /// How many of the latest samples are drawn, so the display scrolls.
   static const int visibleBars = 48;
 
   String get _elapsedLabel {
@@ -70,9 +62,7 @@ class VoiceRecordBar extends StatelessWidget {
             icon: Icon(Icons.delete_outline_rounded, color: secondary),
             onPressed: onCancel,
           ),
-          // The dot is the "recording" light every recorder has. It is paired
-          // with the running clock beside it, so the state does not rest on a
-          // colour alone.
+          // Recording dot, paired with the clock so it isn't colour alone.
           Container(
             width: 8,
             height: 8,
@@ -137,8 +127,7 @@ class _WaveformPainter extends CustomPainter {
 
     for (var i = 0; i < samples.length; i++) {
       final fraction = samples[i] / VoiceWaveform.maxAmplitude;
-      // A floor, so silence is a dot on the centre line rather than nothing at
-      // all — a gap in the bars reads as the recorder having stopped.
+      // A minimum height, so silence still draws a dot.
       final height = (size.height * fraction).clamp(2.0, size.height);
       final x = slot * i + slot / 2;
       canvas.drawLine(

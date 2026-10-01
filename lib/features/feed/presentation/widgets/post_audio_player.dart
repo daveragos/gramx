@@ -11,19 +11,9 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// A voice message or music track, with a bar that can be dragged.
-///
-/// Two different things share the one bar, and which one it is depends on
-/// whether the file has arrived:
-///
-/// * **while downloading** it is a progress bar and nothing else, filled from
-///   the `UpdateFile` stream. That stream used to carry only *completed*
-///   files, which is why a download here announced itself in a snackbar and
-///   then jumped straight to a play icon with nothing in between — see
-///   `TdlibService._emitFileUpdate`;
-/// * **once downloaded** it is a scrubber. Dragging it seeks, and it will
-///   initialise the player to do so, so the reader does not have to press play
-///   first just to move within the track.
+/// A voice message or music track. While downloading, the bar shows download
+/// progress from `UpdateFile`; once downloaded, it is a scrubber that starts
+/// the player if needed.
 class PostAudioPlayer extends ConsumerStatefulWidget {
   final MediaItem item;
 
@@ -39,12 +29,9 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
   bool _isPlaying = false;
   Duration _position = Duration.zero;
 
-  /// Where the reader's thumb is, as a fraction of the track, while a drag is
-  /// in flight. Null when nobody is dragging.
-  ///
-  /// Held separately from [_position] because the controller keeps reporting
-  /// the *old* position until the seek lands, and letting that win would drag
-  /// the handle back out from under the thumb.
+  /// The drag position as a fraction of the track, or null when not dragging.
+  /// Separate from [_position] because the controller reports the old
+  /// position until the seek lands.
   double? _scrubFraction;
 
   @override
@@ -62,9 +49,8 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     });
   }
 
-  /// The track's length: the player's answer once it has one, and Telegram's
-  /// own metadata until then — which is what lets the bar be dragged before
-  /// anything has been decoded.
+  /// The track's length from the player, or from Telegram's metadata before
+  /// the player is ready.
   Duration get _duration {
     final decoded = _controller?.value.duration;
     if (decoded != null && decoded > Duration.zero) return decoded;
@@ -104,8 +90,7 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     }
   }
 
-  /// Seeks to a fraction of the track, starting the player if it has not been
-  /// built yet — dragging the bar is a way of saying "play from here".
+  /// Seeks to a fraction of the track, starting the player if needed.
   Future<void> _seekToFraction(String path, double fraction) async {
     final total = _duration;
     if (total <= Duration.zero) {
@@ -220,9 +205,6 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                // A progress bar and a scrubber are different controls, and
-                // showing the draggable one over a file that has not arrived
-                // would be a handle that moves nothing.
                 if (isDownloaded)
                   _Scrubber(
                     fraction: barFraction,
@@ -345,13 +327,8 @@ class _TransportButton extends StatelessWidget {
   }
 }
 
-/// The draggable position bar.
-///
-/// A `Slider` rather than a bar with a gesture detector on it: it comes with
-/// the hit slop, the keyboard handling and the accessibility actions already
-/// right, and those are the parts a hand-rolled scrubber gets wrong. Sized
-/// down hard, because the default Material slider is furniture next to a
-/// four-pixel progress line.
+/// The draggable position bar: a compact `Slider`, for its hit slop,
+/// keyboard handling and accessibility actions.
 class _Scrubber extends StatelessWidget {
   final double fraction;
   final Color trackColor;

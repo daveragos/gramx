@@ -7,42 +7,22 @@ enum ContentHandling {
   /// The post mapper draws it in full.
   rendered,
 
-  /// Telegram's own notice about the chat itself. Dropped from the feed —
-  /// nobody scrolls a timeline to learn that a channel photo changed.
+  /// Telegram's notice about the chat itself. Dropped from the feed.
   service,
 
-  /// Real content the feed can name but cannot draw yet. Gets a plain label,
-  /// which beats an empty card.
+  /// Real content the feed can name but cannot draw yet. Shown as a label.
   labelled,
 
-  /// TDLib itself says this build cannot represent the message. The only case
-  /// worth sending the reader to Telegram for.
+  /// TDLib cannot represent the message, so the user is sent to Telegram.
   unrepresentable,
 }
 
 /// How one content type is handled, and the label it carries if any.
 typedef ContentSupport = ({ContentHandling handling, String? label});
 
-/// What to do with a message whose content the feed cannot render as a card.
-///
-/// `mapMessageToPost` only builds text and media for the content types it
-/// knows. Everything else used to fall through with no text and no media,
-/// producing a card with a header, a timestamp, an action bar, and nothing in
-/// between.
-///
-/// The classification is **one exhaustive switch** over a sealed class, with no
-/// `default` branch. That is deliberate and load-bearing: the previous version
-/// named fourteen of TDLib's seventy-three content types and swept the rest
-/// into `_ => unsupportedLabel`, so twenty perfectly real things — a channel
-/// boost, a giveaway announcement, a gifted subscription, an expired photo —
-/// arrived in the feed reading that gramX could not show them. Without a
-/// `default`, the next TDLib upgrade that adds a content type fails
-/// `flutter analyze` instead of quietly reaching a reader.
-///
-/// What is left in [ContentHandling.unrepresentable] is genuinely out of
-/// reach: `messageUnsupported` is TDLib saying the message is from a newer
-/// layer than the TDLib this build links against, so there is no content to
-/// draw at any price short of upgrading `handy_tdlib`.
+/// Classifies each message content type for the feed. The switch has no
+/// `default`, so a new TDLib content type fails `flutter analyze` until it is
+/// classified here.
 abstract class MessageContentSupport {
   static const ContentSupport _rendered = (
     handling: ContentHandling.rendered,
@@ -56,16 +36,13 @@ abstract class MessageContentSupport {
   static ContentSupport _labelled(String label) =>
       (handling: ContentHandling.labelled, label: label);
 
-  /// The single source of truth. Everything else on this class derives from it.
+  /// The single source of truth for this class.
   static ContentSupport supportFor(td.MessageContent content) {
     return switch (content) {
-      // — Drawn in full ————————————————————————————————————————————————
+      // Drawn in full
       td.MessageText() => _rendered,
       td.MessagePhoto() => _rendered,
       td.MessageVideo() => _rendered,
-      // A round video note is a video with a circular mask. It was labelled
-      // rather than drawn, so a channel that posts them showed a line of text
-      // where the video was.
       td.MessageVideoNote() => _rendered,
       td.MessageAnimation() => _rendered,
       td.MessageDocument() => _rendered,
@@ -74,7 +51,7 @@ abstract class MessageContentSupport {
       td.MessagePoll() => _rendered,
       td.MessageSticker() => _rendered,
 
-      // — Named, not drawn —————————————————————————————————————————————
+      // Named, not drawn
       td.MessageLocation() => _labelled('📍 Location'),
       td.MessageVenue() => _labelled('📍 Venue'),
       td.MessageContact() => _labelled('👤 Contact'),
@@ -84,21 +61,18 @@ abstract class MessageContentSupport {
       td.MessageStory() => _labelled('📖 Story'),
       td.MessagePaidMedia() => _labelled('🔒 Paid media'),
       td.MessageCall() => _labelled('📞 Call'),
-      // It carries the emoji it animates, so the card can show the thing
-      // itself rather than the words "animated emoji".
+      // Shows the emoji itself when there is one.
       td.MessageAnimatedEmoji(:final emoji) => _labelled(
         emoji.isNotEmpty ? emoji : '😀 Animated emoji',
       ),
 
-      // Self-destructing media. The content is genuinely gone, so saying so is
-      // the whole of what can be said.
+      // Self-destructing media whose content is gone.
       td.MessageExpiredPhoto() => _labelled('📷 Photo expired'),
       td.MessageExpiredVideo() => _labelled('🎬 Video expired'),
       td.MessageExpiredVideoNote() => _labelled('🎥 Video message expired'),
       td.MessageExpiredVoiceNote() => _labelled('🎤 Voice message expired'),
 
-      // Giveaways and gifts. Channels post these constantly, and every one of
-      // them used to read as an unsupported message.
+      // Giveaways and gifts.
       td.MessageGiveaway() => _labelled('🎁 Giveaway'),
       td.MessageGiveawayWinners() => _labelled('🎁 Giveaway results'),
       td.MessageGiveawayCompleted() => _labelled('🎁 Giveaway ended'),
@@ -107,7 +81,7 @@ abstract class MessageContentSupport {
       td.MessagePremiumGiftCode() => _labelled('🎁 Telegram Premium gift'),
       td.MessageGiftedStars() => _labelled('⭐ Gifted Telegram Stars'),
 
-      // — Service notices, dropped —————————————————————————————————————
+      // Service notices, dropped
       td.MessageBasicGroupChatCreate() => _service,
       td.MessageSupergroupChatCreate() => _service,
       td.MessageChatChangeTitle() => _service,
@@ -124,10 +98,8 @@ abstract class MessageContentSupport {
       td.MessageChatSetBackground() => _service,
       td.MessageChatSetTheme() => _service,
       td.MessageChatSetMessageAutoDeleteTime() => _service,
-      // channel generates several times a day.
       td.MessageChatBoost() => _service,
-      // The announcement that a giveaway is coming, as distinct from the
-      // giveaway post itself, which is labelled above.
+      // The giveaway announcement; the giveaway post itself is labelled.
       td.MessageGiveawayCreated() => _service,
       td.MessageForumTopicCreated() => _service,
       td.MessageForumTopicEdited() => _service,
@@ -142,8 +114,7 @@ abstract class MessageContentSupport {
       td.MessageInviteVideoChatParticipants() => _service,
       td.MessageGameScore() => _service,
       td.MessageProximityAlertTriggered() => _service,
-      // Payments, bot plumbing and Passport. None of it belongs in a reading
-      // feed, and most of it cannot occur in a channel at all.
+      // Payments, bot plumbing and Passport.
       td.MessagePaymentSuccessful() => _service,
       td.MessagePaymentSuccessfulBot() => _service,
       td.MessagePaymentRefunded() => _service,
@@ -155,7 +126,7 @@ abstract class MessageContentSupport {
       td.MessagePassportDataSent() => _service,
       td.MessagePassportDataReceived() => _service,
 
-      // — TDLib cannot represent it ————————————————————————————————————
+      // TDLib cannot represent it
       td.MessageUnsupported() => (
         handling: ContentHandling.unrepresentable,
         label: unsupportedLabel,
@@ -171,20 +142,12 @@ abstract class MessageContentSupport {
   static bool isServiceMessage(td.MessageContent content) =>
       supportFor(content).handling == ContentHandling.service;
 
-  /// A short human label for real content the feed cannot draw yet.
-  ///
-  /// Returns null for content that is rendered properly, or that should be
-  /// dropped. The label is deliberately plain — it tells the reader something
-  /// is there and what kind of thing it is, which beats an empty card.
+  /// A short label for real content the feed cannot draw yet. Null for
+  /// content that is rendered or dropped.
   static String? describe(td.MessageContent content) =>
       supportFor(content).label;
 
-  /// Content we have no card for at all.
-  ///
-  /// Distinct from content we can *label* — a location or a giveaway is a known
-  /// thing with a known name, whereas `messageUnsupported` is TDLib telling us
-  /// this build cannot represent the message. Only the latter is worth sending
-  /// the reader to Telegram for.
+  /// Content this build cannot represent at all (`messageUnsupported`).
   static bool isUnsupported(td.MessageContent content) =>
       supportFor(content).handling == ContentHandling.unrepresentable;
 

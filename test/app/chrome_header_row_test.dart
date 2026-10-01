@@ -10,8 +10,7 @@ Widget harness({required bool centerTitle}) {
         child: ChromeHeaderRow(
           title: 'gramX',
           centerTitle: centerTitle,
-          // A wide leading widget, like the feed's account avatar tap
-          // target, is exactly what pushed the title off-center before.
+          // A wide leading widget, like the feed's account avatar.
           leading: const SizedBox(width: 120),
         ),
       ),
@@ -30,8 +29,7 @@ void main() {
     final rowCenter = (rowLeft + rowRight) / 2;
     final titleCenter = tester.getCenter(find.text('gramX')).dx;
 
-    // The wide leading widget should push an uncentered title well past
-    // the row's midpoint, not leave it centered.
+    // The wide leading widget pushes an uncentered title past the midpoint.
     expect(titleCenter, greaterThan(rowCenter));
   });
 

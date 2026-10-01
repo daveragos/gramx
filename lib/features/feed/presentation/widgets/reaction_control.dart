@@ -10,22 +10,18 @@ import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_picker_overlay.dart';
 
-/// The reaction affordance, shared by posts and comments.
-///
-/// Telegram messages take any of the chat's reactions, not a like — so tapping
-/// with nothing chosen opens the picker, tapping your own reaction takes it
-/// back, and a long press always opens the picker. Comments used to hard-code a
-/// heart, which meant the only reaction a reader could ever leave on a comment
-/// was ❤️ regardless of what the channel allowed.
+/// The reaction button for posts and comments. Tapping with no reaction
+/// opens the picker, tapping your own reaction removes it, and a long press
+/// always opens the picker.
 class ReactionControl extends ConsumerStatefulWidget {
-  /// The message being reacted to — a post or a comment.
+  /// The post or comment being reacted to.
   final Post post;
 
-  /// Colour when the reader has not reacted.
+  /// Colour when the user has not reacted.
   final Color color;
 
-  /// Applies the choice. Optimistic state and the TDLib call belong to the
-  /// caller, which knows which list the message came from.
+  /// Applies the choice. The caller handles optimistic state and the TDLib
+  /// call.
   final ValueChanged<String> onSelectReaction;
 
   final double iconSize;
@@ -47,9 +43,8 @@ class ReactionControl extends ConsumerStatefulWidget {
 }
 
 class _ReactionControlState extends ConsumerState<ReactionControl> {
-  /// Anchors the picker to this button. A key created in `build` points at
-  /// whatever was mounted last, which put the picker in the wrong place after
-  /// any rebuild — so it is held here instead.
+  /// Anchors the picker to this button. Held in state so it survives
+  /// rebuilds.
   final GlobalKey _anchorKey = GlobalKey();
 
   Future<void> _showPicker() async {
@@ -79,7 +74,6 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
     HapticFeedback.lightImpact();
     final chosen = widget.post.chosenReactions;
     if (chosen.isNotEmpty) {
-      // Tapping your own reaction takes it back.
       widget.onSelectReaction(chosen.first);
       return;
     }
@@ -91,8 +85,7 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
     final post = widget.post;
     final totalReactions = post.reactions.values.fold<int>(0, (a, b) => a + b);
     final hasOwnReaction = post.chosenReactions.isNotEmpty;
-    // Show your own reaction when you have one; otherwise preview the most
-    // common one so the button says what tapping it would join.
+    // The user's own reaction, or else the most common one.
     final activeEmoji = hasOwnReaction
         ? post.chosenReactions.first
         : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
@@ -121,9 +114,7 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
               if (activeEmoji != null)
                 Text(activeEmoji, style: TextStyle(fontSize: widget.emojiSize))
               else
-                // Filled and coloured only when *this* reader reacted. Keying
-                // it off the total made every popular post look like you had
-                // already reacted to it.
+                // Filled only when the user has reacted.
                 Icon(
                   hasOwnReaction ? Icons.favorite : Icons.favorite_border,
                   color: hasOwnReaction ? AppColors.like : widget.color,

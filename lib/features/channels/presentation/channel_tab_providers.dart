@@ -6,7 +6,7 @@ import 'package:gramx/features/channels/domain/channel_tab.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
-/// Identifies one tab of one channel. The key everything below is stored under.
+/// Identifies one tab of one channel.
 @immutable
 class ChannelTabKey {
   final String channelId;
@@ -33,9 +33,7 @@ class ChannelTabState {
   final List<Post> posts;
   final bool isLoading;
 
-  /// True once the tab has been asked for at least once. Distinguishes "no
-  /// media in this channel" from "nobody has looked yet", which is the whole
-  /// difference between an empty state and a spinner.
+  /// Whether the tab has been fetched, so an empty tab isn't shown as loading.
   final bool hasFetched;
 
   /// True when TDLib reported no further page.
@@ -50,8 +48,8 @@ class ChannelTabState {
     this.error,
   });
 
-  /// Where the next page starts. Zero on a fresh tab, otherwise the oldest
-  /// message loaded — TDLib pages a search backwards by message id.
+  /// Where the next page starts: zero on a fresh tab, otherwise the oldest
+  /// loaded message, since TDLib pages a search backwards by message id.
   int get nextFromMessageId => posts.isEmpty
       ? 0
       : posts.map((p) => p.messageId).reduce((a, b) => a < b ? a : b);
@@ -74,18 +72,9 @@ class ChannelTabState {
   }
 }
 
-/// Holds every channel tab's loaded pages, and owns the rule that keeps this
-/// screen off the request budget.
-///
-/// **A tab is fetched only when the reader selects it.** Five tabs opened
-/// eagerly would be four networked `SearchChatMessages` calls per channel
-/// visited, for content nobody asked to see — the same shape of mistake as the
-/// cold-start fan-out this app once had. [ensureLoaded] is therefore driven by
-/// the tab controller, not by `build`.
-///
-/// The in-flight and exhausted flags are not optional either: pagination hangs
-/// off a scroll listener, which fires on every frame near the bottom of a list.
-/// Same guard as `OlderChannelPostsNotifier`, and for the same reason.
+/// Every channel tab's loaded pages. A tab is fetched only when selected, via
+/// [ensureLoaded] from the tab controller. In-flight and exhausted flags stop
+/// the scroll listener from requesting a page per frame.
 class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
   @override
   Map<ChannelTabKey, ChannelTabState> build() => {};
@@ -93,9 +82,8 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
   ChannelTabState stateFor(ChannelTabKey key) =>
       state[key] ?? const ChannelTabState();
 
-  /// Loads the first page, if this tab has never been asked.
-  ///
-  /// Safe to call on every tab change: a tab already fetched costs nothing.
+  /// Loads the first page if the tab has never been fetched. Safe to call on
+  /// every tab change.
   Future<void> ensureLoaded(ChannelTabKey key, int chatId) async {
     final current = stateFor(key);
     if (current.hasFetched || current.isLoading) return;
@@ -113,8 +101,7 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
     return stateFor(key).posts.length > before;
   }
 
-  /// Drops everything loaded for a channel, so a refresh starts clean instead
-  /// of stacking a second copy of each tab under the first.
+  /// Drops a channel's loaded tabs, so a refresh doesn't duplicate them.
   void reset(String channelId) {
     final next = Map<ChannelTabKey, ChannelTabState>.from(state)
       ..removeWhere((key, _) => key.channelId == channelId);
@@ -143,8 +130,7 @@ class ChannelTabNotifier extends Notifier<Map<ChannelTabKey, ChannelTabState>> {
           posts: [...before.posts, ...additions],
           isLoading: false,
           hasFetched: true,
-          // TDLib's own end-of-results signal, plus the case where a page
-          // added nothing new — which is how a duplicate-only page ends.
+          // TDLib's end signal, or a later page that added only duplicates.
           isExhausted:
               page.isExhausted || (fromMessageId != 0 && additions.isEmpty),
         ),
@@ -164,11 +150,8 @@ final channelTabNotifierProvider =
       ChannelTabNotifier.new,
     );
 
-/// One tab's rows, with optimistic reaction and bookmark state layered on.
-///
-/// Synchronous, like `channelPostsProvider` — watching the overrides inside a
-/// future would re-run the search on every reaction tap, which is a TDLib
-/// request and a spinner per tap.
+/// One tab's rows with optimistic reactions and bookmarks applied. Synchronous,
+/// so a reaction tap doesn't re-run the search.
 final channelTabPostsProvider = Provider.family<ChannelTabState, ChannelTabKey>(
   (ref, key) {
     final tabs = ref.watch(channelTabNotifierProvider);

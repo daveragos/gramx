@@ -5,30 +5,21 @@ enum AutoPlayPolicy {
   /// Nothing starts on its own; tap to play.
   never,
 
-  /// Media plays while it is on screen. GIFs are short and silent, so this is
-  /// the default — it is what makes a feed of reaction GIFs read correctly.
+  /// Media plays while it is on screen. The default.
   always;
 
   static AutoPlayPolicy fromName(String? name) => AutoPlayPolicy.values
       .firstWhere((v) => v.name == name, orElse: () => AutoPlayPolicy.always);
 }
 
-/// Whether photos fetch themselves, or wait to be asked.
-///
-/// Separate from [AutoPlayPolicy]: a GIF that plays on its own is a question
-/// about motion, a photo that downloads on its own is a question about data.
-/// Someone on a metered connection wants the second off and may not care about
-/// the first.
+/// Whether photos download on their own or wait for a tap. Separate from
+/// [AutoPlayPolicy] because this one is about data use, not motion.
 enum AutoDownloadPolicy {
-  /// Photos load when they scroll into view. The default — a feed of blurred
-  /// placeholders is not a feed.
+  /// Photos load when they scroll into view. The default.
   always,
 
-  /// Only the tiny embedded preview loads; the full photo waits for a tap.
-  ///
-  /// The preview is the minithumbnail Telegram ships inside the message
-  /// itself, so it costs no request at all. That is what makes "off" show
-  /// something rather than a grey box.
+  /// Only the minithumbnail embedded in the message shows (it costs no
+  /// request); the full photo waits for a tap.
   never;
 
   static AutoDownloadPolicy fromName(String? name) =>
@@ -38,18 +29,15 @@ enum AutoDownloadPolicy {
       );
 }
 
-/// the device between [light] and [dark].
-///
-/// a reader who switches their phone at sunset actually wants. Dim is never
-/// picked by it: the platform knows two brightnesses, and dim is the app's
-/// own third look, so it stays a choice made by hand.
+/// The app theme. [system] follows the device between [light] and [dark];
+/// [dim] is only ever chosen by hand.
 enum AppThemeMode {
   light,
   dim,
   dark,
   system;
 
-  /// Whether the device, not the reader, decides between light and dark.
+  /// Whether the device decides between light and dark.
   bool get followsDevice => this == AppThemeMode.system;
 
   static AppThemeMode fromName(String? name) => AppThemeMode.values.firstWhere(
@@ -58,31 +46,19 @@ enum AppThemeMode {
   );
 }
 
-/// Everything the settings screen can change, in one immutable value.
-///
-/// Kept as one object rather than a provider per toggle so persistence is a
-/// single read and a single write, and so a new setting cannot be added without
-/// also being saved.
+/// Everything the settings screen can change, in one immutable value, so
+/// persistence is a single read and write.
 class AppSettings {
   final AppThemeMode themeMode;
   final AutoPlayPolicy autoPlay;
   final AutoDownloadPolicy autoDownloadImages;
 
-  /// Whether the reader chose to browse without a Telegram account.
-  ///
-  /// Persisted here rather than held in memory because it decides whether the
-  /// app shell is reachable at all: a guest who closes the app and reopens it
-  /// must land back in their feed, not on the sign-in screen they deliberately
-  /// walked past.
+  /// Whether the user chose to browse without a Telegram account. Persisted
+  /// so a guest reopening the app lands in the feed, not on sign-in.
   final bool guestMode;
 
-  /// Whether gramX may put a notification on the screen.
-  ///
-  /// Defaults **off**, and that is deliberate: turning it on is also what asks
-  /// the operating system for permission, and a permission dialog nobody asked
-  /// for is the one every reader declines — after which the app has to send
-  /// them to their system settings to undo it. Off until Settings is visited
-  /// costs a reader who wants notifications one tap, once.
+  /// Whether gramX may show notifications. Off by default, so the Android
+  /// permission is only requested when the user turns it on.
   final bool notificationsEnabled;
 
   const AppSettings({
@@ -93,10 +69,8 @@ class AppSettings {
     this.notificationsEnabled = false,
   });
 
-  /// True when videos and GIFs should start on their own.
   bool get autoPlayEnabled => autoPlay == AutoPlayPolicy.always;
 
-  /// True when a photo should fetch itself as it scrolls into view.
   bool get autoDownloadImagesEnabled =>
       autoDownloadImages == AutoDownloadPolicy.always;
 
@@ -124,8 +98,8 @@ class AppSettings {
     'notificationsEnabled': notificationsEnabled,
   };
 
-  /// Tolerant by design: a settings file written by an older or newer build
-  /// should cost the user their preference for one field, never the whole file.
+  /// Missing fields and unknown names fall back to defaults, so a file from
+  /// an older or newer build keeps its other settings.
   factory AppSettings.fromJson(Map<String, dynamic> json) {
     return AppSettings(
       themeMode: AppThemeMode.fromName(json['themeMode'] as String?),

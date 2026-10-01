@@ -160,10 +160,8 @@ void main() {
       expect(message.selfDestructs, isFalse);
     });
 
-    // The expiry arrives as a content update, and the bubble has to stop
-    // drawing a cover for media that is now gone. Before, the fold only read
-    // the caption and the media off the new content and left the secret flag
-    // where it was, so the cover stayed and offered a tap that opened nothing.
+    // Expiry arrives as a content update, and the bubble must drop the cover
+    // for media that is gone.
     test('expiry clears the secret flag through a content update', () {
       final message = ChatMessageMapper.map(
         TdFixtures.secretPhotoMessage(id: 4, chatId: 9),
@@ -179,7 +177,7 @@ void main() {
       expect(state, isNotNull);
       expect(state!.messages.single.isSecretMedia, isFalse);
       expect(state.messages.single.media, isEmpty);
-      // And it says what happened rather than going blank.
+      // Shows a label rather than going blank.
       expect(state.messages.single.text, isNotNull);
     });
   });

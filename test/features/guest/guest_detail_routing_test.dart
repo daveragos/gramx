@@ -2,14 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/features/channels/domain/channel_tab.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 
-/// Every detail screen in the app went through TDLib, and a guest post has no
-/// TDLib behind it — so a post the reader could plainly see on the feed opened
-/// onto "post not found", and its channel onto "channel unavailable".
-///
-/// The discriminator is the synthetic chat id. These tests pin it, because
-/// getting it wrong in either direction is bad in a different way: too narrow
-/// and guest detail screens break again, too wide and a real Telegram channel
-/// gets routed into the guest path and shows nothing.
+/// Guest posts have no TDLib chat behind them, so detail screens route them by
+/// their synthetic chat id. These tests pin the id range in both directions:
+/// guest ids must be recognised, and real channel ids must not be.
 void main() {
   group('synthetic chat ids', () {
     test('a guest channel id is recognised as synthetic', () {
@@ -51,8 +46,7 @@ void main() {
       );
     });
 
-    // How the detail providers split the two sources: the post id's chat half
-    // is what decides which way the lookup goes.
+    // The chat half of a post id decides which source the detail lookup uses.
     test('a guest post id parses back to a synthetic chat id', () {
       final chatId = GuestPostMapper.syntheticChatId('ragoose_dumps');
       const messageId = 482;
@@ -66,8 +60,7 @@ void main() {
   });
 
   group('guest channel tabs', () {
-    // Four of the five tabs are SearchChatMessages, which needs a real chat.
-    // A guest channel has none, so those tabs could only ever show an error.
+    // Four of the five tabs use SearchChatMessages, which needs a real chat.
     List<ChannelTab> tabsFor({required bool isGuest}) =>
         isGuest ? const [ChannelTab.posts] : ChannelTab.values;
 
@@ -79,7 +72,6 @@ void main() {
       expect(tabsFor(isGuest: false), hasLength(5));
     });
 
-    // The one tab a guest does get must be the one that needs no search.
     test('the guest tab is a history tab', () {
       expect(tabsFor(isGuest: true).single.isHistory, isTrue);
     });

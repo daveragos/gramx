@@ -32,9 +32,7 @@ Post post(
 }
 
 void main() {
-  // The reported fault: every launch opened on the posts the reader went
-  // through the time before, because a launch kept read posts and only a
-  // refresh dropped them.
+  // A launch shows only unread posts, not the ones read last time.
   group('unreadOnly', () {
     test('drops posts Telegram counts as read', () {
       final posts = [
@@ -45,8 +43,8 @@ void main() {
       expect(unreadOnly(posts).map((p) => p.id), ['-1_2']);
     });
 
-    // The acknowledgement is still queued, so Telegram's cursor has not
-    // caught up yet. This app's own record is what knows.
+    // The read acknowledgement may still be queued, so the local record counts
+    // too.
     test('drops posts read here before Telegram agrees', () {
       final posts = [post('-1_1', minutesAgo: 10), post('-1_2', minutesAgo: 5)];
 
@@ -69,9 +67,8 @@ void main() {
     });
   });
 
-  // A headline card is built before the names of forwarded-from channels and
-  // the excerpts of replied-to posts are looked up; the local pass that
-  // follows has them, and must not lose to the card it improves on.
+  // A headline card is built before forward names and reply excerpts are
+  // resolved, so the later local pass must replace it.
   group('replacePostsNewestFirst', () {
     test('takes the incoming copy of a post both hold', () {
       final current = [post('-1_2', minutesAgo: 5)];
@@ -108,8 +105,8 @@ void main() {
     });
   });
 
-  // Paging a channel whose older history is all read fetches a page the
-  // unread rule then throws away, on every scroll to the bottom.
+  // Paging a channel whose older history is all read would fetch posts that
+  // are then filtered out.
   group('cursorsWithUnreadBehind', () {
     td.Chat channel(int id, {required int unread, required int lastRead}) =>
         TdFixtures.chat(
@@ -129,8 +126,7 @@ void main() {
       expect(cursorsWithUnreadBehind({-1: 120}, (id) => chats[id]), isEmpty);
     });
 
-    // A channel this account runs: its posts are its own, so nothing in it is
-    // ever unread, however far behind the inbox cursor sits.
+    // For example, a channel this account runs, whatever its inbox cursor.
     test('drops a channel with nothing unread', () {
       final chats = {-1: channel(-1, unread: 0, lastRead: 0)};
 
@@ -155,9 +151,8 @@ void main() {
       expect(merged.map((p) => p.id), ['-1_3', '-1_2', '-2_9']);
     });
 
-    // Optimistic state lives on the post in the list. Replacing an existing
-    // entry with a freshly fetched copy would silently undo a reaction or
-    // bookmark the user just tapped.
+    // Optimistic state lives on the listed post, so a fetched copy must not
+    // undo a reaction or bookmark just tapped.
     test('keeps the existing copy of a post it already has', () {
       final current = [post('-1_2', minutesAgo: 10, isBookmarked: true)];
       final incoming = [post('-1_2', minutesAgo: 10)];

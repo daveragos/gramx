@@ -22,12 +22,8 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 
-///
-/// It used to be an avatar, a phone number and a red Log out button — a
-/// avatar over its edge, name and handle, a bio, a row of counts and tabs of
-/// what you have kept. Telegram has all of that for an account: a bio (from
-/// the same lookup the person screen uses), the channels you read and the
-/// folders you sort them into for the counts, and your bookmarks for a tab.
+/// The signed-in user's own profile: banner, avatar, name, handle, bio,
+/// channel and folder counts, and tabs for bookmarks and channels.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -60,7 +56,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-/// The two tabs under the header. Both are things this account has chosen,
+/// The two tabs under the header.
 enum _ProfileTab {
   bookmarks,
   channels;
@@ -86,9 +82,8 @@ class _AccountProfile extends ConsumerWidget {
         : AppColors.lightTextSecondary;
     final displayName = account.displayName ?? AppStrings.drawerAccountFallback;
 
-    // The bio comes from the same lookup the person screen makes for anybody
-    // else — one request, cached by the chat cache — because the accounts
-    // table never stored one.
+    // The accounts table has no bio, so it comes from the same cached user
+    // lookup the person screen uses.
     final selfId = ref.watch(selfUserIdProvider);
     final bio = selfId == null
         ? null
@@ -101,6 +96,7 @@ class _AccountProfile extends ConsumerWidget {
       length: _ProfileTab.values.length,
       child: Scaffold(
         appBar: AppBar(
+          // The collapsed bar shows the name rather than "Profile".
           title: Text(displayName, overflow: TextOverflow.ellipsis),
         ),
         body: NestedScrollView(
@@ -171,9 +167,8 @@ class _ProfileHeader extends StatelessWidget {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            // Telegram has no cover photo for an account, so the band is a
-            // wash of the accent — the same fallback a channel with no photo
-            // gets, and enough to give the avatar an edge to sit on.
+            // Telegram accounts have no cover photo, so the banner is an
+            // accent wash, like a channel without a photo.
             Container(
               height: _bannerHeight,
               width: double.infinity,
@@ -200,8 +195,7 @@ class _ProfileHeader extends StatelessWidget {
             ),
           ],
         ),
-        // edits an account from its own app, so the row is left clear rather
-        // than carrying a button that would have to say no.
+        // The row the avatar overhangs, left empty.
         const SizedBox(height: _avatarRadius + AppSpacing.md),
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -237,7 +231,7 @@ class _ProfileHeader extends StatelessWidget {
                 _PhoneLine(phone: phone, secondary: secondary),
               ],
               const SizedBox(height: AppSpacing.md),
-              // each a way into the thing it counts.
+              // Counts row: each figure opens what it counts.
               Row(
                 children: [
                   _Count(
@@ -266,8 +260,7 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-/// profile's location and link. Tapping copies it — it is the one detail on
-/// this screen somebody needs to get out of it.
+/// The phone number as a small grey detail line. Tapping copies it.
 class _PhoneLine extends StatelessWidget {
   final String phone;
   final Color secondary;

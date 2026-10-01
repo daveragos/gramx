@@ -35,12 +35,8 @@ class LinkPreviewCard extends ConsumerWidget {
     }
   }
 
-  /// Opens the previewed link.
-  ///
-  /// The card is the biggest tap target for the link in the whole post, so it
-  /// has to work: it used to ask `canLaunchUrl` first, which answers false on
-  /// Android 11+ unless the intent is declared in the manifest — so the card
-  /// silently did nothing while the same link in the post text opened fine.
+  /// Opens the previewed link. Doesn't check `canLaunchUrl`, which returns
+  /// false on Android 11+ unless the intent is declared in the manifest.
   Future<void> _openUrl(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final opened = await openExternalUrl(normalizeUrl(url));
@@ -84,9 +80,7 @@ class LinkPreviewCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Preview Image Banner if available
             if (hasImage) _buildPreviewImage(ref, isDark),
-            // Content Box
             Padding(
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Column(
@@ -137,14 +131,10 @@ class LinkPreviewCard extends ConsumerWidget {
   }
 
   Widget _buildPreviewImage(WidgetRef ref, bool isDark) {
-    // Signed in, this is a file TDLib has already fetched. In guest mode it is
-    // an https URL from a preview page, which the guest media cache fetches to
-    // disk — and only from Telegram's own hosts, so the privacy policy's
-    // "Telegram and nobody else" still holds either way. Nothing here reaches
-    // a third-party host.
+    // A TDLib file when signed in; in guest mode an https URL that the guest
+    // media cache fetches, only from Telegram's own hosts.
     final path = resolveMediaPath(ref, rawPath: imageUrl);
 
-    // 1. Local file path image
     if (path != null && path.isNotEmpty) {
       final fileExists = ref.watch(fileExistsProvider(path));
       final exists = fileExists.value ?? false;
@@ -159,9 +149,7 @@ class LinkPreviewCard extends ConsumerWidget {
       }
     }
 
-    // 2. TDLib fileId thumbnail
     if (imageFileId != null && imageFileId! > 0) {
-      // Trigger download preview thumbnail with high priority
       ref
           .read(syncServiceProvider)
           .downloadFileWithPriority(imageFileId!, priority: 32);

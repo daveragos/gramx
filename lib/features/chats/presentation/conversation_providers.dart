@@ -19,21 +19,12 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 /// One open conversation: its messages, and everything that changes them.
 ///
-/// The division of labour is deliberate. All the *rules* — what an arriving
-/// message does to the list, how a temporary id is swapped for a real one, when
-/// a tick turns from sent to read — live in [ConversationState], which is pure
-/// and tested. This class owns only the things a pure object cannot: the
-/// subscription, the timers, and the calls to the repository.
-///
-/// **Request budget.** Opening a conversation is one `OpenChat` and one
-/// `GetChatHistory`. Paging back is one more, on demand. Nothing here loops over
-/// chats, and nothing here polls — every subsequent change arrives on the update
-/// stream, which is free.
+/// The folding rules live in [ConversationState]; this class owns the
+/// subscription, the timers and the repository calls. Opening costs an
+/// `OpenChat` and a history fetch; later changes come on the update stream.
 class ConversationNotifier extends AsyncNotifier<ConversationState> {
-  /// The chat this conversation is of.
-  ///
-  /// Held on the notifier rather than read from a build argument: Riverpod 3
-  /// hands a family's argument to the *constructor*, and `build` takes none.
+  /// Passed to the constructor, since Riverpod 3 gives a family's argument
+  /// there and not to `build`.
   final int chatId;
 
   ConversationNotifier(this.chatId);
@@ -41,34 +32,22 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   StreamSubscription<td.TdObject>? _sub;
   Timer? _typingExpiry;
 
-  /// Whether the screen showing this conversation is in front of the reader.
-  ///
-  /// The auto-dispose above is the real fix for reading messages in chats
-  /// nobody opened; this is the second lock on the same door. A notifier can
-  /// legitimately outlive its screen for a moment — a pending dispose, a route
-  /// pushed on top — and "a message arrived" must never mean "the reader saw
-  /// it" during that window. Defaults to false: nothing is acknowledged until a
-  /// screen says it is showing.
+  /// Whether the conversation screen is in front of the user. Arrivals are only
+  /// marked read while it is, since the notifier can outlive the screen.
   bool _isVisible = false;
 
   /// Called by the screen as it appears and disappears.
   void setVisible({required bool isVisible}) => _isVisible = isVisible;
 
-  /// Whether TDLib has acknowledged `OpenChat` for this chat.
-  ///
-  /// Confirmed, not merely requested. A read acknowledgement sent with
-  /// `forceRead: false` against a chat TDLib does not yet consider open is
-  /// declined and still answers `Ok`, so nothing retries it — the same trap
-  /// `ReadReceiptQueue` documents.
+  /// Whether TDLib accepted `OpenChat`. Until it does, an unforced read is
+  /// silently ignored (see `ReadReceiptQueue`).
   bool _chatConfirmedOpen = false;
 
   @override
   Future<ConversationState> build() async {
     final repository = ref.watch(chatsRepositoryProvider);
 
-    // Telling TDLib the chat is open is what makes read acknowledgements and
-    // interaction info work at all, and it is awaited rather than dispatched
-    // because the answer decides how reads are sent.
+    // Awaited because the answer decides how reads are sent.
     _chatConfirmedOpen = await repository.openChat(chatId);
 
     _listen();
@@ -78,20 +57,12 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       _sub = null;
       _typingExpiry?.cancel();
       _typingExpiry = null;
-      // Telegram expects roughly one chat open at a time. Leaving them open is
-      // how a reader ends up with interaction info streaming for a dozen chats
-      // they have walked away from.
+      // Otherwise TDLib keeps streaming updates for chats that were left.
       repository.closeChat(chatId);
     });
 
-    // An unread chat opens where reading stopped, not at the bottom. A group
-    // left for a day is a hundred messages the reader has not seen, and landing
-    // them on the newest one means scrolling *up* through a conversation to
-    // read it forwards — which is backwards.
-    //
-    // Only when there is something to come back to: with nothing unread the
-    // newest page is the right answer and costs one request instead of the
-    // several it can take to reach back to the read line.
+    // An unread chat loads back to where reading stopped. With nothing unread,
+    // the newest page is enough and costs one request.
     final readCursor = repository.lastReadInboxMessageId(chatId);
     final hasBacklog = repository.unreadCount(chatId) > 0 && readCursor != 0;
 
@@ -105,7 +76,6 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       messages: page.messages,
       lastReadOutboxMessageId: repository.lastReadOutboxMessageId(chatId),
       hasMoreOlder: !page.reachedTop,
-      // Captured here and never recomputed — see the field's own note.
       firstUnreadMessageId: ConversationState.firstUnreadIn(
         page.messages,
         readCursor,
@@ -138,19 +108,13 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     if (event is ChatMessageArrived &&
         !event.message.isOutgoing &&
         _isVisible) {
-      // Something arrived while the reader is looking at the chat. That is the
-      // one case where marking read on arrival is honest rather than a guess
-      // about the viewport — they are here, with it open, watching it land.
-      // Off screen it is a guess, and the wrong one.
+      // The user is looking at the chat, so a new arrival counts as read.
       unawaited(markRead([event.message.id]));
     }
   }
 
-  /// Clears a typing indicator that nobody cancelled.
-  ///
-  /// TDLib does not promise a `chatActionCancel` — somebody who types a word
-  /// and closes their app never sends one — so an indicator waiting for it
-  /// stays up forever.
+  /// Clears a typing indicator after [ConversationState.typingTimeout], since
+  /// TDLib doesn't guarantee a `chatActionCancel`.
   void _scheduleTypingExpiry(bool isActive) {
     _typingExpiry?.cancel();
     _typingExpiry = null;
@@ -163,13 +127,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     });
   }
 
-  /// Loads the page above what is on screen.
-  ///
-  /// Guarded against re-entry: a fast scroll fires the "near the top" callback
-  /// on consecutive frames, and without the guard that is one request per
-  /// frame — the per-keystroke mistake in a different costume. A second caller
-  /// gets the page already in flight rather than an immediate return, so
-  /// [loadOlderUntil] can wait on a load the scroll listener started.
+  /// Loads the page above what is on screen. The scroll listener fires every
+  /// frame near the top, so concurrent callers share the request in flight.
   Future<void> loadOlder() => _olderInFlight ??= _fetchOlder().whenComplete(
     () => _olderInFlight = null,
   );
@@ -193,22 +152,11 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// How many pages [loadOlderUntil] will spend looking for one message
-  /// before [reveal] loads a window around it instead.
-  ///
-  /// A tap on a reply or a pin is one deliberate request for one message, so a
-  /// few pages is the on-demand, bounded shape the request budget allows — and
-  /// keeps the conversation continuous when the target is just above what is
-  /// loaded, which is the common case for a reply. Past that, one request for
-  /// the window around the target beats forty for the pages between.
+  /// How many pages [loadOlderUntil] spends looking for one message before
+  /// [reveal] loads a window around it instead.
   static const int findPageLimit = 3;
 
   /// Pages back until [messageId] is loaded. Returns whether it is.
-  ///
-  /// What a tap on a quoted reply, the pinned bar or a search result needs:
-  /// each of those points at one message, usually an older one, and a tap that
-  /// answered "not loaded — scroll up and try again" was asking the reader to
-  /// do by hand exactly what this does.
   Future<bool> loadOlderUntil(
     int messageId, {
     int maxPages = findPageLimit,
@@ -219,8 +167,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     for (var page = 0; page < maxPages && !isLoaded(); page++) {
       final current = state.value;
       if (current == null || !current.hasMoreOlder) break;
-      // Already older than the oldest loaded? Then it is above, and paging
-      // back reaches it. Newer and still missing means it is gone.
+      // Newer than the oldest loaded and still missing means it is gone.
       final oldest = current.oldestMessageId;
       if (oldest != null && messageId > oldest) break;
       await loadOlder();
@@ -228,29 +175,16 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     return isLoaded();
   }
 
-  /// Gets one message on screen, whatever it takes — and says if it cannot.
-  ///
-  /// What a tap on a quoted reply, the pinned bar or a search result needs.
-  /// Already loaded costs nothing. Just above what is loaded is paged back to,
-  /// so the conversation stays continuous. Anything further — a search hit
-  /// from last year — is loaded as a window around the message, the way
-  /// Telegram's clients jump: the chat then reads from the middle, and
-  /// [loadNewer] and [returnToLatest] are the ways back down. Only a message
-  /// Telegram no longer has answers false, and that is the one case the
-  /// screen still has to say something about.
-  ///
-  /// [maxPagesBack] is how far to page before jumping. A search hit is nearly
-  /// always far away, so the search passes one.
+  /// Loads [messageId] for a tap on a reply, the pinned bar or a search hit.
+  /// Pages back up to [maxPagesBack] pages, then loads a window around it.
+  /// Returns false only when Telegram no longer has the message.
   Future<bool> reveal(int messageId, {int maxPagesBack = findPageLimit}) async {
     if (await loadOlderUntil(messageId, maxPages: maxPagesBack)) return true;
     return loadAround(messageId);
   }
 
-  /// Replaces the conversation with the stretch of history around [messageId].
-  ///
-  /// Returns whether the message was in what came back. A target Telegram
-  /// answers without — deleted since the search indexed it — leaves the
-  /// conversation exactly as it was.
+  /// Replaces the conversation with the history around [messageId]. Returns
+  /// false, leaving the state alone, if the message wasn't in the answer.
   Future<bool> loadAround(int messageId) async {
     final window = await ref
         .read(chatsRepositoryProvider)
@@ -270,8 +204,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   }
 
   /// Loads the page below what is on screen, for a conversation opened in the
-  /// middle. Guarded against re-entry the same way [loadOlder] is, and for
-  /// the same reason: the scroll listener fires every frame near the edge.
+  /// middle. Shares the request in flight, like [loadOlder].
   Future<void> loadNewer() => _newerInFlight ??= _fetchNewer().whenComplete(
     () => _newerInFlight = null,
   );
@@ -295,11 +228,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// Goes straight back to the newest messages from anywhere in the history.
-  ///
-  /// The jump-to-latest button while a window is loaded, and the first thing
-  /// a send does: a message written from the middle of last year's chat still
-  /// lands at the bottom of today's, which is where its bubble belongs.
+  /// Reloads the newest messages when a window in the middle is loaded. Used
+  /// by jump-to-latest and before every send.
   Future<void> returnToLatest() async {
     final current = state.value;
     if (current == null || !current.hasMoreNewer) return;
@@ -316,13 +246,9 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// Sends a message, showing it before Telegram has answered.
-  ///
-  /// Optimistic first, network second. The bubble
-  /// appears under the sender's thumb carrying [MessageSendState.sending], and
-  /// `updateMessageSendSucceeded` swaps in the real one with its real id. If
-  /// Telegram refuses it outright the optimistic bubble is dropped, because a
-  /// message that was never queued has no send state to fail from.
+  /// Sends a message, showing an optimistic bubble in
+  /// [MessageSendState.sending] until `updateMessageSendSucceeded` replaces it.
+  /// If Telegram refuses it outright, the bubble is removed.
   Future<bool> send({
     required String text,
     List<ComposeAttachment> attachments = const [],
@@ -330,22 +256,16 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     MessageSchedule schedule = MessageSchedule.now,
   }) async {
     if (text.trim().isEmpty && attachments.isEmpty) return false;
-    // A message goes to the bottom of the chat, so the bottom is where the
-    // conversation has to be for the bubble to appear where it lands.
     await returnToLatest();
     final current = state.value;
     if (current == null) return false;
 
     final repository = ref.read(chatsRepositoryProvider);
-    // Typing stops the moment the message goes, or the other side is left
-    // watching an ellipsis for the message they can already see.
     unawaited(repository.setTyping(chatId, isTyping: false));
     unawaited(repository.saveDraft(chatId, ''));
 
-    // No optimistic bubble for a scheduled message. It is not going into this
-    // conversation — Telegram holds the queue apart until it sends — so a
-    // bubble here would be a message the reader can see and the recipient
-    // cannot, sitting at the bottom of the chat until a refresh removed it.
+    // No optimistic bubble for a scheduled message: it doesn't appear in the
+    // chat until Telegram sends it.
     final placeholder = schedule.isImmediate
         ? _optimisticMessage(text: text, replyTo: replyToMessageId)
         : null;
@@ -365,8 +285,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     if (latest == null) return sent != null;
 
     if (sent == null) {
-      // Never queued. Removing it is more honest than a failed bubble, which
-      // would imply Telegram has it and could not deliver it.
+      // Never queued, so remove it instead of marking it failed.
       if (placeholder != null) {
         state = AsyncData(
           latest.copyWith(
@@ -380,13 +299,10 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       return false;
     }
 
-    // A scheduled message has nothing on screen to reconcile: it was never
-    // drawn, and it will arrive as an ordinary new message whenever it goes.
     if (placeholder == null) return true;
 
-    // TDLib gave the queued message its own temporary id. Swapping now means
-    // the bubble is keyed correctly before `updateMessageSendSucceeded` lands
-    // with the final one.
+    // Re-key the bubble to TDLib's temporary id now, before
+    // `updateMessageSendSucceeded` brings the final one.
     state = AsyncData(
       latest.apply(
             ChatMessageSent(sent, placeholder.messageId),
@@ -398,14 +314,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     return true;
   }
 
-  /// Sends a sticker or a GIF out of the account's collection.
-  ///
-  /// No optimistic bubble, for the reason [sendPoll] has none: the bubble
-  /// would need the sticker's own dimensions and thumbnail drawn from a file
-  /// id, and Telegram answers with the real message in the same round trip.
-  /// Telegram's own clients send a sticker on the tap, with nothing staged,
-  /// and so does this — [ComposeRemoteMedia] explains why a sticker and a
-  /// caption cannot share a message anyway.
+  /// Sends a sticker or GIF from the account's collection. No optimistic
+  /// bubble: Telegram returns the queued message in the same round trip.
   Future<bool> sendRemote(
     ComposeRemoteMedia media, {
     int? replyToMessageId,
@@ -423,12 +333,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// Sends a poll into this chat. Returns whether Telegram queued it.
-  ///
-  /// No optimistic bubble, unlike [send]. A poll placeholder would have to
-  /// invent vote counts and a poll id, and the real message lands on
-  /// `updateNewMessage` within the same beat — an empty poll that flickers into
-  /// a real one is worse than a poll that simply appears.
+  /// Sends a poll into this chat. Returns whether Telegram queued it. No
+  /// optimistic bubble, since a placeholder would have to invent a poll.
   Future<bool> sendPoll(PollDraft draft, {int? replyToMessageId}) async {
     if (!draft.canSend) return false;
 
@@ -444,11 +350,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// Answers a poll in this chat, optimistically.
-  ///
-  /// The same two-step every other write here uses: show it, then send it. The
-  /// authoritative counts arrive on `updateMessageContent` and replace what the
-  /// optimism guessed, so nothing here has to be undone if the guess was off.
+  /// Votes in a poll, showing the vote straight away. The real counts arrive
+  /// on `updateMessageContent`.
   Future<void> vote(int messageId, List<int> optionIds) async {
     final current = state.value;
     if (current == null) return;
@@ -461,11 +364,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
         .voteInPoll(chatId: chatId, messageId: messageId, optionIds: optionIds);
   }
 
-  /// Sends where this device is. Returns whether Telegram queued it.
-  ///
-  /// No optimistic bubble, for the same reason [sendPoll] has none: a
-  /// placeholder would have to invent a map preview, and the real message lands
-  /// on `updateNewMessage` within the same beat.
+  /// Sends this device's location. Returns whether Telegram queued it.
   Future<bool> sendLocation({
     required double latitude,
     required double longitude,
@@ -496,17 +395,13 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     return _absorb(sent);
   }
 
-  /// Folds a just-queued message into the conversation.
-  ///
-  /// The shared tail of every send that has no optimistic bubble: the message
-  /// TDLib answers with is real, and putting it in now means the bubble is on
-  /// screen before `updateNewMessage` arrives with the same one.
+  /// Folds a just-queued message into the conversation, for sends without an
+  /// optimistic bubble, so it shows before `updateNewMessage` arrives.
   bool _absorb(td.Message? sent) {
     if (sent == null) return false;
     final latest = state.value;
-    // Sent from the middle of the history: the message is real and at the
-    // bottom, which is not on screen. Going there is the honest answer, and
-    // the page it loads carries the message.
+    // Sent from the middle of the history: jump to the bottom, whose page
+    // includes the new message.
     if (latest != null && latest.hasMoreNewer) {
       unawaited(returnToLatest());
       return true;
@@ -524,21 +419,15 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     return true;
   }
 
-  /// Opens self-destructing media, which starts its clock.
-  ///
-  /// Irreversible, and never called on the reader's behalf — see
-  /// [ChatsRepository.openSecretMedia]. The screen confirms first and this only
-  /// carries out the answer.
+  /// Opens self-destructing media, which starts its clock. Irreversible; see
+  /// [ChatsRepository.openSecretMedia].
   Future<bool> openSecretMedia(int messageId) => ref
       .read(chatsRepositoryProvider)
       .openSecretMedia(chatId: chatId, messageId: messageId);
 
-  /// A bubble for a message that has not left the device yet.
-  ///
-  /// The id is a large negative number so it can never collide with a TDLib
-  /// message id (which are positive and shifted left by 20) and always sorts to
-  /// the bottom of the list, where a message being sent belongs. It is replaced
-  /// the moment TDLib answers.
+  /// A bubble for a message that has not left the device yet. Its negative id
+  /// can't collide with TDLib's positive ids, and
+  /// [ConversationState.compareOrder] sorts it to the bottom.
   ChatMessage _optimisticMessage({required String text, int? replyTo}) {
     final current = state.value;
     final replyTarget = replyTo == null
@@ -567,8 +456,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
   }
 
-  /// Ascending within a session, so two messages sent in the same second keep
-  /// the order they were typed in.
+  /// One below the lowest optimistic id loaded, so pending messages keep the
+  /// order they were sent in.
   int _nextOptimisticId() {
     final current = state.value;
     final lowest = current?.messages
@@ -578,11 +467,8 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     return (lowest ?? 0) - 1;
   }
 
-  /// Acknowledges messages as read.
-  ///
-  /// Read state is pushed to every client this account owns, so this is only
-  /// ever called from something the reader actually did — opening the chat,
-  /// or watching a message arrive into it. Never from `build()`.
+  /// Marks messages as read. Read state syncs to all the account's devices,
+  /// so only call this for something the user saw, never from `build()`.
   Future<void> markRead(List<int> messageIds) async {
     if (messageIds.isEmpty) return;
     final error = await ref
@@ -590,20 +476,14 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
         .markRead(
           chatId: chatId,
           messageIds: messageIds,
-          // Unconfirmed means force: for a chat TDLib does not consider open
-          // an unforced ack is silently declined, and the reader really did
-          // read it.
+          // TDLib ignores an unforced read in a chat it doesn't consider open.
           forceRead: !_chatConfirmedOpen,
         );
     if (error != null) debugPrint('[Conversation] read ack failed: $error');
   }
 
-  /// Acknowledges the backlog the reader arrived into.
-  ///
-  /// Called by the screen once, after the first page is on screen — not from
-  /// `build()`, and not per visible bubble. Opening a conversation *is* reading
-  /// it, which is the one place this app's dwell rules do not apply: the feed
-  /// is a list somebody scrolls past, a chat is a thing somebody opened.
+  /// Marks the unread backlog read. The screen calls it once, after the first
+  /// page is shown: opening a chat counts as reading it.
   Future<void> markVisibleRead() async {
     final current = state.value;
     if (current == null || !_isVisible) return;
@@ -661,30 +541,22 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     final ok = await ref
         .read(chatsRepositoryProvider)
         .deleteMessages(chatId: chatId, messageIds: messageIds, revoke: revoke);
-    // Not applied optimistically. A delete Telegram refuses would take the
-    // message off screen and leave it in the chat on every other device, which
-    // is worse than a beat of delay — `updateDeleteMessages` removes it.
+    // Not optimistic, in case Telegram refuses. `updateDeleteMessages` removes
+    // the bubbles.
     return ok;
   }
 
-  /// Sends a refused message again.
-  ///
-  /// Telegram does not retry by itself, so without this a failed message sits
-  /// in the chat with a warning on it and nothing the reader can do about it —
-  /// a dead end in the one place the app writes on their behalf. TDLib keeps
-  /// the content, so this needs the id and nothing else.
+  /// Sends a failed message again. Telegram doesn't retry by itself.
   Future<bool> resend(int messageId) =>
       ref.read(chatsRepositoryProvider).resend(chatId, [messageId]);
 
-  /// Rewrites a message this account sent — its text, or a media message's
-  /// caption.
+  /// Edits a message's text, or a media message's caption.
   Future<bool> edit(int messageId, String text) async {
     final message = state.value?.messages
         .where((m) => m.messageId == messageId)
         .firstOrNull;
     final isCaption = message?.media.isNotEmpty ?? false;
-    // A caption may be emptied; a text message may not, since Telegram has no
-    // such thing as a message with nothing in it.
+    // A caption may be emptied; a text message may not.
     if (!isCaption && text.trim().isEmpty) return false;
     return ref
         .read(chatsRepositoryProvider)
@@ -703,28 +575,16 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   }
 }
 
-/// **`isAutoDispose` is set explicitly, and that is load-bearing.**
-///
-/// Riverpod 3's family constructors default to `isAutoDispose: false` — unlike
-/// the codegen form, and unlike what this repo's docs used to claim. Left on
-/// the default, a conversation opened once lived for the rest of the session
-/// with its update subscription still attached, so **every** message arriving
-/// in **every** chat the reader had ever opened was acknowledged as read on
-/// arrival, with the chat nowhere on screen. Read state is written to every
-/// client the account owns, so that quietly emptied their unread everywhere.
+/// Must stay `isAutoDispose: true` (Riverpod 3 families default to false).
+/// A conversation that outlives its screen keeps marking arrivals read.
 final conversationProvider =
     AsyncNotifierProvider.family<ConversationNotifier, ConversationState, int>(
       ConversationNotifier.new,
       isAutoDispose: true,
     );
 
-/// Tells the other side that this account is typing — at Telegram's cadence,
-/// not the keyboard's.
-///
-/// Telegram expects a chat action about every five seconds while typing
-/// continues and treats one as valid for six. Sending per keystroke would be
-/// exactly the per-keystroke traffic the request budget forbids, so this sends at
-/// most one every [interval] however fast somebody types.
+/// Tells the other side this account is typing, at most once per [interval].
+/// Telegram treats a chat action as valid for about six seconds.
 class TypingSignal {
   /// The floor between two `SendChatAction` calls.
   static const Duration interval = Duration(seconds: 4);
@@ -735,8 +595,7 @@ class TypingSignal {
 
   TypingSignal(this._repository, this.chatId);
 
-  /// Call on every change to the composer. Sends at most one action per
-  /// [interval]; the rest are dropped, which is the point.
+  /// Call on every change to the composer.
   void onTyping() {
     final now = DateTime.now();
     final last = _lastSent;
@@ -759,11 +618,8 @@ final typingSignalProvider = Provider.family<TypingSignal, int>((ref, chatId) {
   return signal;
 });
 
-/// What this account may do with one message, asked when it is long-pressed.
-///
-/// A family so it is lazy by construction: watching `MessageRef(chat, id)` is
-/// what issues the lookup, so a page of forty bubbles cannot accidentally ask
-/// forty times — the same shape that keeps the channel tabs honest.
+/// What this account may do with one message. Fetched only when watched, on
+/// long-press.
 final messageActionsProvider =
     FutureProvider.family<MessageActions, MessageRef>(
       (ref, target) => ref
@@ -788,11 +644,8 @@ class MessageRef {
   int get hashCode => Object.hash(chatId, messageId);
 }
 
-/// The emoji offered for one message, for the reaction picker.
-///
-/// A family on the *message*, not the chat, and lazy by construction for the
-/// same reason [messageActionsProvider] is: watching it is what issues the
-/// lookup, so a page of bubbles cannot ask on everyone's behalf.
+/// The emoji offered for one message in the reaction picker. Fetched only
+/// when watched, like [messageActionsProvider].
 final chatReactionsProvider = FutureProvider.family<List<String>, MessageRef>(
   (ref, target) => ref
       .watch(chatsRepositoryProvider)

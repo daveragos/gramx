@@ -13,8 +13,7 @@ void main() {
       warmup = container.read(feedWarmupProvider.notifier);
     });
 
-    // Before anything has been fetched, an empty feed means "not yet", and the
-    // reader should see a skeleton rather than "no posts".
+    // Before the first fetch an empty feed shows a skeleton, not "no posts".
     test('starts warm, because nothing has been fetched yet', () {
       expect(container.read(feedWarmupProvider), isTrue);
     });

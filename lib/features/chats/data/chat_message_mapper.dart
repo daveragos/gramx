@@ -11,23 +11,12 @@ import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
-/// Turns a TDLib message into a conversation bubble.
-///
-/// Pure: every lookup it needs — who the sender is, what the outbox cursor is
-/// — is passed in rather than fetched, so the whole mapping is testable and
-/// costs no requests. That matters more here than in the feed, because a
-/// conversation maps a page of messages at a time and a per-message `GetUser`
-/// would be a fan-out inside a single screen.
+/// Turns a TDLib message into a conversation bubble. Pure: every lookup is
+/// passed in, so mapping a page of messages costs no requests.
 abstract class ChatMessageMapper {
-  /// Maps one message.
-  ///
-  /// [lastReadOutboxMessageId] is the chat's outbox cursor: anything at or
-  /// below it has been read by the other side. It is the only source for the
-  /// double tick — TDLib sends no per-message "was read" flag.
-  ///
-  /// [isGroup] decides whether a sender name is drawn at all. In a private chat
-  /// the two possible senders are the two people looking at the screen, and
-  /// naming them on every bubble is noise.
+  /// Maps one message. Messages at or below [lastReadOutboxMessageId] have
+  /// been read by the other side (TDLib has no per-message read flag). Sender
+  /// names are drawn only when [isGroup].
   static ChatMessage map(
     td.Message message, {
     required Map<int, td.User> users,
@@ -43,9 +32,8 @@ abstract class ChatMessageMapper {
     final senderUser = sender is td.MessageSenderUser
         ? users[sender.userId]
         : null;
-    // Somebody writing *as a chat* — a channel they run, or a group's
-    // anonymous admin. Looked up among chats rather than users, or the bubble
-    // draws a nameless "?" for one of the commonest senders in a group.
+    // Someone posting as a chat (a channel, or an anonymous admin) is looked
+    // up among chats, not users.
     final senderChat = sender is td.MessageSenderChat
         ? chats[sender.chatId]
         : null;
@@ -63,8 +51,7 @@ abstract class ChatMessageMapper {
       mediaAlbumId: message.mediaAlbumId,
       isOutgoing: message.isOutgoing,
       senderId: sender is td.MessageSenderUser ? sender.userId : null,
-      // Only groups name their senders. A null here is what the bubble reads to
-      // decide not to draw a name row at all.
+      // Only groups name their senders; null means no name row.
       senderName: !isGroup
           ? null
           : senderUser != null
@@ -130,12 +117,8 @@ abstract class ChatMessageMapper {
     );
   }
 
-  /// Where a message is on its way to Telegram.
-  ///
-  /// The order matters. A pending or failed send is the truth regardless of any
-  /// cursor, and only a message this account sent can be "read" at all — an
-  /// incoming message has no send state to show, so it reports [sent] and the
-  /// bubble draws no tick.
+  /// Where a message is on its way to Telegram. Pending or failed wins over
+  /// the read cursor; an incoming message reports [sent] and draws no tick.
   static MessageSendState sendStateOf(
     td.Message message, {
     required int lastReadOutboxMessageId,
@@ -150,10 +133,7 @@ abstract class ChatMessageMapper {
     };
   }
 
-  /// Maps a page of messages, newest last.
-  ///
-  /// TDLib hands history back newest-first; a conversation reads oldest-first,
-  /// so the reversal happens here rather than at three call sites.
+  /// Maps a page of messages, newest last (TDLib returns history newest first).
   static List<ChatMessage> mapHistory(
     List<td.Message> messages, {
     required Map<int, td.User> users,
@@ -175,18 +155,9 @@ abstract class ChatMessageMapper {
     return mapped;
   }
 
-  /// Fills in reply previews from the page itself.
-  ///
-  /// TDLib only inlines `replyTo.content` for cross-chat replies and quotes, so
-  /// a reply within the same chat arrives with no preview text at all. In a
-  /// conversation the answer is almost always already on screen — the message
-  /// being replied to is a few bubbles up — so this resolves it from the loaded
-  /// page rather than asking the server. That is the whole point: the feed has
-  /// to spend a `GetMessages` on this, and a conversation does not.
-  ///
-  /// [from] adds targets that are not in [messages] themselves: the rest of the
-  /// conversation, for a message arriving live, or the ones fetched for a page
-  /// whose replies point further back than it reaches.
+  /// Fills in reply previews from loaded messages, since TDLib inlines
+  /// `replyTo.content` only for cross-chat replies and quotes. [from] adds
+  /// targets outside [messages], such as the rest of the conversation.
   static List<ChatMessage> fillReplyExcerpts(
     List<ChatMessage> messages, {
     Iterable<ChatMessage> from = const [],
@@ -215,18 +186,12 @@ abstract class ChatMessageMapper {
     ];
   }
 
-  /// Who wrote a message, as a reply to it names them.
-  ///
-  /// "You" for your own, which Telegram says too — and which is the only name
-  /// there can be in a one-to-one chat, where nobody else's name is put on a
-  /// bubble. Null for somebody else there: the other person is the header.
+  /// The author a reply names: "You" for your own messages, otherwise the
+  /// sender name (null in a one-to-one chat).
   static String? replyAuthorOf(ChatMessage target) =>
       target.isOutgoing ? AppStrings.messagesYouPrefix : target.senderName;
 
-  /// A message in one line, as a reply to it quotes it.
-  ///
-  /// Its words when it has them, otherwise what it *is*. A photo has no text,
-  /// so a reply to one said "Replying to" and stopped.
+  /// A message in one line for a reply: its text, or a label for its content.
   static String? replyPreviewOf(ChatMessage target) {
     final text = target.text;
     if (text != null && text.trim().isNotEmpty) return text;
@@ -255,15 +220,9 @@ abstract class ChatMessageMapper {
     };
   }
 
-  /// Rewrites a mapped message around a new content object.
-  ///
-  /// `updateMessageContent` hands over a bare content with no message around
-  /// it, and it is how three separate things reach a bubble that is already on
-  /// screen: a caption edit, a vote landing on a poll, and self-destructing
-  /// media expiring into `messageExpiredPhoto`. Folding it through the same
-  /// decoder the first mapping used is what stops those three from each needing
-  /// their own partial copy of it — the previous version updated text and media
-  /// and left the poll, the secret flag and the entities behind.
+  /// Rewrites a mapped message around new content from `updateMessageContent`
+  /// (a caption edit, a poll vote, or expiring media), using the same decoder
+  /// as [map].
   static ChatMessage withContent(ChatMessage message, td.MessageContent body) {
     final decoded = decodeContent(body);
     final support = MessageContentSupport.supportFor(body);
@@ -286,11 +245,8 @@ abstract class ChatMessageMapper {
     );
   }
 
-  /// Everything a bubble draws, read out of one content object.
-  ///
-  /// Public because [withContent] and [map] must agree: the two entry points
-  /// into a bubble are the history page and the live update, and a decoder
-  /// each is how they drift apart.
+  /// Everything a bubble draws, read from one content object. Shared by [map]
+  /// and [withContent] so the two always agree.
   @visibleForTesting
   static ({
     String? text,
@@ -306,10 +262,7 @@ abstract class ChatMessageMapper {
     int? linkPreviewFileId,
   })
   decodeContent(td.MessageContent content) {
-    // A poll is the whole message. It has no caption to read and no media to
-    // extract, and it is the case the old decoder fell through — MessagePoll is
-    // content the feed renders in full, so it carried no fallback label either,
-    // and the bubble came out empty.
+    // A poll is the whole message, with no caption or media.
     if (content is td.MessagePoll) {
       return (
         text: null,
@@ -326,9 +279,7 @@ abstract class ChatMessageMapper {
       );
     }
 
-    // A place and a contact are cards, not captions. Both used to fall through
-    // to the feed's label — "📍 Location" with the coordinates discarded — so
-    // the one thing a location is for could not be done with one.
+    // Places and contacts are drawn as cards, not captions.
     final place = _placeOf(content);
     if (place != null) {
       return (
@@ -400,9 +351,8 @@ abstract class ChatMessageMapper {
       case td.MessageAudio():
         formatted = content.caption;
       default:
-        // Everything else — a sticker, a location, a service notice — has no
-        // words of its own, so it borrows the label the feed already gives it
-        // rather than drawing an empty bubble. See MessageContentSupport.
+        // Anything else (a sticker, a service notice) has no text, so it uses
+        // the feed's label. See MessageContentSupport.
         return (
           text: MessageContentSupport.describe(content),
           entities: const <TextEntity>[],
@@ -433,10 +383,7 @@ abstract class ChatMessageMapper {
     );
   }
 
-  /// The place in a location or a venue message, or null for anything else.
-  ///
-  /// One function for both, because a venue is a location with a name on it and
-  /// everything downstream draws them the same way with a line more.
+  /// The place in a location or venue message, or null for anything else.
   static MessagePlace? _placeOf(td.MessageContent content) => switch (content) {
     td.MessageLocation() => MessagePlace(
       latitude: content.location.latitude,
@@ -453,13 +400,8 @@ abstract class ChatMessageMapper {
     _ => null,
   };
 
-  /// Whether this content is Telegram's tap-to-view kind and still covered.
-  ///
-  /// TDLib puts the flag on the content, not the message, and clears it when
-  /// the media is opened — so this is "is it still hidden", not "was it ever
-  /// secret". Only the four content types that can carry it are named; every
-  /// other kind of message answers false without a `default` swallowing a type
-  /// that grows the flag later.
+  /// Whether this is tap-to-view media that is still covered. TDLib keeps the
+  /// flag on the content and clears it once the media is opened.
   static bool _isSecret(td.MessageContent content) => switch (content) {
     td.MessagePhoto() => content.isSecret,
     td.MessageVideo() => content.isSecret,
@@ -476,8 +418,7 @@ abstract class ChatMessageMapper {
   static int? _replyChatId(td.Message message) {
     final target = _replyTarget(message);
     if (target == null) return null;
-    // 0 means "same chat". Carrying the chat's own id would make every reply
-    // look like a cross-chat one.
+    // 0 or this chat's own id both mean a same-chat reply.
     if (target.chatId == 0 || target.chatId == message.chatId) return null;
     return target.chatId;
   }
@@ -486,8 +427,7 @@ abstract class ChatMessageMapper {
     final target = _replyTarget(message);
     if (target == null) return null;
 
-    // A quote is what the sender actually pointed at, so it wins over the whole
-    // message when Telegram gives us one.
+    // A quote is what the sender pointed at, so it wins over the whole message.
     final quote = target.quote;
     if (quote != null) {
       final text = TdlibMappers.plainTextOf(quote.text);
@@ -525,9 +465,8 @@ abstract class ChatMessageMapper {
     Map<int, td.Chat> chats = const {},
   }) {
     final origin = _replyTarget(message)?.origin;
-    // A channel's post and a message sent as a chat are named after that
-    // chat. Only the signature was read before, which most channels do not
-    // set — so a reply to one said "Replying to" and stopped.
+    // Channel posts and messages sent as a chat are named after the chat,
+    // since most channels set no signature.
     return switch (origin) {
       td.MessageOriginUser() => _nameOfUser(origin.senderUserId, users: users),
       td.MessageOriginHiddenUser() => origin.senderName,
@@ -572,13 +511,9 @@ abstract class ChatMessageMapper {
     return user == null ? null : ChatListBuilder.displayNameOf(user);
   }
 
-  /// The line drawn for something that happened *to* a chat rather than being
-  /// said in it — a join, a pin, a rename.
-  ///
-  /// Null for a kind with nothing worth saying, and the conversation leaves
-  /// those out altogether (see `ConversationRows.build`). Every one of these
-  /// used to be drawn as an empty padded line, so a public group — mostly
-  /// joins — read as blank gaps under date headers with nothing in them.
+  /// The line for something that happened to a chat (a join, a pin, a
+  /// rename), or null for kinds not worth showing, which the conversation
+  /// leaves out (see `ConversationRows.build`).
   static String? serviceText(
     td.Message message, {
     required Map<int, td.User> users,

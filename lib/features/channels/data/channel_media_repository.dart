@@ -11,9 +11,7 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 class ChannelTabPage {
   final List<Post> posts;
 
-  /// What to pass as `fromMessageId` next time. Zero means the tab has ended —
-  /// TDLib's own signal, so exhaustion is known rather than inferred from an
-  /// empty page.
+  /// The next `fromMessageId`; zero means the tab has ended.
   final int nextFromMessageId;
 
   const ChannelTabPage({required this.posts, required this.nextFromMessageId});
@@ -23,29 +21,20 @@ class ChannelTabPage {
   bool get isExhausted => nextFromMessageId == 0;
 }
 
-/// Backs the Media, Files, Links and Voice tabs on a channel profile.
-///
-/// **Budget.** `SearchChatMessages` is networked, and there are four of these
-/// tabs. Nothing here may be called speculatively: a tab fetches its first page
-/// only when the reader selects it, and one page at a time after that. Never
-/// loop this over the channel list.
+/// Backs the Media, Files, Links and Voice tabs. Each page is a networked
+/// search, so fetch only when a tab is selected, never in a loop.
 class ChannelMediaRepository {
   final TdlibService _tdlib;
   final FeedRepository _feed;
 
-  /// Messages asked for per page.
-  ///
-  /// TDLib chooses its own batch size and can return fewer, which is why
-  /// pagination follows `nextFromMessageId` rather than counting rows.
+  /// Messages asked for per page. TDLib can return fewer, so pagination
+  /// follows `nextFromMessageId` rather than counting rows.
   static const int pageSize = 50;
 
   ChannelMediaRepository(this._tdlib, this._feed);
 
-  /// The TDLib filter a tab searches with.
-  ///
-  /// [ChannelTab.posts] has none: it is the channel's plain history, served by
-  /// `channelPostsProvider`, and running it through a search would spend a
-  /// request to get back what is already loaded.
+  /// The TDLib filter a tab searches with. [ChannelTab.posts] has none, since
+  /// it is the plain history from `channelPostsProvider`.
   static td.SearchMessagesFilter? filterFor(ChannelTab tab) => switch (tab) {
     ChannelTab.posts => null,
     ChannelTab.media => const td.SearchMessagesFilterPhotoAndVideo(),
@@ -92,10 +81,8 @@ class ChannelMediaRepository {
     }
   }
 
-  /// The channel's newest pinned message, or null if it has none.
-  ///
-  /// One request per channel opened. TDLib answers 400 when nothing is pinned,
-  /// which is an answer rather than a failure — the card simply doesn't draw.
+  /// The channel's newest pinned message, or null if it has none. TDLib
+  /// answers 400 when nothing is pinned.
   Future<Post?> fetchPinnedPost(int chatId) async {
     try {
       final res = await _tdlib.sendRequest(

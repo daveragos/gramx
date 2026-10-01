@@ -6,9 +6,7 @@ import 'package:gramx/features/chats/domain/chat_message.dart';
 
 import '../support/td_fixtures.dart';
 
-/// The two things a row of the messages list now says that
-/// it did not before — whether your own last message has been read, and which
-/// channel the person you are talking to runs.
+/// The delivery tick on a chat row, and the channel the other person runs.
 void main() {
   group('the delivery tick on a row', () {
     td.Chat chatWithLast(
@@ -107,8 +105,7 @@ void main() {
       );
     });
 
-    // The regression this guards: a draft has not been sent, so a tick beside
-    // one would claim the other side had seen something nobody sent.
+    // A draft hasn't been sent, so it carries no tick.
     test('a draft wins the preview and carries no tick', () {
       final chat = chatWithLast(
         TdFixtures.chatMessage(
@@ -190,9 +187,8 @@ void main() {
       expect(row.affiliatedChannelTitle, 'Ada Writes');
     });
 
-    // Deliberately: resolving the title would be a `GetChat` per row, which is
-    // the fan-out the request budget forbids. The id is still carried so the badge
-    // can lead somewhere once a title turns up.
+    // Resolving the title would cost a `GetChat` per row. The id is kept so the
+    // badge can link once a title is known.
     test('carries the id with no title rather than fetching one', () {
       final row = ChatListBuilder.summaryFor(
         person,

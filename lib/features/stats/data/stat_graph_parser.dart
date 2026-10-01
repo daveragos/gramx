@@ -3,16 +3,8 @@ import 'dart:ui';
 
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// Reads Telegram's chart JSON into a [StatGraph].
-///
-/// **Pure, and tested against saved payloads** — the same decision as
-/// `TmePageParser`, for the same reason. `statisticalGraphData.json_data` is a
-/// format of Telegram's own that nobody promised to keep stable, and it
-/// arrives as a *string* inside the TDLib reply rather than as typed fields,
-/// so nothing in `handy_tdlib` checks its shape. A change to it has to surface
-/// as a failing test here, not as an empty box on somebody's screen.
-///
-/// The shape:
+/// Reads Telegram's chart JSON (`statisticalGraphData.json_data`, an
+/// undocumented format) into a [StatGraph]:
 ///
 /// ```json
 /// {
@@ -25,16 +17,10 @@ import 'package:gramx/features/stats/domain/stat_graph.dart';
 /// }
 /// ```
 ///
-/// Every field except `columns` is optional in practice, and each missing one
-/// costs exactly what it describes: a series keeps its key as its name, or
-/// takes the chart's default colour. Only a missing or unreadable x axis is
-/// fatal, because there is nothing to plot the numbers against.
+/// Only `columns` is required; a missing x axis is fatal.
 abstract class StatGraphParser {
   /// Parses `statisticalGraphData.jsonData`, or returns null if it cannot.
-  ///
-  /// Null means "draw the unavailable state", never an empty chart: a chart
-  /// frame with no line in it reads as a channel with no activity, which is a
-  /// different and much worse claim than "this did not load".
+  /// Null means the chart shows as unavailable, not as empty.
   static StatGraph? parse(String jsonData) {
     if (jsonData.trim().isEmpty) return null;
 
@@ -53,8 +39,7 @@ abstract class StatGraphParser {
     final names = _stringMap(decoded['names']);
     final colors = _stringMap(decoded['colors']);
 
-    // The x column is the one *typed* `x`. Falling back to the key `x` covers
-    // a payload that omits `types` entirely, which is legal and happens.
+    // The x column is the one typed `x`, or keyed `x` when `types` is absent.
     List<Object?>? xColumn;
     final yColumns = <List<Object?>>[];
 
@@ -73,10 +58,8 @@ abstract class StatGraphParser {
 
     if (xColumn == null || yColumns.isEmpty) return null;
 
-    // Telegram sends every column the same length. "In practice" is not a
-    // guarantee, and a y column one entry longer than the x axis would either
-    // throw or draw a point at an invented date, so everything is cut to the
-    // shortest column present.
+    // Columns should all be the same length, but cut to the shortest so a
+    // longer y column cannot throw or plot a point with no date.
     var length = xColumn.length - 1;
     for (final column in yColumns) {
       final candidate = column.length - 1;
@@ -116,11 +99,8 @@ abstract class StatGraphParser {
     );
   }
 
-  /// Telegram's colour strings: `#4BC7C1`, the three-digit `#4BC`, and the
-  /// `rgb(75,199,193)` form its older charts use.
-  ///
-  /// Anything else answers null and the chart falls back to its own palette,
-  /// which is better than a black line on a black theme.
+  /// Parses `#4BC7C1`, `#4BC` and `rgb(75,199,193)` colours. Anything else
+  /// returns null, and the chart palette is used.
   static Color? parseColor(String? raw) {
     if (raw == null) return null;
     final value = raw.trim();
@@ -157,9 +137,6 @@ abstract class StatGraphParser {
     };
   }
 
-  /// A missing or non-numeric sample is zero rather than a gap.
-  ///
-  /// Telegram uses `null` for "no data that day", and on a count graph no data
-  /// and none of it are the same thing to a reader.
+  /// A missing or non-numeric sample (Telegram sends `null`) counts as zero.
   static double _asDouble(Object? raw) => raw is num ? raw.toDouble() : 0;
 }

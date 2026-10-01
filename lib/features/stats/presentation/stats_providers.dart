@@ -7,13 +7,8 @@ import 'package:gramx/features/stats/domain/post_stats.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// A statistics request, keyed the way it is cached.
-///
-/// **Brightness is part of the key, not a detail.** Telegram picks the graph
-/// colours for the theme it is told about (`getChatStatistics(isDark:)`), so a
-/// reader who switches themes with the screen open is looking at a chart drawn
-/// for the other one. Keying on it means the switch re-asks rather than
-/// re-tinting.
+/// A statistics request key. Includes brightness because Telegram picks graph
+/// colours for the given theme, so a theme switch refetches.
 typedef ChannelStatsRequest = ({int chatId, bool isDark});
 
 typedef PostStatsRequest = ({int chatId, int messageId, bool isDark});
@@ -27,12 +22,8 @@ final statsRepositoryProvider = Provider<StatsRepository>((ref) {
   );
 });
 
-/// A channel's statistics. One `getChatStatistics`, on opening the screen.
-///
-/// Auto-dispose, explicitly: a `.family` is **not** in Riverpod 3,
-/// and statistics held for the rest of the session
-/// would show yesterday's figures to somebody who reopened the screen to see
-/// today's. Held alive by the screen watching it, and only by that.
+/// A channel's statistics, from one `getChatStatistics` on opening the
+/// screen. Auto-dispose so reopening the screen fetches fresh figures.
 final channelStatsProvider =
     FutureProvider.family<ChannelStats?, ChannelStatsRequest>((
       ref,
@@ -42,12 +33,8 @@ final channelStatsProvider =
       return repo.channelStats(chatId: request.chatId, isDark: request.isDark);
     }, isAutoDispose: true);
 
-/// The words behind the Content rows.
-///
-/// Watched by the Content tab and by nothing else, which is what makes it
-/// lazy: reading the list is what issues the reads, so a reader who never
-/// leaves Overview never pays for them. They are local reads either way — see
-/// `StatsRepository.postExcerpts`.
+/// The text of the Content rows. Only the Content tab watches it, so the
+/// local reads happen only when that tab is opened.
 final channelStatsExcerptsProvider =
     FutureProvider.family<Map<int, PostExcerpt>, ChannelStatsRequest>((
       ref,
@@ -85,11 +72,8 @@ final publicSharesProvider = FutureProvider.family<List<PublicShare>, PostRef>((
   return repo.publicShares(chatId: post.chatId, messageId: post.messageId);
 }, isAutoDispose: true);
 
-/// Whether this post has statistics to open.
-///
-/// One offline `getMessageProperties`, asked by the screen showing the post —
-/// the same shape as the message long-press menu, and never per card in a
-/// list. See `StatsRepository.canViewPostStats`.
+/// Whether this post has statistics to open. Asked only from the post's own
+/// screen, never per card in a list.
 final canViewPostStatsProvider = FutureProvider.family<bool, PostRef>((
   ref,
   post,
@@ -98,18 +82,9 @@ final canViewPostStatsProvider = FutureProvider.family<bool, PostRef>((
   return repo.canViewPostStats(chatId: post.chatId, messageId: post.messageId);
 }, isAutoDispose: true);
 
-/// The graphs resolved so far for one chat.
-///
-/// TDLib answers `getChatStatistics` with most graphs as a token rather than
-/// as data, so a screen of ten charts would be ten more requests on open —
-/// the same fan-out shape as fetching a channel's four tabs before anybody
-/// selects one. Instead each card calls [ensureLoaded] when it first scrolls
-/// into view, and this makes sure that costs one request per chart at most.
-///
-/// Explicitly auto-dispose: `NotifierProvider.family` is **not** by default in
-/// Riverpod 3, and holding a chat's charts for
-/// the rest of the session would show yesterday's numbers to somebody who
-/// reopened the screen to see today's.
+/// The graphs resolved so far for one chat. Each card calls
+/// [StatGraphsNotifier.ensureLoaded] as it scrolls into view. Auto-dispose
+/// (not a family default in Riverpod 3), so reopening fetches fresh numbers.
 final statGraphsProvider =
     NotifierProvider.family<StatGraphsNotifier, StatGraphLoads, int>(
       StatGraphsNotifier.new,
@@ -117,10 +92,7 @@ final statGraphsProvider =
     );
 
 class StatGraphsNotifier extends Notifier<StatGraphLoads> {
-  /// The chat these graphs belong to.
-  ///
-  /// Held on the notifier rather than read from `build`: Riverpod 3 hands a
-  /// family's argument to the *constructor*, the same as `ConversationNotifier`.
+  /// The chat these graphs belong to (the family argument).
   final int chatId;
 
   StatGraphsNotifier(this.chatId);
@@ -128,11 +100,8 @@ class StatGraphsNotifier extends Notifier<StatGraphLoads> {
   @override
   StatGraphLoads build() => const StatGraphLoads();
 
-  /// Resolves [token] unless it is already resolved or on its way.
-  ///
-  /// Safe to call from a visibility callback, which fires every time a card
-  /// crosses the edge of the viewport — the guard is [StatGraphLoads], where
-  /// it is tested.
+  /// Resolves [token] unless it is already resolved or in flight. Safe to
+  /// call on every visibility change.
   Future<void> ensureLoaded(String token) async {
     if (!state.shouldRequest(token)) return;
     state = state.starting(token);
@@ -140,8 +109,7 @@ class StatGraphsNotifier extends Notifier<StatGraphLoads> {
     final repo = ref.read(statsRepositoryProvider);
     final resolved = await repo.resolveGraph(chatId: chatId, token: token);
 
-    // The screen can be gone by now; the notifier is auto-dispose and writing
-    // to a disposed one throws.
+    // The screen may have closed, and writing to a disposed notifier throws.
     if (!ref.mounted) return;
     state = state.completed(token, resolved);
   }

@@ -13,19 +13,8 @@ import 'package:gramx/features/activity/presentation/activity_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/guest/presentation/widgets/guest_bookmarks_placeholder.dart';
 
-/// What happened while you were away.
-///
-/// mentions, replies, reactions — as one reverse-chronological list. The
-/// anatomy is the post card's: an avatar in a left gutter, everything else in
-/// the right column, hairline separators, no rounding.
-///
-/// **A pushed page, with a back arrow.** It is reached from the bell in the
-/// feed header and from the drawer, and it sits on top of whatever the reader
-/// was doing — so it has a real `AppBar`, not the feed's sliding chrome. The
-/// sliding chrome watched every scroll under it for the header to retire on,
-/// and the tab strip's own horizontal swipe counted: switching to Mentions
-/// slid the header and the tabs off the top of the screen and left the list
-/// filling the page with no way back but the system gesture.
+/// Mentions, replies and reactions as one newest-first list. Uses a plain
+/// `AppBar` because the feed's scroll-away header reacts to tab swipes.
 class ActivityScreen extends ConsumerStatefulWidget {
   static const route = '/activity';
 
@@ -39,11 +28,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   @override
   void initState() {
     super.initState();
-    // A lit bell means something happened since the list was last built, so
-    // the list is rebuilt. A dark one means the last list is still the right
-    // answer — everything in it has been acknowledged, and asking again would
-    // answer with nothing at all, which is not what somebody who just read it
-    // came back to see.
+    // Rebuild only when the bell is lit. Otherwise everything has been marked
+    // seen, and a fresh load would come back empty.
     if (ref.read(activityBadgeProvider) > 0) {
       ref.invalidate(activityFeedProvider);
     }
@@ -66,14 +52,12 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
 
     final activity = ref.watch(activityFeedProvider);
 
-    // tab is a filter over it, so switching costs nothing.
+    // Each tab filters the one loaded list, so switching costs nothing.
     return DefaultTabController(
       length: _ActivityTab.values.length,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: theme.scaffoldBackgroundColor,
-          // The way back. `AppBar` draws it because this route was pushed;
-          // the tooltip is the framework's own, so a screen reader says "Back".
           leading: BackButton(color: primary, onPressed: () => context.pop()),
           title: Text(
             AppStrings.activityTitle,
@@ -151,7 +135,7 @@ enum _ActivityTab {
     _ActivityTab.reactions => AppStrings.activityTabReactions,
   };
 
-  /// Mentions and replies are both "somebody addressed you", which is what
+  /// The Mentions tab includes replies; reactions have their own tab.
   List<ActivityItem> filter(List<ActivityItem> items) => switch (this) {
     _ActivityTab.all => items,
     _ActivityTab.mentions => [
@@ -165,10 +149,7 @@ enum _ActivityTab {
   };
 }
 
-/// One thing that happened.
-///
-/// The post card's anatomy: the avatar in the gutter, a mark saying which kind
-/// of event this was, then who and where, then the words.
+/// One activity row, laid out like a post card.
 class _ActivityRow extends StatelessWidget {
   final ActivityItem item;
   final Color primary;
@@ -180,6 +161,7 @@ class _ActivityRow extends StatelessWidget {
     required this.secondary,
   });
 
+  /// The icon and colour for the event kind.
   (IconData, Color) get _mark => switch (item.kind) {
     ActivityKind.reaction => (Icons.favorite, AppColors.like),
     ActivityKind.reply => (Icons.chat_bubble, AppColors.accent),
@@ -187,8 +169,6 @@ class _ActivityRow extends StatelessWidget {
   };
 
   void _open(BuildContext context) {
-    // A mention inside a channel is a post; anywhere else it is a chat. Both
-    // routes exist already, and both land on the message itself.
     if (item.isChannelPost) {
       context.push('/post/${item.chatId}_${item.messageId}');
       return;

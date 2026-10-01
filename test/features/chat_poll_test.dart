@@ -27,10 +27,7 @@ ChatMessage mapPoll({
 
 void main() {
   group('a poll in a conversation', () {
-    // The regression this pins: `messagePoll` is content the feed draws in
-    // full, so it had no fallback label to borrow, and the bubble mapper had
-    // no case for it — the message arrived with no text, no media and no poll,
-    // and drew a bubble with nothing inside it.
+    // Polls have no fallback label, so the bubble mapper must map them itself.
     test('is not an empty bubble', () {
       final message = mapPoll();
 
@@ -60,9 +57,8 @@ void main() {
       expect(mapPoll(isClosed: true).poll!.isClosed, isTrue);
     });
 
-    // Votes land on `updateMessageContent`. The fold used to read only the
-    // caption and the media off the new content, so a vote arriving from
-    // another client changed nothing on screen.
+    // Votes arrive as `updateMessageContent`, so the fold must take the poll
+    // from the new content.
     test('a vote arriving as a content update reaches the bubble', () {
       final state = ConversationState(chatId: -1001, messages: [mapPoll()])
           .apply(

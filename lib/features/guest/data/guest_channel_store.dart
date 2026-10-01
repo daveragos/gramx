@@ -5,12 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// A public channel a guest has added, and what we know about it.
-///
-/// [etag] and [lastModified] are HTTP validators, not display data: sending
-/// them back turns an unchanged channel's refresh into a 304 of a couple of
-/// hundred bytes instead of thirty kilobytes of HTML. They live beside the
-/// channel because they are per-channel and change on every fetch.
+/// A public channel a guest has added. [etag] and [lastModified] are HTTP
+/// validators, so an unchanged channel refreshes with a small 304.
 @immutable
 class GuestChannel {
   final String username;
@@ -53,12 +49,8 @@ class GuestChannel {
     );
   }
 
-  /// Value equality, because "did this row actually change?" is a question the
-  /// feed asks after every fetch.
-  ///
-  /// Without it, recording an unchanged ETag counted as a change, published new
-  /// state, and restarted the fetch that produced it — a loop aimed at
-  /// Telegram. See `GuestChannelsNotifier.noteFetched`.
+  /// Value equality, so recording an unchanged ETag doesn't publish new state
+  /// and trigger another fetch. See `GuestChannelsNotifier.noteFetched`.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -95,10 +87,8 @@ class GuestChannel {
     'lastModified': lastModified,
   };
 
-  /// Tolerant, like `AppSettings.decode`: a field this version does not
-  /// recognise, or one that has gone missing, costs that field rather than the
-  /// whole list. Returns null only when there is no username to key on, since
-  /// a channel without one cannot be fetched.
+  /// Tolerates unknown or missing fields. Returns null only when there is no
+  /// username, since such a channel can't be fetched.
   static GuestChannel? fromJson(Map<String, dynamic> json) {
     final username = json['username'];
     if (username is! String || username.isEmpty) return null;
@@ -118,11 +108,8 @@ class GuestChannel {
   }
 }
 
-/// Persists the guest's channel list as JSON in app documents.
-///
-/// A file rather than a Drift table, matching how settings and hidden channels
-/// are already stored: it is one small list, always read and written whole, and
-/// a table would mean a schema migration for something no query ever joins.
+/// Persists the guest's channel list as a JSON file in app documents, like
+/// settings and hidden channels.
 class GuestChannelStore {
   static const String fileName = 'guest_channels.json';
 
@@ -144,7 +131,7 @@ class GuestChannelStore {
           if (entry is Map<String, dynamic>) ?GuestChannel.fromJson(entry),
       ];
     } catch (e) {
-      // A corrupt list should cost the list, never the app's ability to start.
+      // A corrupt file must not stop the app from starting.
       debugPrint('[Guest] Could not read the channel list: $e');
       return [];
     }

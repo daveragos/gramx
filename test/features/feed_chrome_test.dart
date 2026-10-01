@@ -27,10 +27,8 @@ Post post(String id, {int chatId = -100, int minutesAgo = 1}) => Post(
 void main() {
   Widget host(Widget child) => ProviderScope(child: MaterialApp(home: child));
 
-  // The button used to translate itself down by a measured number of pixels —
-  // the bottom bar, its own height, its margin and the gesture inset — and the
-  // sum came up short, so a sliver of it stayed on screen. The scaffold now
-  // takes it away instead, which has no number in it to be wrong.
+  // The scaffold removes the button with the chrome rather than sliding it by
+  // a measured offset.
   group('the compose button leaves with the chrome', () {
     Widget scaffold() => host(
       ChromeScaffold(
@@ -59,7 +57,6 @@ void main() {
       expect(find.byType(FloatingActionButton), findsNothing);
     });
 
-    // asked for and a shape is not a rule.
     testWidgets('is a circle', (tester) async {
       await tester.pumpWidget(scaffold());
       final fab = tester.widget<FloatingActionButton>(
@@ -70,8 +67,7 @@ void main() {
     });
   });
 
-  // A count says how much has piled up; the faces say who from, which is the
-  // half that decides whether it is worth tapping now.
+  // The pill shows who posted, not just how many.
   group('pillAvatarPosts', () {
     test('one face per channel, however many it posted', () {
       final faces = pillAvatarPosts([
@@ -106,8 +102,8 @@ void main() {
     });
   });
 
-  // Two arrows either side of one row said "download" twice. The leading
-  // circle is the one that also turns into the progress ring, so it stays.
+  // Only the leading circle, which doubles as the progress ring, shows a
+  // download icon.
   group('PostDocumentCard', () {
     testWidgets('an undownloaded file shows one download icon, not two', (
       tester,
@@ -132,9 +128,8 @@ void main() {
     });
   });
 
-  // Tapping a photo that was still downloading opened onto the broken-image
-  // glyph: the grid had handed over TDLib's remote id, which is not a path,
-  // and the viewer called File(...).existsSync() on it.
+  // A photo still downloading has no local path yet, so the viewer opens on
+  // the file id.
   group('ViewerImage', () {
     test('a file id alone is enough to open on', () {
       const image = ViewerImage(fileId: 42);

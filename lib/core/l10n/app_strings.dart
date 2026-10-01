@@ -5,66 +5,44 @@ import 'package:gramx/features/compose/domain/poll_draft.dart'
 import 'package:gramx/features/compose/presentation/post_progress_provider.dart'
     show PostSendStatus;
 
-/// Every user-facing string in the app, in one place.
-///
-/// This is the groundwork for translation, not translation itself. The point is
-/// that adding locales later means changing this file's internals, rather than
-/// hunting hundreds of literals spread across widgets — which is the expensive
-/// version of the same task.
+/// Every user-facing string in the app, so adding locales later only changes
+/// this file.
 ///
 /// Rules:
-/// * No user-facing text as a literal inside a widget. If it appears on screen,
-///   it belongs here.
-/// * Anything with a count takes a parameter and picks its own plural, so a
-///   locale with different plural rules has one place to change.
-/// * Names are grouped by feature, then read like the sentence they produce.
-///
-/// When real translation is wanted, replace the bodies with lookups from
-/// `flutter_localizations` / generated ARB accessors. Call sites don't change.
+/// * No user-facing text as a literal inside a widget.
+/// * Anything with a count takes a parameter and picks its own plural.
+/// * Names are grouped by feature and read like the sentence they produce.
 abstract class AppStrings {
   // ── App ────────────────────────────────────────────────────────────────────
 
-  /// A username as Telegram writes it, with the one `@` that marks it.
-  ///
-  /// Here rather than inlined at four call sites, because the prefix is a
-  /// convention rather than part of the name — a locale that marks handles
-  /// differently changes it once.
+  /// A username with its `@` prefix.
   static String handle(String username) => '@$username';
 
-  /// The interpunct gramX separates inline facts with.
-  ///
-  /// gramX uses it between a handle and a subscriber count; it is one glyph in
-  /// one place so the spacing cannot drift between them.
+  /// The spaced interpunct between inline facts.
   static const inlineSeparator = ' · ';
 
-  /// The same mark where the layout already supplies the spacing.
+  /// The interpunct without spacing, for layouts that supply it.
   static const inlineSeparatorBare = '·';
 
-  /// The second of two back presses is the one that leaves. Said in the shell
-  /// and on the sign-in screen, which are the two places back can exit from.
+  /// Shown by the shell and the sign-in screen, where back can exit.
   static const pressBackAgainToExit = 'Press back again to exit';
   static const appName = 'gramX';
 
-  /// The one place the version is written.
-  ///
-  /// It reaches the drawer, the settings screen, and the name Telegram shows
-  /// for this session under Settings → Devices. Keep it in step with
-  /// `pubspec.yaml`; a test fails if the two drift.
+  /// The app version, also reported to Telegram for the active sessions list.
+  /// Must match `pubspec.yaml`; a test checks this.
   static const appVersion = '1.0.0';
 
-  /// The version alone, as the Settings row shows it. The drawer says
-  /// [appVersionLabel] instead, which names the app as well.
+  /// The version alone, for the Settings row.
   static const appVersionValue = 'v$appVersion';
 
   // ── Feed ───────────────────────────────────────────────────────────────────
   static String feedError(Object error) => 'Error: $error';
 
-  /// How many people have answered a poll, already abbreviated by the caller.
+  /// Poll vote count, already abbreviated by the caller.
   static String pollVoteCount(String formattedCount) => '$formattedCount votes';
   static String pollVoteFailed(Object error) => 'Failed to vote: $error';
 
-  /// Sends a multiple-answer poll's selection. Single-answer polls have no
-  /// such moment — the tap is the vote — so this appears on nothing else.
+  /// Submits a multiple-answer poll. Single-answer polls vote on tap.
   static const pollVote = 'Vote';
   static const pollPoll = 'Poll';
   static const pollQuiz = 'Quiz';
@@ -86,14 +64,12 @@ abstract class AppStrings {
   static String feedPrivateChannel(String title) =>
       'Channel "$title" is private or unavailable';
 
-  /// The "N new posts" pill.
   static String newPostsPill(int count) =>
       count == 1 ? '1 new post' : '$count new posts';
 
   // ── Post actions ───────────────────────────────────────────────────────────
 
-  /// A counted action, read out as one phrase — "12 replies" rather than a
-  /// number and a word arriving as two separate labels.
+  /// A counted action read as one phrase, such as "12 replies".
   static String a11yCountedAction(int count, String action) => '$count $action';
   static const postLinkCopied = 'Post link copied to clipboard.';
   static const postNotLinkable = "This post can't be linked to.";
@@ -108,14 +84,7 @@ abstract class AppStrings {
   static String postMenuUnmute(String channel) => 'Unmute $channel';
   static String postMenuLeave(String channel) => 'Leave $channel';
 
-  /// Content nothing here can draw, whichever way the reader got to it.
-  ///
-  /// Signed in, TDLib itself says it cannot represent the message — a message
-  /// type newer than the TDLib this build links against. As a guest, the
-  /// `t.me` preview page says the same thing about itself. Either way Telegram
-  /// can still show it, which is what the button under this offers; the
-  /// sentence says what happened, not what to do, because the button already
-  /// says that.
+  /// A post the app cannot render, shown above an "Open in Telegram" button.
   static const postUnsupported =
       "gramX can't show this post — Telegram itself still can.";
   static const postCannotOpenTelegram = "Couldn't open Telegram.";
@@ -299,10 +268,7 @@ abstract class AppStrings {
   static String channelJoined(String title) => 'Joined $title';
   static String channelLeft(String title) => 'Left $title';
 
-  // Leaving is the one membership change that cannot be undone with the same
-  // tap: rejoining a private channel needs an invite the reader may not have.
-  // Joining is asymmetric — it is instantly reversible — so only this side is
-  // confirmed.
+  // Only leaving is confirmed: rejoining a private channel needs an invite.
   static const channelLeaveConfirmTitle = 'Leave this channel?';
   static String channelLeaveConfirmBody(String title) =>
       'Its posts stop arriving in your feed, and you leave $title on every '
@@ -375,11 +341,7 @@ abstract class AppStrings {
   static const activityErrorTitle = 'Could not load your activity';
   static String activityError(Object error) => '$error';
 
-  /// The one-line headline on a row.
-  ///
-  /// Reads as the sentence it produces — "Ada reacted ❤️ in Flutter Devs" —
-  /// which is why it takes named parts rather than a format string: a locale
-  /// that puts the place first only has to change this.
+  /// The headline on an activity row.
   static String activityHeadline({
     required ActivityKind kind,
     required String who,
@@ -397,15 +359,14 @@ abstract class AppStrings {
     };
   }
 
-  /// The mark beside a row carries its meaning by shape and colour, neither of
-  /// which is read out. This is the word for it.
+  /// Spoken label for the icon beside an activity row.
   static String activityKindLabel(ActivityKind kind) => switch (kind) {
     ActivityKind.mention => 'Mention',
     ActivityKind.reply => 'Reply',
     ActivityKind.reaction => 'Reaction',
   };
 
-  /// The bell's badge, capped the way every unread count is.
+  /// The bell's badge, capped at 99+.
   static String activityBadge(int count) => count > 99 ? '99+' : '$count';
 
   static String a11yActivity(int count) =>
@@ -484,8 +445,7 @@ abstract class AppStrings {
       'Your device refused the request. Turn gramX on in your system '
       'notification settings, then try again.';
 
-  /// The name of the Android channel, which the reader sees in their own
-  /// system settings — so it says what it carries, not what the code calls it.
+  /// The Android notification channel name, shown in system settings.
   static const notificationsChannelName = 'Messages and mentions';
   static const notificationsChannelBody =
       'New messages, mentions and replies from Telegram.';
@@ -513,13 +473,11 @@ abstract class AppStrings {
 
   // ── Drawer ─────────────────────────────────────────────────────────────────
   static const drawerProfile = 'My Profile';
-  // Two different things that used to share one row. The label promised Saved
-  // Messages — Telegram's notes-to-self chat — and delivered the bookmark
-  // list, which is this app's own. They are separate entries now.
+  // Bookmarks are the app's list; Saved Messages is Telegram's chat.
   static const drawerBookmarks = 'Bookmarks';
   static const drawerSavedMessages = 'Saved Messages';
 
-  /// The chat with yourself, wherever it is listed or opened.
+  /// Title of the chat with yourself.
   static const savedMessagesTitle = drawerSavedMessages;
   static const savedMessagesUnavailable =
       "Couldn't open Saved Messages. Try again in a moment.";
@@ -547,18 +505,16 @@ abstract class AppStrings {
   static String profileError(Object error) => 'Error: $error';
 
   // ── Onboarding & auth ──────────────────────────────────────────────────────
-  /// Both the shell and the sign-in screen arm the same two-press exit, so
-  /// they say it with the same sentence rather than two that drift apart.
   static const authPressBackAgain = pressBackAgainToExit;
   static const authUsePhoneInstead = 'Use a phone number instead';
   static const authCountrySearchLabel = 'Search Country';
   static const authCountrySearchHint = 'Start typing country name or code...';
   static const authPasswordHint = 'Cloud password';
 
-  /// The dots standing in for the login code, one per digit Telegram sends.
+  /// Placeholder dots for the login code, one per digit.
   static const authCodeHint = '••••••';
 
-  /// An example number in the shape the reader's own country writes them.
+  /// An example phone number for the selected country.
   static String authPhoneHint(String dialCode) => '$dialCode 123 456 7890';
   static const onboardingWelcome = 'Welcome to gramX';
   static const onboardingLoggedOutBody =
@@ -577,19 +533,13 @@ abstract class AppStrings {
   static const authLogInPrompt = 'Log in to Telegram';
   static const authLogInBody = 'Sync your channels, folders, and timeline';
 
-  /// quotes it. The card is a link, and a screen reader needs to hear whose
-  /// post it leads to before hearing the words in it.
+  /// Spoken label for a quoted post embedded in another post.
   static String quotedPostBy(String name) => 'Quoted post by $name';
 
-  /// Read out for the passage a reply singled out, which stands above the
-  /// reply rather than inside it. Named apart from [quotedPostBy] because it
-  /// is a fragment of a post, not a post — and it leads to the message the
-  /// fragment came out of.
+  /// Spoken label for the quoted passage above a reply.
   static String quotedPassageBy(String name) => 'Quoted passage from $name';
 
-  /// The same, for a passage whose origin channel Telegram would not name — a
-  /// private one, or one nothing has cached. Saying whose it is would mean
-  /// guessing, and the guess is always the channel doing the quoting.
+  /// [quotedPassageBy] when Telegram does not name the source chat.
   static const quotedPassageUnattributed = 'Quoted passage';
 
   // ── Rich text ──────────────────────────────────────────────────────────────
@@ -641,10 +591,6 @@ abstract class AppStrings {
   static const documentOpenFailed = "Couldn't open this file";
   static const documentNoAppFound = 'No app found to open this file';
 
-  // Both rows show their own progress ring now, so neither announces the start
-  // of a download in a snackbar. A toast that says "downloading…" and is then
-  // never followed up is the least useful shape this could take: it covers the
-  // very control that would have shown how far along the file is.
   static const documentFallbackName = 'Document file';
   static const documentTapToDownload = 'Tap to download';
   static const documentDownloaded = 'Downloaded';
@@ -698,12 +644,11 @@ abstract class AppStrings {
   static const composeNoGifs =
       'No saved GIFs. Save one in Telegram and it will show up here.';
 
-  /// A sticker has no words of its own; the emoji it stands for is the only
-  /// name Telegram gives it.
+  /// Spoken label for a sticker, named by its emoji.
   static String a11ySticker(String emoji) =>
       emoji.isEmpty ? 'Sticker' : 'Sticker $emoji';
 
-  /// Why a sticker and written text cannot go out together.
+  /// Telegram cannot send a sticker with a caption.
   static const composeStickerTakesNoCaption =
       'Telegram sends a sticker on its own — it cannot carry a caption. Remove '
       'the sticker or clear the text.';
@@ -728,14 +673,12 @@ abstract class AppStrings {
 
   static String composeFailed(String title) => "Couldn't post to $title.";
 
-  /// Shown when the writer tries to attach an eleventh file. Telegram's own
-  /// album limit, not this app's.
+  /// Shown when the attachment count passes Telegram's album limit.
   static String composeAttachmentLimit(int max) => max == 1
       ? 'Only one file can be attached.'
       : 'Up to $max files per post.';
 
-  // Three ways Telegram refuses a photo. It answers all three with the same
-  // unhelpful error, so each is named here instead.
+  // Telegram rejects all three of these with the same generic error.
   static String composePhotoTooLarge(int maxMegabytes) =>
       'Telegram only takes photos up to $maxMegabytes MB.';
 
@@ -747,15 +690,11 @@ abstract class AppStrings {
       'That photo is too long and thin for Telegram — one side can be at most '
       '$maxRatio times the other.';
 
-  /// Why the character allowance shrank the moment a photo was attached.
+  /// Why the character limit drops once media is attached.
   static String composeCaptionLimit(int limit) =>
       'A post with media is captioned, so it is capped at $limit characters.';
 
-  /// What the bar over the timeline is saying, for a screen reader.
-  ///
-  /// The bar itself is three pixels of colour: it carries its meaning by
-  /// position and motion, neither of which is read out. This is the sentence
-  /// that says the same thing.
+  /// Spoken label for the post progress bar.
   static String composeProgressLabel(PostSendStatus status, String target) =>
       switch (status) {
         PostSendStatus.uploading => 'Posting to $target…',
@@ -801,8 +740,7 @@ abstract class AppStrings {
       "Telegram wouldn't pin that — you may have pinned as many as it allows.";
   static const messagesStartOne = 'Start a conversation';
 
-  // Taking a conversation off the list. A group is left; a one-to-one chat,
-  // which there is no leaving, is deleted.
+  // A group is left; a one-to-one chat is deleted.
   static const messagesDeleteChat = 'Delete chat';
   static const messagesLeaveGroup = 'Leave group';
   static String messagesDeleteChatTitle(String title) =>
@@ -818,7 +756,7 @@ abstract class AppStrings {
   static const messagesDeleteFailed = "Telegram wouldn't delete that chat.";
   static const messagesLeaveFailed = "Telegram wouldn't let you leave.";
 
-  // Blocking, from a profile or from a message sent by a stranger.
+  // Blocking, from a profile or a message request.
   static const userBlock = 'Block';
   static const userUnblock = 'Unblock';
   static String userBlockTitle(String name) => 'Block $name?';
@@ -828,11 +766,11 @@ abstract class AppStrings {
   static const userUnblocked = 'Unblocked.';
   static const userBlockFailed = "Telegram wouldn't change that.";
 
-  // The bar across a chat started by somebody the reader does not know.
+  // The bar on a chat started by someone not in the user's contacts.
   static const requestBarText = "You don't have this person in your contacts.";
   static const requestBarDismiss = 'Dismiss';
 
-  // ── Polls somebody is writing ──────────────────────────────────────────────
+  // ── Poll composer ──────────────────────────────────────────────────────────
   static const pollComposeTitle = 'New poll';
   static const pollComposeCreate = 'Create';
   static const pollComposeQuestionHint = 'Ask a question';
@@ -853,9 +791,7 @@ abstract class AppStrings {
   static const pollComposeSendFailed = "Telegram wouldn't take that poll.";
   static String pollComposeOptionHint(int number) => 'Option $number';
 
-  /// Why the Create button is off. One sentence per rule the draft breaks,
-  /// shown for the one it is currently breaking — a poll refused by Telegram
-  /// comes back as a flat error that names no field at all.
+  /// Why the Create button is disabled.
   static String pollComposeProblem(PollDraftError error) => switch (error) {
     PollDraftError.questionEmpty => 'A poll needs a question.',
     PollDraftError.questionTooLong =>
@@ -910,8 +846,7 @@ abstract class AppStrings {
   static const placeLiveLocation = 'Live location';
   static const placeOpenFailed = "Couldn't open a maps app.";
 
-  /// A place with no name and no address: the numbers are the only thing that
-  /// says which place it is.
+  /// Coordinates for a place with no name or address.
   static String placeCoordinates(double latitude, double longitude) =>
       '${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}';
 
@@ -981,7 +916,7 @@ abstract class AppStrings {
   static String chatDeleteCountTitle(int count) =>
       count == 1 ? chatDeleteTitle : 'Delete $count messages?';
 
-  // ── The chat's own timer ───────────────────────────────────────────────────
+  // ── Auto-delete timer ──────────────────────────────────────────────────────
   static const autoDeleteTitle = 'Auto-delete messages';
   static const autoDeleteBody =
       'Applies to everything either of you sends from now on. Both of you are '
@@ -991,10 +926,8 @@ abstract class AppStrings {
   static const autoDeleteOff = 'Off';
   static const autoDeleteFailed = "Telegram wouldn't change that timer.";
 
-  /// One auto-delete length, in the words Telegram's own clients use.
-  ///
-  /// Falls back to a day count for a timer set elsewhere to a length gramX does
-  /// not offer — the sheet shows it rather than pretending nothing is set.
+  /// One auto-delete length. Falls back to days, hours or seconds for a timer
+  /// set elsewhere to a length the app does not offer.
   static String autoDeleteChoice(int seconds) => switch (seconds) {
     0 => autoDeleteOff,
     86400 => 'After 1 day',
@@ -1021,7 +954,7 @@ abstract class AppStrings {
   static const chatPinFailed = "Telegram wouldn't pin that.";
   static const chatUnpinFailed = "Telegram wouldn't unpin that.";
 
-  // ── Media that disappears ──────────────────────────────────────────────────
+  // ── Disappearing media ─────────────────────────────────────────────────────
   static const selfDestructTitle = 'Disappearing media';
   static const selfDestructOff = 'Stays in the chat';
   static const selfDestructViewOnce = 'View once';
@@ -1032,12 +965,12 @@ abstract class AppStrings {
   static String selfDestructAfter(int seconds) =>
       seconds >= 60 ? 'After 1 minute' : 'After $seconds seconds';
 
-  /// The strip under an attachment, saying what will happen to it.
+  /// The label under an attachment saying when it disappears.
   static String selfDestructSummary(int seconds, bool viewOnce) => viewOnce
       ? selfDestructViewOnce
       : (seconds >= 60 ? '1 min' : '$seconds s');
 
-  /// The cover over a disappearing photo somebody has been sent.
+  /// The cover over received disappearing media.
   static const secretMediaTapToView = 'Tap to view';
   static const secretMediaPhoto = 'Photo';
   static const secretMediaVideo = 'Video';
@@ -1045,8 +978,7 @@ abstract class AppStrings {
   static const secretMediaOpenFailed = "Couldn't open that.";
   static const secretMediaClose = 'Close';
 
-  /// What tapping the cover is about to do, said before it is done. Opening is
-  /// irreversible — Telegram tells the sender, and the media is then gone.
+  /// Shown before opening, since opening cannot be undone.
   static const secretMediaOnceWarning =
       'You can only see this once. It disappears when you close it.';
 
@@ -1056,8 +988,7 @@ abstract class AppStrings {
   static String secretMediaCountdown(int seconds) => '${seconds}s';
   static const messagesAllReadDone = 'Everything marked as read.';
 
-  /// The count on the Messages tab. Conversations, not messages: "3" should
-  /// mean three people are waiting, which is a number somebody can act on.
+  /// The Messages tab badge. Counts unread conversations, not messages.
   static String messagesUnreadBadge(int count) =>
       count > 99 ? '99+' : count.toString();
 
@@ -1065,9 +996,7 @@ abstract class AppStrings {
       ? 'Messages, 1 unread conversation'
       : 'Messages, $count unread conversations';
 
-  // ── Service lines: what happened to a chat, centred between the bubbles ────
-  // Every one of these used to be drawn as an empty line, so a public group —
-  // mostly joins — read as a column of blank gaps under date headers.
+  // ── Service messages ───────────────────────────────────────────────────────
   static String serviceJoined(String who) => '$who joined the group';
   static String serviceAdded(String who, String whom) => '$who added $whom';
   static String serviceJoinedByLink(String who) =>
@@ -1097,7 +1026,7 @@ abstract class AppStrings {
   static String serviceTopicCreated(String name) => 'Topic "$name" created';
   static String serviceBoosted(String who) => '$who boosted the group';
 
-  /// Whoever did it, when Telegram does not say or the cache does not know.
+  /// The actor when Telegram does not say or the cache does not know.
   static const serviceSomeone = 'Someone';
 
   // ── A conversation ─────────────────────────────────────────────────────────
@@ -1112,12 +1041,10 @@ abstract class AppStrings {
   static const chatEdited = 'edited';
   static const chatReplyingTo = 'Replying to';
 
-  /// being answered, above the answer. Telegram's bordered quote block is the
-  /// other convention, and it turns every reply in a conversation into a card
-  /// inside a card.
+  /// One line above a reply naming who is being answered.
   static String chatReplyingToName(String name) => 'Replying to $name';
 
-  /// The "↱ Forwarded from Ada" line above a forwarded message.
+  /// The line above a forwarded message.
   static String chatForwardedFrom(String name) => 'Forwarded from $name';
   static const chatCancelReply = 'Cancel reply';
   static const chatUnsupported = "gramX can't show this message yet.";
@@ -1128,20 +1055,16 @@ abstract class AppStrings {
   static const chatActionReply = 'Reply';
   static const chatActionForward = 'Forward';
 
-  // Handing a file to another app on the device.
   static const openWith = 'Open with…';
   static const openWithNotReady = "That file hasn't finished downloading yet.";
 
-  /// A mention Telegram cannot resolve — a private account, or a name that has
-  /// since changed.
+  /// A mention Telegram cannot resolve, such as a changed username.
   static String chatMentionUnknown(String username) =>
       "Telegram doesn't know @$username.";
   static const chatForwarded = 'Forwarded.';
   static const chatForwardFailed = "Telegram wouldn't forward that.";
 
-  /// A reply, pin or search hit that Telegram no longer has. Anything it
-  /// still has is jumped to, however far back — see
-  /// `ConversationNotifier.reveal`.
+  /// A reply, pin or search hit that Telegram no longer has.
   static const chatMessageUnavailable =
       "Couldn't find that message. It may have been deleted.";
   static const chatActionCopy = 'Copy text';
@@ -1162,39 +1085,29 @@ abstract class AppStrings {
   static const chatEditFailed = "Telegram wouldn't take that edit.";
   static const chatEditSaved = 'Saved.';
 
-  /// The composer's stickers-and-GIFs button, and the picker it opens.
   static const chatStickers = 'Stickers and GIFs';
 
-  /// The one button the composer's tools fold into while somebody is typing,
-  /// so the field gets the width back. Tapping it unfolds them.
+  /// The button the composer's tools collapse into while typing.
   static const chatComposerMoreTools = 'More';
   static const chatDeleteFailed = "Telegram wouldn't delete that.";
 
-  /// The date band between two days of messages. Today and yesterday get their
-  /// names because a date nobody has to decode reads faster.
-  /// The band a chat opens on when messages were waiting. Everything below it
-  /// is new since the reader was last here.
+  /// Marks the first unread message when a chat opens.
   static const chatUnreadBand = 'Unread messages';
 
   static const chatToday = 'Today';
   static const chatYesterday = 'Yesterday';
 
-  /// What somebody in the chat is doing right now. In a group the name is
-  /// carried, because "typing" alone in a room of eight says nothing.
+  /// The typing line. In a group it includes the name.
   static String chatTyping(String action, {String? name}) =>
       name == null ? '$action…' : '$name is $action…';
 
-  /// Presence, in Telegram's own hedged words. It refuses to give a time for a
-  /// contact who hides theirs, and inventing one here would be a lie about
-  /// somebody's privacy setting.
+  /// Approximate presence, used when the user hides their exact last seen.
   static const chatLastSeenRecently = 'last seen recently';
   static const chatLastSeenWeek = 'last seen within a week';
   static const chatLastSeenMonth = 'last seen within a month';
   static const chatLastSeenOffline = 'offline';
 
-  // What somebody is doing, for the typing line. Verb phrases, so they read
-  // after a name in a group ("Ada is recording audio…") and alone in a private
-  // chat ("recording audio…").
+  // Verb phrases for [chatTyping], read with or without a name before them.
   static const chatActionTyping = 'typing';
   static const chatActionRecordingVideo = 'recording video';
   static const chatActionSendingVideo = 'sending a video';
@@ -1210,8 +1123,6 @@ abstract class AppStrings {
   static const chatActionWatchingAnimation = 'watching an animation';
   static const chatActionPlayingGame = 'playing a game';
 
-  // Delivery state, for screen readers. The ticks are the visual form and
-  // convey state by shape alone, which is exactly the case a label is for.
   static const chatSearchTooltip = 'Search this conversation';
   static const chatSearchClose = 'Close search';
   static const chatSearchHint = 'Search messages';
@@ -1223,13 +1134,12 @@ abstract class AppStrings {
   static const chatPinnedMessage = 'Pinned message';
   static const chatPinnedNoText = 'Pinned';
 
-  // ── Peeking, and who somebody speaks for ────────────────────────────────
+  // ── Peek and channel affiliation ──────────────────────────────────────────
   static String chatPeekSemantics(String title) =>
       'Peek into the conversation with $title';
   static String chatAffiliation(String channel) => 'Runs the channel $channel';
 
-  /// When the cache has the channel's id but not yet its name — see
-  /// `ChatSummary.affiliatedChannelId` for why that is a normal state.
+  /// Used before the channel's name is cached.
   static const chatAffiliationUnnamed = 'Runs a channel';
 
   static const chatPeekTitle = 'Peek';
@@ -1240,7 +1150,7 @@ abstract class AppStrings {
   static const chatPeekEmpty = 'Nothing to look at yet.';
   static const chatPeekFailed = "Couldn't load this conversation.";
 
-  // ── A person's profile ─────────────────────────────────────────────────────
+  // ── User profile ───────────────────────────────────────────────────────────
   static const profileUserTitle = 'Profile';
   static const profileUserMissing = "Telegram doesn't know this account.";
   static const profileUserDeleted = 'This account was deleted.';
@@ -1269,14 +1179,13 @@ abstract class AppStrings {
   static const statsGraphEmpty = 'Not enough data for this chart yet.';
   static const statsAccountOverview = 'Account overview';
 
-  /// The window Telegram's figures describe, e.g. `Jun 7 – Sep 7`.
+  /// The date range Telegram's figures cover.
   static String statsPeriod(String start, String end) => '$start – $end';
 
   /// A figure that is itself a percentage, e.g. notifications enabled.
   static String statsPercent(String value) => '$value%';
 
-  /// The change against the previous period, without its arrow — the arrow is
-  /// an icon, because a glyph in the string cannot be coloured or labelled.
+  /// The change against the previous period. The arrow is a separate icon.
   static String statsGrowth(String percent) => '$percent%';
 
   // Figure tiles.
@@ -1309,13 +1218,12 @@ abstract class AppStrings {
   static const statsPublicSharesEmpty =
       'Nobody has shared this to a public channel yet.';
 
-  /// Takes the already-abbreviated count, the way every other count-bearing
-  /// string here does — the formatting is `TimeUtils.formatCount`'s job.
+  /// Takes a count already formatted by `TimeUtils.formatCount`.
   static String statsSharedViews(String count) => '$count views';
 
-  // Spoken labels. Every figure on this screen is a number next to a word, and
-  // a screen reader needs them read as one thing rather than as two.
-  /// A count-bearing noun, said the way [a11yViews] is — "12 shares".
+  // Spoken labels.
+
+  /// Spoken after a count, like [a11yViews].
   static const a11yShares = 'shares';
   static const a11yChannelAnalytics = 'Channel analytics';
   static const a11yPostAnalytics = 'Post analytics';
@@ -1329,6 +1237,7 @@ abstract class AppStrings {
 
   static String a11yStatChart(String title) => '$title chart';
 
+  // Spoken delivery states for the message ticks.
   static const chatStateSending = 'Sending';
   static const chatStateSent = 'Sent';
   static const chatStateRead = 'Read';

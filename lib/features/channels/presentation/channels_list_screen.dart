@@ -16,11 +16,8 @@ import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
-/// Which slice of the subscription list is on screen.
-///
-/// Muted channels are hidden from the feed, which used to make them
-/// unreachable: nothing listed them, so a mute could only be undone by
-/// remembering the channel and opening its profile. This is that list.
+/// Which channels the list shows. Muted channels are hidden from the feed, so
+/// the Muted filter is where they can be found.
 enum ChannelFilter { all, muted }
 
 class ChannelFilterNotifier extends Notifier<ChannelFilter> {
@@ -38,13 +35,10 @@ final channelFilterProvider =
     );
 
 /// The channels currently muted, in subscription order.
-///
-/// Derived from the same notifier the mute button writes to, so the list and
-/// the toggle can never disagree.
 final mutedChannelsListProvider = Provider<List<Channel>>((ref) {
   final channels = ref.watch(channelsProvider).value ?? const <Channel>[];
-  // Watched so the list rebuilds when a mute is toggled; the check itself goes
-  // through the notifier, which knows about every id a channel answers to.
+  // Watched to rebuild on a toggle. The notifier does the check, since it
+  // knows every id a channel answers to.
   ref.watch(mutedChannelsProvider);
   final muted = ref.read(mutedChannelsProvider.notifier);
 
@@ -58,8 +52,7 @@ class ChannelsListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // A guest's channels are the public ones they typed in, not a subscription
-    // list Telegram keeps for them. Different source, different screen.
+    // A guest's channels are the public ones they added, on their own screen.
     if (ref.watch(isGuestModeProvider)) {
       return const GuestChannelsScreen(embedded: true);
     }
@@ -87,8 +80,7 @@ class ChannelsListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      // The filter only exists once something is muted, so the header does not
-      // reserve room for an empty strip.
+      // The filter strip only appears once something is muted.
       headerBottomHeight: showFilter ? _filterStripHeight : 0,
       headerBottom: showFilter
           ? _ChannelFilterStrip(
@@ -140,8 +132,7 @@ class ChannelsListScreen extends ConsumerWidget {
   static const double _filterStripHeight = 48;
 }
 
-/// All / Muted. Only offered once something is actually muted — an empty
-/// filter is a control that does nothing.
+/// The All / Muted filter, shown only once something is muted.
 class _ChannelFilterStrip extends ConsumerWidget {
   final ChannelFilter filter;
   final int mutedCount;
@@ -301,11 +292,7 @@ class _ChannelRow extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Muted state is otherwise carried only by the icon — and a
-                  // timed mute has to say when it lifts, or the reader has no
-                  // way to tell it apart from a permanent one. In the grey the
-                  // row's other facts use: a mute is a preference the reader
-                  // set, and the red it used to wear made it read as an error.
+                  // Says when a timed mute lifts, in the row's usual grey.
                   if (muted)
                     Text(
                       mutedUntil != null

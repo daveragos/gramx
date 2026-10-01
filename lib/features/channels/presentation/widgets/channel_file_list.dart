@@ -10,12 +10,8 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_document_card.dart';
 
-/// The Files tab: one row per document, newest first.
-///
-/// Reuses [PostDocumentCard] for the row itself — it already downloads on
-/// demand, shows progress and hands the finished file to the system opener
-/// (the opener added in `6e57816`). This adds only the two things a file
-/// pulled out of its post loses: when it was posted, and a way back to it.
+/// The Files tab: a [PostDocumentCard] per document, newest first, with the
+/// post date and a link back to the post.
 class ChannelFileList extends StatelessWidget {
   final List<Post> posts;
 
@@ -70,8 +66,7 @@ class _FileRow extends StatelessWidget {
         children: [
           PostDocumentCard(item: row.item),
           const SizedBox(height: AppSpacing.xs),
-          // A file lifted out of its post loses its context; this is the way
-          // back to it, and it is a real control rather than a caption.
+          // Opens the post the file came from.
           InkWell(
             onTap: () => context.push('/post/${row.post.id}'),
             child: Padding(

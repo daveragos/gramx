@@ -5,9 +5,7 @@ import 'package:gramx/features/chats/data/affiliation_prefetcher.dart';
 import '../support/td_fixtures.dart';
 
 void main() {
-  // Which rows of the messages list are worth one request as they scroll by:
-  // a person whose channel the list cannot yet name. Everybody else is a
-  // request that could only ever answer nothing.
+  // Only people whose channel is not yet known are worth a request.
   group('AffiliationPrefetcher.userToAskAbout', () {
     final ada = TdFixtures.user(id: 7, firstName: 'Ada');
     final bot = TdFixtures.user(id: 8, firstName: 'Bot', isBot: true);

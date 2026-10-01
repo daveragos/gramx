@@ -8,29 +8,19 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
-/// Renders a Telegram sticker with the decoder its format actually needs.
-///
-/// Stickers used to be mapped to `MediaType.photo` and handed to an image
-/// widget. That works for WebP and nothing else: a TGS sticker is gzipped
-/// Lottie JSON and a WebM sticker is VP9 video, so both drew nothing.
-///
-/// * **WebP** — Flutter's `Image` animates these natively.
-/// * **TGS** — gunzip, then hand the JSON to Lottie.
-/// * **WebM** — VP9 with an alpha channel, which Android's hardware decoder
-///   drops. Falls back to the static thumbnail rather than showing a black
-///   square; a real decoder is a much larger piece of work.
+/// Renders a Telegram sticker by format: WebP through `Image`, TGS (gzipped
+/// Lottie JSON) through Lottie, and WebM as its static thumbnail, since
+/// Android's hardware decoder drops the VP9 alpha channel.
 class StickerTile extends ConsumerWidget {
   final MediaItem item;
 
-  /// Stickers are square-ish and small; this keeps one from dominating a card.
   static const double maxExtent = 180;
 
   const StickerTile({super.key, required this.item});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the download so the sticker appears the moment its file lands,
-    // rather than staying on the fallback until the card happens to rebuild.
+    // Watched so the sticker appears as soon as its file lands.
     final fileId = item.fileId;
     final downloaded = fileId != null && fileId != 0
         ? ref.watch(fileDownloadProvider(fileId)).value
@@ -99,10 +89,8 @@ class StickerTile extends ConsumerWidget {
   }
 }
 
-/// A TGS sticker: gzipped Lottie JSON.
-///
-/// Decoding is async, so the widget holds the bytes once they are ready rather
-/// than re-reading the file on every rebuild.
+/// A TGS sticker (gzipped Lottie JSON), decoded once and held across
+/// rebuilds.
 class _TgsSticker extends StatefulWidget {
   final String path;
   final Size fallbackSize;
@@ -128,8 +116,8 @@ class _TgsStickerState extends State<_TgsSticker> {
     if (oldWidget.path != widget.path) _bytes = _decode();
   }
 
-  /// Reads and gunzips off the UI thread. `gzip.decode` returns `List<int>`,
-  /// while Lottie wants a `Uint8List`.
+  /// Reads and gunzips the file. `gzip.decode` returns `List<int>`; Lottie
+  /// needs a `Uint8List`.
   Future<Uint8List> _decode() async {
     final raw = await File(widget.path).readAsBytes();
     final inflated = gzip.decode(raw);

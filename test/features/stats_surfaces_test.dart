@@ -55,8 +55,7 @@ void main() {
     onViewsTap: onViewsTap,
   );
 
-  // The view count became a plain figure because it looked pressable and
-  // did nothing. It becomes a control again only where there is something
+  // The view count is a control only where there are analytics behind it.
   group('the view count', () {
     testWidgets('is a plain figure where there are no analytics', (
       tester,
@@ -129,8 +128,7 @@ void main() {
       expect(find.text('20%'), findsOneWidget);
     });
 
-    // Telegram reports zero growth both for "unchanged" and for "there was no
-    // previous period", and an app cannot tell those apart.
+    // Telegram reports zero growth for both "unchanged" and "no prior period".
     testWidgets('draws no arrow at all for zero', (tester) async {
       await tester.pumpWidget(
         host(
@@ -183,8 +181,7 @@ void main() {
       expect(find.byType(StatChart), findsOneWidget);
     });
 
-    // An empty chart frame reads as a channel with no activity, which is a
-    // claim about the channel rather than about the data.
+    // An empty chart frame would read as a channel with no activity.
     testWidgets(
       'says a chart is unavailable rather than drawing an empty one',
       (tester) async {
@@ -222,9 +219,8 @@ void main() {
     });
   });
 
-  // The painter's arithmetic is pinned by stat_chart_geometry_test; this is
-  // the check that the shapes it produces can actually be rasterised, which
-  // the geometry alone cannot say.
+  // stat_chart_geometry_test covers the arithmetic; this checks that the
+  // shapes it produces can be rasterised.
   group('StatChart paints', () {
     for (final entry in {
       'a single sample': [5.0],

@@ -83,9 +83,7 @@ void main() {
       ]);
     });
 
-    // The rule that makes this list different from the forward picker's. TDLib
-    // orders by recency alone, which puts the group somebody chatted in five
-    // minutes ago above the channel they opened this screen to post to.
+    // Channels come first here, unlike TDLib's recency order.
     test('a busier group does not outrank a quiet channel', () {
       final targets = ComposeTargets.fromChats([
         TdFixtures.chat(
@@ -126,9 +124,8 @@ void main() {
       expect(targets.single.kind, ComposeTargetKind.direct);
     });
 
-    // The account record loads asynchronously, so the id can genuinely be
-    // missing on the first build. Reading as a direct chat is the safe answer:
-    // it is still a destination, just under a different heading.
+    // The account record loads asynchronously, so the id can be missing on the
+    // first build.
     test(
       'without knowing who you are, Saved Messages reads as a direct chat',
       () {
@@ -193,9 +190,8 @@ void main() {
       expect(draft.characterLimit, ComposeLengthLimits.free.text);
     });
 
-    // The trap this class exists to make visible: attaching a photo turns the
-    // message into a caption, and Telegram's caption limit is a quarter of the
-    // message limit. A draft that was fine a second ago is now too long.
+    // Attaching media turns the text into a caption, whose limit is a quarter
+    // of the message limit.
     test('attaching media drops the limit to the caption limit', () {
       final text = 'x' * 2000;
       final plain = ComposeDraft(target: _target(), text: text);
@@ -234,11 +230,8 @@ void main() {
     });
   });
 
-  // Telegram Premium raises the message limit to 8192 and the caption limit to
-  // 4096 — four times the free caption allowance. A composer that assumed the
-  // free tier would tell a subscriber they were out of room at a quarter of
-  // their real limit, which is why the numbers are read from TDLib rather than
-  // written down. Numbers per https://limits.tginfo.me/en.
+  // Premium raises the message limit to 8192 and the caption limit to 4096, so
+  // the limits are read from TDLib. Numbers per https://limits.tginfo.me/en.
   group('ComposeLengthLimits', () {
     test('free and Premium are the numbers Telegram publishes', () {
       expect(ComposeLengthLimits.free.text, 4096);
@@ -271,8 +264,7 @@ void main() {
     });
   });
 
-  // Telegram answers all three of these with one unhelpful error, and it does
-  // so after the upload rather than before it.
+  // Telegram rejects all three with one generic error, and only after upload.
   group('ComposeLimits.photoRejection', () {
     ComposeAttachment photo({
       int width = 1200,
@@ -299,8 +291,7 @@ void main() {
       );
     });
 
-    // The ceiling is on width *plus* height, not on either alone — so two
-    // dimensions that each look reasonable can still fail together.
+    // The limit is on width plus height, not on either alone.
     test('width plus height over ten thousand is refused', () {
       expect(
         ComposeLimits.photoRejection(photo(width: 6000, height: 5000)),
@@ -322,8 +313,7 @@ void main() {
       );
     });
 
-    // Refusing on a measurement that failed would block a photo Telegram would
-    // have taken. Let it through and let the server decide.
+    // A failed measurement is left for the server to judge.
     test('a photo the probe could not measure is not judged', () {
       expect(ComposeLimits.photoRejection(photo(width: 0, height: 0)), isNull);
     });
@@ -333,15 +323,9 @@ void main() {
     });
   });
 
-  // The regression this group exists for: signing in never reached the feed.
-  //
-  // Login had in fact succeeded — the account was in the database, and a
-  // relaunch went straight to the feed. What failed was the *frame*. Rebuilding
-  // the destination list filters and sorts every cached chat, and it was doing
-  // that once per chat update; the initial sync delivers those in a burst of
-  // hundreds, synchronously, on the UI thread. The UI froze, and a frozen UI
-  // keeps painting its last frame — "Loading account profile", long after the
-  // profile had loaded.
+  // Rebuilding the destination list sorts every cached chat, and the initial
+  // sync delivers hundreds of chat updates in a burst, so rebuilds are
+  // coalesced to keep the UI thread free.
   group('ComposeTargetsNotifier coalescing', () {
     late StreamController<void> changes;
     late int rebuilds;
@@ -441,8 +425,7 @@ void main() {
       expect((content.photo as td.InputFileLocal).path, '/tmp/a.jpg');
     });
 
-    // Repeating the caption on every album item is what a naive loop does, and
-    // Telegram renders it once under each picture.
+    // Telegram shows a caption on every album item that carries one.
     test('an album captions the first item and only the first', () {
       final contents = ComposeMessages.build(
         text: 'three of them',
@@ -489,9 +472,8 @@ void main() {
       expect(content.height, 1080);
     });
 
-    // gramX does not transcode, so it cannot know whether a picked video was
-    // muxed with its index at the front. Claiming otherwise stalls every player
-    // that trusts the flag — this app's own streaming path included.
+    // gramX doesn't transcode, so it can't know whether a video's index is at
+    // the front. A wrong flag stalls players that trust it.
     test('a video is never claimed to be streamable', () {
       final contents = ComposeMessages.build(text: '', attachments: [_video()]);
 
@@ -513,13 +495,8 @@ void main() {
     });
   });
 
-  // The hard rule: a control that renders and does
-  // nothing is a bug. The compose button has two ways to become one, and both
-  // are here.
-
-  // Stickers and GIFs are not two flavours of one thing, and the difference is
-  // the whole reason this group exists: `inputMessageSticker` has no caption
-  // field, `inputMessageAnimation` does, and neither can go in an album.
+  // `inputMessageSticker` has no caption field, `inputMessageAnimation` does,
+  // and neither can go in an album.
   group('stickers and GIFs', () {
     test('a sticker alone is a post', () {
       final draft = ComposeDraft(target: _target()).withRemote(_sticker);
@@ -527,8 +504,7 @@ void main() {
       expect(draft.canPost, isTrue);
     });
 
-    // The one that would otherwise drop what somebody wrote: there is nowhere
-    // on a sticker message for the text to go, so it must not send silently.
+    // A sticker message has no place for text, so it must not drop it silently.
     test('a sticker refuses to carry words', () {
       final draft = ComposeDraft(
         target: _target(),
@@ -561,15 +537,14 @@ void main() {
       expect(draft.characterLimit, ComposeLengthLimits.free.caption);
     });
 
-    // A sticker takes no caption at all, so it is not "captioned" and the limit
-    // question never applies to it.
+    // A sticker takes no caption, so the caption limit never applies.
     test('a sticker is not captioned', () {
       final draft = ComposeDraft(target: _target()).withRemote(_sticker);
       expect(draft.isCaptioned, isFalse);
     });
 
-    // sendMessageAlbum groups only audio, document, photo and video — so these
-    // two selections cannot coexist, and picking one must drop the other.
+    // `sendMessageAlbum` groups only audio, documents, photos and videos, so
+    // picking one kind drops the other.
     test('choosing a sticker drops the photos', () {
       final draft = ComposeDraft(
         target: _target(),
@@ -643,8 +618,7 @@ void main() {
       expect((contents.single as td.InputMessageAnimation).caption, isNull);
     });
 
-    // Sent by file id, not re-uploaded: the file is already on Telegram's
-    // servers, so posting a sticker moves no bytes.
+    // Sent by file id, since the file is already on Telegram's servers.
     test('neither is uploaded again', () {
       for (final media in [_sticker, _gif]) {
         final contents = ComposeMessages.build(
@@ -660,8 +634,7 @@ void main() {
       }
     });
 
-    // The draft makes these exclusive; this pins that the builder agrees, so a
-    // caller that somehow passes both cannot produce a mixed album.
+    // The builder enforces the same exclusivity as the draft.
     test('a chosen sticker wins over any attachments', () {
       final contents = ComposeMessages.build(
         text: '',

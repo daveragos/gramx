@@ -24,21 +24,14 @@ import 'package:gramx/features/compose/presentation/widgets/poll_composer_sheet.
 import 'package:gramx/features/compose/presentation/widgets/self_destruct_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/voice_record_bar.dart';
 
-/// The bar at the bottom of a conversation.
-///
-/// Deliberately not the full compose screen. Writing a channel post is a
-/// deliberate act with a destination picker, a character ring and a discard
-/// confirmation; writing a message is a line you type and send. What the two
-/// *do* share is the attachment model and the picker, so a photo attached here
-/// travels through exactly the same code that attaches one to a post.
+/// The message input bar at the bottom of a conversation. Shares the
+/// attachment model and picker with the post compose screen.
 class MessageComposer extends ConsumerStatefulWidget {
-  /// The message being replied to, if any. The bar shows a cancellable quote
-  /// above the field while one is set.
+  /// The message being replied to, shown as a quote above the field.
   final ChatMessage? replyTo;
   final VoidCallback? onCancelReply;
 
-  /// Called with the text, any attachments, and when it should go. Returns
-  /// whether Telegram took it.
+  /// Sends the message. Returns whether it succeeded.
   final Future<bool> Function(
     String text,
     List<ComposeAttachment> attachments,
@@ -46,37 +39,26 @@ class MessageComposer extends ConsumerStatefulWidget {
   )
   onSend;
 
-  /// Asks when a message should go out. Null where scheduling makes no sense,
-  /// which is what hides the long-press on the send button.
+  /// Asks when to send. Null disables the long press on the send button.
   final Future<MessageSchedule?> Function()? onPickSchedule;
 
-  /// Called on every keystroke, so the screen can tell Telegram this account is
-  /// typing — throttled by `TypingSignal`, never per keystroke on the wire.
+  /// Called on every keystroke. The screen throttles the typing signal with
+  /// `TypingSignal`.
   final ValueChanged<String>? onChanged;
 
-  /// What TDLib already holds as this chat's draft, restored into the field.
-  ///
-  /// The chat list has always *shown* drafts, but nothing here wrote or read
-  /// one — so a draft in the list could only ever have come from another
-  /// Telegram client, and anything typed here and abandoned was lost.
+  /// The chat's TDLib draft, restored into the field.
   final String? initialText;
 
-  /// Called with whatever is unsent when the composer goes away, so it survives
-  /// leaving the screen and follows the reader to their other clients.
+  /// Called with the unsent text on dispose, to save it as the chat's draft.
   final ValueChanged<String>? onDraftChanged;
 
-  /// Sends a poll. Null where Telegram will not take one — a private chat with
-  /// a person — which is also what hides the row that would offer it.
+  /// Sends a poll. Null where Telegram doesn't allow polls, hiding the option.
   final Future<bool> Function(PollDraft draft)? onSendPoll;
 
-  /// Whether media sent from here may be given a self-destruct timer.
-  ///
-  /// True only in a one-to-one chat: Telegram refuses a disappearing message
-  /// anywhere else, so the control is absent rather than present and rejected.
+  /// Whether attachments may self-destruct (one-to-one chats only).
   final bool allowsSelfDestruct;
 
-  /// Whether this chat takes voice messages. False hides the microphone, which
-  /// is otherwise where the send button sits when nothing is typed.
+  /// Whether this chat takes voice messages. False hides the microphone.
   final bool allowsVoiceNotes;
 
   /// Whether this chat takes round video messages.
@@ -85,23 +67,17 @@ class MessageComposer extends ConsumerStatefulWidget {
   /// Whether this chat takes files. Hides the "File" row in the attach sheet.
   final bool allowsDocuments;
 
-  /// Records a round video message and hands back what was recorded. Supplied
-  /// by the screen, because it opens a camera route and a widget must not.
+  /// Records a round video message and returns it.
   final Future<ComposeAttachment?> Function()? onRecordVideoNote;
 
-  /// Sends a location, having asked the device where it is. Also supplied by
-  /// the screen — it needs a permission prompt and an error path.
+  /// Sends the device's current location.
   final Future<bool> Function()? onSendLocation;
 
   /// Sends one of the account's Telegram contacts.
   final Future<bool> Function()? onSendContact;
 
-  /// Sends a sticker or a GIF out of the account's collection. Null where the
-  /// chat forbids them, and the button is absent rather than inert.
-  ///
-  /// Sent on the tap, with nothing staged: a sticker cannot carry a caption
-  /// and cannot join an album, so there is nothing to add to it after picking
-  /// — see [ComposeRemoteMedia]. It is what Telegram's own clients do.
+  /// Sends a sticker or GIF as soon as it is picked (see [ComposeRemoteMedia]).
+  /// Null hides the button in chats that forbid them.
   final Future<bool> Function(ComposeRemoteMedia media)? onSendRemote;
 
   const MessageComposer({
@@ -134,33 +110,22 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   final List<ComposeAttachment> _attachments = [];
   bool _isSending = false;
 
-  /// Running while a voice message is being recorded, null otherwise.
-  ///
-  /// The recorder is created per recording and disposed with it rather than
-  /// held for the lifetime of the composer: it owns a platform audio session,
-  /// and one kept open in every chat the reader visits is a microphone
-  /// indicator that never goes out.
+  /// The active voice recorder, or null. Created per recording so the platform
+  /// audio session is released between recordings.
   VoiceRecorder? _recorder;
 
-  /// Redraws the clock and the bars while recording. There is nothing else to
-  /// rebuild on, because the amplitudes accumulate inside the recorder.
+  /// Redraws the timer and waveform while recording.
   Timer? _recordTicker;
 
-  /// Where the finger went down, while a recording is being *held* — pressed
-  /// on the microphone and not yet let go. Null for a tapped recording, which
-  /// ends with the record bar's own buttons.
-  ///
-  /// Holding is how every other messenger records, and a hold on the
-  /// microphone used to do nothing at all, so the button read as broken.
+  /// Where the finger went down for a press-and-hold recording. Null for a
+  /// tapped recording, which ends with the record bar's buttons.
   Offset? _holdOrigin;
 
-  /// How far left a held recording has to be dragged to throw it away rather
-  /// than send it — Telegram's "slide to cancel".
+  /// How far left a held recording must be dragged to cancel it.
   static const double _slideToCancel = 120;
 
-  /// Whether the reader tapped the chevron to bring the folded tools back
-  /// while typing. Reset when the field empties — see
-  /// [CollapsibleComposerTools].
+  /// Whether the user expanded the folded tools while typing. Reset when the
+  /// field empties. See [CollapsibleComposerTools].
   bool _toolsExpanded = false;
 
   @override
@@ -172,12 +137,10 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
   @override
   void dispose() {
-    // Saved on the way out rather than per keystroke: a draft is what is left
-    // when somebody walks away, and `SetChatDraftMessage` reaches the network.
+    // Saved once on dispose since `SetChatDraftMessage` is a network request.
     widget.onDraftChanged?.call(_controller.text);
     _recordTicker?.cancel();
-    // Leaving the screen mid-recording throws it away rather than sending it.
-    // A voice message somebody walked away from is not one they meant to send.
+    // Leaving mid-recording discards the recording.
     unawaited(_recorder?.cancel().then((_) => _recorder?.dispose()));
     _controller.dispose();
     _focus.dispose();
@@ -186,10 +149,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
   bool get _isRecording => _recorder != null;
 
-  /// Whether the trailing button is a microphone rather than a send arrow.
-  ///
-  /// send and a microphone when there is not, so one thumb position does the
-  /// obvious thing either way.
+  /// Shows the microphone instead of send when there is nothing to send.
   bool get _showMicrophone =>
       widget.allowsVoiceNotes && !_canSend && !_isSending;
 
@@ -204,9 +164,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       return;
     }
 
-    // A hold that was let go before the recorder got going — most often
-    // because the first one opens the microphone permission prompt, which
-    // takes the finger away — has nothing left to record. The next hold will.
+    // The hold ended before recording started, usually because the first one
+    // opened the microphone permission prompt.
     if (failure == null && wasHeld && _holdOrigin == null) {
       await recorder.cancel();
       await recorder.dispose();
@@ -233,8 +192,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     setState(() => _recorder = recorder);
     _recordTicker = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!mounted) return;
-      // Stops itself at the ceiling and keeps what it has — a recorder that ran
-      // on in somebody's pocket is the failure this guards.
+      // Stops at the maximum length and keeps what was recorded.
       if (recorder.elapsed >= VoiceRecorder.maxDuration) {
         _finishRecording();
         return;
@@ -248,10 +206,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     _startRecording();
   }
 
-  /// The finger that was holding the microphone came up, wherever it now is —
-  /// which is why this is on a [Listener] around the whole composer rather
-  /// than on the button: the button is replaced by the record bar the moment
-  /// recording starts, and a detector on it would never see the release.
+  /// Ends a held recording. Driven by a [Listener] around the composer, since
+  /// the record bar replaces the button once recording starts.
   void _releaseHeldRecording(Offset position, {bool cancelled = false}) {
     final origin = _holdOrigin;
     if (origin == null) return;
@@ -299,9 +255,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       return;
     }
 
-    // Sent on its own, not staged. A voice message is a whole message —
-    // Telegram cannot group one into an album, and there is no second thing a
-    // writer means to add to it after holding a button for ten seconds.
+    // Sent right away: a voice message can't join an album or take a caption.
     await _sendNow([attachment]);
   }
 
@@ -399,11 +353,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     );
   }
 
-  /// Runs one of the screen's own send callbacks and reports a refusal.
-  ///
-  /// A location and a contact are both "the screen does something and the
-  /// message appears" — there is nothing to stage in the composer for either,
-  /// so neither goes through the attachment list.
+  /// Runs a screen-supplied send callback and reports a failure.
   Future<void> _sendFrom(
     Future<bool> Function()? send,
     String failureMessage,
@@ -436,11 +386,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     );
   }
 
-  /// Sets how long one attachment survives after it is opened.
-  ///
-  /// Per attachment rather than per message: somebody sending three pictures
-  /// may well mean only one of them to disappear, and Telegram's own field is
-  /// on the media, not on the send.
+  /// Sets one attachment's self-destruct timer. Telegram stores the timer per
+  /// media item, not per message.
   Future<void> _setSelfDestruct(ComposeAttachment attachment) async {
     final choice = await SelfDestructSheet.show(
       context,
@@ -465,7 +412,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     );
   }
 
-  /// Asks when, then sends. The long-press on the send button.
+  /// Asks when to send, then schedules. Bound to long press on send.
   Future<void> _sendLater() async {
     final pick = widget.onPickSchedule;
     if (pick == null || !_canSend) return;
@@ -481,13 +428,10 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     final attachments = List<ComposeAttachment>.from(_attachments);
 
     setState(() => _isSending = true);
-    // Cleared before the await, not after: the sender should be able to start
-    // the next message immediately, and the bubble is already on screen
-    // optimistically by the time this returns.
+    // Cleared before the await so the next message can be typed right away.
     _controller.clear();
     _attachments.clear();
-    // The send path clears TDLib's draft too, so nothing here should write the
-    // just-sent text back on the way out.
+    // So dispose doesn't save the sent text back as a draft.
     widget.onDraftChanged?.call('');
 
     final sent = await widget.onSend(text, attachments, schedule);
@@ -495,7 +439,6 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     setState(() => _isSending = false);
 
     if (!sent) {
-      // Put it back rather than losing what somebody wrote.
       _controller.text = text;
       _attachments.addAll(attachments);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -564,8 +507,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Attach and stickers, folded into one chevron while there
-                      // are words in the field — see CollapsibleComposerTools.
+                      // Folded into a chevron while the field has text.
                       CollapsibleComposerTools(
                         collapsed: composerToolsFolded(
                           hasText: _controller.text.isNotEmpty,
@@ -604,10 +546,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                           style: AppTypography.body(color: primary),
                           onChanged: (value) {
                             widget.onChanged?.call(value);
-                            // Rebuilds the send button's enabled state. The field
-                            // itself is uncontrolled, so this costs one setState
-                            // per keystroke and no request at all. An emptied
-                            // field also unfolds the tools for the next message.
+                            // Unfolds the tools again once the field is empty.
                             setState(() {
                               if (value.isEmpty) _toolsExpanded = false;
                             });
@@ -631,13 +570,9 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                       ),
                       const SizedBox(width: AppSpacing.xs),
                       if (_showMicrophone)
-                        // Tap to start and use the bar's buttons, or hold and let
-                        // go to send — both, because readers arrive expecting one
-                        // or the other.
-                        //
-                        // No tooltip: a tooltip claims the long press for itself,
-                        // and the hold showed "Record a voice message" instead of
-                        // recording one. The label is kept for screen readers.
+                        // Tap to record with the bar's buttons, or hold and
+                        // release to send. No tooltip, since a tooltip would
+                        // take the long press.
                         Semantics(
                           button: true,
                           label: AppStrings.voiceRecord,
@@ -662,9 +597,6 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                             HapticFeedback.lightImpact();
                             _send();
                           },
-                          // Telegram's gesture, and the reason scheduling needs no
-                          // button of its own: the control that sends a message is
-                          // where somebody would look to send it later.
                           onLongPress: widget.onPickSchedule == null
                               ? null
                               : () {
@@ -688,7 +620,7 @@ class _SendButton extends StatelessWidget {
   final bool isSending;
   final VoidCallback onPressed;
 
-  /// Opens the "send later" sheet. Null where scheduling is not offered.
+  /// Opens the "send later" sheet. Null when scheduling isn't offered.
   final VoidCallback? onLongPress;
 
   const _SendButton({
@@ -706,17 +638,13 @@ class _SendButton extends StatelessWidget {
         : AppColors.lightTextSecondary;
 
     return GestureDetector(
-      // The long press is on a wrapper rather than on the IconButton, which has
-      // no long-press of its own. The tooltip names both, because a gesture
-      // nothing announces is a gesture nobody finds.
+      // IconButton has no long press of its own.
       onLongPress: isEnabled ? onLongPress : null,
       child: IconButton(
         tooltip: onLongPress == null
             ? AppStrings.chatSend
             : AppStrings.chatSendOrSchedule,
-        // Disabled rather than hidden: the button's position is where somebody's
-        // thumb already is, and a control that moves as you type is worse than
-        // one that greys out.
+        // Disabled rather than hidden so the button doesn't move while typing.
         onPressed: isEnabled ? onPressed : null,
         icon: isSending
             ? const SizedBox(
@@ -736,10 +664,8 @@ class _SendButton extends StatelessWidget {
   }
 }
 
-/// Who the reply being written is to, above the field.
-///
-/// no accent bar down the side. Both places show the same thing, so both
-/// should look like the same thing.
+/// The message being replied to, above the field, drawn like the reply line
+/// in a bubble.
 class _ReplyBar extends StatelessWidget {
   final ChatMessage message;
   final VoidCallback? onCancel;
@@ -753,8 +679,7 @@ class _ReplyBar extends StatelessWidget {
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    // The same two lines the sent reply will carry, so what is shown here is
-    // what the other side will see quoted.
+    // Uses the same mapping as the sent reply's quote.
     final author = ChatMessageMapper.replyAuthorOf(message);
 
     return Padding(
@@ -802,17 +727,12 @@ class _ReplyBar extends StatelessWidget {
   }
 }
 
-/// Thumbnails of what is attached but not yet sent.
-///
-/// Each tile carries what will happen to that file: a timer glyph when it is
-/// set to disappear, a spoiler glyph when it will arrive covered. Both are on
-/// the tile rather than in a menu because the setting is per file, and a
-/// message with one disappearing picture in three has to be able to say which.
+/// Thumbnails of pending attachments, each with its own self-destruct and
+/// spoiler toggles since both are set per file.
 class _AttachmentStrip extends StatelessWidget {
   final List<ComposeAttachment> attachments;
 
-  /// Whether this chat may carry disappearing media at all. False hides the
-  /// timer control rather than disabling it.
+  /// Whether this chat allows self-destructing media. False hides the timer.
   final bool allowsSelfDestruct;
 
   final ValueChanged<ComposeAttachment> onRemove;
@@ -957,8 +877,7 @@ class _AttachmentTile extends StatelessWidget {
                   color: secondary,
                   onPressed: onSelfDestruct,
                 ),
-              // Telegram refuses a spoiler on media that already destroys
-              // itself, so the toggle goes rather than sitting there greyed.
+              // Telegram doesn't allow a spoiler on self-destructing media.
               if (attachment.canSpoiler)
                 _TileAction(
                   tooltip: AppStrings.selfDestructSpoiler,
@@ -999,17 +918,14 @@ class _TileAction extends StatelessWidget {
       tooltip: tooltip,
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      // Material pads every IconButton out to a 48-point tap target, whatever
-      // its constraints say. Two of those under a 64-point thumbnail made the
-      // tile taller than the strip and wider than the picture — the strip
-      // overflowed on every photo attached in a one-to-one chat.
+      // Material pads IconButtons to a 48-point tap target regardless of
+      // constraints, which overflows the 64-point tile.
       style: IconButton.styleFrom(
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       constraints: const BoxConstraints(minWidth: 28, minHeight: 24),
       iconSize: 16,
-      // The state is also in the badge on the thumbnail, so colour is not the
-      // only thing saying a toggle is on.
+      // The thumbnail badge also shows the state, so it isn't colour alone.
       color: isOn ? AppColors.accent : color,
       icon: Icon(icon),
       onPressed: onPressed,
@@ -1017,7 +933,7 @@ class _TileAction extends StatelessWidget {
   }
 }
 
-/// The little dark chip over a thumbnail, naming what will happen to it.
+/// A small chip on a thumbnail showing its self-destruct or spoiler setting.
 class _Badge extends StatelessWidget {
   final String label;
 

@@ -5,17 +5,10 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/compose/presentation/post_progress_provider.dart';
 
-///
-/// Sits on the header's bottom edge, so it travels with the chrome and takes no
-/// room in the layout — a bar that pushed the feed down and pulled it back up
-/// again would move what somebody is reading, twice, for something that is not
-/// about them.
-///
-/// Determinate while there are bytes to count and indeterminate otherwise,
-/// which is the honest drawing of a text post: it is working, and there is
-/// nothing to measure.
+/// The progress bar over the timeline while a post is going out. Sits on the
+/// header's bottom edge so it takes no room and doesn't shift the feed.
+/// Indeterminate when there are no bytes to count.
 class PostProgressBar extends ConsumerWidget {
-  /// Thin on purpose. This is a status line, not a dialog.
   static const double height = 3;
 
   const PostProgressBar({super.key});
@@ -44,7 +37,7 @@ class PostProgressBar extends ConsumerWidget {
       child: SizedBox(
         height: height,
         child: LinearProgressIndicator(
-          // A failure has no fraction to show — it stopped, wherever it was.
+          // A failure has no fraction to show.
           value: progress.status == PostSendStatus.failed
               ? 1
               : progress.fraction,

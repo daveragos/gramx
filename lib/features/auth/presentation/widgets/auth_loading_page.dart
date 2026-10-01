@@ -30,11 +30,7 @@ class AuthLoadingPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The same mark the splash screen draws, still animating. A blue
-            // circle with a paper plane was a different-looking screen for the
-            // moment before connecting finished, which read as the app flashing
-            // an older design at you; a mark that stops moving between the two
-            // screens reads as the app having hung.
+            // The splash's animated mark, for a seamless hand-off.
             const BrandMark(size: 112),
             const SizedBox(height: 24),
             Text(
@@ -53,10 +49,7 @@ class AuthLoadingPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            // No spinner under the status line. The mark above is already
-            // moving, and two things moving on a screen that says "connecting"
-            // read as two separate waits — the splash dropped its spinner for
-            // the same reason.
+            // No spinner: the animated mark already shows progress.
             const SizedBox(height: 48),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(

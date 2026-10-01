@@ -31,10 +31,8 @@ Map<String, dynamic> _channelOrigin({
 };
 
 void main() {
-  // Saved Messages holds everything a reader has ever sent themselves. Only a
-  // forward *from a channel*, with a message id behind it, is a bookmark — so
-  // this is the filter that stops a restore turning somebody's notes to self
-  // into bookmarks.
+  // Only a forward from a channel with a message id counts as a bookmark;
+  // other Saved Messages are the user's own notes.
   group('FeedRepository.bookmarkOriginOf', () {
     test('a forwarded channel post is a bookmark', () {
       final message = _saved(
@@ -70,9 +68,7 @@ void main() {
       expect(FeedRepository.bookmarkOriginOf(message), isNull);
     });
 
-    // Telegram sometimes attributes a forward to a channel without naming the
-    // message. That is not enough to find a post with, and a row built from it
-    // would point at message zero.
+    // Telegram sometimes omits the message id on a channel forward.
     test('a channel origin with no message id is not enough', () {
       final message = _saved(
         1,

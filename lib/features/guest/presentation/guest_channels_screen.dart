@@ -13,19 +13,11 @@ import 'package:gramx/features/guest/data/guest_channel_store.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// Where a guest builds their reading list.
-///
-/// Adding resolves the channel before it is stored, so a typo or a private
-/// channel fails here with a reason rather than becoming a permanently empty
-/// row in the feed.
-///
-/// This is both the Channels tab and a pushed route, which is why [embedded]
-/// exists: as a tab it has to wear the app's own sliding chrome and leave room
-/// for the bottom bar — it used to draw a plain `AppBar` in the tab position,
-/// which looked like a different app and hid the last row of the list behind
-/// the navigation bar.
+/// Where a guest manages their channel list. A channel is resolved before
+/// it is stored, so a typo or private channel fails here with a reason.
 class GuestChannelsScreen extends ConsumerStatefulWidget {
-  /// True when this is the Channels tab rather than a route pushed on top.
+  /// True when shown as the Channels tab, with the sliding chrome and room
+  /// for the bottom bar, rather than as a pushed route.
   final bool embedded;
 
   const GuestChannelsScreen({super.key, this.embedded = false});
@@ -69,9 +61,7 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
     _controller.clear();
     FocusScope.of(context).unfocus();
 
-    // Say what was added, by its real title rather than the handle that was
-    // typed: resolving the channel is the only way to learn its name, and
-    // showing it back is the confirmation that the resolve worked.
+    // Confirm with the resolved title rather than the typed handle.
     final added = ref.read(guestChannelsProvider).value?.firstOrNull;
     if (added == null) return;
     ScaffoldMessenger.of(
@@ -79,11 +69,7 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
     ).showSnackBar(SnackBar(content: Text(AppStrings.guestAdded(added.title))));
   }
 
-  /// Pulls a link or handle out of the clipboard.
-  ///
-  /// People arrive at a channel by copying a `t.me/…` link, and typing it back
-  /// out by hand is the step this removes. Parsing is left to `add`, which
-  /// already understands every shape the link comes in.
+  /// Pastes a link or handle from the clipboard. `add` does the parsing.
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim();
@@ -111,9 +97,7 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(AppStrings.guestRemoved(channel.username)),
-        // Removing is one tap on a small icon, and re-adding costs a request
-        // that can fail on its own. Undo puts the stored row back exactly as
-        // it was, in the place it came from.
+        // Undo restores the stored row in place, without a new request.
         action: SnackBarAction(
           label: AppStrings.guestUndo,
           onPressed: () => notifier.restore(channel, index),
@@ -244,9 +228,6 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
                 itemBuilder: (context, index) {
                   final channel = channels[index];
                   return ListTile(
-                    // A row that named a channel and did nothing when tapped
-                    // was the one place in guest mode where the channel the
-                    // reader had just added could not be opened.
                     onTap: () => _open(channel),
                     leading: ChannelAvatar(
                       title: channel.title,

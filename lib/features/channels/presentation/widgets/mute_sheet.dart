@@ -8,12 +8,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
 
-/// Asks how long to hide a channel for, the way Telegram does.
-///
-/// Muting used to be forever-or-nothing, which meant the useful case — "not
-/// during this news cycle" — either didn't happen or was never undone. An
-/// already-muted channel skips the menu: the only thing left to offer is
-/// letting it back in.
+/// Asks how long to mute a channel for. An already-muted channel skips the
+/// menu and is unmuted.
 abstract class MuteSheet {
   static Future<void> show(
     BuildContext context,
@@ -39,11 +35,8 @@ abstract class MuteSheet {
 
     final choice = await showModalBottomSheet<MuteDuration>(
       context: context,
-      // The shell's bottom tab bar is painted on top of each branch's own
-      // Navigator (see AppShell's Stack), so a sheet attached to that
-      // branch-local Navigator renders underneath it — the last option in a
-      // tall sheet ends up hidden behind the tab bar. The root Navigator's
-      // Overlay sits above the whole shell, tab bar included.
+      // The shell's tab bar is painted over each branch Navigator (see
+      // AppShell's Stack), so only the root Navigator shows the sheet above it.
       useRootNavigator: true,
       showDragHandle: true,
       builder: (context) => const _MuteDurationSheet(),

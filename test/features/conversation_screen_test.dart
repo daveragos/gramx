@@ -18,8 +18,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 const int _chatId = -100600;
 
-/// A conversation that is already loaded, so the screen can be tested on its
-/// own: the loading rules have tests of their own in conversation_state_test.
+/// An already loaded conversation. Loading is covered in
+/// conversation_state_test.
 class _FixedConversation extends ConversationNotifier {
   _FixedConversation(this._state) : super(_chatId);
 
@@ -136,7 +136,6 @@ void _phoneSized(WidgetTester tester) {
 }
 
 void main() {
-  // An unread chat opens at the line, not at the bottom.
   testWidgets('opens with the unread band at the top of the list', (
     tester,
   ) async {
@@ -162,11 +161,8 @@ void main() {
     expect(tester.getRect(band).top, closeTo(list.top, 24));
   });
 
-  // Once a chat is open TDLib refreshes what it knows about the messages in
-  // it, and reactions land on bubbles *below* the band after the screen has
-  // already scrolled to it. The list is anchored to its bottom, so every row
-  // that grew down there pushed the band up and out of view — on a phone it
-  // ended up a screen and a half away.
+  // TDLib refreshes messages after the chat opens, so rows below the band can
+  // grow. The list is anchored to its bottom, so the band must not drift up.
   testWidgets('the band stays put when rows below it grow', (tester) async {
     _phoneSized(tester);
     final messages = _messages(150);
@@ -279,9 +275,8 @@ void main() {
     expect(newest.top, greaterThan(list.top));
   });
 
-  // Holding the words of a message opened the system's Copy/Share bar, because
-  // the text was a selectable field — and the long press never reached the
-  // bubble, which is the only way into reply, edit, forward and delete.
+  // The long press on a bubble opens reply, edit, forward and delete, so the
+  // text must not be selectable.
   testWidgets("a message's words do not take the long press", (tester) async {
     _phoneSized(tester);
     await tester.pumpWidget(
@@ -302,9 +297,8 @@ void main() {
     );
   });
 
-  // Every action on the long-press sheet closed the sheet and then kept using
-  // the sheet's own context and ref — gone by the time the dialog answered —
-  // so Forward, Edit, Pin and Delete did nothing, and saving an edit threw.
+  // Each action closes the sheet, so it must not use the sheet's context or
+  // ref afterwards.
   group('the long-press sheet', () {
     Future<_FixedConversation> openSheetOn(WidgetTester tester) async {
       _phoneSized(tester);
@@ -354,9 +348,8 @@ void main() {
     });
   });
 
-  // The composer saves its draft from its own dispose(), after the screen has
-  // been deactivated. Reading `ref` there threw, so a draft somebody walked
-  // away from was never saved.
+  // The composer saves its draft from dispose(), after the screen has been
+  // deactivated, so it can't read `ref` there.
   testWidgets('what was typed is saved as a draft on the way out', (
     tester,
   ) async {

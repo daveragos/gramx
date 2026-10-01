@@ -35,14 +35,9 @@ class ReactionState {
   String toString() => 'ReactionState($reactions, chosen: $chosen)';
 }
 
-/// Applies the user tapping [emoji], the way Telegram actually behaves.
-///
-/// A non-premium account holds **one** reaction per message. Picking a second
-/// replaces the first — the server does this regardless, so an optimistic
-/// update that adds instead of replacing shows two reactions marked as the
-/// user's own while only the last one is real.
-///
-/// Tapping the reaction you already have removes it.
+/// Applies the user tapping [emoji], matching Telegram's behaviour. A
+/// non-premium account holds one reaction per message, so a new one replaces
+/// the old. Tapping the current reaction removes it.
 ReactionState applyReactionChoice({
   required Map<String, int> reactions,
   required Set<String> chosen,
@@ -65,7 +60,7 @@ ReactionState applyReactionChoice({
     return ReactionState(reactions: counts, chosen: const {});
   }
 
-  // Otherwise the previous choice — if any — is replaced, not added to.
+  // Otherwise the previous choice, if any, is replaced.
   for (final previous in chosen) {
     decrement(previous);
   }

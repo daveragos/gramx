@@ -3,13 +3,8 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
-/// Reactions were the one thing on a post that gramX could see in Telegram and
-/// not draw. Two separate causes, one test file:
-///
-///  * only `reactionTypeEmoji` survived the mapper, so the ⭐ paid reaction and
-///    custom-emoji reactions on a real channel post silently vanished;
-///  * the mapper and the live-update path each had their own copy of the loop,
-///    which is how they came to disagree in the first place.
+/// Paid and custom-emoji reactions must survive the mapper, which the
+/// live-update path shares.
 void main() {
   group('TdlibMappers.mapReactions', () {
     test('reads counts and the reader\'s own choice off an emoji reaction', () {
@@ -31,8 +26,7 @@ void main() {
       expect(mapped.chosen, {'😂'});
     });
 
-    // Telegram Stars. It carries no emoji of its own, so dropping anything
-    // without one dropped it — and it is the first chip on plenty of posts.
+    // A paid (Stars) reaction carries no emoji of its own.
     test('a paid reaction becomes a star chip rather than nothing', () {
       final mapped = TdlibMappers.mapReactions(
         TdFixtures.messageReactions([
@@ -61,8 +55,7 @@ void main() {
       expect(mapped.chosen, {TdlibMappers.customReactionEmoji});
     });
 
-    // Two different custom emoji collapse onto one key, so the counts have to
-    // add. Overwriting would report the second reaction's count as the total.
+    // Custom emoji share one placeholder key, so their counts add up.
     test('custom emoji reactions sharing the placeholder add up', () {
       final mapped = TdlibMappers.mapReactions(
         TdFixtures.messageReactions([
@@ -80,7 +73,7 @@ void main() {
       expect(mapped.counts, {TdlibMappers.customReactionEmoji: 7});
     });
 
-    // The exact shape of image 4: a paid star, a heart, and a custom emoji.
+    // A paid star, a heart and a custom emoji on one post.
     test('mixed reaction types all survive together', () {
       final mapped = TdlibMappers.mapReactions(
         TdFixtures.messageReactions([

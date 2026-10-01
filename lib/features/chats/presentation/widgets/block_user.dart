@@ -4,12 +4,8 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 
-/// Blocks [userId], or unblocks them if they already are. Returns whether
-/// Telegram took it.
-///
-/// Blocking confirms first — it cuts somebody off, and they are not told, so a
-/// tap that missed its target would be silent on both sides. Unblocking just
-/// happens: it restores what the reader chose to have, and is one tap to undo.
+/// Blocks [userId], or unblocks them if already blocked, and returns whether
+/// it succeeded. Only blocking asks for confirmation.
 Future<bool> toggleBlock(
   BuildContext context,
   ChatsRepository repository, {

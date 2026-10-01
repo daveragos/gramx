@@ -6,10 +6,8 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/settings/data/app_settings.dart';
 
-/// The palette one of the three themes is built from.
-///
-/// Every colour a Material widget can pick up on its own — a dialog's
-/// surface, a sheet's, a menu's — comes from here, so nothing the framework
+/// The palette one of the three themes is built from. Framework widgets
+/// (dialogs, sheets, menus) take their colours from here.
 class _Palette {
   final Brightness brightness;
   final Color background;
@@ -67,11 +65,8 @@ class AppTheme {
 
   static ThemeData dim() => _build(_Palette.dim);
 
-  /// The theme for a chosen look.
-  ///
-  /// `system` is not a look of its own — it is a choice between two of the
-  /// others, and `MaterialApp` makes it from the platform's brightness (see
-  /// `GramXApp`). Asked for directly it answers with dark, the app's default
+  /// The theme for a chosen mode. `system` is resolved by `MaterialApp` (see
+  /// `GramXApp`); asked for directly it returns dark, the default.
   static ThemeData getTheme(AppThemeMode mode) {
     switch (mode) {
       case AppThemeMode.light:
@@ -84,16 +79,12 @@ class AppTheme {
     }
   }
 
-  /// The shared shape. One builder rather than three copies, so a widget
-  /// theme added for one look cannot be forgotten for the other two — which is
-  /// how the dark theme once shipped a white snackbar.
+  /// Builds every theme, so a widget theme cannot be added to only one.
   static ThemeData _build(_Palette p) {
     final isDark = p.brightness == Brightness.dark;
 
-    // Inter everywhere the framework reaches for a text style of its own:
-    // list tiles, dialogs, snackbars, menus, tab labels. The card widgets set
-    // Inter explicitly through AppTypography; without this, everything else
-    // fell back to Roboto, and the app was visibly two fonts.
+    // Inter for framework text (list tiles, dialogs, snackbars, menus, tabs),
+    // which would otherwise fall back to Roboto.
     final baseText = isDark
         ? Typography.material2021().white
         : Typography.material2021().black;
@@ -130,8 +121,8 @@ class AppTheme {
       colorScheme: colorScheme,
       textTheme: textTheme,
       primaryTextTheme: textTheme,
-      // swipe, on every platform it ships on. Material's zoom is what Flutter
-      // draws when nothing says otherwise, and it is the one motion in the app
+      // Slide-in pages with an edge swipe back on every platform, instead of
+      // Material's zoom.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -166,8 +157,8 @@ class AppTheme {
         shape: RoundedRectangleBorder(),
       ),
       iconTheme: IconThemeData(color: p.textSecondary, size: 20),
-      // gone in a moment. Material's default is the *inverse* surface — a
-      // white band on a black screen — which is the one thing on the page
+      // Accent-blue snackbar with white text, instead of Material's inverse
+      // surface.
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.accent,
@@ -232,9 +223,7 @@ class AppTheme {
         dividerColor: Colors.transparent,
         overlayColor: WidgetStateProperty.all(Colors.transparent),
       ),
-      // Every button is a pill. The three families differ in fill, not in
-      // shape, and the shape is set once here so a screen cannot ship a
-      // square one by forgetting.
+      // Every button is a pill; the families differ only in fill.
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.accent,

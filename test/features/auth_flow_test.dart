@@ -45,8 +45,8 @@ void main() {
     });
   });
 
-  // The reported failure: TDLib reissues a pending QR every few seconds, and
-  // each announcement put the reader straight back on the page they had left.
+  // TDLib reissues a pending QR code every few seconds; that must not reopen
+  // the QR page.
   group('after backing out to the chooser', () {
     test('a refreshed QR link does not reopen the QR page', () {
       final transition = resolveAuthState(
@@ -75,8 +75,7 @@ void main() {
       expect(transition.stayAtChooser, isTrue);
     });
 
-    // Someone confirmed the QR on their other device: that outranks whichever
-    // page the reader had wandered to.
+    // For example, the QR code was confirmed on another device.
     test('real progress takes the screen back', () {
       final transition = resolveAuthState(
         current: const AuthState(step: AuthStep.loginMethodSelection),
@@ -101,9 +100,8 @@ void main() {
   });
 
   group('shouldRequestQrCode', () {
-    // "Refresh QR code" asked for a new one while TDLib was already holding
-    // one, which TDLib rejects: "Call to requestQrCodeAuthentication
-    // unexpected". It refreshes the link itself, so there is nothing to ask.
+    // TDLib rejects requestQrCodeAuthentication while it holds a code, and
+    // refreshes the link itself.
     test('no request while TDLib is already holding a code', () {
       expect(
         shouldRequestQrCode(tdlibIsShowingQr: true, knownLink: 'tg://login'),
@@ -118,7 +116,6 @@ void main() {
       );
     });
 
-    // Holding the state without a link to show is not something to sit on.
     test('requests one if the link never arrived', () {
       expect(
         shouldRequestQrCode(tdlibIsShowingQr: true, knownLink: null),

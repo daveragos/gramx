@@ -5,25 +5,18 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/domain/message_place.dart';
 
-/// A location or a venue, inside a bubble.
-///
-/// **No map.** Drawing one would mean fetching tiles from a provider gramX has
-/// no key for and does not talk to — a third-party request from a Telegram
-/// client, on every location anybody ever sent. So the card says where the
-/// place is, names it when Telegram named it, and hands the reader to whatever
-/// maps app they already use. That is a card that works offline and leaks
-/// nothing.
+/// A location or venue inside a bubble. Shows no map, since that would mean
+/// requesting tiles from a third-party provider; tapping opens a maps app.
 class PlaceBubble extends StatelessWidget {
   final MessagePlace place;
 
-  /// The bubble's usable width, so the card matches the bubbles around it.
+  /// The bubble's usable width.
   final double maxWidth;
 
   final Color foregroundColor;
   final Color mutedColor;
 
-  /// Opens the place in a maps app. Supplied by the screen, because launching
-  /// one leaves the app and a widget must not decide that.
+  /// Opens the place in a maps app.
   final VoidCallback? onOpen;
 
   const PlaceBubble({
@@ -43,9 +36,7 @@ class PlaceBubble extends StatelessWidget {
               ? AppStrings.placeLiveLocation
               : AppStrings.locationLabel);
 
-    // Coordinates are the fallback subtitle, not decoration: without an address
-    // they are the only thing that says *which* place this is, and they are
-    // what somebody would read out over a phone.
+    // Coordinates when there is no address.
     final subtitle =
         place.address ??
         AppStrings.placeCoordinates(place.latitude, place.longitude);
@@ -120,8 +111,7 @@ class ContactBubble extends StatelessWidget {
   final Color foregroundColor;
   final Color mutedColor;
 
-  /// Opens the person's profile. Null when the contact is not on Telegram,
-  /// which is what makes the card inert rather than leading nowhere.
+  /// Opens the contact's profile. Null when they aren't on Telegram.
   final VoidCallback? onOpen;
 
   const ContactBubble({
@@ -172,8 +162,7 @@ class ContactBubble extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      // A contact whose number is hidden still has a name, and
-                      // saying what kind of card it is beats an empty line.
+                      // A generic label when the number is hidden.
                       phone ?? AppStrings.contactMessage,
                       style: AppTypography.timestamp(color: mutedColor),
                     ),

@@ -1,17 +1,9 @@
 import 'package:gramx/features/stats/domain/stat_graph.dart';
 
-/// The models behind the analytics screens.
-///
-/// Plain classes rather than Freezed, which is the default here — for the
-/// same reason `ActivityItem` and `UserProfile` are. Nothing
-/// here is stored, sent, or copied with a field changed: it is read from TDLib
-/// once, drawn, and dropped when the screen closes, so `copyWith` and a JSON
-/// codec would be generated code with no caller.
+/// The models behind the analytics screens. Plain classes rather than
+/// Freezed, since they are never stored, serialized or copied.
 
-/// One headline number, with what it was before it.
-///
-/// Telegram's `statisticalValue` carries the current figure, the previous
-/// (`131.4K ↑315%`), so nothing here has to be computed by this app.
+/// One headline number with its previous value and growth.
 class StatFigure {
   final double value;
 
@@ -19,14 +11,10 @@ class StatFigure {
   final double? previousValue;
 
   /// Growth as a percentage: `315` means the figure more than quadrupled.
-  ///
-  /// Null when there is no earlier period to compare against — a channel in
-  /// its first week has a real view count and no honest arrow to put on it.
+  /// Null when there is no earlier period to compare against.
   final double? growthPercentage;
 
-  /// The value *is* a percentage and reads as `43%` rather than as a count.
-  ///
-  /// Only "notifications enabled" is one; every other figure is a tally.
+  /// Whether the value is a percentage rather than a count.
   final bool isPercentage;
 
   const StatFigure({
@@ -36,23 +24,16 @@ class StatFigure {
     this.isPercentage = false,
   });
 
-  /// True when the arrow is worth drawing.
-  ///
-  /// A growth of exactly zero is the common case for a quiet week, and an
-  /// arrow pointing sideways at `0%` is three pixels of nothing. Telegram also
-  /// reports `0` when it simply has no previous period, which would otherwise
-  /// render as "no change" — a claim this app cannot make.
+  /// Whether to draw a growth arrow. Not for zero, which Telegram also sends
+  /// when there is no previous period.
   bool get hasGrowth =>
       growthPercentage != null && growthPercentage!.abs() >= 0.05;
 
   bool get isRising => (growthPercentage ?? 0) > 0;
 }
 
-/// The tiles across the top of the channel's Overview.
-///
-/// Ordered the way they are drawn. Telegram sends a few figures gramX has no
-/// surface for — the story means — and those are dropped rather than shown as
-/// zeroes for a feature the app does not render.
+/// The tiles across the top of the channel's Overview, in display order.
+/// Story figures are dropped since the app has no stories.
 enum ChannelStatFigure {
   followers,
   notifications,
@@ -61,16 +42,13 @@ enum ChannelStatFigure {
   reactionsPerPost,
 }
 
-/// The charts a channel's statistics can contain.
-///
-/// One per graph gramX draws, named for what it shows rather than for TDLib's
-/// field. The story graphs are deliberately absent: gramX has no stories
-/// surface, and a chart about a thing the app cannot show is noise on a screen
-/// whose whole job is to be read.
+/// The charts drawn from a channel's statistics, named for what they show.
+/// Story graphs are left out.
 enum ChannelStatGraph {
+  /// Members over time.
   growth,
 
-  /// colours: gains up, losses down.
+  /// Joined and left per day: gains up, losses down.
   followers,
 
   /// Notifications enabled versus muted.
@@ -78,13 +56,11 @@ enum ChannelStatGraph {
 
   viewsByHour,
 
-  /// Where views came from — followers, channels, search, URLs.
+  /// Where views came from: followers, channels, search, URLs.
   viewsBySource,
 
-  /// Where new followers came from.
   newFollowersBySource,
 
-  /// The languages the audience reads in.
   languages,
 
   /// Views and shares per post, over time.
@@ -97,11 +73,8 @@ enum ChannelStatGraph {
   instantViews,
 }
 
-/// One post, with what Telegram counted on it.
-///
-/// and the message id needed to open the post itself. It carries no text —
-/// `getChatStatistics` names messages by id only, and the words are fetched in
-/// one batched request afterwards.
+/// A Content tab row: one post's counts and its message id. The text is
+/// fetched separately, since `getChatStatistics` only sends ids.
 class PostInteraction {
   final int messageId;
   final int viewCount;
@@ -116,9 +89,9 @@ class PostInteraction {
   });
 }
 
-/// Everything `getChatStatistics` said about a channel, in this app's terms.
+/// A channel's statistics from `getChatStatistics`.
 class ChannelStats {
-  /// The window the figures describe. Telegram chooses it, not the reader.
+  /// The period the figures cover, chosen by Telegram.
   final DateTime periodStart;
   final DateTime periodEnd;
 
@@ -126,7 +99,7 @@ class ChannelStats {
   /// not send is absent rather than zero.
   final Map<ChannelStatFigure, StatFigure> figures;
 
-  /// The charts, most of them still a token away — see [StatGraphSource].
+  /// The charts, most of them still unresolved tokens. See [StatGraphSource].
   final Map<ChannelStatGraph, StatGraphSource> graphs;
 
   /// The channel's recent posts and their counts, newest first.
@@ -141,12 +114,8 @@ class ChannelStats {
   });
 }
 
-/// The words and the date behind a [PostInteraction].
-///
-/// `getChatStatistics` names a post by id and nothing else, so a Content row
-/// would otherwise be three numbers and no post. Fetched separately and
-/// **locally**, which is why every field but the id is optional: a row whose
-/// message TDLib no longer holds still has real counts to show.
+/// The text and date of a [PostInteraction]'s post. Read locally, so both
+/// are null when TDLib no longer has the message.
 class PostExcerpt {
   final int messageId;
   final String? text;

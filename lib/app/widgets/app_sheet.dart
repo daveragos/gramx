@@ -5,15 +5,9 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 
-///
-/// Returns whatever the tapped row's [AppSheetRow.onTap] does not — rows pop
-/// the sheet themselves with a value, so a caller that wants an answer passes
-/// `value` and reads the future. Rows that act directly close the sheet first
-/// and then act with the *caller's* context, because the sheet's own is gone
-/// by the time anything asynchronous answers.
-///
-/// Through the root navigator: the shell's bottom bar is painted over each
-/// tab's navigator, so a sheet attached to the tab's would open under it.
+/// Shows a bottom sheet of actions above the shell's bottom bar and returns
+/// the tapped row's [AppSheetRow.value]. Row callbacks run after the sheet
+/// closes, so they should use the caller's context.
 Future<T?> showAppSheet<T>(
   BuildContext context, {
   required List<Widget> children,
@@ -56,10 +50,8 @@ Future<T?> showAppSheet<T>(
   );
 }
 
-/// One row of an [showAppSheet]: an icon, a label, an optional second line.
-///
-/// The row closes the sheet before calling [onTap], handing back [value] if
-/// there is one. That order is the point — see [showAppSheet].
+/// One row of an [showAppSheet]. Closes the sheet with [value], then calls
+/// [onTap].
 class AppSheetRow<T> extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -69,10 +61,10 @@ class AppSheetRow<T> extends StatelessWidget {
   /// What the sheet's future completes with when this row is tapped.
   final T? value;
 
-  /// Red: the row that cannot be undone.
+  /// Drawn red, for an irreversible action.
   final bool isDestructive;
 
-  /// A tick at the end, for a row that is a choice already made.
+  /// Shows a trailing check mark.
   final bool isSelected;
 
   const AppSheetRow({

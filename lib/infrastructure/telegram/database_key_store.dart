@@ -5,17 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Holds the key TDLib uses to encrypt its local database.
-///
-/// TDLib's database caches every message, channel and media path this app has
-/// seen. It was previously created with an empty key, which leaves all of that
-/// in plaintext on disk — a poor default for a Telegram client.
-///
-/// The key lives in the platform keystore (Keychain / EncryptedSharedPrefs),
-/// not in the app's own files, so it is not readable alongside the data it
-/// protects.
+/// Holds the key TDLib uses to encrypt its local database. Stored in the
+/// platform keystore rather than the app's files, so it is not readable
+/// alongside the data it protects.
 class DatabaseKeyStore {
-  /// Bumping this would orphan every existing database, so treat it as fixed.
+  /// Changing this would orphan every existing database.
   static const String storageKey = 'tdlib_db_encryption_key';
 
   /// 256 bits, base64-encoded for storage.
@@ -26,11 +20,8 @@ class DatabaseKeyStore {
   DatabaseKeyStore([FlutterSecureStorage? storage])
     : _storage = storage ?? const FlutterSecureStorage();
 
-  /// The stored key, or null if this install has never had one.
-  ///
-  /// Null means one of two things, and the caller cannot tell them apart:
-  /// a fresh install, or an existing database created before encryption. Both
-  /// are handled the same way — open with an empty key, then encrypt in place.
+  /// The stored key, or null for a fresh install or a database created before
+  /// encryption. Both open with an empty key and are then encrypted in place.
   Future<String?> read() async {
     try {
       return await _storage.read(key: storageKey);

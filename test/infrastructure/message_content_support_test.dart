@@ -72,8 +72,7 @@ void main() {
   });
   final unsupported = content({'@type': 'messageUnsupported'});
 
-  // The types that produced the bug: real things a channel posts, swept into
-  // "Unsupported message — open in Telegram to view" by the old `_ =>` default.
+  // Real channel content that must not fall into the unsupported label.
   final chatBoost = content({'@type': 'messageChatBoost', 'boost_count': 3});
   final giveawayCreated = content({
     '@type': 'messageGiveawayCreated',
@@ -98,8 +97,6 @@ void main() {
       expect(MessageContentSupport.isRendered(text), isTrue);
     });
 
-    // A round video message is a video. It was labelled rather than drawn, so
-    // a channel that posts them showed a line of text where the video was.
     test('true for a round video message', () {
       expect(MessageContentSupport.isRendered(videoNote), isTrue);
     });
@@ -117,8 +114,7 @@ void main() {
       expect(MessageContentSupport.isServiceMessage(titleChanged), isTrue);
     });
 
-    // A busy channel generates several boosts a day, and each one used to
-    // arrive in the feed as an unsupported message.
+    // A busy channel gets several boosts a day.
     test('true for a channel boost and a giveaway announcement', () {
       expect(MessageContentSupport.isServiceMessage(chatBoost), isTrue);
       expect(MessageContentSupport.isServiceMessage(giveawayCreated), isTrue);
@@ -145,8 +141,6 @@ void main() {
   });
 
   group('describe', () {
-    // The bug this fixes: unhandled content produced a card with a header, a
-    // timestamp, an action bar, and nothing in between.
     test('labels content the feed cannot draw', () {
       expect(MessageContentSupport.describe(location), '📍 Location');
     });
@@ -161,8 +155,6 @@ void main() {
       expect(MessageContentSupport.describe(titleChanged), isNull);
     });
 
-    // The regression: these named things reached the
-    // reader as "Unsupported message — open in Telegram to view".
     test(
       'names expired media and gifts rather than calling them unsupported',
       () {
@@ -182,10 +174,8 @@ void main() {
   });
 
   group('isUnsupported', () {
-    // The whole point of the rewrite: the dead-end label now means only what
-    // it says. Everything else is either drawn, named, or dropped — and the
-    // switch has no `default`, so the analyzer fails the next TDLib upgrade
-    // that adds a content type rather than letting it reach a reader.
+    // The switch has no `default`, so a new TDLib content type fails analysis
+    // instead of reaching the user as unsupported.
     test('only messageUnsupported is a dead end', () {
       expect(MessageContentSupport.isUnsupported(unsupported), isTrue);
       for (final c in [

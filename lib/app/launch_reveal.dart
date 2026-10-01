@@ -16,13 +16,10 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
-/// Where the launch draws the mark, and which frame of the drawing is the
-/// finished ribbon.
+/// Placement of the launch mark and the frame where the ribbon is finished.
 abstract final class LaunchMark {
   /// The first frame of [BrandAssets.markAnimation] where the ribbon has
-  /// finished forming, about 1.4 s in. The animation holds it for a second
-  /// before rolling the ribbon away; the launch stops here instead, and opens
-  /// the app through this frame.
+  /// finished forming, about 1.4 s in. The launch stops here.
   static const int formedFrame = 79;
 
   /// The finished ribbon's bounds inside the 276 × 429 animation canvas.
@@ -33,41 +30,22 @@ abstract final class LaunchMark {
 
   static double get width => height * source.width / source.height;
 
-  /// A point inside the front panel, as a fraction of [source].
-  ///
-  /// The zoom is centred here. The front panel is solid, so once it has grown
-  /// past the edges of the screen it covers all of it; a centre anywhere else
-  /// would open onto the gap between the two panels.
+  /// The zoom centre, as a fraction of [source]. It sits inside the solid
+  /// front panel so the zoomed ribbon covers the whole screen.
   static const Offset anchor = Offset(0.34, 0.55);
 
   /// The longest the drawing may take to reach [formedFrame] before the app
-  /// opens without it. The drawing itself takes 1.4 s; this is for a decode
-  /// that never comes back, which must not keep the reader out of the app.
+  /// opens without it, in case the decode never returns.
   static const Duration drawingLimit = Duration(seconds: 3);
 }
 
-/// The launch: the mark draws itself, and the app opens through it.
+/// Covers the app in black, matching the system launch screen, and plays
+/// [BrandAssets.markAnimation] up to [LaunchMark.formedFrame]. Once the first
+/// screen is ready the ribbon zooms while the black is cut away in its shape.
 ///
-/// Android 12 and later hold a launch screen of their own until the app's
-/// first frame; gramX's is plain black, because the drawing starts from
-/// nothing and anything shown before it would have to vanish for the drawing
-/// to begin. From the first frame this covers the app in the same black and
-/// plays [BrandAssets.markAnimation] — a panel unfurling into the ribbon —
-/// up to [LaunchMark.formedFrame], where the ribbon is finished.
-///
-/// When the ribbon is finished and the first screen has something on it, the
-/// ribbon dips, then grows towards the reader, and as it grows it stops being
-/// a picture and becomes a window: the black is cut away in the ribbon's
-/// shape, the screen beneath shows through, and by the time the ribbon is
-/// larger than the screen there is no black left. If the app is not ready
-/// when the ribbon is, a sheen passes over it now and then while it waits.
-///
-/// "Something on it" is the feed's first posts for a signed-in reader, with a
-/// short limit so a slow feed shows its own loading state rather than keeping
-/// the mark up. Anywhere else — the sign-in screen, a guest, a link that
-/// opened a post — is ready as soon as the router has left the splash.
-///
-/// With reduced motion there is no drawing and no zoom: the black fades.
+/// The home feed is ready when its first posts arrive or after [feedPatience];
+/// other routes once the router leaves the splash. With reduced motion the
+/// black just fades.
 class LaunchReveal extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -130,8 +108,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Here rather than in initState: whether to draw at all depends on the
-    // reduce-motion setting, which comes from the context.
+    // Needs MediaQuery, so not in initState.
     if (_started) return;
     _started = true;
     _reduceMotion = MediaQuery.of(context).disableAnimations;
@@ -161,8 +138,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
       asset: BrandAssets.markAnimation,
       vsync: this,
       stopAt: LaunchMark.formedFrame,
-      // The app opens when the ribbon is finished, so the drawing keeps to
-      // time through start-up's stalls, dropping frames rather than pausing.
+      // Drop frames during start-up stalls rather than falling behind.
       maxLag: const Duration(seconds: 2),
       onFrame: (image) {
         _frame.value?.dispose();
@@ -191,8 +167,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
     }
   }
 
-  /// Notes that the app is ready once the router has decided where it is
-  /// going and, on the feed, once the feed has something to show.
+  /// Checks whether the first screen is ready. See [LaunchReveal].
   void _check() {
     if (_ready || !mounted) return;
     final configuration = _delegate?.currentConfiguration;
@@ -221,9 +196,8 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
     if (_formed) _open();
   }
 
-  /// Starts the reveal. No `setState`: this can run from the router's own
-  /// notification, in the middle of a build, and everything that changes from
-  /// here on follows the animation instead.
+  /// Starts the reveal. No `setState`, since this can run from a router
+  /// notification during a build.
   void _open() {
     if (_revealing || !mounted) return;
     _revealing = true;
@@ -238,8 +212,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
   Widget build(BuildContext context) {
     _reduceMotion = MediaQuery.of(context).disableAnimations;
 
-    // The app is always the first child, so finishing takes the cover away
-    // without rebuilding anything underneath it.
+    // The app stays the first child so removing the cover does not rebuild it.
     return Stack(
       fit: StackFit.passthrough,
       children: [
@@ -269,8 +242,7 @@ class _LaunchRevealState extends ConsumerState<LaunchReveal>
 }
 
 class _LaunchPainter extends CustomPainter {
-  /// The drawing's current frame: the whole 276 × 429 canvas, of which
-  /// [LaunchMark.source] is the finished ribbon.
+  /// The current frame of the full 276 × 429 canvas.
   final ValueListenable<ui.Image?> frame;
   final Animation<double> sheen;
   final Animation<double> reveal;
@@ -289,8 +261,7 @@ class _LaunchPainter extends CustomPainter {
   /// How far the ribbon has shrunk at the bottom of the dip.
   static const double _dipScale = 0.92;
 
-  /// The zoom that covers a 460 × 1000 screen from [LaunchMark.anchor], with
-  /// room to spare. Larger screens scale it up.
+  /// Zoom that covers a 460 × 1000 screen; larger screens scale it up.
   static const double _zoomScale = 16;
 
   static final Paint _plain = Paint();
@@ -330,11 +301,9 @@ class _LaunchPainter extends CustomPainter {
           reach,
           Curves.easeInCubic.transform(zoom),
         )!;
-        // The ribbon's own colour goes early: it is becoming a window, and a
-        // window is the shape of the thing, not its picture.
+        // The ribbon's colour fades early, leaving only its cut-out shape.
         markOpacity = 1 - Curves.easeOut.transform((zoom / 0.35).clamp(0, 1));
-        // The last of the black goes at the end, for the soft edge the zoom
-        // has stretched across the screen.
+        // Fade the remaining black at the end to clear the stretched soft edge.
         veilOpacity = 1 - ((zoom - 0.7) / 0.3).clamp(0.0, 1.0);
       }
     }

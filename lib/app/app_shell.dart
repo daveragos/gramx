@@ -23,11 +23,7 @@ import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 
-/// The tabs in the bottom bar, in order.
-///
-/// This is the single source of truth for tab order: `app/router.dart` declares
-/// its branches in this order and takes each route path from [path], so an
-/// index can't come to mean two different things.
+/// The bottom bar tabs. The router declares its branches in this order.
 enum ShellTab {
   home(Icons.home_outlined, Icons.home, 'Home', '/home'),
   search(Icons.search_outlined, Icons.search, 'Search', '/search'),
@@ -45,35 +41,23 @@ enum ShellTab {
   final IconData activeIcon;
   final String label;
 
-  /// The route this tab's branch is rooted at. The router reads it from here so
-  /// the tab order and the branch order cannot drift apart.
+  /// The route this tab's branch is rooted at.
   final String path;
 }
 
-/// Shared chrome geometry and motion.
-///
-/// The header and the bottom bar move together, so they share one duration and
-/// curve — different values made the two halves of the frame disagree, which is
-/// what read as jumpy.
+/// Chrome geometry and motion shared by the header and bottom bar.
 abstract class ShellChrome {
   static const double bottomBarHeight = 56;
   static const Duration slideDuration = Duration(milliseconds: 220);
   static const Curve slideCurve = Curves.easeOutCubic;
 
-  /// Blur behind the bars, so content scrolling under them stays legible
-  /// without a hard opaque band.
   static const double blurSigma = 18;
 
-  /// How opaque the tint over that blur is. Enough to carry text contrast,
-  /// little enough that the content still reads as continuing underneath.
+  /// Opacity of the tint over the blur.
   static const double tintOpacity = 0.72;
 }
 
-/// The shell's own scaffold, so the drawer can be opened from inside a branch.
-///
-/// A branch builds its own `Scaffold`, and `Scaffold.of` finds *that* one — which
-/// has no drawer, so the account avatar in the feed header did nothing at all.
-/// Addressing the shell's scaffold directly is what makes that tap work.
+/// The shell's scaffold, for opening the drawer from inside a branch.
 final GlobalKey<ScaffoldState> shellScaffoldKey = GlobalKey<ScaffoldState>();
 
 /// Opens the app drawer from anywhere inside the shell.
@@ -91,7 +75,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
-  /// How long a second back press still counts as "I meant it".
+  /// How long a second back press still counts as confirming exit.
   static const Duration _exitWindow = Duration(seconds: 2);
 
   DateTime? _lastBackPress;
@@ -102,24 +86,17 @@ class _AppShellState extends ConsumerState<AppShell>
   void initState() {
     super.initState();
 
-    // Sharing into gramX resumes the app rather than starting it, most of the
-    // time — so the shared text is collected on every resume as well as here.
+    // Shares usually arrive on resume, so they are also collected there.
     WidgetsBinding.instance.addObserver(this);
     unawaited(_openSharedText());
 
-    // A notification tapped from the lock screen wakes the app from cold, so
-    // the route it asks for is parked the same way a link is and collected
-    // here, where a navigator exists.
+    // Notification taps and links from a cold start wait here for a navigator.
     ref.listenManual<String?>(pendingNotificationRouteProvider, (_, next) {
       if (next == null) return;
       final route = ref.read(pendingNotificationRouteProvider.notifier).take();
       if (route != null && mounted) GoRouter.of(context).push(route);
     }, fireImmediately: true);
 
-    // A link can arrive before there is anywhere to send it: a cold start from
-    // a tapped `t.me` link runs before the first frame, so the link is parked
-    // in a provider and collected here, where a navigator exists. Listened to
-    // rather than watched — opening one is an action, not a rebuild.
     ref.listenManual<Uri?>(pendingDeepLinkProvider, (_, next) {
       if (next != null) unawaited(_openDeepLink());
     }, fireImmediately: true);
@@ -136,13 +113,7 @@ class _AppShellState extends ConsumerState<AppShell>
     if (state == AppLifecycleState.resumed) unawaited(_openSharedText());
   }
 
-  /// Opens the composer on text shared in from another app.
-  ///
-  /// Nothing happens when there is nothing to post *to*: the compose button
-  /// hides itself for an account that can write nowhere, and a share that
-  /// opened a screen saying no would be the same inert control by another
-  /// route. Saying so is the honest answer, since the reader did just ask for
-  /// something.
+  /// Opens the composer on shared text, if the account can post anywhere.
   Future<void> _openSharedText() async {
     final text = await ref.read(shareIntakeProvider).take();
     if (text == null || !mounted) return;
@@ -160,32 +131,20 @@ class _AppShellState extends ConsumerState<AppShell>
     GoRouter.of(context).push(ComposeFab.route, extra: text);
   }
 
-  /// Opens whatever link is waiting.
-  ///
-  /// A username costs one `SearchPublicChat` to turn into a chat id, which is
-  /// the on-demand, one-tap-one-request shape the request budget allows. Anything
-  /// this app has no screen for — an invite, a sticker pack, a name Telegram
-  /// does not know — is handed to Telegram itself rather than swallowed. That
-  /// is the honest end of a link gramX cannot open, and it is what the reader
-  /// expected before this app registered for the link at all.
+  /// Opens the pending deep link (a username costs one `SearchPublicChat`).
+  /// Links with no screen here are opened externally.
   Future<void> _openDeepLink() async {
     final uri = ref.read(pendingDeepLinkProvider.notifier).take();
     if (uri == null) return;
 
-    // Telegram's own parser first, ours as the fallback — see
-    // TelegramLinkResolver. Offline and off the request budget.
+    // Offline; see TelegramLinkResolver.
     final link = await ref.read(telegramLinkResolverProvider).resolve(uri);
     if (link == null) {
-      // Recognised by Telegram, with no screen here: a bot start, a story, a
-      // sticker set. The reader asked for something, so it goes to whoever can
-      // open it rather than nowhere.
       await openExternalUrl(uri);
       return;
     }
 
-    // A hashtag is not a destination — it is a query put into the search field
-    // and a tab switch, the same thing tapping a #tag in a post does. Handled
-    // here rather than by a route, because there is no screen to push.
+    // A hashtag opens a search rather than a route.
     if (link is TelegramHashtagLink) {
       if (mounted) openHashtagSearch(context, ref, link.tag);
       return;
@@ -212,11 +171,8 @@ class _AppShellState extends ConsumerState<AppShell>
     GoRouter.of(context).push(route);
   }
 
-  /// Back behaviour for the whole shell.
-  ///
-  /// From any tab other than Home, back returns to Home — leaving the app from
-  /// deep in Settings is not what the gesture means. Only from Home does a
-  /// second press within [_exitWindow] actually exit.
+  /// Back from another tab returns to Home. On Home, a second press within
+  /// [_exitWindow] exits.
   void _handleBack() {
     if (navigationShell.currentIndex != ShellTab.home.index) {
       navigationShell.goBranch(ShellTab.home.index);
@@ -239,26 +195,19 @@ class _AppShellState extends ConsumerState<AppShell>
     SystemNavigator.pop();
   }
 
-  /// Switches branch, or returns to that branch's root if it is already active
-  /// — the standard tab-bar behaviour, and what makes a second tap on Home
-  /// mean "take me back to the top".
+  /// Switches branch, or returns to the branch's root if it is already active.
   void _onTap(int index) {
     final isRetap = index == navigationShell.currentIndex;
 
-    // Branches stay mounted in the indexed stack, so a tab left mid-scroll
-    // keeps its chrome offset. Arriving on a screen with the header already
-    // retired looks like the app lost its navigation, so every switch starts
-    // with the furniture on screen.
+    // Branches stay mounted, so reset the chrome on every switch.
     ref.read(chromeOffsetProvider.notifier).show(animate: false);
 
-    // Re-tapping Home means "take me back to the top of what I'm reading".
-    // goBranch alone only resets the branch's route stack.
+    // goBranch only resets the route stack; a retap also scrolls to the top.
     if (isRetap && index == ShellTab.home.index) {
       ref
           .read(feedScrollToTopProvider.notifier)
           .request(ref.read(activeFolderProvider));
     }
-    // Same gesture, same meaning, on the other list you can get lost in.
     if (isRetap && index == ShellTab.messages.index) {
       ref.read(chatsScrollToTopProvider.notifier).request();
     }
@@ -279,20 +228,11 @@ class _AppShellState extends ConsumerState<AppShell>
       },
       child: Scaffold(
         key: shellScaffoldKey,
-        // The bar is pinned to the bottom of this Scaffold's body, so letting
-        // the Scaffold shrink for the keyboard carried the bar up on top of
-        // it — a tab strip riding the top edge of the keyboard on every screen
-        // with a text field in it. The bar stays where it belongs and the
-        // keyboard covers it, which is what every other app does. Each branch
-        // keeps its own Scaffold and still resizes its own content, so nothing
-        // being typed into is hidden by this.
+        // Keeps the bar off the keyboard; branches still resize for it.
         resizeToAvoidBottomInset: false,
-        // The drawer cannot reach the navigation shell by itself — it is a
-        // sibling of it in the tree — so switching tabs is handed to it.
+        // A sibling of the navigation shell, so tab switching is passed in.
         drawer: AppDrawer(onSelectTab: (tab) => _onTap(tab.index)),
-        // The bar overlays the content instead of sitting in the layout.
-        // Collapsing its height animated a relayout every frame, which is what
-        // made hiding it feel like the page was resizing rather than sliding.
+        // The bar overlays the content so hiding it does not relayout.
         body: Stack(
           children: [
             navigationShell,
@@ -300,9 +240,7 @@ class _AppShellState extends ConsumerState<AppShell>
               left: 0,
               right: 0,
               bottom: 0,
-              // Tracks the scroll position rather than toggling: the bar leaves
-              // with the content that pushed it out and comes back with the
-              // content that pulled it in.
+              // Follows the scroll position rather than toggling.
               child: ChromeSlide(
                 fromTop: false,
                 child: BlurredChrome(
@@ -342,11 +280,8 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 }
 
-/// A tab's icon, with the unread badge on the one tab that has a count.
-///
-/// A `Consumer` around the icon rather than around the bar: the count changes
-/// whenever a message arrives, and rebuilding the whole bottom bar for it would
-/// rebuild three icons that cannot have changed.
+/// A tab's icon, with the unread badge on Messages. The `Consumer` wraps only
+/// the icon so a new message does not rebuild the whole bar.
 class _TabIcon extends StatelessWidget {
   final ShellTab tab;
   final IconData icon;
@@ -365,8 +300,6 @@ class _TabIcon extends StatelessWidget {
 
         return Semantics(
           label: AppStrings.messagesUnreadSemantics(count),
-          // The badge is a colour and a number over the icon, so the count is
-          // said out loud rather than left to the red dot.
           child: Badge(
             label: Text(AppStrings.messagesUnreadBadge(count)),
             backgroundColor: AppColors.accent,
@@ -379,11 +312,7 @@ class _TabIcon extends StatelessWidget {
   }
 }
 
-///
-/// The "N new posts" pill already says so on the feed itself; the dot is for
-/// the reader on another tab, who otherwise has no way to know the feed has
-/// moved on without going to look. A dot rather than a count — the count is
-/// on the pill, and two numbers for one fact is one too many.
+/// The Home icon, with a dot when new posts are waiting.
 class _HomeIcon extends StatelessWidget {
   final IconData icon;
 
@@ -393,9 +322,7 @@ class _HomeIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, child) {
-        // The "All" tab's pending, not the raw arrivals: a post from a muted
-        // channel is held like any other and then filtered out of every tab,
-        // and a dot for a post nobody will be shown is a dot that lies.
+        // "All" tab pending posts, so muted channels do not light the dot.
         final waiting = ref.watch(
           pendingPostsForFolderProvider('All').select((p) => p.isNotEmpty),
         );
@@ -432,10 +359,7 @@ class _HomeIcon extends StatelessWidget {
   }
 }
 
-/// A translucent surface that blurs whatever scrolls beneath it.
-///
-/// Used for both bars so they read as one material. A plain opaque band cuts
-/// the page in two; the blur keeps the content visibly continuing underneath.
+/// A translucent surface that blurs what scrolls beneath it.
 class BlurredChrome extends StatelessWidget {
   final Widget child;
   final BoxBorder? border;

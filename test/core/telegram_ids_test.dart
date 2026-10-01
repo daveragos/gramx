@@ -3,8 +3,7 @@ import 'package:gramx/core/telegram/telegram_ids.dart';
 
 void main() {
   group('serverMessageId', () {
-    // TDLib shifts server ids left by 20 bits. Sharing the raw value produced a
-    // link with a message number in the billions, which Telegram cannot resolve.
+    // TDLib shifts server message ids left by 20 bits.
     test('undoes TDLib\'s 20-bit shift', () {
       expect(TelegramIds.serverMessageId(1 << 20), 1);
       expect(TelegramIds.serverMessageId(42 << 20), 42);
@@ -61,8 +60,6 @@ void main() {
       );
     });
 
-    // The exact bug this replaced: the -100 prefix was left on and the message
-    // id was never shifted back, so every shared link was dead.
     test('never emits the raw chat id or the shifted message id', () {
       final link = TelegramIds.postLink(
         chatId: -1001234567890,

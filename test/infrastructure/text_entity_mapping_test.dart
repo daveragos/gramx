@@ -26,9 +26,7 @@ List<TextEntity> mapped(List<td.TextEntity> entities) {
 
 void main() {
   group('serializeEntities', () {
-    // The reported bug: formatted text arrived stripped of its formatting.
-    // Anything this mapper doesn't name falls through as `unknown` and renders
-    // as plain text, so every branch of TDLib's union needs a name.
+    // Unnamed entity types fall through as `unknown` and render as plain text.
     test('marks that used to fall through now survive', () {
       final cases = <Map<String, dynamic>, TextEntityType>{
         {'@type': 'textEntityTypeBlockQuote'}: TextEntityType.blockQuote,

@@ -28,8 +28,7 @@ abstract class Poll with _$Poll {
     required bool isClosed,
     required bool isQuiz,
 
-    /// Whether a voter may pick more than one option. Regular polls only —
-    /// a quiz has exactly one right answer, so Telegram never sets both.
+    /// Whether a voter may pick more than one option. Never set on a quiz.
     @Default(false) bool allowsMultipleAnswers,
     int? correctOptionId,
     @Default([]) List<int> chosenOptionIds,

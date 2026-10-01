@@ -23,17 +23,10 @@ import 'package:gramx/features/compose/presentation/widgets/compose_target_sheet
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/pill_button.dart';
 
-/// Writing a post.
-///
-/// close on the left, Post on the right, avatar in the gutter, and a pill under
-/// audience, so the same control picks the *channel*.
-///
-/// The draft lives in this State rather than in a provider. It is one route
-/// with one lifetime, nothing else reads it, and holding it here means closing
-/// the screen genuinely discards it — a provider would have to be told to.
+/// Writing a post, with a pill that picks the destination chat. The draft
+/// lives in this State, so closing the screen discards it.
 class ComposeScreen extends ConsumerStatefulWidget {
-  /// Text the screen opens with — a link or a note shared into gramX from
-  /// another app. Null for the ordinary case, where the writer starts empty.
+  /// Text shared into gramX from another app, or null to start empty.
   final String? initialText;
 
   const ComposeScreen({super.key, this.initialText});
@@ -46,15 +39,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  /// Null until the writer picks one, at which point it overrides the default.
-  /// Resolved against the live target list on every build rather than written
-  /// into state, so a cache that fills a moment later still lands a default.
+  /// The user's pick, or null for the default, which is resolved on each
+  /// build so a cache that fills late still gets one.
   ComposeTarget? _chosenTarget;
 
   List<ComposeAttachment> _attachments = const [];
 
   /// A sticker or GIF from the account's collection. Exclusive with
-  /// [_attachments] — Telegram cannot group either into an album.
+  /// [_attachments], since Telegram can't put either in an album.
   ComposeRemoteMedia? _remote;
 
   bool _isSending = false;
@@ -64,16 +56,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void initState() {
     super.initState();
 
-    // Seeded before the listener is attached, so the one write that is not a
-    // keystroke does not count as one.
+    // Seeded before the listener is attached, so it isn't a keystroke.
     final seed = widget.initialText;
     if (seed != null && seed.isNotEmpty) {
       _controller.text = seed;
       _controller.selection = TextSelection.collapsed(offset: seed.length);
     }
 
-    // The counter and the Post button both read the text, so every keystroke
-    // has to reach build.
     _controller.addListener(_onTextChanged);
   }
 
@@ -99,7 +88,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     limits: limits,
   );
 
-  /// The draft as the rest of the screen sees it, limits included.
   ComposeDraft _currentDraft() => _draft(
     ref.read(composeTargetsProvider),
     limits:
@@ -107,8 +95,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   );
 
   Future<void> _pickTarget(ComposeTarget? current) async {
-    // Let the keyboard go first — the sheet is 70% of the screen and would
-    // otherwise open behind it.
+    // Dismiss the keyboard first, or the sheet opens behind it.
     _focusNode.unfocus();
     final picked = await ComposeTargetSheet.show(context, selected: current);
     if (picked == null || !mounted) return;
@@ -131,10 +118,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           : await picker.pickVideo();
       if (picked == null || !mounted) return;
 
-      // Telegram refuses a photo it doesn't like outright, and it does so
-      // *after* the upload rather than before it — with one error covering
-      // three different reasons. Answering here costs the writer a retry
-      // instead of a wasted 10 MB and a message that says nothing.
+      // Telegram rejects an unsuitable photo only after the upload, with one
+      // vague error, so it is checked here first.
       final rejection = ComposeLimits.photoRejection(picked);
       if (rejection != null) {
         _say(_rejectionMessage(rejection));
@@ -172,8 +157,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final picked = await ComposeStickerSheet.show(context, initialKind: kind);
     if (picked == null || !mounted) return;
 
-    // Replaces the whole media selection rather than joining it: a sticker or
-    // GIF is one message on its own. withRemote is what enforces that.
+    // A sticker or GIF is a message on its own, so it replaces the selection.
     setState(() {
       _remote = picked;
       _attachments = const [];
@@ -189,12 +173,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     });
   }
 
-  /// Writes and posts a poll.
-  ///
-  /// Posted on its own, not staged beside the text: a poll carries neither a
-  /// caption nor media, so there is nothing for the words already typed to
-  /// attach to. The composer stays open with those words intact, which is what
-  /// Telegram does too.
+  /// Writes and posts a poll on its own; the composer stays open.
   Future<void> _composePoll(ComposeTarget target) async {
     _focusNode.unfocus();
 
@@ -223,8 +202,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (target == null || !draft.canPost) return;
 
     HapticFeedback.lightImpact();
-    // Captured before the await: the screen closes on success, and a messenger
-    // looked up afterwards would belong to a disposed context.
+    // Captured before the await, since the screen closes on success.
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final label = composeTargetLabel(target);
@@ -248,10 +226,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       return;
     }
 
-    // Accepted is not sent. TDLib answers as soon as the message is queued and
-    // the files go up afterwards, so a snackbar here said "Posted" several
-    // composer and keeps a progress bar over the timeline until the upload
-    // actually finishes; that bar is what this hands off to.
+    // TDLib accepts the message before the files upload, so the progress bar
+    // over the timeline reports the actual send.
     ref
         .read(postSendTrackerProvider.notifier)
         .track(result, targetLabel: label);
@@ -259,7 +235,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     navigator.pop();
   }
 
-  /// Closes the screen, asking first if there is anything to lose.
   Future<void> _close(ComposeDraft draft) async {
     _focusNode.unfocus();
 
@@ -303,10 +278,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final targets = ref.watch(composeTargetsProvider);
-    // Free-tier numbers until TDLib answers with this account's own — see
-    // composeLengthLimitsProvider. Premium quadruples the caption allowance,
-    // so this is the difference between a correct counter and one that tells a
-    // subscriber they are out of room at a quarter of their real limit.
+    // Free-tier limits until TDLib reports this account's own.
     final limits =
         ref.watch(composeLengthLimitsProvider).value ??
         ComposeLengthLimits.free;
@@ -314,8 +286,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final account = ref.watch(activeAccountProvider).value;
 
     return PopScope(
-      // The back gesture is a close like any other, and it must not throw away
-      // a written draft without asking.
+      // The back gesture must not discard a written draft without asking.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close(draft);
@@ -405,9 +376,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   onAddVideo: () => _attach(ComposeMediaKind.video),
                   onAddSticker: () => _pickRemote(ComposeRemoteKind.sticker),
                   onAddGif: () => _pickRemote(ComposeRemoteKind.animation),
-                  // Telegram takes a poll in a channel or a group and nowhere
-                  // else, so the button is absent for Saved Messages and for a
-                  // direct message rather than present and refused.
+                  // Telegram only takes polls in channels and groups.
                   onAddPoll: draft.target!.allowsPolls
                       ? () => _composePoll(draft.target!)
                       : null,
@@ -539,9 +508,7 @@ class _ComposeField extends StatelessWidget {
       enabled: enabled,
       autofocus: true,
       maxLines: null,
-      // No maxLength: the field must be able to hold an over-long draft so the
-      // counter can say *how* over-long it is. Silently refusing the next
-      // keystroke tells the writer nothing.
+      // No maxLength, so the counter can show how far over the limit it is.
       keyboardType: TextInputType.multiline,
       textCapitalization: TextCapitalization.sentences,
       style: AppTypography.bodyLarge(color: primary),
@@ -570,7 +537,7 @@ class _ComposeFooter extends StatelessWidget {
   final VoidCallback onAddSticker;
   final VoidCallback onAddGif;
 
-  /// Null where Telegram will not take a poll, which is what hides the button.
+  /// Null where Telegram won't take a poll, which hides the button.
   final VoidCallback? onAddPoll;
 
   const _ComposeFooter({
@@ -591,26 +558,20 @@ class _ComposeFooter extends StatelessWidget {
     final target = draft.target!;
     final busy = isPicking || draft.isSending;
     final canAttach = draft.canAttachMore && !busy;
-    // One sticker or GIF per post, and never alongside uploaded files — so the
-    // buttons close once either kind of media is chosen.
+    // One sticker or GIF per post, never alongside uploaded files.
     final canPickRemote =
         draft.remote == null && !draft.hasAttachments && !busy;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Each of these appears only when it is the *reason* the draft will
-        // not send, so the disabled Post button is never a mystery.
-        //
-        // The first: a draft within the message limit a moment ago is now over
-        // the caption limit, and a red counter alone doesn't say that a photo
-        // is what did it.
+        // Notes explaining why Post is disabled. Media switches the draft to
+        // the shorter caption limit.
         if (draft.isCaptioned && draft.isOverLimit)
           _FooterNote(
             message: AppStrings.composeCaptionLimit(draft.characterLimit),
           ),
-        // The second: `inputMessageSticker` has no caption field at all, so
-        // the two things on screen genuinely cannot go out together.
+        // `inputMessageSticker` has no caption field.
         if (draft.stickerBlocksText)
           const _FooterNote(message: AppStrings.composeStickerTakesNoCaption),
         Container(
@@ -722,9 +683,9 @@ class _FooterNote extends StatelessWidget {
   }
 }
 
-/// number only once the limit is close enough to matter.
+/// A ring that fills as the draft grows and shows a number near the limit.
 class _CharacterCounter extends StatelessWidget {
-  /// How many characters from the ceiling the exact number appears.
+  /// How close to the limit the number appears.
   static const int _showNumberWithin = 20;
 
   final ComposeDraft draft;
@@ -748,8 +709,7 @@ class _CharacterCounter extends StatelessWidget {
     final showNumber = remaining <= _showNumberWithin;
 
     return Semantics(
-      // The ring alone says nothing to a screen reader, and once it turns red
-      // it is state conveyed by colour — which needs a label either way.
+      // The ring needs a label for screen readers, especially when red.
       label: AppStrings.a11yComposeCharacters,
       value: '$remaining',
       child: Row(
@@ -778,11 +738,7 @@ class _CharacterCounter extends StatelessWidget {
   }
 }
 
-/// What the screen says when this account can post nowhere.
-///
-/// Reachable only as a race — the compose button hides itself when there are no
-/// destinations — but a blank screen with a dead Post button would be the
-/// alternative, and this at least says why.
+/// Shown when this account can post nowhere. Only reachable in a race.
 class _NowhereToPost extends StatelessWidget {
   final Color primary;
   final Color secondary;

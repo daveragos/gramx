@@ -15,18 +15,14 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MediaItem {
 
- String get id; MediaType get type; String? get url; String? get thumbnailUrl; int get width; int get height; int get duration; int get fileSize; String? get fileName; String? get mimeType; String? get localPath;/// Whether Telegram flagged this video as streamable.
-///
-/// Set only for videos muxed so playback can begin before the file is
-/// complete (`faststart`: the moov atom at the front). A video without it
-/// cannot be played from a prefix at all — the player would read the whole
-/// thing looking for the index — so it must fall back to downloading in
-/// full. See `TdlibFileServer`.
- bool get supportsStreaming;/// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
- String? get minithumbnail;/// TDLib file ID for the main media file (for reactive download tracking).
- int? get fileId;/// TDLib file ID for the thumbnail file.
+ String get id; MediaType get type; String? get url; String? get thumbnailUrl; int get width; int get height; int get duration; int get fileSize; String? get fileName; String? get mimeType; String? get localPath;/// Whether Telegram flagged this video as streamable (`faststart`, index at
+/// the front). Without it the file must be downloaded in full before it
+/// plays. See `TdlibFileServer`.
+ bool get supportsStreaming;/// Base64 JPEG minithumbnail from Telegram, a preview of about 100 bytes.
+ String? get minithumbnail;/// TDLib file id for the main media file.
+ int? get fileId;/// TDLib file id for the thumbnail.
  int? get thumbnailFileId;/// How a sticker is encoded. Only meaningful for [MediaType.sticker].
- StickerFormat get stickerFormat;/// Telegram's "cover this until tapped" flag, set by the poster.
+ StickerFormat get stickerFormat;/// Telegram's spoiler flag: covered until tapped.
  bool get hasSpoiler;
 /// Create a copy of MediaItem
 /// with the given fields replaced by the non-null parameter values.
@@ -251,23 +247,19 @@ class _MediaItem implements MediaItem {
 @override final  String? fileName;
 @override final  String? mimeType;
 @override final  String? localPath;
-/// Whether Telegram flagged this video as streamable.
-///
-/// Set only for videos muxed so playback can begin before the file is
-/// complete (`faststart`: the moov atom at the front). A video without it
-/// cannot be played from a prefix at all — the player would read the whole
-/// thing looking for the index — so it must fall back to downloading in
-/// full. See `TdlibFileServer`.
+/// Whether Telegram flagged this video as streamable (`faststart`, index at
+/// the front). Without it the file must be downloaded in full before it
+/// plays. See `TdlibFileServer`.
 @override@JsonKey() final  bool supportsStreaming;
-/// Base64-encoded JPEG minithumbnail from Telegram (tiny ~100 byte preview).
+/// Base64 JPEG minithumbnail from Telegram, a preview of about 100 bytes.
 @override final  String? minithumbnail;
-/// TDLib file ID for the main media file (for reactive download tracking).
+/// TDLib file id for the main media file.
 @override final  int? fileId;
-/// TDLib file ID for the thumbnail file.
+/// TDLib file id for the thumbnail.
 @override final  int? thumbnailFileId;
 /// How a sticker is encoded. Only meaningful for [MediaType.sticker].
 @override@JsonKey() final  StickerFormat stickerFormat;
-/// Telegram's "cover this until tapped" flag, set by the poster.
+/// Telegram's spoiler flag: covered until tapped.
 @override@JsonKey() final  bool hasSpoiler;
 
 /// Create a copy of MediaItem
