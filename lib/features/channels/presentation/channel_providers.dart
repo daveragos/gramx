@@ -9,6 +9,7 @@ import 'package:gramx/features/channels/presentation/channel_tab_providers.dart'
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/guest/data/tme_page_parser.dart';
 import 'package:gramx/features/guest/data/guest_channel_store.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -16,13 +17,11 @@ import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
-/// Provides the list of all channels (non-hidden).
+/// All subscribed channels, excluding hidden ones.
 final channelsProvider = FutureProvider<List<Channel>>((ref) async {
-  // Same reasoning as FeedNotifier.build: a pre-auth build returns nothing and
-  // must not become the permanent answer.
+  // Rebuild after sign-in, so an empty pre-auth result isn't kept.
   ref.watch(authControllerProvider.select((auth) => auth.step));
-  // And when the chat cache first has a channel to report: this list is drawn
-  // from that cache, which is empty for a moment after signing in.
+  // And once the chat cache, briefly empty after sign-in, has channels.
   ref.watch(channelsKnownProvider);
 
   final repo = ref.watch(channelRepositoryProvider);
@@ -33,14 +32,12 @@ final channelsProvider = FutureProvider<List<Channel>>((ref) async {
   return channels;
 });
 
-/// Provides a single channel by its chat ID, username, or identifier.
+/// One channel by chat id, username or other identifier.
 final channelDetailProvider = FutureProvider.family<Channel?, String>((
   ref,
   channelId,
 ) async {
-  // Guest channels are not in TDLib, so the repository could only ever answer
-  // null for one — which the profile screen showed as "channel unavailable"
-  // for a channel the reader had added themselves.
+  // Guest channels are not in TDLib, so they are looked up locally first.
   final guest = await _guestChannel(ref, channelId);
   if (guest != null) return guest;
 
@@ -48,10 +45,7 @@ final channelDetailProvider = FutureProvider.family<Channel?, String>((
   return repo.getChannelByIdentifier(channelId);
 });
 
-/// The guest row behind a synthetic channel id, mapped to the shared [Channel].
-///
-/// Returns null for anything that is not a guest channel, so the TDLib path
-/// stays exactly as it was for a signed-in reader.
+/// The guest channel behind a synthetic id, or null for any other id.
 Future<Channel?> _guestChannel(Ref ref, String channelId) async {
   final chatId = int.tryParse(channelId);
   if (chatId == null || !GuestPostMapper.isSynthetic(chatId)) return null;
@@ -64,10 +58,7 @@ Future<Channel?> _guestChannel(Ref ref, String channelId) async {
   return null;
 }
 
-/// A stored guest row as the app's own [Channel].
-///
-/// Shared by the detail lookup and by search, so a guest channel presents
-/// itself the same way wherever it is shown.
+/// A stored guest channel as a [Channel], for both detail lookup and search.
 Channel guestChannelToChannel(GuestChannel channel) {
   final chatId = GuestPostMapper.syntheticChatId(channel.username);
   return Channel(
@@ -76,24 +67,15 @@ Channel guestChannelToChannel(GuestChannel channel) {
     title: channel.title,
     username: channel.username,
     avatarUrl: channel.avatarUrl,
-    subscriberCount:
-        int.tryParse(
-          (channel.subscribers ?? '').replaceAll(RegExp(r'[^0-9]'), ''),
-        ) ??
-        0,
+    subscriberCount: TmePageParser.parseCount(channel.subscribers ?? '') ?? 0,
     isVerified: channel.isVerified,
-    // A guest cannot join anything, and a Join button that opens a sign-in
-    // sheet is honest where a "Joined" badge would not be.
+    // A guest can't join; the Join button opens a sign-in sheet.
     isJoined: false,
   );
 }
 
-/// Older posts loaded by paging back through a channel, keyed by channel id.
-///
-/// Owns the in-flight and exhausted flags too: the profile screen asks for
-/// another page from a scroll listener, which fires on every frame near the
-/// bottom. Without a guard that is a request per frame, aimed at an account
-/// with a rate limit.
+/// Older posts paged in per channel. Tracks in-flight and exhausted channels,
+/// since the scroll listener asks on every frame near the bottom.
 class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
   final Set<String> _loading = {};
   final Set<String> _exhausted = {};
@@ -103,8 +85,7 @@ class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
 
   bool isLoading(String channelId) => _loading.contains(channelId);
 
-  /// True once the channel has answered a page request with nothing new, so
-  /// the screen can stop asking and say it has reached the end.
+  /// Whether the channel has run out of older posts.
   bool isExhausted(String channelId) => _exhausted.contains(channelId);
 
   /// Loads the next page. Returns true if anything new arrived.
@@ -113,17 +94,15 @@ class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
       return false;
     }
 
-    // Read the sources, not the derived provider: channelPostsProvider watches
-    // this notifier, so asking it here is a dependency cycle — Riverpod throws
-    // on it, and the screen's paging died with the first scroll.
+    // Read the sources directly: channelPostsProvider watches this notifier,
+    // so reading it here would be a dependency cycle.
     final current = [
       ...?ref.read(initialChannelPostsProvider(channelId)).value,
       ...?state[channelId],
     ];
     if (current.isEmpty) return false;
 
-    // The oldest post, not the last one in the list: the list is merged from
-    // two sources and de-duplicated, so its order is not a promise.
+    // By message id, since the merged list's order isn't guaranteed.
     final oldest = current.reduce((a, b) => a.messageId <= b.messageId ? a : b);
 
     _loading.add(channelId);
@@ -157,8 +136,7 @@ class OlderChannelPostsNotifier extends Notifier<Map<String, List<Post>>> {
     }
   }
 
-  /// Drops everything paged in for a channel, so a refresh starts clean
-  /// instead of stacking a second copy of the history under the first.
+  /// Drops a channel's paged posts, so a refresh doesn't duplicate them.
   void reset(String channelId) {
     _loading.remove(channelId);
     _exhausted.remove(channelId);
@@ -173,20 +151,12 @@ final olderChannelPostsProvider =
       OlderChannelPostsNotifier.new,
     );
 
-/// Whether paging this post's channel means asking `t.me/s/` rather than TDLib.
-///
-/// Both halves are required, not just the synthetic id: `isSynthetic` is a
-/// range test, and the username is what the request is actually made of. A post
-/// with no username cannot be paged from the web preview at all, so it belongs
-/// on the TDLib path whatever its id looks like.
+/// Whether this post's channel pages through `t.me/s/` rather than TDLib,
+/// which needs both a synthetic id and a username.
 bool _isGuestChannel(Post post) =>
     post.channelUsername != null && GuestPostMapper.isSynthetic(post.chatId);
 
 /// Older posts for a guest channel, paged through `t.me/s/<name>?before=`.
-///
-/// A guest channel has no TDLib chat behind it, so the repository call this
-/// stands in for could only ever answer nothing — scrolling to the bottom of a
-/// guest channel just stopped, with the rest of its history one request away.
 Future<List<Post>> _guestOlderPosts(Ref ref, Post oldest) async {
   final page = await fetchGuestOlderPage(
     ref,
@@ -196,7 +166,7 @@ Future<List<Post>> _guestOlderPosts(Ref ref, Post oldest) async {
   return page.posts;
 }
 
-/// Fetches initial posts for a specific channel.
+/// The first page of a channel's posts.
 final initialChannelPostsProvider = FutureProvider.family<List<Post>, String>((
   ref,
   channelId,
@@ -217,7 +187,7 @@ final initialChannelPostsProvider = FutureProvider.family<List<Post>, String>((
   return feedRepo.fetchChannelPosts(channel.chatId);
 });
 
-/// Provides posts for a specific channel (with pagination and optimistic update support).
+/// A channel's posts, with paged history and optimistic updates merged in.
 final channelPostsProvider = Provider.family<AsyncValue<List<Post>>, String>((
   ref,
   channelId,
@@ -243,12 +213,7 @@ final channelPostsProvider = Provider.family<AsyncValue<List<Post>>, String>((
   });
 });
 
-/// The channel's newest pinned post, or null if it has none.
-///
-/// One `GetChatPinnedMessage` per channel opened. Auto-disposed like every
-/// other family member here, so backing out and returning re-asks — which is
-/// correct: a pin can change, and one request on a deliberate navigation is
-/// well inside the budget.
+/// The channel's newest pinned post, or null. Re-checked on each visit.
 final channelPinnedPostProvider = FutureProvider.family<Post?, String>((
   ref,
   channelId,
@@ -260,11 +225,10 @@ final channelPinnedPostProvider = FutureProvider.family<Post?, String>((
       .fetchPinnedPost(channel.chatId);
 });
 
-/// Reloads a channel from scratch — its details, its history and every tab.
+/// Reloads a channel's details, history and tabs from scratch.
 Future<void> refreshChannel(WidgetRef ref, String channelId) async {
   ref.read(olderChannelPostsProvider.notifier).reset(channelId);
-  // Tabs are cached per (channel, tab) and would otherwise stack a second copy
-  // of each one under the first.
+  // Tabs are cached per channel and would otherwise be duplicated.
   ref.read(channelTabNotifierProvider.notifier).reset(channelId);
   ref.invalidate(channelDetailProvider(channelId));
   ref.invalidate(channelPinnedPostProvider(channelId));
@@ -272,7 +236,7 @@ Future<void> refreshChannel(WidgetRef ref, String channelId) async {
   await ref.read(initialChannelPostsProvider(channelId).future);
 }
 
-/// Provides the active authenticated account database record.
+/// The signed-in account's database row.
 final activeAccountProvider = StreamProvider<Account?>((ref) {
   final db = ref.watch(databaseProvider);
   return (db.select(
@@ -280,11 +244,8 @@ final activeAccountProvider = StreamProvider<Account?>((ref) {
   )..where((a) => a.isActive.equals(true))).watchSingleOrNull();
 });
 
-/// Channels Telegram suggests, for the Explore view.
-///
-/// One request, and it is deliberately **not** auto-disposed: the Search tab is
-/// a tab, and a reader who switches away and back should not spend a request
-/// each time. Recommendations do not change minute to minute.
+/// Channels Telegram suggests, for the Explore view. Kept alive so switching
+/// back to the Search tab doesn't cost another request.
 final recommendedChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   ref.keepAlive();
   return ref.watch(channelRepositoryProvider).recommendedChannels();
