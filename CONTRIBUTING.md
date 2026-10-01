@@ -44,8 +44,7 @@ dart run build_runner build --delete-conflicting-outputs
 
 ## Checks
 
-CI runs these on every push and pull request, and so should you before
-opening one:
+Run these before opening a pull request:
 
 ```bash
 dart format lib test
