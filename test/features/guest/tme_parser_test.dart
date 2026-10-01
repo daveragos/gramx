@@ -5,26 +5,29 @@ import 'package:gramx/features/guest/data/tme_page_parser.dart';
 import 'package:gramx/features/guest/domain/guest_page.dart';
 
 /// The t.me markup can change without notice, so a redesign should fail these
-/// tests rather than empty someone's feed. `durov.html` is a real capture; the
-/// snippets below cover shapes it doesn't contain.
+/// tests rather than empty someone's feed. `ragoose_dumps.html` is a real
+/// capture of the author's channel; the snippets below cover shapes it doesn't
+/// contain.
 void main() {
-  late String durovHtml;
+  late String captureHtml;
 
   setUpAll(() {
-    durovHtml = File('test/support/tme_samples/durov.html').readAsStringSync();
+    captureHtml = File(
+      'test/support/tme_samples/ragoose_dumps.html',
+    ).readAsStringSync();
   });
 
   group('against a real captured page', () {
     late GuestChannelPage page;
 
     setUp(() {
-      final parsed = TmePageParser.parse(durovHtml, 'durov');
+      final parsed = TmePageParser.parse(captureHtml, 'ragoose_dumps');
       expect(parsed, isNotNull, reason: 'the capture is a valid preview page');
       page = parsed!;
     });
 
     test('reads the channel header', () {
-      expect(page.channel.username, 'durov');
+      expect(page.channel.username, 'ragoose_dumps');
       expect(page.channel.title, isNotEmpty);
       expect(page.channel.avatarUrl, startsWith('https://'));
       expect(page.channel.subscribers, isNotNull);
@@ -54,55 +57,85 @@ void main() {
       expect(page.posts.where((p) => p.views != null), isNotEmpty);
     });
 
-    test(
-      'reactions come through, counts expanded from Telegram\'s shorthand',
-      () {
-        final withReactions = page.posts
-            .where((p) => p.reactions.isNotEmpty)
-            .toList();
-        expect(withReactions, isNotEmpty);
-
-        for (final reaction in withReactions.expand((p) => p.reactions)) {
-          expect(reaction.count, greaterThan(0));
-          expect(reaction.emoji, isNotEmpty);
-        }
-        // "55.2K" on the page; the app abbreviates it again when drawing.
-        expect(
-          withReactions.expand((p) => p.reactions).map((r) => r.count),
-          contains(greaterThan(1000)),
-        );
-      },
-    );
-
-    test('paid reactions are recognised and drawn as the star', () {
-      final paid = page.posts
-          .expand((p) => p.reactions)
-          .where((r) => r.isPaid)
-          .toList();
-      expect(
-        paid,
-        isNotEmpty,
-        reason: 'the capture contains a tgme_reaction_paid chip',
-      );
-      expect(paid.first.emoji, TmePageParser.paidReactionEmoji);
+    test('reactions come through with their emoji and counts', () {
+      final reactions = page.posts.expand((p) => p.reactions).toList();
+      expect(reactions, isNotEmpty);
+      for (final reaction in reactions) {
+        expect(reaction.count, greaterThan(0));
+        expect(reaction.emoji, isNotEmpty);
+      }
     });
 
-    // The page has only the emoji id (the glyph is drawn by script), so a
-    // placeholder stands in.
-    test('custom emoji reactions keep their count under a placeholder', () {
-      final custom = page.posts
-          .expand((p) => p.reactions)
-          .where((r) => r.customEmojiId != null)
+    test('media of several kinds', () {
+      final kinds = page.posts.expand((p) => p.media).map((m) => m.kind);
+      expect(
+        kinds.toSet(),
+        containsAll([
+          GuestMediaKind.photo,
+          GuestMediaKind.video,
+          GuestMediaKind.document,
+        ]),
+      );
+    });
+
+    test('forwards name the channel they came from', () {
+      final forwards = page.posts
+          .map((p) => p.forwardedFrom)
+          .whereType<GuestForward>()
           .toList();
-      expect(custom, isNotEmpty);
-      expect(custom.first.emoji, TmePageParser.customReactionEmoji);
-      expect(custom.first.count, greaterThan(0));
+      expect(forwards, isNotEmpty);
+      expect(forwards.every((f) => f.name.isNotEmpty), isTrue);
+      expect(forwards.where((f) => f.username != null), isNotEmpty);
+    });
+
+    test('link previews come through', () {
+      expect(page.posts.where((p) => p.linkPreview != null), isNotEmpty);
     });
 
     test('media URLs are absolute https, never relative or data:', () {
       for (final media in page.posts.expand((p) => p.media)) {
         expect(media.url, startsWith('https://'));
       }
+    });
+  });
+
+  group('reactions', () {
+    List<GuestReaction> reactionsOf(String chips) => _pageWith('''
+      <div class="tgme_widget_message" data-post="c/20">
+        <div class="tgme_widget_message_date"><time datetime="2026-08-24T07:32:00+00:00"></time></div>
+        <div class="tgme_widget_message_text">reacted to</div>
+        <div class="tgme_widget_message_reactions js-message_reactions">$chips</div>
+      </div>
+    ''').posts.single.reactions;
+
+    test('expands shorthand counts', () {
+      final reactions = reactionsOf(
+        '<span class="tgme_reaction"><i class="emoji"><b>🔥</b></i>55.2K</span>',
+      );
+      expect(reactions.single.emoji, '🔥');
+      expect(reactions.single.count, 55200);
+    });
+
+    test('paid reactions are recognised and drawn as the star', () {
+      final reactions = reactionsOf(
+        '<span class="tgme_reaction tgme_reaction_paid">'
+        '<i class="icon icon-telegram-stars"></i>7.03K</span>',
+      );
+      expect(reactions.single.isPaid, isTrue);
+      expect(reactions.single.emoji, TmePageParser.paidReactionEmoji);
+      expect(reactions.single.count, 7030);
+    });
+
+    // The page has only the emoji id (the glyph is drawn by script), so a
+    // placeholder stands in.
+    test('custom emoji reactions keep their count under a placeholder', () {
+      final reactions = reactionsOf(
+        '<span class="tgme_reaction">'
+        '<tg-emoji emoji-id="5465587407350942612"></tg-emoji>826</span>',
+      );
+      expect(reactions.single.customEmojiId, '5465587407350942612');
+      expect(reactions.single.emoji, TmePageParser.customReactionEmoji);
+      expect(reactions.single.count, 826);
     });
   });
 
@@ -288,7 +321,7 @@ void main() {
     });
 
     test('an ordinary post is not flagged', () {
-      final parsed = TmePageParser.parse(durovHtml, 'durov');
+      final parsed = TmePageParser.parse(captureHtml, 'ragoose_dumps');
 
       expect(
         parsed!.posts.where((p) => p.isUnsupported),
