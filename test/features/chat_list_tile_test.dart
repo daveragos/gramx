@@ -17,6 +17,7 @@ ChatSummary row({
   String? affiliation,
   int? affiliationId,
   bool isPremium = false,
+  bool isVerified = false,
   int? emojiStatusId,
 }) => ChatSummary(
   chatId: 7,
@@ -24,6 +25,7 @@ ChatSummary row({
   kind: ChatKind.direct,
   preview: 'on my way',
   isPremium: isPremium,
+  isVerified: isVerified,
   emojiStatusId: emojiStatusId,
   previewSendState: sendState,
   affiliatedChannelId: affiliationId,
@@ -36,10 +38,10 @@ void main() {
     child: MaterialApp(home: Scaffold(body: child)),
   );
 
-  // The row draws Premium's own star whatever the person's emoji status is:
-  // a column of animated emoji beside the names is a list nobody can scan.
+  // The row draws the check whatever the person's emoji status is: a column
+  // of animated emoji beside the names is a list nobody can scan.
   group('the Premium mark on a row', () {
-    testWidgets('is the star, never the emoji status', (tester) async {
+    testWidgets('is the check, never the emoji status', (tester) async {
       await tester.pumpWidget(
         host(
           ChatListTile(
@@ -49,14 +51,27 @@ void main() {
         ),
       );
 
-      expect(find.byType(PremiumStar), findsOneWidget);
+      expect(find.byType(PremiumCheck), findsOneWidget);
       expect(find.byType(CustomEmojiGlyph), findsNothing);
+    });
+
+    testWidgets('is one check on a verified Premium account', (tester) async {
+      await tester.pumpWidget(
+        host(
+          ChatListTile(
+            chat: row(isPremium: true, isVerified: true),
+            onTap: () {},
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.verified), findsOneWidget);
     });
 
     testWidgets('is absent without Premium', (tester) async {
       await tester.pumpWidget(host(ChatListTile(chat: row(), onTap: () {})));
 
-      expect(find.byType(PremiumStar), findsNothing);
+      expect(find.byType(PremiumCheck), findsNothing);
     });
   });
 
@@ -77,17 +92,42 @@ void main() {
         find.byType(CustomEmojiGlyph),
       );
       expect(glyph.customEmojiId, 5551);
-      // The star stands in while the artwork is on its way.
-      expect(find.byType(PremiumStar), findsOneWidget);
+      // The check stands in while the artwork is on its way.
+      expect(find.byType(PremiumCheck), findsOneWidget);
     });
 
-    testWidgets('is the star when they have none', (tester) async {
+    testWidgets('is the check when they have none', (tester) async {
       await tester.pumpWidget(
         detail(const PremiumMark(emojiStatusId: null, size: 16)),
       );
 
       expect(find.byType(CustomEmojiGlyph), findsNothing);
-      expect(find.byType(PremiumStar), findsOneWidget);
+      expect(find.byType(PremiumCheck), findsOneWidget);
+    });
+  });
+
+  group('PremiumMark.shows', () {
+    test('a Premium account gets a mark', () {
+      expect(PremiumMark.shows(isPremium: true, isVerified: false), isTrue);
+    });
+
+    test('a verified one only for its emoji status', () {
+      expect(PremiumMark.shows(isPremium: true, isVerified: true), isFalse);
+      expect(
+        PremiumMark.shows(isPremium: true, isVerified: true, emojiStatusId: 1),
+        isTrue,
+      );
+    });
+
+    test('anyone else gets nothing', () {
+      expect(
+        PremiumMark.shows(
+          isPremium: false,
+          isVerified: false,
+          emojiStatusId: 1,
+        ),
+        isFalse,
+      );
     });
   });
 

@@ -1897,10 +1897,16 @@ class _ConversationAppBar extends StatelessWidget
                           size: 14,
                         ),
                       ],
-                      if (summary?.isPremium ?? false) ...[
+                      if (summary case final person?
+                          when PremiumMark.shows(
+                            isPremium: person.isPremium,
+                            isVerified: person.isVerified,
+                            emojiStatusId: person.emojiStatusId,
+                          )) ...[
                         const SizedBox(width: AppSpacing.xs),
                         PremiumMark(
-                          emojiStatusId: summary!.emojiStatusId,
+                          emojiStatusId: person.emojiStatusId,
+                          isVerified: person.isVerified,
                           size: 16,
                         ),
                       ],

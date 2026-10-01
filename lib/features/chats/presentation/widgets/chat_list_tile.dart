@@ -238,12 +238,13 @@ class _TitleRow extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 const Icon(Icons.verified, color: AppColors.verified, size: 15),
               ],
-              // Premium's own star, not the person's emoji status: a column of
-              // animated emoji beside the names is a list nobody can scan. The
-              // status belongs to the views about one person.
-              if (chat.isPremium) ...[
+              // The check, not the person's emoji status: a column of animated
+              // emoji beside the names is a list nobody can scan. The status
+              // belongs to the views about one person. A verified name has its
+              // check already.
+              if (chat.isPremium && !chat.isVerified) ...[
                 const SizedBox(width: AppSpacing.xs),
-                const PremiumStar(size: 15),
+                const PremiumCheck(size: 15),
               ],
               // A bot is a private chat in Telegram's model, so nothing about
               // the row says so by itself — and the difference between a person

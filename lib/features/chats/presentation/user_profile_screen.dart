@@ -224,10 +224,18 @@ class _Body extends ConsumerWidget {
                     ),
                   ],
                   // Where Telegram puts it, and in the form they chose: their
-                  // emoji status, or Premium's star if they have none.
-                  if (profile.isPremium) ...[
+                  // emoji status, or the check if they have none.
+                  if (PremiumMark.shows(
+                    isPremium: profile.isPremium,
+                    isVerified: profile.isVerified,
+                    emojiStatusId: profile.emojiStatusId,
+                  )) ...[
                     const SizedBox(width: 4),
-                    PremiumMark(emojiStatusId: profile.emojiStatusId, size: 20),
+                    PremiumMark(
+                      emojiStatusId: profile.emojiStatusId,
+                      isVerified: profile.isVerified,
+                      size: 20,
+                    ),
                   ],
                 ],
               ),
