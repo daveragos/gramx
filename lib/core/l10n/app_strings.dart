@@ -563,7 +563,7 @@ abstract class AppStrings {
   static const onboardingWelcome = 'Welcome to gramX';
   static const onboardingLoggedOutBody =
       'One timeline for the Telegram channels you follow. Log in with your '
-      'Telegram account to view your subscribed channels and feeds.';
+      'Telegram account to see your channels and feeds.';
   static const onboardingLoggedInBody =
       "You haven't subscribed to any channels yet. Add public Telegram channels "
       'to build your custom feed.';
