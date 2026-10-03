@@ -126,11 +126,17 @@ class AppSettings {
       other.themeMode == themeMode &&
       other.autoPlay == autoPlay &&
       other.autoDownloadImages == autoDownloadImages &&
-      other.guestMode == guestMode;
+      other.guestMode == guestMode &&
+      other.notificationsEnabled == notificationsEnabled;
 
   @override
-  int get hashCode =>
-      Object.hash(themeMode, autoPlay, autoDownloadImages, guestMode);
+  int get hashCode => Object.hash(
+    themeMode,
+    autoPlay,
+    autoDownloadImages,
+    guestMode,
+    notificationsEnabled,
+  );
 
   @override
   String toString() =>
