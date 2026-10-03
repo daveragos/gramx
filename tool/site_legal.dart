@@ -67,7 +67,6 @@ String _page(String slug, LegalDocument doc) {
         t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
       }
       d.setAttribute('data-theme', t);
-      d.className += ' js';
     })();
   </script>
   <script src="site.js" defer></script>

@@ -16,7 +16,7 @@
   <meta property="og:image" content="https://daveragos.github.io/gramx/assets/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="gramX: your Telegram channels, as one timeline. A phone showing a feed of channel posts.">
+  <meta property="og:image:alt" content="gramX: your Telegram channels, as one timeline. A phone showing the gramX home feed.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="gramX: your Telegram channels, as one timeline">
   <meta name="twitter:description" content="Every channel you follow in one feed, newest first. Free and open source for Android.">
@@ -40,7 +40,6 @@
       var ua = navigator.userAgent;
       var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       d.setAttribute('data-platform', /Android/i.test(ua) ? 'android' : ios ? 'ios' : 'desktop');
-      d.className += ' js';
     })();
   </script>
 
@@ -54,6 +53,7 @@
     "operatingSystem": "Android 7.0 or newer",
     "url": "https://daveragos.github.io/gramx/",
     "downloadUrl": "https://github.com/daveragos/gramx/releases/latest",
+    "screenshot": "https://daveragos.github.io/gramx/assets/shots/feed.webp",
     "license": "https://www.apache.org/licenses/LICENSE-2.0",
     "isAccessibleForFree": true,
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -94,13 +94,8 @@
     <section class="hero">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <a class="chip" data-release-link href="https://github.com/daveragos/gramx/releases/tag/v1.0.0">
-            <span class="chip-dot" aria-hidden="true"></span>
-            <span>Version <span data-version>1.0.0</span> is out</span>
-            <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg>
-          </a>
-          <h1>Your Telegram channels, as <span class="grad">one timeline.</span></h1>
-          <p class="lead">gramX puts every channel you follow into a single feed, newest first. Scroll, react and comment the way you do everywhere else, and stop opening channels one by one.</p>
+          <h1>Your Telegram channels, as one timeline.</h1>
+          <p class="lead">gramX puts every channel you follow into a single feed, newest first. Scroll, react and comment the way you do everywhere else, instead of opening channels one by one.</p>
           <div class="cta-row">
             <a class="btn btn-primary btn-lg" data-download data-dl="arm64" href="https://github.com/daveragos/gramx/releases/download/v1.0.0/gramx-1.0.0-arm64-v8a.apk">
               <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>
@@ -108,12 +103,7 @@
             </a>
             <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
           </div>
-          <p class="cta-meta">
-            <span><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>Free</span>
-            <span><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>Android 7.0+</span>
-            <span><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg><span data-size="arm64">53 MB</span></span>
-            <span><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg>Open source</span>
-          </p>
+          <p class="cta-meta">Free and open source · Android 7.0 or newer · <span data-size="arm64">53&nbsp;MB</span> · <a data-release-link href="https://github.com/daveragos/gramx/releases/tag/v1.0.0">Version <span data-version>1.0.0</span></a></p>
           <p class="platform-note">
             <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-phone"/></svg>
             <span>gramX is for Android phones for now. Send this page to an Android phone to install it there.</span>
@@ -124,194 +114,22 @@
           </div>
         </div>
 
-        <div class="hero-visual">
-          <div class="phone" role="group" aria-label="Interactive preview of the gramX feed">
+        <figure class="hero-visual">
+          <div class="phone">
             <div class="screen">
-              <div class="app" data-app>
-                <div class="statusbar" aria-hidden="true">
-                  <span>9:41</span>
-                  <span class="sb-icons">
-                    <svg viewBox="0 0 18 12"><path d="M1 8h2.5v4H1zM5.5 5.5H8V12H5.5zM10 3h2.5v9H10zM14.5 0H17v12h-2.5z"/></svg>
-                    <svg viewBox="0 0 16 12"><path d="M8 12 0 3.6A11.6 11.6 0 0 1 8 0a11.6 11.6 0 0 1 8 3.6z"/></svg>
-                    <svg viewBox="0 0 25 12"><rect x=".75" y=".75" width="20.5" height="10.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5"/><rect x="22.5" y="4" width="2" height="4" rx="1"/></svg>
-                  </span>
-                </div>
-
-                <div class="app-top">
-                  <div class="app-header" aria-hidden="true">
-                    <span class="app-me">A</span>
-                    <img class="app-glyph on-dark" src="assets/brand/glyph-on-dark.png" alt="">
-                    <img class="app-glyph on-light" src="assets/brand/glyph-on-light.png" alt="">
-                    <span class="app-bell"><svg class="i"><use href="assets/icons.svg#i-bell"/></svg></span>
-                  </div>
-                  <div class="app-tabs" role="tablist" aria-label="Folders">
-                    <button class="app-tab" role="tab" aria-selected="true" data-tab="all"><span>All</span></button>
-                    <button class="app-tab" role="tab" aria-selected="false" data-tab="news"><span>News</span></button>
-                    <button class="app-tab" role="tab" aria-selected="false" data-tab="tech"><span>Tech</span></button>
-                    <button class="app-tab" role="tab" aria-selected="false" data-tab="sports"><span>Sports</span></button>
-                    <button class="app-tab" role="tab" aria-selected="false" data-tab="travel"><span>Travel</span></button>
-                    <button class="app-tab" role="tab" aria-selected="false" data-tab="food"><span>Food</span></button>
-                  </div>
-                </div>
-
-                <button class="new-pill" type="button" data-new-pill tabindex="-1">
-                  <span class="pill-avs" aria-hidden="true"><i style="--c:#6ec9cb">R</i></span>
-                  <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-up"/></svg>
-                  1 new post
-                </button>
-
-                <div class="app-feed" data-feed>
-                  <template data-incoming>
-                    <article class="post" data-folder="news">
-                      <i class="av" style="--c:#6ec9cb">R</i>
-                      <div class="post-main">
-                        <div class="post-head"><b>Remote Jobs Daily</b><span class="h">@remotejobsdaily</span><span class="t">· now</span><i class="unread"></i><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                        <p class="ptext">12 new remote roles today: design, support, engineering and writing. Links to apply are in the comments. 💼</p>
-                        <div class="reacts"><span class="rc"><em>🙏</em>212</span><span class="rc"><em>👍</em>87</span></div>
-                        <div class="pactions">
-                          <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>34</span>
-                          <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>156</span>
-                          <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="299"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>299</span></button>
-                          <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>4.8K</span>
-                          <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                        </div>
-                      </div>
-                    </article>
-                  </template>
-
-                  <article class="post" data-folder="news">
-                    <i class="av" style="--c:#65aadd">W</i>
-                    <div class="post-main">
-                      <div class="post-head"><b>World Brief</b><svg class="i vb"><use href="assets/icons.svg#i-verified"/></svg><span class="h">@worldbrief</span><span class="t">· 2m</span><i class="unread"></i><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                      <p class="ptext">Good morning. Five stories worth your time today, each one under a minute to read. ☕️</p>
-                      <div class="reacts"><span class="rc"><em>👍</em>2.1K</span><span class="rc"><em>🔥</em>640</span><span class="rc"><em>🙏</em>118</span></div>
-                      <div class="pactions">
-                        <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>128</span>
-                        <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>412</span>
-                        <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="2858"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>2.8K</span></button>
-                        <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>61K</span>
-                        <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="post" data-folder="tech">
-                    <i class="av" style="--c:#a695e7">B</i>
-                    <div class="post-main">
-                      <div class="post-head"><b>Byte Sized</b><span class="h">@bytesized</span><span class="t">· 18m</span><i class="unread"></i><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                      <p class="ptext">A phone battery that charges fully in five minutes just passed its first safety tests. Here's what changes if it ships. 🔋</p>
-                      <div class="media">
-                        <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                          <defs>
-                            <radialGradient id="tech-bg" cx="50%" cy="48%" r="75%"><stop offset="0" stop-color="#1d6597"/><stop offset=".55" stop-color="#0b1f36"/><stop offset="1" stop-color="#040a13"/></radialGradient>
-                            <linearGradient id="tech-cell" x1="0" x2="1"><stop offset="0" stop-color="#b5e4ff"/><stop offset="1" stop-color="#3cb8ff"/></linearGradient>
-                          </defs>
-                          <rect width="320" height="200" fill="url(#tech-bg)"/>
-                          <g stroke="#b5e4ff" stroke-width=".6" opacity=".14"><path d="M0 40h320M0 80h320M0 120h320M0 160h320M40 0v200M80 0v200M120 0v200M160 0v200M200 0v200M240 0v200M280 0v200"/></g>
-                          <circle cx="160" cy="102" r="70" fill="#3cb8ff" opacity=".12"/>
-                          <rect x="98" y="74" width="120" height="56" rx="12" fill="none" stroke="#e6f6ff" stroke-width="5"/>
-                          <rect x="221" y="90" width="9" height="24" rx="3" fill="#e6f6ff"/>
-                          <rect x="107" y="83" width="102" height="38" rx="6" fill="url(#tech-cell)"/>
-                          <path d="M162 86 150 105h10l-4 14 16-20h-10l4-13z" fill="#06223a"/>
-                        </svg>
-                      </div>
-                      <div class="reacts"><span class="rc"><em>🤯</em>980</span><span class="rc"><em>🔥</em>455</span><span class="rc"><em>👀</em>201</span></div>
-                      <div class="pactions">
-                        <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>86</span>
-                        <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>240</span>
-                        <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="1636"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>1.6K</span></button>
-                        <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>48K</span>
-                        <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="post" data-folder="sports">
-                    <i class="av" style="--c:#7bc862">M</i>
-                    <div class="post-main">
-                      <div class="post-head"><b>Matchday</b><svg class="i vb"><use href="assets/icons.svg#i-verified"/></svg><span class="h">@matchday</span><span class="t">· 41m</span><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                      <p class="ptext">FULL TIME. Three goals in the last twenty minutes. What a comeback. ⚽️</p>
-                      <div class="reacts"><span class="rc on"><em>⚽</em>5.3K</span><span class="rc"><em>😮</em>1.1K</span><span class="rc"><em>👏</em>904</span></div>
-                      <div class="pactions">
-                        <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>1.2K</span>
-                        <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>3.9K</span>
-                        <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="7304"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>7.3K</span></button>
-                        <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>212K</span>
-                        <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark-fill" style="color:var(--accent)"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="post" data-folder="travel">
-                    <i class="av" style="--c:#ffa85c">L</i>
-                    <div class="post-main">
-                      <div class="post-head"><b>Lens &amp; Light</b><span class="h">@lensandlight</span><span class="t">· 1h</span><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                      <p class="ptext">Sunrise over the Simien Mountains, sent in by a reader this morning. <span class="tag">#PhotoOfTheDay</span></p>
-                      <div class="media">
-                        <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                          <defs>
-                            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3a67"/><stop offset=".42" stop-color="#b8687a"/><stop offset=".72" stop-color="#f4a261"/><stop offset="1" stop-color="#ffd59e"/></linearGradient>
-                          </defs>
-                          <rect width="320" height="200" fill="url(#sky)"/>
-                          <circle cx="232" cy="116" r="44" fill="#fff1cf" opacity=".16"/>
-                          <circle cx="232" cy="116" r="22" fill="#fff1cf"/>
-                          <path d="M0 116h64l9 12h44l6-16h58l10 20h129v68H0z" fill="#7a4a63"/>
-                          <path d="M0 142l30-4h66l8 12 36-4 10-12h64l10 18 38-2 10-10h48v60H0z" fill="#4a2f4f"/>
-                          <path d="M44 162l7-34 4-3 4 37z" fill="#251a33"/>
-                          <path d="M0 168l40-8 20 12h60l12-10 48 8 50-12 50 12 40-6v36H0z" fill="#251a33"/>
-                        </svg>
-                      </div>
-                      <div class="reacts"><span class="rc"><em>😍</em>3.2K</span><span class="rc"><em>❤️</em>1.4K</span></div>
-                      <div class="pactions">
-                        <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>64</span>
-                        <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>530</span>
-                        <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="4620"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>4.6K</span></button>
-                        <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>39K</span>
-                        <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <article class="post" data-folder="food">
-                    <i class="av" style="--c:#ee7aae">K</i>
-                    <div class="post-main">
-                      <div class="post-head"><b>Kitchen Notes</b><span class="h">@kitchennotes</span><span class="t">· 3h</span><svg class="i more"><use href="assets/icons.svg#i-more"/></svg></div>
-                      <p class="ptext">One pot, twenty minutes. Which recipe should we post tonight? 🍲</p>
-                      <div class="poll">
-                        <div class="poll-opt" style="--p:58%"><b>Spicy lentil soup</b><span>58%</span></div>
-                        <div class="poll-opt" style="--p:27%"><span>Lemon garlic pasta</span><span>27%</span></div>
-                        <div class="poll-opt" style="--p:15%"><span>Veggie fried rice</span><span>15%</span></div>
-                        <span class="poll-meta">8,412 votes</span>
-                      </div>
-                      <div class="pactions">
-                        <span><svg class="i"><use href="assets/icons.svg#i-reply"/></svg>310</span>
-                        <span><svg class="i"><use href="assets/icons.svg#i-repeat"/></svg>95</span>
-                        <button class="like" type="button" aria-pressed="false" aria-label="Like" data-count="2140"><svg class="i line"><use href="assets/icons.svg#i-heart"/></svg><svg class="i fill"><use href="assets/icons.svg#i-heart-fill"/></svg><span>2.1K</span></button>
-                        <span><svg class="i"><use href="assets/icons.svg#i-views"/></svg>27K</span>
-                        <span class="pa-end"><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg><svg class="i"><use href="assets/icons.svg#i-share"/></svg></span>
-                      </div>
-                    </div>
-                  </article>
-
-                  <div class="caught-up show">
-                    <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check-circle"/></svg>
-                    <b>You're all caught up</b>
-                    <p>Posts you've read don't come back. New ones will appear here.</p>
-                  </div>
-                </div>
-
-                <span class="app-fab" aria-hidden="true"><svg class="i"><use href="assets/icons.svg#i-add"/></svg></span>
-                <div class="app-nav" aria-hidden="true">
-                  <span class="nav-dot on"><svg class="i"><use href="assets/icons.svg#i-home-fill"/></svg></span>
-                  <span><svg class="i"><use href="assets/icons.svg#i-search"/></svg></span>
-                  <span><svg class="i"><use href="assets/icons.svg#i-list"/></svg></span>
-                  <span class="nav-badge"><svg class="i"><use href="assets/icons.svg#i-mail"/></svg><b>3</b></span>
-                </div>
-                <span class="app-home-bar" aria-hidden="true"></span>
+              <div class="shot-status" aria-hidden="true">
+                <span>9:41</span>
+                <i class="camera"></i>
+                <span class="sb-icons">
+                  <svg viewBox="0 0 18 12"><path d="M1 8h2.5v4H1zM5.5 5.5H8V12H5.5zM10 3h2.5v9H10zM14.5 0H17v12h-2.5z"/></svg>
+                  <svg viewBox="0 0 16 12"><path d="M8 12 0 3.6A11.6 11.6 0 0 1 8 0a11.6 11.6 0 0 1 8 3.6z"/></svg>
+                  <svg viewBox="0 0 25 12"><rect x=".75" y=".75" width="20.5" height="10.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.5"/><rect x="22.5" y="4" width="2" height="4" rx="1"/></svg>
+                </span>
               </div>
+              <img class="shot" src="assets/shots/feed.webp" width="720" height="1483" alt="The gramX home feed. Telegram folders run across the top as tabs, a button says 15 new posts, and posts from different channels follow one another in a single timeline.">
             </div>
           </div>
-        </div>
+        </figure>
       </div>
     </section>
 
@@ -329,7 +147,6 @@
     <section class="section" id="how">
       <div class="container">
         <div class="section-head center reveal">
-          <p class="eyebrow">Why gramX</p>
           <h2 class="h2">Channels are for reading. So read them like a feed.</h2>
           <p class="lead">Telegram lists every channel as a separate chat, each with its own pile of unread posts. gramX lays them out as one timeline, so catching up is a single scroll.</p>
         </div>
@@ -337,35 +154,33 @@
         <div class="compare">
           <div class="card reveal" aria-label="Channels as separate chats">
             <div class="compare-label"><b>Channels as chats</b><span>One at a time</span></div>
-            <div class="chatrow"><i class="av" style="--c:#ee7aae">K</i><div class="chatrow-main"><b>Kitchen Notes</b><span>One pot, twenty minutes. Which recipe should…</span></div><span class="badge">2,031</span></div>
-            <div class="chatrow"><i class="av" style="--c:#65aadd">W</i><div class="chatrow-main"><b>World Brief</b><span>Good morning. Five stories worth your time…</span></div><span class="badge">1,284</span></div>
-            <div class="chatrow"><i class="av" style="--c:#a695e7">B</i><div class="chatrow-main"><b>Byte Sized</b><span>A phone battery that charges fully in five…</span></div><span class="badge">312</span></div>
-            <div class="chatrow"><i class="av" style="--c:#7bc862">M</i><div class="chatrow-main"><b>Matchday</b><span>FULL TIME. Three goals in the last twenty…</span></div><span class="badge">97</span></div>
-            <div class="chatrow"><i class="av" style="--c:#ffa85c">L</i><div class="chatrow-main"><b>Lens &amp; Light</b><span>Sunrise over the Simien Mountains, sent in…</span></div><span class="badge">46</span></div>
+            <div class="chatrow"><i class="av" style="--c:#b8336a">K</i><div class="chatrow-main"><b>Kitchen Notes</b><span>One pot, twenty minutes. Which recipe should…</span></div><span class="badge">2,031</span></div>
+            <div class="chatrow"><i class="av" style="--c:#2f6fae">W</i><div class="chatrow-main"><b>World Brief</b><span>Good morning. Five stories worth your time…</span></div><span class="badge">1,284</span></div>
+            <div class="chatrow"><i class="av" style="--c:#6a4fc4">B</i><div class="chatrow-main"><b>Byte Sized</b><span>A phone battery that charges fully in five…</span></div><span class="badge">312</span></div>
+            <div class="chatrow"><i class="av" style="--c:#2e7d32">M</i><div class="chatrow-main"><b>Matchday</b><span>FULL TIME. Three goals in the last twenty…</span></div><span class="badge">97</span></div>
+            <div class="chatrow"><i class="av" style="--c:#a8530a">L</i><div class="chatrow-main"><b>Lens &amp; Light</b><span>Sunrise over the Simien Mountains, sent in…</span></div><span class="badge">46</span></div>
           </div>
 
-          <span class="compare-arrow reveal" aria-hidden="true"><svg class="i"><use href="assets/icons.svg#i-arrow"/></svg></span>
+          <span class="compare-arrow" aria-hidden="true"><svg class="i"><use href="assets/icons.svg#i-arrow"/></svg></span>
 
           <div class="card minifeed reveal" aria-label="The same channels as one timeline">
             <div class="compare-label"><b>gramX</b><span>Everything, newest first</span></div>
             <article class="post">
-              <i class="av" style="--c:#65aadd">W</i>
+              <i class="av" style="--c:#2f6fae">W</i>
               <div class="post-main">
                 <div class="post-head"><b>World Brief</b><svg class="i vb" aria-hidden="true"><use href="assets/icons.svg#i-verified"/></svg><span class="h">@worldbrief</span><span class="t">· 2m</span><i class="unread"></i></div>
                 <p class="ptext">Good morning. Five stories worth your time today, each one under a minute to read. ☕️</p>
-                <div class="reacts"><span class="rc"><em>👍</em>2.1K</span><span class="rc"><em>🔥</em>640</span></div>
               </div>
             </article>
             <article class="post">
-              <i class="av" style="--c:#a695e7">B</i>
+              <i class="av" style="--c:#6a4fc4">B</i>
               <div class="post-main">
                 <div class="post-head"><b>Byte Sized</b><span class="h">@bytesized</span><span class="t">· 18m</span><i class="unread"></i></div>
                 <p class="ptext">A phone battery that charges fully in five minutes just passed its first safety tests. 🔋</p>
-                <div class="reacts"><span class="rc"><em>🤯</em>980</span><span class="rc"><em>🔥</em>455</span></div>
               </div>
             </article>
             <article class="post">
-              <i class="av" style="--c:#7bc862">M</i>
+              <i class="av" style="--c:#2e7d32">M</i>
               <div class="post-main">
                 <div class="post-head"><b>Matchday</b><svg class="i vb" aria-hidden="true"><use href="assets/icons.svg#i-verified"/></svg><span class="h">@matchday</span><span class="t">· 41m</span></div>
                 <p class="ptext">FULL TIME. Three goals in the last twenty minutes. What a comeback. ⚽️</p>
@@ -380,14 +195,12 @@
     <section class="section" id="features">
       <div class="container">
         <div class="section-head reveal">
-          <p class="eyebrow">Features</p>
           <h2 class="h2">Everything you do on Telegram, laid out to read.</h2>
           <p class="lead">gramX is a full Telegram app, not just a reader. Your channels, your messages and the channels you run, all in one place.</p>
         </div>
 
         <div class="bento">
           <article class="card feature b-wide reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-feed"/></svg></span>
             <h3>One feed, with your folders as tabs</h3>
             <p>Every channel you follow, newest first. The folders you already made in Telegram show up as tabs, so news, work and fun each get their own feed.</p>
             <div class="feature-visual" aria-hidden="true">
@@ -396,72 +209,46 @@
           </article>
 
           <article class="card feature b-third reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check-circle"/></svg></span>
             <h3>Read once</h3>
             <p>Posts you've read stay out of the way, and read status stays in step with your other Telegram apps.</p>
-            <div class="feature-visual" aria-hidden="true">
-              <div class="read-demo"><svg class="i"><use href="assets/icons.svg#i-check-circle"/></svg><div><b>You're all caught up</b><span>New posts will appear here.</span></div></div>
-            </div>
+            <p class="feature-visual caught" aria-hidden="true"><svg class="i"><use href="assets/icons.svg#i-check-circle"/></svg><span><b>You're all caught up</b>New posts will appear here.</span></p>
           </article>
 
-          <article class="card feature b-third reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-mail"/></svg></span>
+          <article class="card feature b-shot reveal">
+            <h3>Channel pages and stats</h3>
+            <p>Each channel gets a page with its posts, media, files and links, plus statistics for the channels you run.</p>
+            <img class="feature-shot" src="assets/shots/channel.webp" width="720" height="947" loading="lazy" alt="A channel page in gramX: cover image, channel photo, name, description with links, 1.1K subscribers and a pinned post.">
+          </article>
+
+          <article class="card feature b-half reveal">
             <h3>Messages, too</h3>
             <p>Your direct messages and groups, with replies, forwards, pins, search and scheduled messages.</p>
             <div class="feature-visual mini-list" aria-hidden="true">
-              <div class="mini-row"><i class="av" style="--c:#ffa85c">S</i><div class="grow"><b>Sara</b><span>See you at 7? I'll bring the tickets 🎟️</span></div><span class="unread-badge">2</span></div>
-              <div class="mini-row"><i class="av" style="--c:#65aadd">F</i><div class="grow"><b>Family</b><span>Mom: Photos from Sunday are up!</span></div><span class="unread-badge">5</span></div>
+              <div class="mini-row"><i class="av" style="--c:#a8530a">S</i><div class="grow"><b>Sara</b><span>See you at 7? I'll bring the tickets 🎟️</span></div><span class="unread-badge">2</span></div>
+              <div class="mini-row"><i class="av" style="--c:#2f6fae">F</i><div class="grow"><b>Family</b><span>Mom: Photos from Sunday are up!</span></div><span class="unread-badge">5</span></div>
             </div>
           </article>
 
-          <article class="card feature b-third reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-bell"/></svg></span>
+          <article class="card feature b-half reveal">
             <h3>Activity</h3>
             <p>Mentions, replies and reactions in one place, with notifications for what Telegram already notifies you about.</p>
             <div class="feature-visual mini-list" aria-hidden="true">
-              <div class="mini-row"><span class="kind"><i class="av" style="--c:#7bc862">D</i><svg class="i" style="color:var(--like)"><use href="assets/icons.svg#i-heart-fill"/></svg></span><div class="grow"><b>Daniel</b> reacted 🔥<span>to your comment in Matchday</span></div></div>
-              <div class="mini-row"><span class="kind"><i class="av" style="--c:#a695e7">H</i><svg class="i" style="color:var(--accent)"><use href="assets/icons.svg#i-reply"/></svg></span><div class="grow"><b>Hana</b> replied<span>“Totally agree, the second half was wild”</span></div></div>
-            </div>
-          </article>
-
-          <article class="card feature b-third reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-stats"/></svg></span>
-            <h3>Channel pages and stats</h3>
-            <p>Each channel gets a page with its posts, media, files and links, plus statistics for the channels you run.</p>
-            <div class="feature-visual" aria-hidden="true">
-              <div class="channel-mini">
-                <div class="channel-cover"></div>
-                <div class="channel-body">
-                  <i class="av" style="--c:#a695e7">B</i>
-                  <span class="channel-join">Join</span>
-                  <b>Byte Sized <svg class="i"><use href="assets/icons.svg#i-verified"/></svg></b>
-                  <small><svg class="i"><use href="assets/icons.svg#i-people"/></svg>48K subscribers</small>
-                  <div class="spark"><i style="--h:30%"></i><i style="--h:45%"></i><i style="--h:38%"></i><i style="--h:60%"></i><i style="--h:52%"></i><i style="--h:74%"></i><i style="--h:68%"></i><i style="--h:90%"></i></div>
-                </div>
-              </div>
+              <div class="mini-row"><span class="kind"><i class="av" style="--c:#2e7d32">D</i><svg class="i" style="color:var(--like)"><use href="assets/icons.svg#i-heart-fill"/></svg></span><div class="grow"><b>Daniel</b> reacted 🔥<span>to your comment in Matchday</span></div></div>
+              <div class="mini-row"><span class="kind"><i class="av" style="--c:#6a4fc4">H</i><svg class="i" style="color:var(--accent)"><use href="assets/icons.svg#i-reply"/></svg></span><div class="grow"><b>Hana</b> replied<span>“Totally agree, the second half was wild”</span></div></div>
             </div>
           </article>
 
           <article class="card feature b-half reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-pen"/></svg></span>
             <h3>Post to the channels you run</h3>
             <p>Write to your own channels straight from gramX, with everything a post can hold.</p>
             <div class="feature-visual compose-tools" aria-hidden="true">
-              <span><span class="e">✍️</span>Text</span><span><span class="e">🖼️</span>Photos</span><span><span class="e">🎬</span>Videos</span><span><span class="e">📎</span>Files</span><span><span class="e">📊</span>Polls</span><span><span class="e">🙂</span>Stickers</span><span><span class="e">🎙️</span>Voice</span><span><span class="e">📍</span>Location</span>
+              <span>Text</span><span>Photos</span><span>Videos</span><span>Files</span><span>Polls</span><span>Stickers</span><span>Voice</span><span>Location</span>
             </div>
           </article>
 
           <article class="card feature b-half reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-link"/></svg></span>
             <h3>Links, sharing and the rest</h3>
-            <p>Telegram links open right inside the app, and anything you share to gramX from another app opens ready to post.</p>
-            <div class="feature-visual tag-list" aria-hidden="true">
-              <span><svg class="i"><use href="assets/icons.svg#i-link"/></svg>Links open in the app</span>
-              <span><svg class="i"><use href="assets/icons.svg#i-share-alt"/></svg>Share to gramX</span>
-              <span><svg class="i"><use href="assets/icons.svg#i-bookmark"/></svg>Bookmarks</span>
-              <span><svg class="i"><use href="assets/icons.svg#i-search"/></svg>Search</span>
-              <span><svg class="i"><use href="assets/icons.svg#i-explore"/></svg>Explore</span>
-            </div>
+            <p>Telegram links open right inside the app, and anything you share to gramX from another app opens ready to post. Bookmarks, search and explore are there too.</p>
           </article>
         </div>
       </div>
@@ -471,26 +258,13 @@
     <section class="section" id="themes">
       <div class="container">
         <div class="section-head center reveal">
-          <p class="eyebrow">Make it yours</p>
           <h2 class="h2">Light, Dim, or Lights out.</h2>
-          <p class="lead">The same three themes as in the app. Go on, pick one: this page switches too.</p>
+          <p class="lead">The same three themes as in the app. Pick one and this page switches too.</p>
         </div>
         <div class="themes reveal" role="radiogroup" aria-label="Theme">
-          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="light">
-            <span class="preview" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="radio" aria-hidden="true"></span>
-            Light
-          </button>
-          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="dim">
-            <span class="preview" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="radio" aria-hidden="true"></span>
-            Dim
-          </button>
-          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="dark">
-            <span class="preview" aria-hidden="true"><i></i><i></i><i></i></span>
-            <span class="radio" aria-hidden="true"></span>
-            Lights out
-          </button>
+          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="light"><span class="radio" aria-hidden="true"></span>Light</button>
+          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="dim"><span class="radio" aria-hidden="true"></span>Dim</button>
+          <button class="theme-tile" type="button" role="radio" aria-checked="false" data-theme-pick="dark"><span class="radio" aria-hidden="true"></span>Lights out</button>
         </div>
       </div>
     </section>
@@ -499,32 +273,27 @@
     <section class="section" id="privacy">
       <div class="container">
         <div class="section-head reveal">
-          <p class="eyebrow">Privacy</p>
           <h2 class="h2">There is no gramX server.</h2>
           <p class="lead">gramX connects straight from your phone to Telegram, using Telegram's own client library. Nothing you read, write or tap is sent to the developer or to anyone else.</p>
         </div>
 
-        <div class="privacy-grid">
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-cloud-off"/></svg></span>
-            <h3>Talks only to Telegram</h3>
+        <div class="points">
+          <div class="point reveal">
+            <h3><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-cloud-off"/></svg>Talks only to Telegram</h3>
             <p>No backend and no middleman. Your sign-in and your messages go from your phone to Telegram, and nowhere else.</p>
-          </article>
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg></span>
-            <h3>Stays on your phone</h3>
+          </div>
+          <div class="point reveal">
+            <h3><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>Stays on your phone</h3>
             <p>What gramX keeps is stored on your phone, in a database encrypted with a key from your phone's keystore. Logging out clears it.</p>
-          </article>
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg></span>
-            <h3>No ads, no tracking</h3>
+          </div>
+          <div class="point reveal">
+            <h3><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>No ads, no tracking</h3>
             <p>No analytics, no advertising, and no crash reporter phoning home. There's nothing to sell, and nobody to sell it to.</p>
-          </article>
+          </div>
         </div>
 
-        <div class="card guest reveal">
+        <div class="guest reveal">
           <div>
-            <p class="eyebrow">Guest mode</p>
             <h3>Not ready to sign in? Just read.</h3>
             <p>Add any public channel and read it without a Telegram account. Guest mode only reads, so nothing is ever sent on your behalf. Sign in whenever you want to react, comment and sync.</p>
             <p><a href="privacy.html">Read the privacy policy</a></p>
@@ -535,8 +304,8 @@
               <div><b>You are browsing as a guest</b><span>Sign in to react, comment, bookmark and sync what you have read.</span></div>
               <em>Sign in</em>
             </div>
-            <article class="post" style="padding-inline:4px">
-              <i class="av" style="--c:#ffa85c">L</i>
+            <article class="post">
+              <i class="av" style="--c:#a8530a">L</i>
               <div class="post-main">
                 <div class="post-head"><b>Lens &amp; Light</b><span class="h">@lensandlight</span><span class="t">· 1h</span></div>
                 <p class="ptext">Sunrise over the Simien Mountains, sent in by a reader this morning. <span class="tag">#PhotoOfTheDay</span></p>
@@ -551,13 +320,12 @@
     <section class="section" id="install">
       <div class="container">
         <div class="section-head reveal">
-          <p class="eyebrow">Install</p>
           <h2 class="h2">Up and running in a minute.</h2>
           <p class="lead">gramX installs straight from this page rather than from an app store. It takes about a minute, and you only do it once.</p>
         </div>
 
-        <div class="steps">
-          <article class="card step reveal">
+        <ol class="steps">
+          <li class="step reveal">
             <div class="step-visual" aria-hidden="true">
               <div class="file-chip">
                 <img src="assets/brand/icon-on-light.png" alt="">
@@ -565,8 +333,7 @@
                 <svg class="i done"><use href="assets/icons.svg#i-check-circle"/></svg>
               </div>
             </div>
-            <span class="step-num">1</span>
-            <h3>Download gramX</h3>
+            <h3><span class="step-num">1</span>Download gramX</h3>
             <p>Tap the button on your Android phone. It's one file, and the right one for almost every phone from the last several years.</p>
             <a class="btn btn-primary" data-download data-dl="arm64" href="https://github.com/daveragos/gramx/releases/download/v1.0.0/gramx-1.0.0-arm64-v8a.apk">
               <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>
@@ -581,9 +348,9 @@
                 <li><a data-release-link href="https://github.com/daveragos/gramx/releases/tag/v1.0.0">Release notes</a> and <a href="https://github.com/daveragos/gramx/releases">earlier versions</a>.</li>
               </ul>
             </details>
-          </article>
+          </li>
 
-          <article class="card step reveal">
+          <li class="step reveal">
             <div class="step-visual" aria-hidden="true">
               <div class="sys-dialog">
                 <img src="assets/brand/icon-on-light.png" alt="">
@@ -592,12 +359,11 @@
                 <div class="row"><span>Cancel</span><span class="go">Install</span></div>
               </div>
             </div>
-            <span class="step-num">2</span>
-            <h3>Open it and tap Install</h3>
+            <h3><span class="step-num">2</span>Open it and tap Install</h3>
             <p>Open the file from your notifications or Downloads. The first time, Android asks you to allow installs from your browser or file manager. Allow it, go back, and tap Install.</p>
-          </article>
+          </li>
 
-          <article class="card step reveal">
+          <li class="step reveal">
             <div class="step-visual" aria-hidden="true">
               <div class="auth-mini">
                 <img class="on-dark" src="assets/brand/icon-on-dark.png" alt="">
@@ -609,16 +375,12 @@
                 <div class="a-btn a-text">Browse without an account</div>
               </div>
             </div>
-            <span class="step-num">3</span>
-            <h3>Sign in, or just look around</h3>
+            <h3><span class="step-num">3</span>Sign in, or just look around</h3>
             <p>Sign in with your phone number or a QR code from Telegram on another device. Or skip it and read public channels as a guest.</p>
-          </article>
-        </div>
+          </li>
+        </ol>
 
-        <div class="card update-note reveal">
-          <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>
-          <p><b>Updating later?</b> Download the new version from this page and install it over the old one. You stay signed in, and your settings stay as they are.</p>
-        </div>
+        <p class="update-note reveal"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg><span><b>Updating later?</b> Download the new version from this page and install it over the old one. You stay signed in, and your settings stay as they are.</span></p>
       </div>
     </section>
 
@@ -626,7 +388,6 @@
     <section class="section" id="faq">
       <div class="container">
         <div class="section-head center reveal">
-          <p class="eyebrow">FAQ</p>
           <h2 class="h2">Questions, answered.</h2>
         </div>
         <div class="faq reveal">
@@ -674,52 +435,46 @@
     <section class="section" id="support">
       <div class="container">
         <div class="section-head reveal">
-          <p class="eyebrow">Open source</p>
           <h2 class="h2">Made by one person, in the open.</h2>
           <p class="lead">gramX is free and open source under the Apache 2.0 license. If you'd like to help it grow, here's how.</p>
         </div>
-        <div class="support-grid">
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-support"/></svg></span>
+        <div class="points">
+          <div class="point reveal">
             <h3>Support the work</h3>
             <p>gramX has no ads and sells nothing. Support from the people who use it keeps it going.</p>
             <a class="btn btn-primary" href="https://gurshaplus.com/ragoose">Support RaGoose</a>
-          </article>
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg></span>
+          </div>
+          <div class="point reveal">
             <h3>Report, suggest, contribute</h3>
             <p>Found a bug or have an idea? Open an issue. Every line of gramX is on GitHub, and pull requests are welcome.</p>
             <div class="share-row">
               <a class="btn btn-ghost" href="https://github.com/daveragos/gramx"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg>View on GitHub</a>
               <a class="btn btn-ghost" href="https://github.com/daveragos/gramx/issues"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-bug"/></svg>Report a bug</a>
             </div>
-          </article>
-          <article class="card feature reveal">
-            <span class="ficon"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-campaign"/></svg></span>
+          </div>
+          <div class="point reveal">
             <h3>Tell a friend</h3>
             <p>Know someone buried under a hundred unread channels? Send them this page.</p>
             <div class="share-row">
               <a class="btn btn-ghost" data-share-x href="https://x.com/intent/post?text=gramX%20turns%20the%20Telegram%20channels%20you%20follow%20into%20one%20timeline.%20Free%20for%20Android%3A&amp;url=https%3A%2F%2Fdaveragos.github.io%2Fgramx%2F" target="_blank" rel="noopener"><svg class="i i-x" aria-hidden="true"><use href="assets/icons.svg#i-x"/></svg>Share on X</a>
               <button class="btn btn-ghost" type="button" data-copy-link><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-copy"/></svg><span>Copy link</span></button>
             </div>
-          </article>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Final call -->
-    <section class="section">
-      <div class="container">
-        <div class="card final reveal">
-          <img class="mark" src="assets/brand/mark.webp" alt="" width="92" height="143" loading="lazy">
-          <h2 class="h2">Your channels, in one place.</h2>
-          <p class="lead">Free for Android. Takes a minute to set up, and you can try it without an account.</p>
-          <div class="cta-row">
-            <a class="btn btn-primary btn-lg" data-download data-dl="arm64" href="https://github.com/daveragos/gramx/releases/download/v1.0.0/gramx-1.0.0-arm64-v8a.apk">
-              <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>
-              Download for Android
-            </a>
-          </div>
+    <section class="section final">
+      <div class="container reveal">
+        <img class="mark" src="assets/brand/mark.webp" alt="" width="92" height="143" loading="lazy">
+        <h2 class="h2">Your channels, in one place.</h2>
+        <p class="lead">Free for Android. Takes a minute to set up, and you can try it without an account.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary btn-lg" data-download data-dl="arm64" href="https://github.com/daveragos/gramx/releases/download/v1.0.0/gramx-1.0.0-arm64-v8a.apk">
+            <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>
+            Download for Android
+          </a>
         </div>
       </div>
     </section>

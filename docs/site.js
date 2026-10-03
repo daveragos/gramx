@@ -110,7 +110,7 @@
     sums: /sha256sums/i
   };
 
-  function megabytes(bytes) { return Math.round(bytes / 1e6) + ' MB'; }
+  function megabytes(bytes) { return Math.round(bytes / 1e6) + '\u00a0MB'; }
 
   function applyRelease() {
     $$('[data-dl]').forEach(function (a) {
@@ -297,101 +297,25 @@
     });
   });
 
-  // ── The phone preview ──────────────────────────────────────────────────
-
-  var app = $('[data-app]');
-  if (app) {
-    var feed = $('[data-feed]', app);
-
-    function compact(n) {
-      if (n < 1000) return String(n);
-      if (n < 10000) return (Math.floor(n / 100) / 10).toString().replace(/\.0$/, '') + 'K';
-      if (n < 1e6) return Math.floor(n / 1000) + 'K';
-      return (Math.floor(n / 1e5) / 10).toString().replace(/\.0$/, '') + 'M';
-    }
-
-    // Folder tabs filter the feed, as in the app.
-    var tabs = $$('[data-tab]', app);
-    function showFolder(folder) {
-      tabs.forEach(function (t) {
-        t.setAttribute('aria-selected', String(t.getAttribute('data-tab') === folder));
-      });
-      $$('.post', feed).forEach(function (post) {
-        post.hidden = folder !== 'all' && post.getAttribute('data-folder') !== folder;
-      });
-      feed.scrollTop = 0;
-    }
-    tabs.forEach(function (t) {
-      t.addEventListener('click', function () { showFolder(t.getAttribute('data-tab')); });
-    });
-
-    // Tapping the heart reacts.
-    feed.addEventListener('click', function (e) {
-      var btn = e.target.closest && e.target.closest('.like');
-      if (!btn) return;
-      var on = btn.getAttribute('aria-pressed') !== 'true';
-      var n = Number(btn.getAttribute('data-count')) + (on ? 1 : -1);
-      btn.setAttribute('aria-pressed', String(on));
-      btn.setAttribute('data-count', String(n));
-      $('span', btn).textContent = compact(n);
-    });
-
-    // A new post arrives a few seconds in.
-    var pill = $('[data-new-pill]', app);
-    var incoming = $('template[data-incoming]', feed);
-    var arrived = false;
-    function deliver() {
-      if (arrived || !incoming) return;
-      arrived = true;
-      pill.classList.remove('show');
-      var post = incoming.content.firstElementChild.cloneNode(true);
-      post.classList.add('enter');
-      var selected = $('[data-tab][aria-selected="true"]', app);
-      var folder = selected ? selected.getAttribute('data-tab') : 'all';
-      post.hidden = folder !== 'all' && post.getAttribute('data-folder') !== folder;
-      feed.insertBefore(post, $('.post', feed));
-      feed.scrollTop = 0;
-    }
-    if (pill) {
-      pill.addEventListener('click', deliver);
-      var started = false;
-      var start = function () {
-        if (started) return;
-        started = true;
-        setTimeout(function () {
-          if (arrived) return;
-          pill.classList.add('show');
-          setTimeout(deliver, 3500);
-        }, 2500);
-      };
-      if ('IntersectionObserver' in window) {
-        var seen = new IntersectionObserver(function (entries) {
-          if (entries[0].isIntersecting) { start(); seen.disconnect(); }
-        }, { threshold: 0.4 });
-        seen.observe(app);
-      } else {
-        start();
-      }
-    }
-  }
-
   // ── Reveal on scroll ───────────────────────────────────────────────────
+  // Only what starts below the fold is hidden, and only once the observer
+  // exists, so nothing stays invisible if this script fails.
 
-  var reveals = $$('.reveal');
-  if ('IntersectionObserver' in window) {
+  if ('IntersectionObserver' in window &&
+      !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        entry.target.classList.add('in');
+        entry.target.classList.remove('pending');
         io.unobserve(entry.target);
       });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    reveals.forEach(function (el) {
-      var siblings = Array.prototype.indexOf.call(el.parentNode.children, el);
-      el.style.transitionDelay = (siblings % 3) * 70 + 'ms';
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    $$('.reveal').forEach(function (el) {
+      if (el.getBoundingClientRect().top < window.innerHeight) return;
+      var index = Array.prototype.indexOf.call(el.parentNode.children, el);
+      el.style.transitionDelay = (index % 3) * 60 + 'ms';
+      el.classList.add('pending');
       io.observe(el);
     });
-  } else {
-    reveals.forEach(function (el) { el.classList.add('in'); });
   }
 })();
