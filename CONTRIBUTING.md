@@ -72,6 +72,29 @@ take an update signed with the real key.
 The version comes from `pubspec.yaml` (`version: x.y.z+build`), which both
 the Android build and the app read.
 
+## Website
+
+The website is plain HTML, CSS and JavaScript in `docs/`, published with
+GitHub Pages. There is no build step. To preview it locally:
+
+```bash
+python3 -m http.server --directory docs
+```
+
+The download buttons look up the latest GitHub release when the page loads,
+so publishing a release is enough and the page needs no edit. They find the
+APKs by the `arm64-v8a`, `armeabi-v7a` and `x86_64` in their file names, so
+keep those in the names of release assets. Visitors who can't reach GitHub's
+API get the version in `FALLBACK_VERSION` in `docs/site.js`; bump it with
+each release.
+
+The site's privacy policy and terms are generated from
+`lib/core/l10n/legal_text.dart`. After changing that file, run:
+
+```bash
+dart run tool/site_legal.dart
+```
+
 ## Code layout
 
 ```

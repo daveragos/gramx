@@ -1,6 +1,7 @@
 /// The privacy policy and terms. They describe what the code does, so a
 /// change to what is stored, sent, or written to a Telegram account must
-/// update the matching section in the same commit.
+/// update the matching section in the same commit. The website's copies are
+/// generated from here by `dart run tool/site_legal.dart`.
 library;
 
 class LegalSection {
