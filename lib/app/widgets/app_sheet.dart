@@ -8,17 +8,23 @@ import 'package:gramx/app/theme/app_typography.dart';
 /// Shows a bottom sheet of actions above the shell's bottom bar and returns
 /// the tapped row's [AppSheetRow.value]. Row callbacks run after the sheet
 /// closes, so they should use the caller's context.
+///
+/// Rows scroll rather than overflow. A sheet stops at 9/16 of the screen
+/// unless [tall], which lets a long list of choices use the full height.
 Future<T?> showAppSheet<T>(
   BuildContext context, {
   required List<Widget> children,
   String? title,
   bool haptic = true,
+  bool tall = false,
 }) {
   if (haptic) HapticFeedback.mediumImpact();
   return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: true,
     showDragHandle: true,
+    isScrollControlled: tall,
+    useSafeArea: tall,
     builder: (context) => SafeArea(
       top: false,
       child: Column(
@@ -42,7 +48,15 @@ Future<T?> showAppSheet<T>(
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          ...children,
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
           const SizedBox(height: AppSpacing.sm),
         ],
       ),
