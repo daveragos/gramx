@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import 'package:gramx/core/audio/opus_container.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/voice_waveform.dart';
 
@@ -60,9 +62,11 @@ class VoiceRecorder {
       }
 
       final directory = await getTemporaryDirectory();
+      // iOS records Opus only into CAF; stop() moves it into OGG.
       final path = p.join(
         directory.path,
-        'voice_${DateTime.now().millisecondsSinceEpoch}.ogg',
+        'voice_${DateTime.now().millisecondsSinceEpoch}'
+        '.${Platform.isIOS ? 'caf' : 'ogg'}',
       );
 
       await _recorder.start(
@@ -110,6 +114,8 @@ class VoiceRecorder {
 
     path ??= _path;
     if (path == null) return null;
+    if (Platform.isIOS) path = await _cafToOgg(path);
+    if (path == null) return null;
 
     final size = await _sizeOf(path);
     if (size <= 0) return null;
@@ -149,6 +155,25 @@ class VoiceRecorder {
     await _amplitudes?.cancel();
     _amplitudes = null;
     _startedAt = null;
+  }
+
+  /// Moves an iOS recording from CAF into OGG, the container
+  /// `inputMessageVoiceNote` expects, and deletes the CAF. Null when it
+  /// fails, since Telegram cannot play the CAF as a voice message.
+  static Future<String?> _cafToOgg(String cafPath) async {
+    final oggPath = p.setExtension(cafPath, '.ogg');
+    try {
+      await Isolate.run(() {
+        final caf = File(cafPath).readAsBytesSync();
+        File(oggPath).writeAsBytesSync(OpusContainer.cafToOgg(caf));
+      });
+      return oggPath;
+    } catch (e) {
+      debugPrint('[VoiceRecorder] could not convert to OGG: $e');
+      return null;
+    } finally {
+      await _delete(cafPath);
+    }
   }
 
   static Future<int> _sizeOf(String path) async {

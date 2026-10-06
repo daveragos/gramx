@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/core/audio/playable_audio.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -63,7 +64,8 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
 
     setState(() => _isInitializing = true);
     try {
-      final controller = VideoPlayerController.file(File(path));
+      final playable = await playableAudioPath(path);
+      final controller = VideoPlayerController.file(File(playable));
       await controller.initialize();
       if (!mounted) {
         await controller.dispose();
