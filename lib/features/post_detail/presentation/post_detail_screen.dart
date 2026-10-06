@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/post_detail/domain/comment_threads.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -201,6 +202,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     if (remote == null && text.isEmpty && attachments.isEmpty) return;
 
     final targetReply = _replyTargetPost;
+    _commentFocusNode.unfocus();
     setState(() {
       _isSending = true;
       if (remote == null) {
@@ -394,6 +396,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
+                    // iOS has no back key to put the keyboard away.
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -726,65 +731,17 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       );
                                     }
 
-                                    final commentMap = {
-                                      for (var c in comments) c.messageId: c,
-                                    };
-                                    final Map<int, List<Post>> subMap = {};
-
-                                    for (final comment in comments) {
-                                      final replyId = comment.replyToMessageId;
-                                      if (replyId != null &&
-                                          replyId != post.messageId &&
-                                          commentMap.containsKey(replyId)) {
-                                        int rootId = replyId;
-                                        int depth = 0;
-                                        while (commentMap.containsKey(rootId) &&
-                                            depth < 10) {
-                                          final parent = commentMap[rootId]!;
-                                          if (parent.replyToMessageId == null ||
-                                              parent.replyToMessageId ==
-                                                  post.messageId ||
-                                              !commentMap.containsKey(
-                                                parent.replyToMessageId,
-                                              )) {
-                                            break;
-                                          }
-                                          rootId = parent.replyToMessageId!;
-                                          depth++;
-                                        }
-                                        subMap
-                                            .putIfAbsent(rootId, () => [])
-                                            .add(comment);
-                                      }
-                                    }
-
-                                    final childIds = subMap.values
-                                        .expand(
-                                          (list) =>
-                                              list.map((c) => c.messageId),
-                                        )
-                                        .toSet();
-                                    final topLevelComments = comments
-                                        .where(
-                                          (c) =>
-                                              !childIds.contains(c.messageId),
-                                        )
-                                        .toList();
+                                    final threads = threadComments(comments);
 
                                     final List<Widget> commentWidgets = [];
 
-                                    for (
-                                      int i = 0;
-                                      i < topLevelComments.length;
-                                      i++
-                                    ) {
-                                      final topComment = topLevelComments[i];
-                                      final subReplies =
-                                          subMap[topComment.messageId] ?? [];
+                                    for (int i = 0; i < threads.length; i++) {
+                                      final topComment = threads[i].root;
+                                      final subReplies = threads[i].replies;
                                       final isExpanded = _expandedCommentIds
                                           .contains(topComment.id);
                                       final isLastTopComment =
-                                          i == topLevelComments.length - 1;
+                                          i == threads.length - 1;
 
                                       commentWidgets.add(
                                         _buildXCommentItem(
@@ -878,9 +835,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                 child: _buildXCommentItem(
                                                   context: context,
                                                   comment: sub,
-                                                  replyingTo:
-                                                      commentMap[sub
-                                                          .replyToMessageId],
+                                                  replyingTo: replyingToLabel(
+                                                    sub,
+                                                    j == 0
+                                                        ? topComment
+                                                        : subReplies[j - 1],
+                                                    comments,
+                                                  ),
                                                   isLast:
                                                       isLastSub &&
                                                       isLastTopComment,
@@ -1117,12 +1078,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
                     if (comment.media.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 220),
-                        child: PostMediaGrid(
-                          media: comment.media,
-                          post: comment,
-                        ),
+                      PostMediaGrid(
+                        media: comment.media,
+                        post: comment,
+                        maxVisualHeight: 220,
                       ),
                     ],
 
@@ -1324,6 +1283,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     child: TextField(
                       controller: _commentController,
                       focusNode: _commentFocusNode,
+                      onTapOutside: (_) => _commentFocusNode.unfocus(),
                       maxLines: 4,
                       minLines: 1,
                       textCapitalization: TextCapitalization.sentences,

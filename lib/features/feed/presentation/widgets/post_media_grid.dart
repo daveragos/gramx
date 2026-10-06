@@ -29,7 +29,17 @@ class PostMediaGrid extends StatelessWidget {
   /// The post this media belongs to, passed to the full-screen viewer.
   final Post? post;
 
-  const PostMediaGrid({super.key, required this.media, this.post});
+  /// A height limit for the photos and videos only. File and audio rows
+  /// always get their full height; capping the whole grid let them overflow
+  /// onto whatever came next.
+  final double? maxVisualHeight;
+
+  const PostMediaGrid({
+    super.key,
+    required this.media,
+    this.post,
+    this.maxVisualHeight,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +102,17 @@ class PostMediaGrid extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.mediaRadius - 1),
-              child: _buildGrid(context, items, visualItems, borderColor),
+              child: maxVisualHeight == null
+                  ? _buildGrid(context, items, visualItems, borderColor)
+                  : ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxVisualHeight!),
+                      child: _buildGrid(
+                        context,
+                        items,
+                        visualItems,
+                        borderColor,
+                      ),
+                    ),
             ),
           ),
         ),
