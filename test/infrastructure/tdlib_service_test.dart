@@ -1,7 +1,39 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
+import 'package:handy_tdlib/api.dart' as td;
+
+import '../support/td_fixtures.dart';
 
 void main() {
+  group('TdlibService.withoutMissingMessages', () {
+    test('drops the nulls getMessages leaves for missing messages', () {
+      final reply = {
+        '@type': 'messages',
+        'total_count': 3,
+        'messages': [
+          TdFixtures.textMessageJson(id: 1048576, chatId: -100),
+          null,
+          TdFixtures.textMessageJson(id: 3145728, chatId: -100),
+        ],
+      };
+
+      final parsed = td.convertMapToObject(
+        TdlibService.withoutMissingMessages(reply),
+      );
+
+      expect(parsed, isA<td.Messages>());
+      expect((parsed! as td.Messages).messages.map((m) => m.id), [
+        1048576,
+        3145728,
+      ]);
+    });
+
+    test('leaves other replies alone', () {
+      final reply = {'@type': 'ok'};
+      expect(TdlibService.withoutMissingMessages(reply), same(reply));
+    });
+  });
+
   group('TdlibService.parseRetryAfter', () {
     test('reads TDLib FLOOD_WAIT_<n>', () {
       expect(TdlibService.parseRetryAfter('FLOOD_WAIT_30'), 30);

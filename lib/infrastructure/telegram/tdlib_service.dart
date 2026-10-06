@@ -413,7 +413,7 @@ class TdlibService {
     Completer<td.TdObject> completer,
     Map<String, dynamic> map,
   ) {
-    final object = convertMapToObject(map);
+    final object = convertMapToObject(withoutMissingMessages(map));
     if (object == null) {
       completer.completeError(
         Exception('Failed to deserialize TDLib response.'),
@@ -428,6 +428,23 @@ class TdlibService {
       return;
     }
     completer.complete(object);
+  }
+
+  /// [map] without the nulls TDLib puts in `messages` for messages it
+  /// doesn't have, as `getMessages` does for a deleted one. handy_tdlib's
+  /// parser throws on them, which would leave the request unanswered.
+  @visibleForTesting
+  static Map<String, dynamic> withoutMissingMessages(Map<String, dynamic> map) {
+    final messages = map['messages'];
+    if (map['@type'] != 'messages' ||
+        messages is! List ||
+        !messages.contains(null)) {
+      return map;
+    }
+    return {
+      ...map,
+      'messages': [for (final message in messages) ?message],
+    };
   }
 
   /// Send a TDLib request and await its typed response.
