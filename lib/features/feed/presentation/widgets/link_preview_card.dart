@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/core/widgets/minithumbnail.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/media_path.dart';
@@ -150,6 +151,28 @@ class LinkPreviewCard extends ConsumerWidget {
     }
 
     if (imageFileId != null && imageFileId! > 0) {
+      // With auto-download off the card goes without its picture unless it
+      // is already on the device.
+      if (!ref.watch(
+        settingsProvider.select((s) => s.autoDownloadImagesEnabled),
+      )) {
+        final downloaded = ref
+            .watch(fileDownloadStatusProvider(imageFileId!))
+            .value
+            ?.localPath;
+        if (downloaded == null || downloaded.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Image.file(
+          File(downloaded),
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+        );
+      }
+
       // Holds the image's height until it arrives, rather than collapsing
       // and growing again on each progress update.
       final loading = Container(

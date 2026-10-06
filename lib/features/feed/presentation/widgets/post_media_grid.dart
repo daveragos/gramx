@@ -474,7 +474,7 @@ class _MediaTile extends ConsumerWidget {
               ),
             )
           else if (!autoDownload)
-            const Center(child: _TapToLoadBadge()),
+            const Center(child: TapToLoadBadge()),
         ],
       );
     }
@@ -774,8 +774,8 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
 }
 
 /// Tap-to-load badge, shown when photo auto-download is off.
-class _TapToLoadBadge extends StatelessWidget {
-  const _TapToLoadBadge();
+class TapToLoadBadge extends StatelessWidget {
+  const TapToLoadBadge({super.key});
 
   @override
   Widget build(BuildContext context) {

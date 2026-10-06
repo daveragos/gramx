@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/time/time_utils.dart';
@@ -78,13 +81,28 @@ class _VisualMedia extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isVideo = item.type != MediaType.photo;
 
+    // With auto-download off a photo waits for a tap, like in the feed.
+    // Video thumbnails are small and always load.
+    final waitsForTap =
+        !isVideo &&
+        !ref.watch(settingsProvider.select((s) => s.autoDownloadImagesEnabled));
+    final fileId = isVideo ? item.thumbnailFileId : item.fileId;
+
     // Videos show their thumbnail. Both fall back to the minithumbnail, which
     // arrives inside the message before any download.
-    final path = resolveMediaPath(
-      ref,
-      fileId: isVideo ? item.thumbnailFileId : item.fileId,
-      rawPath: isVideo ? item.thumbnailUrl : (item.localPath ?? item.url),
-    );
+    final path = waitsForTap
+        ? item.localPath ??
+              (fileId == null || fileId == 0
+                  ? null
+                  : ref
+                        .watch(fileDownloadStatusProvider(fileId))
+                        .value
+                        ?.localPath)
+        : resolveMediaPath(
+            ref,
+            fileId: fileId,
+            rawPath: isVideo ? item.thumbnailUrl : (item.localPath ?? item.url),
+          );
 
     final size = _fittedSize();
     final radius = BorderRadius.vertical(
@@ -107,6 +125,8 @@ class _VisualMedia extends ConsumerWidget {
                 // The sender marked this as a spoiler.
                 BackdropBlur(child: const SizedBox.expand()),
               if (isVideo) const _PlayBadge(),
+              if (waitsForTap && path == null)
+                const Center(child: TapToLoadBadge()),
               if (isVideo && item.duration > 0)
                 Positioned(
                   left: AppSpacing.sm,

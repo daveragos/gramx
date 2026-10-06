@@ -146,11 +146,10 @@ class SyncService {
   void _downloadMessageMedia(td.Message message) {
     final content = message.content;
     if (content is td.MessagePhoto) {
-      // With auto-download off, photos wait for a tap.
-      if (!_autoDownloadImages()) return;
-      for (final size in content.photo.sizes) {
-        _downloadFile(size.photo.id);
-      }
+      // With auto-download off, photos wait for a tap. Only the largest size
+      // is shown, so the smaller ones aren't worth the data.
+      if (!_autoDownloadImages() || content.photo.sizes.isEmpty) return;
+      _downloadFile(content.photo.sizes.last.photo.id);
     } else if (content is td.MessageVideo && content.video.thumbnail != null) {
       _downloadFile(content.video.thumbnail!.file.id);
     } else if (content is td.MessageVideoNote &&
@@ -165,6 +164,7 @@ class SyncService {
       final thumbnail = content.sticker.thumbnail;
       if (thumbnail != null) _downloadFile(thumbnail.file.id);
     } else if (content is td.MessageText && content.linkPreview != null) {
+      if (!_autoDownloadImages()) return;
       final lp = content.linkPreview!;
       final previewType = lp.type;
       if (previewType is td.LinkPreviewTypePhoto) {
