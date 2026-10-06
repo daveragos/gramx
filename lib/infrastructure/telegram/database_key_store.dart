@@ -22,14 +22,11 @@ class DatabaseKeyStore {
 
   /// The stored key, or null for a fresh install or a database created before
   /// encryption. Both open with an empty key and are then encrypted in place.
-  Future<String?> read() async {
-    try {
-      return await _storage.read(key: storageKey);
-    } catch (e) {
-      debugPrint('[DbKey] Could not read key: $e');
-      return null;
-    }
-  }
+  ///
+  /// Throws when the keystore can't be read, which is not the same as having
+  /// no key: opening an encrypted database with an empty key would make it
+  /// look lost, and a lost database is cleared.
+  Future<String?> read() => _storage.read(key: storageKey);
 
   Future<void> write(String key) async {
     try {

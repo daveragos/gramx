@@ -5,6 +5,31 @@ import 'package:handy_tdlib/api.dart' as td;
 import '../support/td_fixtures.dart';
 
 void main() {
+  group('TdlibService.isLostDatabaseKey', () {
+    test('recognises TDLib refusing the database key', () {
+      expect(
+        TdlibService.isLostDatabaseKey(
+          const TdlibRequestException(401, 'Wrong database encryption key'),
+        ),
+        isTrue,
+      );
+    });
+
+    // A keystore that fails to read must never get the database cleared.
+    test('ignores other failures', () {
+      expect(
+        TdlibService.isLostDatabaseKey(
+          const TdlibRequestException(400, 'Unexpected setTdlibParameters'),
+        ),
+        isFalse,
+      );
+      expect(
+        TdlibService.isLostDatabaseKey(Exception('keychain locked')),
+        isFalse,
+      );
+    });
+  });
+
   group('TdlibService.withoutMissingMessages', () {
     test('drops the nulls getMessages leaves for missing messages', () {
       final reply = {

@@ -543,7 +543,8 @@ class TdlibService {
         await Directory(filesDir).create(recursive: true);
 
         // No stored key means a fresh install or an unencrypted database. Open
-        // with an empty key and encrypt in place below.
+        // with an empty key and encrypt in place below. A keystore that can't
+        // be read fails this launch instead; see DatabaseKeyStore.read.
         final storedKey = await _keyStore.read();
 
         final request = td.SetTdlibParameters(
@@ -577,6 +578,7 @@ class TdlibService {
         _updateStatus('Failed to set TDLib parameters: $e');
         _markTdlibError(e);
         debugPrint('[TDLib] SetTdlibParameters error: $e');
+        if (isLostDatabaseKey(e)) unawaited(_resetUnreadableDatabase());
       }
     } else if (state is td.AuthorizationStateWaitPhoneNumber ||
         state is td.AuthorizationStateWaitCode ||
@@ -591,6 +593,26 @@ class TdlibService {
         _updateStatus('Authenticated with Telegram!');
       }
     }
+  }
+
+  /// Whether [error] says the database is encrypted with a key other than the
+  /// one given, which with a readable keystore means the key is gone.
+  @visibleForTesting
+  static bool isLostDatabaseKey(Object error) =>
+      error is TdlibRequestException &&
+      error.message.contains('Wrong database encryption key');
+
+  bool _resettingUnreadableDatabase = false;
+
+  /// Starts a fresh database when the old one's key is gone: an iOS backup
+  /// restored without its keychain, or a build signed by another team.
+  /// Nothing can read that database again, and without this the app would
+  /// stay stuck before sign-in. Telegram still holds the account's chats.
+  Future<void> _resetUnreadableDatabase() async {
+    if (_resettingUnreadableDatabase) return;
+    _resettingUnreadableDatabase = true;
+    debugPrint('[TDLib] The database key is gone; starting a fresh database');
+    await resetSession();
   }
 
   /// Encrypts the local database and stores the key in the platform keystore.
