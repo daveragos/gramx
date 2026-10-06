@@ -100,11 +100,16 @@ class ReplyTarget extends StatelessWidget {
   }
 }
 
-/// One grey "Replying to" line, for a reply whose parent is already on screen
-/// or whose content Telegram didn't send.
+/// One "Replying to" line, as X writes it: gray words and the name in the
+/// accent. For a reply whose parent is already on screen or whose content
+/// Telegram didn't send; tapping opens the parent.
 class _ReplyingToLine extends StatelessWidget {
   final String authorTitle;
+
+  /// The words answered, under the line. Only in comments, where the parent
+  /// may be further up the thread and these words say which one it was.
   final String? excerpt;
+
   final Color color;
   final VoidCallback onTap;
 
@@ -117,12 +122,10 @@ class _ReplyingToLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trimmed = excerpt?.trim();
-
     return Padding(
       padding: const EdgeInsets.only(
         top: AppSpacing.xxs,
-        bottom: AppSpacing.sm,
+        bottom: AppSpacing.xs,
       ),
       child: Semantics(
         button: true,
@@ -135,26 +138,23 @@ class _ReplyingToLine extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.reply_rounded, size: 13, color: color),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      AppStrings.chatReplyingToName(authorTitle),
-                      style: AppTypography.timestamp(
-                        color: AppColors.accent,
-                      ).copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              Text.rich(
+                TextSpan(
+                  text: AppStrings.replyingToPrefix,
+                  children: [
+                    TextSpan(
+                      text: authorTitle,
+                      style: const TextStyle(color: AppColors.accent),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                style: AppTypography.timestamp(color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (trimmed != null && trimmed.isNotEmpty)
+              if (excerpt != null && excerpt!.trim().isNotEmpty)
                 Text(
-                  trimmed,
+                  excerpt!.trim(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.timestamp(color: color),
@@ -402,7 +402,7 @@ class QuotedPostCard extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
-                    AppSpacing.sm,
+                    AppSpacing.md,
                     AppSpacing.md,
                     0,
                   ),
@@ -415,22 +415,32 @@ class QuotedPostCard extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.xs),
                         Text(
                           body,
-                          maxLines: 4,
+                          maxLines: 5,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.body(
-                            color: primary,
-                          ).copyWith(fontSize: 14, height: 1.3),
+                          style: AppTypography.body(color: primary),
                         ),
                       ],
-                      const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: AppSpacing.md),
                     ],
                   ),
                 ),
+                // Inset with its own corners, as on X.
                 if (_hasThumbnail)
-                  _QuotedMedia(
-                    path: thumbnailPath,
-                    fileId: thumbnailFileId,
-                    isDark: isDark,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      0,
+                      AppSpacing.md,
+                      AppSpacing.md,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppSpacing.md),
+                      child: _QuotedMedia(
+                        path: thumbnailPath,
+                        fileId: thumbnailFileId,
+                        isDark: isDark,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -449,16 +459,14 @@ class QuotedPostCard extends ConsumerWidget {
           avatarPath: avatarPath,
           avatarFileId: avatarFileId,
           avatarColorHex: avatarColorHex,
-          radius: 10,
+          radius: 12,
           onTap: onAuthorTap,
         ),
-        const SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
             authorTitle,
-            style: AppTypography.displayName(
-              color: primary,
-            ).copyWith(fontSize: 14),
+            style: AppTypography.displayName(color: primary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -472,9 +480,7 @@ class QuotedPostCard extends ConsumerWidget {
           Flexible(
             child: Text(
               '@$authorUsername',
-              style: AppTypography.username(
-                color: secondary,
-              ).copyWith(fontSize: 13),
+              style: AppTypography.username(color: secondary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

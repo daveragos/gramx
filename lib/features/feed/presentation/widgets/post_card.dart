@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -177,6 +178,24 @@ class PostCard extends ConsumerWidget {
         post.forwardedFromUsername ??
         (post.forwardedFromChatId != null ? 'Original Channel' : null);
 
+    // A forward is drawn the way X draws a repost: who reposted it on a line
+    // of its own, then the post under its original author.
+    final isRepost = forwardedText != null && forwardedText.isNotEmpty;
+    final originChatId = int.tryParse(post.forwardedFromChatId ?? '');
+    final originPhoto = isRepost && originChatId != null
+        ? ref.read(chatCacheProvider).chat(originChatId)?.photo?.small
+        : null;
+    final authorTitle = isRepost ? forwardedText : post.channelTitle;
+    final openPoster =
+        onChannelTap ??
+        () => NavigationUtils.openChannel(context, post.channelId);
+    final VoidCallback openAuthor = isRepost
+        ? () => _handleForwardedTap(context, ref)
+        : openPoster;
+    final authorUsername = isRepost
+        ? post.forwardedFromUsername
+        : post.channelUsername;
+
     return InkWell(
       onTap: onTap ?? defaultReplyHandler,
       child: AnimatedContainer(
@@ -191,12 +210,18 @@ class PostCard extends ConsumerWidget {
         ),
         child: Column(
           children: [
+            if (isRepost)
+              _RepostedBy(
+                channelTitle: post.channelTitle,
+                color: secondaryColor,
+                onTap: openPoster,
+              ),
             // Drawn above the row so its connector runs into the avatar.
             if (showsQuotedPassage)
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   AppSpacing.postPadding,
-                  AppSpacing.postPadding,
+                  isRepost ? AppSpacing.xs : AppSpacing.postPadding,
                   AppSpacing.postPadding,
                   0,
                 ),
@@ -207,7 +232,9 @@ class PostCard extends ConsumerWidget {
                 AppSpacing.postPadding,
                 // No top padding under a passage, to keep the connector
                 // continuous.
-                showsQuotedPassage ? 0 : AppSpacing.postPadding,
+                showsQuotedPassage
+                    ? 0
+                    : (isRepost ? AppSpacing.xs : AppSpacing.postPadding),
                 AppSpacing.postPadding,
                 AppSpacing.postPadding,
               ),
@@ -215,16 +242,18 @@ class PostCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ChannelAvatar(
-                    title: post.channelTitle,
-                    avatarPath: post.channelAvatarUrl,
-                    avatarFileId: post.channelAvatarFileId,
-                    avatarColorHex: post.channelAvatarColor,
-                    onTap:
-                        onChannelTap ??
-                        () => NavigationUtils.openChannel(
-                          context,
-                          post.channelId,
-                        ),
+                    title: authorTitle,
+                    avatarPath: isRepost
+                        ? (originPhoto != null &&
+                                  originPhoto.local.path.isNotEmpty
+                              ? originPhoto.local.path
+                              : null)
+                        : post.channelAvatarUrl,
+                    avatarFileId: isRepost
+                        ? originPhoto?.id
+                        : post.channelAvatarFileId,
+                    avatarColorHex: isRepost ? null : post.channelAvatarColor,
+                    onTap: openAuthor,
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -239,14 +268,9 @@ class PostCard extends ConsumerWidget {
                                 children: [
                                   Flexible(
                                     child: GestureDetector(
-                                      onTap:
-                                          onChannelTap ??
-                                          () => NavigationUtils.openChannel(
-                                            context,
-                                            post.channelId,
-                                          ),
+                                      onTap: openAuthor,
                                       child: Text(
-                                        post.channelTitle,
+                                        authorTitle,
                                         style: AppTypography.displayName(
                                           color: primaryTextColor,
                                         ),
@@ -254,7 +278,7 @@ class PostCard extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
-                                  if (post.isChannelVerified) ...[
+                                  if (!isRepost && post.isChannelVerified) ...[
                                     const SizedBox(width: 4),
                                     const Icon(
                                       Icons.verified,
@@ -263,10 +287,10 @@ class PostCard extends ConsumerWidget {
                                     ),
                                   ],
                                   const SizedBox(width: 4),
-                                  if (post.channelUsername != null) ...[
+                                  if (authorUsername != null) ...[
                                     Flexible(
                                       child: Text(
-                                        '@${post.channelUsername}',
+                                        '@$authorUsername',
                                         style: AppTypography.username(
                                           color: secondaryColor,
                                         ),
@@ -275,7 +299,8 @@ class PostCard extends ConsumerWidget {
                                     ),
                                     const SizedBox(width: 4),
                                   ],
-                                  if (post.authorSignature != null &&
+                                  if (!isRepost &&
+                                      post.authorSignature != null &&
                                       post.authorSignature!.isNotEmpty) ...[
                                     Text(
                                       // Shown as a handle, not "~ name".
@@ -328,33 +353,6 @@ class PostCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-
-                        if (forwardedText != null &&
-                            forwardedText.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          GestureDetector(
-                            onTap: () => _handleForwardedTap(context, ref),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.repeat,
-                                  size: 13,
-                                  color: AppColors.repost,
-                                ),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    'Forwarded from $forwardedText',
-                                    style: AppTypography.actionCount(
-                                      color: AppColors.accent,
-                                    ).copyWith(fontWeight: FontWeight.w600),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
 
                         // The "Replying to" line goes above the body; the
                         // quote card goes below it (see ReplySlot).
@@ -562,6 +560,63 @@ class _MoreButton extends StatelessWidget {
             AppSpacing.xs,
           ),
           child: Icon(Icons.more_horiz_rounded, size: 18, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// The line above a repost naming the channel that reposted it, with the
+/// repost mark right-aligned in the avatar column, as X lays it out.
+class _RepostedBy extends StatelessWidget {
+  final String channelTitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RepostedBy({
+    required this.channelTitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.postPadding,
+        AppSpacing.postPadding,
+        AppSpacing.postPadding,
+        0,
+      ),
+      child: Semantics(
+        button: true,
+        label: AppStrings.feedReposted(channelTitle),
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Row(
+            children: [
+              SizedBox(
+                width: AppSpacing.avatarSize,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(Icons.repeat_rounded, size: 16, color: color),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Flexible(
+                child: Text(
+                  AppStrings.feedReposted(channelTitle),
+                  style: AppTypography.timestamp(
+                    color: color,
+                  ).copyWith(fontSize: 13, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

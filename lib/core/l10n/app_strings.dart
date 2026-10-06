@@ -1044,6 +1044,12 @@ abstract class AppStrings {
   /// One line above a reply naming who is being answered.
   static String chatReplyingToName(String name) => 'Replying to $name';
 
+  /// The grey part of a "Replying to" line; the name follows in the accent.
+  static const replyingToPrefix = 'Replying to ';
+
+  /// Above a forwarded post, as X labels a repost.
+  static String feedReposted(String channel) => '$channel reposted';
+
   /// The line above a forwarded message.
   static String chatForwardedFrom(String name) => 'Forwarded from $name';
   static const chatCancelReply = 'Cancel reply';
