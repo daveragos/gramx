@@ -83,10 +83,13 @@ For iOS, put your Apple team id in `ios/Flutter/Signing.xcconfig`, which git
 ignores, so your team stays out of the repository:
 
 ```
-DEVELOPMENT_TEAM = YOURTEAMID
+DEVELOPMENT_TEAM[sdk=iphoneos*] = YOURTEAMID
 ```
 
-Both the app and its share extension read it. That is enough for
+Both the app and its share extension read it. It is for device builds only:
+the simulator needs no team, and adding one later moves the app's keychain,
+which holds the key to its local database, so a signed-in simulator would
+start over. That is enough for
 `flutter run` on an iPhone, and for a release:
 
 ```bash
