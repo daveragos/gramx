@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/widgets/minithumbnail.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -340,15 +340,10 @@ class _LoadingImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget? blur;
-    final raw = minithumbnail;
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        blur = Image.memory(base64Decode(raw), fit: BoxFit.contain);
-      } catch (_) {
-        blur = null;
-      }
-    }
+    final preview = Minithumbnail.provider(minithumbnail);
+    final blur = preview == null
+        ? null
+        : Image(image: preview, fit: BoxFit.contain, gaplessPlayback: true);
 
     return Stack(
       alignment: Alignment.center,

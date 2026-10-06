@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/widgets/minithumbnail.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 class LinkPreviewCard extends ConsumerWidget {
@@ -150,39 +150,41 @@ class LinkPreviewCard extends ConsumerWidget {
     }
 
     if (imageFileId != null && imageFileId! > 0) {
-      ref
-          .read(syncServiceProvider)
-          .downloadFileWithPriority(imageFileId!, priority: 32);
-
-      final fileAsync = ref.watch(fileDownloadProvider(imageFileId!));
-      return fileAsync.when(
-        data: (localPath) {
-          if (localPath != null && localPath.isNotEmpty) {
-            return Image.file(
-              File(localPath),
-              height: 150,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const SizedBox.shrink(),
-            );
-          }
-          return const SizedBox.shrink();
-        },
-        loading: () => Container(
-          height: 150,
-          color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.accent,
-              ),
+      // Holds the image's height until it arrives, rather than collapsing
+      // and growing again on each progress update.
+      final loading = Container(
+        height: 150,
+        color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.accent,
             ),
           ),
         ),
+      );
+
+      // Watching starts the download.
+      final fileAsync = ref.watch(fileDownloadProvider(imageFileId!));
+      return fileAsync.when(
+        skipLoadingOnReload: true,
+        data: (localPath) {
+          if (localPath == null || localPath.isEmpty) return loading;
+          return Image.file(
+            File(localPath),
+            height: 150,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            frameBuilder: fadeInFrame,
+            errorBuilder: (context, error, stackTrace) =>
+                const SizedBox.shrink(),
+          );
+        },
+        loading: () => loading,
         error: (err, stack) => const SizedBox.shrink(),
       );
     }

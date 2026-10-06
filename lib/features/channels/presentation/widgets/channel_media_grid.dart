@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/core/widgets/minithumbnail.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -78,21 +78,28 @@ class _MediaTile extends ConsumerWidget {
         ? ref.watch(fileExistsProvider(path)).value ?? false
         : false;
 
+    final preview = Minithumbnail.provider(item.minithumbnail);
+    final Widget underlay = preview == null
+        ? ColoredBox(color: placeholder)
+        : Image(image: preview, fit: BoxFit.cover, gaplessPlayback: true);
+
     Widget image;
     if (exists) {
-      image = Image.file(
-        File(path),
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => ColoredBox(color: placeholder),
-      );
-    } else if (item.minithumbnail != null && item.minithumbnail!.isNotEmpty) {
-      image = Image.memory(
-        base64Decode(item.minithumbnail!),
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => ColoredBox(color: placeholder),
+      image = Stack(
+        fit: StackFit.expand,
+        children: [
+          underlay,
+          Image.file(
+            File(path),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            frameBuilder: fadeInFrame,
+            errorBuilder: (_, _, _) => ColoredBox(color: placeholder),
+          ),
+        ],
       );
     } else {
-      image = ColoredBox(color: placeholder);
+      image = underlay;
     }
 
     final isVideo = item.type == MediaType.video || item.type == MediaType.gif;

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/guest/data/guest_media_cache.dart';
 import 'package:gramx/core/widgets/media_path.dart';
+import 'package:gramx/core/widgets/minithumbnail.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/features/feed/presentation/inline_player_budget.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
@@ -321,7 +321,10 @@ class _MediaTile extends ConsumerWidget {
     final iconColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final heroTag = 'media_${item.id}_$index';
+    // By file id: item.id turns from a remote id into a local path once the
+    // file downloads, and the tag must not change under the image.
+    final heroTag =
+        'media_${item.fileId != null && item.fileId != 0 ? item.fileId : item.id}_$index';
 
     final int? trackFileId = item.type == MediaType.video
         ? (item.thumbnailFileId ?? item.fileId)
@@ -354,23 +357,50 @@ class _MediaTile extends ConsumerWidget {
         resolvedPath.isNotEmpty &&
         File(resolvedPath).existsSync();
 
+    // The blurred preview stays underneath until the real image has a frame,
+    // so loading never passes through an empty tile.
+    final minithumbnail = Minithumbnail.provider(item.minithumbnail);
+    final underlay = minithumbnail != null
+        ? Image(
+            image: minithumbnail,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            gaplessPlayback: true,
+          )
+        : Container(color: bgColor);
+
     Widget contentWidget;
 
     if (item.type == MediaType.sticker) {
       contentWidget = Center(child: StickerTile(item: item));
     } else if (item.type == MediaType.gif && isDownloaded) {
-      contentWidget = _GifVideoPlayerTile(path: resolvedPath);
+      final thumbnail = item.thumbnailUrl;
+      contentWidget = _GifVideoPlayerTile(
+        path: resolvedPath,
+        poster: thumbnail != null && File(thumbnail).existsSync()
+            ? FileImage(File(thumbnail))
+            : minithumbnail,
+      );
     } else if (isDownloaded) {
-      contentWidget = Hero(
-        tag: heroTag,
-        child: Image.file(
-          File(resolvedPath),
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildPlaceholder(bgColor, iconColor),
-        ),
+      contentWidget = Stack(
+        fit: StackFit.expand,
+        children: [
+          underlay,
+          Hero(
+            tag: heroTag,
+            child: Image.file(
+              File(resolvedPath),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              gaplessPlayback: true,
+              frameBuilder: fadeInFrame,
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildPlaceholder(bgColor, iconColor),
+            ),
+          ),
+        ],
       );
 
       if (item.type == MediaType.video) {
@@ -396,22 +426,9 @@ class _MediaTile extends ConsumerWidget {
         );
       }
     } else {
-      Widget placeholderWidget;
-      if (item.minithumbnail != null) {
-        try {
-          final bytes = base64Decode(item.minithumbnail!);
-          placeholderWidget = Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-          );
-        } catch (_) {
-          placeholderWidget = _buildPlaceholder(bgColor, iconColor);
-        }
-      } else {
-        placeholderWidget = _buildPlaceholder(bgColor, iconColor);
-      }
+      final placeholderWidget = minithumbnail != null
+          ? underlay
+          : _buildPlaceholder(bgColor, iconColor);
 
       final progress = downloadState?.progress ?? 0.0;
       final isProgressing = downloadState != null && !downloadState.isCompleted;
@@ -502,17 +519,7 @@ class _MediaTile extends ConsumerWidget {
       excludeSemantics: true,
       child: GestureDetector(
         onTap: () => _handleTap(context, ref, resolvedPath, heroTag),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeIn,
-          switchOutCurve: Curves.easeOut,
-          child: KeyedSubtree(
-            key: ValueKey(
-              isDownloaded ? 'downloaded_$resolvedPath' : 'loading_${item.id}',
-            ),
-            child: contentWidget,
-          ),
-        ),
+        child: contentWidget,
       ),
     );
   }
@@ -614,7 +621,12 @@ class _MediaTile extends ConsumerWidget {
 
 class _GifVideoPlayerTile extends ConsumerStatefulWidget {
   final String path;
-  const _GifVideoPlayerTile({required this.path});
+
+  /// Shown until the animation plays, and when it can't: off screen, with
+  /// autoplay off, or while other players use the budget.
+  final ImageProvider? poster;
+
+  const _GifVideoPlayerTile({required this.path, this.poster});
 
   @override
   ConsumerState<_GifVideoPlayerTile> createState() =>
@@ -711,53 +723,52 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
   }
 
   Widget _buildTile(BuildContext context) {
-    if (_controller != null && _controller!.value.isInitialized) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
+    final controller = _controller;
+    final playing = controller != null && controller.value.isInitialized;
+    final poster = widget.poster;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (poster != null)
+          Image(
+            image: poster,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            gaplessPlayback: true,
+          )
+        else
+          Container(color: Colors.black26),
+        if (playing)
           FittedBox(
             fit: BoxFit.cover,
             clipBehavior: Clip.hardEdge,
             child: SizedBox(
-              width: _controller!.value.size.width,
-              height: _controller!.value.size.height,
-              child: VideoPlayer(_controller!),
+              width: controller.value.size.width,
+              height: controller.value.size.height,
+              child: VideoPlayer(controller),
             ),
           ),
-          Positioned(
-            left: 8,
-            bottom: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'GIF',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
+        Positioned(
+          left: 8,
+          bottom: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'GIF',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-        ],
-      );
-    }
-    return Container(
-      color: Colors.black26,
-      child: const Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppColors.accent,
           ),
         ),
-      ),
+      ],
     );
   }
 }
