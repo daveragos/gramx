@@ -18,7 +18,10 @@ class StatsRepository {
   final ChatCache _chatCache;
 
   /// Public forwards requested. Only the first page is shown.
-  static const int publicSharesLimit = 20;
+  static const int publicSharesLimit = 50;
+
+  /// How many pages of reposts to read, so a viral post can't keep it going.
+  static const int maxPublicSharePages = 10;
 
   StatsRepository(this._tdlib, this._chatCache);
 
@@ -116,32 +119,42 @@ class StatsRepository {
     }
   }
 
-  /// The public channels that forwarded this post. Names come from
-  /// [ChatCache], which TDLib fills before replying; uncached chats are
-  /// dropped rather than fetched one by one.
+  /// The public channels that reposted this post, most viewed first. Names
+  /// come from [ChatCache], which TDLib fills before it replies; a chat not
+  /// there yet is asked for, since TDLib already holds it.
   Future<List<PublicShare>> publicShares({
     required int chatId,
     required int messageId,
     int limit = publicSharesLimit,
   }) async {
     try {
-      final res = await _tdlib.sendRequest(
-        td.GetMessagePublicForwards(
-          chatId: chatId,
-          messageId: messageId,
-          offset: '',
-          limit: limit,
-        ),
-      );
-      if (res is! td.PublicForwards) return const [];
+      // TDLib picks the page size, so follow the offset to the end.
+      final forwards = <td.PublicForward>[];
+      var offset = '';
+      for (var page = 0; page < maxPublicSharePages; page++) {
+        final res = await _tdlib.sendRequest(
+          td.GetMessagePublicForwards(
+            chatId: chatId,
+            messageId: messageId,
+            offset: offset,
+            limit: limit,
+          ),
+        );
+        if (res is! td.PublicForwards) break;
+        forwards.addAll(res.forwards);
+        offset = res.nextOffset;
+        if (offset.isEmpty || res.forwards.isEmpty) break;
+      }
 
       final shares = <PublicShare>[];
-      for (final forward in res.forwards) {
+      for (final forward in forwards) {
         // Story forwards are dropped: the app has no screen for stories.
         if (forward is! td.PublicForwardMessage) continue;
 
         final message = forward.message;
-        final chat = _chatCache.chat(message.chatId);
+        final chat =
+            _chatCache.chat(message.chatId) ??
+            await _chatFromTdlib(message.chatId);
         if (chat == null) continue;
 
         final supergroupId = TelegramIds.supergroupId(message.chatId);
@@ -171,6 +184,15 @@ class StatsRepository {
     } catch (e) {
       debugPrint('[StatsRepo] public forwards for $messageId failed: $e');
       return const [];
+    }
+  }
+
+  Future<td.Chat?> _chatFromTdlib(int chatId) async {
+    try {
+      final chat = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      return chat is td.Chat ? chat : null;
+    } catch (_) {
+      return null;
     }
   }
 }

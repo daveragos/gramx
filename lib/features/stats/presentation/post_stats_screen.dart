@@ -160,19 +160,8 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
           _PostFigures(post: post!),
         ],
-        StatSection(
-          chatId: chatId,
-          title: AppStrings.statsPostInteractions,
-          source: stats.interactionGraph,
-          slug: 'post-$messageId-interactions',
-        ),
-        StatSection(
-          chatId: chatId,
-          title: AppStrings.statsPostReactions,
-          source: stats.reactionGraph,
-          slug: 'post-$messageId-reactions',
-        ),
-        // No heading until the forwards have loaded.
+        // Who reposted it comes first, above the charts. No heading until
+        // the reposts have loaded.
         if (shares != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -203,6 +192,19 @@ class _Body extends ConsumerWidget {
           ),
         for (final share in shares ?? const [])
           _ShareRow(share: share, secondary: secondary),
+        if (shares != null) const SizedBox(height: AppSpacing.lg),
+        StatSection(
+          chatId: chatId,
+          title: AppStrings.statsPostInteractions,
+          source: stats.interactionGraph,
+          slug: 'post-$messageId-interactions',
+        ),
+        StatSection(
+          chatId: chatId,
+          title: AppStrings.statsPostReactions,
+          source: stats.reactionGraph,
+          slug: 'post-$messageId-reactions',
+        ),
       ],
     );
   }
