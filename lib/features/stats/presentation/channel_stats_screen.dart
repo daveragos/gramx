@@ -79,7 +79,6 @@ class _ChannelStatsScreenState extends ConsumerState<ChannelStatsScreen>
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          indicatorColor: AppColors.accent,
           indicatorSize: TabBarIndicatorSize.label,
           labelColor: theme.colorScheme.onSurface,
           unselectedLabelColor: theme.brightness == Brightness.dark

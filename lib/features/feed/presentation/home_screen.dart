@@ -291,7 +291,6 @@ class _FolderTabBar extends StatelessWidget {
     return TabBar(
       isScrollable: true,
       tabAlignment: TabAlignment.start,
-      indicatorColor: AppColors.accent,
       labelColor: primary,
       unselectedLabelColor: secondary,
       dividerColor: Colors.transparent,

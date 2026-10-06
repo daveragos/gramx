@@ -213,12 +213,19 @@ class AppTheme {
         titleTextStyle: AppTypography.body(color: p.textPrimary),
         subtitleTextStyle: AppTypography.actionCount(color: p.textSecondary),
       ),
+      // As X draws its tabs: bold labels, the unselected ones a step lighter
+      // in gray, under a rounded bar in the text color.
       tabBarTheme: TabBarThemeData(
         labelColor: p.textPrimary,
         unselectedLabelColor: p.textSecondary,
         labelStyle: AppTypography.button(),
-        unselectedLabelStyle: AppTypography.username(),
-        indicatorColor: AppColors.accent,
+        unselectedLabelStyle: AppTypography.button().copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+        indicator: UnderlineTabIndicator(
+          borderSide: BorderSide(width: 3, color: p.textPrimary),
+          borderRadius: BorderRadius.circular(3),
+        ),
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: Colors.transparent,
         overlayColor: WidgetStateProperty.all(Colors.transparent),

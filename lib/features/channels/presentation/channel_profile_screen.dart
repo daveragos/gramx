@@ -553,7 +553,6 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
               controller: controller,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              indicatorColor: AppColors.accent,
               indicatorWeight: 3,
               indicatorSize: TabBarIndicatorSize.label,
               labelColor: theme.colorScheme.onSurface,

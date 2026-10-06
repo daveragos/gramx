@@ -16,18 +16,20 @@ abstract class AppTypography {
     height: 1.2,
   );
 
+  // Post text is set like X's: medium, since Inter's regular strokes are
+  // thinner than X's Chirp, and lines 1.33 apart (20 on 15).
   static TextStyle body({Color? color}) => GoogleFonts.inter(
     fontSize: 15,
-    fontWeight: FontWeight.w400,
+    fontWeight: FontWeight.w500,
     color: color,
-    height: 1.4,
+    height: 1.33,
   );
 
   static TextStyle bodyLarge({Color? color}) => GoogleFonts.inter(
     fontSize: 17,
-    fontWeight: FontWeight.w400,
+    fontWeight: FontWeight.w500,
     color: color,
-    height: 1.4,
+    height: 1.33,
   );
 
   static TextStyle timestamp({Color? color}) => GoogleFonts.inter(
