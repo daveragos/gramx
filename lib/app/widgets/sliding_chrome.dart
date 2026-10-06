@@ -122,11 +122,13 @@ class ChromeScrollObserver extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Read here, not in the callback: a scrollable torn down with this widget
+    // can still report a scroll, when ref may no longer be used.
+    final notifier = ref.read(chromeOffsetProvider.notifier);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.depth != 0) return false;
 
-        final notifier = ref.read(chromeOffsetProvider.notifier);
         if (notification is ScrollUpdateNotification) {
           final delta = notification.scrollDelta;
           if (delta != null) {

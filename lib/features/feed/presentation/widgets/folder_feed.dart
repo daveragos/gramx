@@ -60,7 +60,12 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
   @override
   void deactivate() {
     // Restore the chrome for the next screen, without animating over it.
-    ref.read(chromeOffsetProvider.notifier).show(animate: false);
+    // After the frame, since deactivate can run mid-layout, when providers
+    // must not change.
+    final chrome = ref.read(chromeOffsetProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => chrome.show(animate: false),
+    );
     super.deactivate();
   }
 

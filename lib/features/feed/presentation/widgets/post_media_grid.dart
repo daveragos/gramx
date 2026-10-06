@@ -629,6 +629,15 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
   bool _holdsBudget = false;
   bool _starting = false;
 
+  /// Read up front: dispose, which releases a held slot, may not use ref.
+  late final InlinePlayerBudget _budget;
+
+  @override
+  void initState() {
+    super.initState();
+    _budget = ref.read(inlinePlayerBudgetProvider);
+  }
+
   @override
   void dispose() {
     _releaseBudget();
@@ -639,7 +648,7 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
   void _releaseBudget() {
     if (!_holdsBudget) return;
     _holdsBudget = false;
-    ref.read(inlinePlayerBudgetProvider).release();
+    _budget.release();
   }
 
   /// Starts playing only when the tile is on screen, auto-play is on, and the
@@ -648,8 +657,7 @@ class _GifVideoPlayerTileState extends ConsumerState<_GifVideoPlayerTile> {
     if (_controller != null || _starting) return;
     if (!ref.read(autoPlayEnabledProvider)) return;
 
-    final budget = ref.read(inlinePlayerBudgetProvider);
-    if (!budget.tryAcquire()) return;
+    if (!_budget.tryAcquire()) return;
     _holdsBudget = true;
     _starting = true;
 
