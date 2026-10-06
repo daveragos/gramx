@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_code_page.dart';
 import 'package:gramx/features/auth/presentation/widgets/auth_error_banner.dart';
@@ -40,6 +42,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final authState = ref.watch(authControllerProvider);
     final controller = ref.read(authControllerProvider.notifier);
     final theme = Theme.of(context);
+
+    // The router's redirect only sees the location under a pushed route, so
+    // sign-in opened from guest mode or Settings would stay on top of home.
+    ref.listen<AuthStep>(authControllerProvider.select((s) => s.step), (
+      previous,
+      next,
+    ) {
+      if (previous != AuthStep.authenticated &&
+          next == AuthStep.authenticated) {
+        context.go(ShellTab.home.path);
+      }
+    });
 
     return PopScope(
       canPop: false,
