@@ -247,13 +247,19 @@ class _AppShellState extends ConsumerState<AppShell>
                   border: Border(
                     top: BorderSide(color: borderColor, width: 0.5),
                   ),
+                  // viewPadding, as BottomNavigationBar pads by it: padding
+                  // drops to zero under the keyboard and squeezes the bar.
                   child: SizedBox(
                     height:
                         ShellChrome.bottomBarHeight +
-                        MediaQuery.of(context).padding.bottom,
+                        MediaQuery.viewPaddingOf(context).bottom,
                     child: BottomNavigationBar(
                       backgroundColor: Colors.transparent,
                       elevation: 0,
+                      // The labels are hidden but still laid out; at full
+                      // size their line pushes the icons past the bar.
+                      selectedFontSize: 0,
+                      unselectedFontSize: 0,
                       currentIndex: navigationShell.currentIndex,
                       onTap: _onTap,
                       items: [
