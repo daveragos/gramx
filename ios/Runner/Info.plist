@@ -79,6 +79,17 @@
 				<string>tg</string>
 			</array>
 		</dict>
+		<!-- How the share extension hands over what was shared. -->
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>dev.ragoose.gramx.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gramx</string>
+			</array>
+		</dict>
 	</array>
 	<!-- Without these, canLaunchUrl answers false for every one of them and
 	     each "open in Telegram" control looks broken. The Android side

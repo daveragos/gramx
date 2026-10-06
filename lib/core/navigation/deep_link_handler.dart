@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/navigation/share_intake.dart';
 import 'package:gramx/core/navigation/telegram_link.dart';
 
 /// What a public username belongs to. `t.me/<name>` looks the same for all
@@ -93,7 +94,20 @@ class PendingDeepLink extends Notifier<Uri?> {
 
   /// Records a link for the shell. Only checks scheme and host, so shapes
   /// only TDLib recognises still reach the resolver.
+  ///
+  /// A share from the iOS share extension opens the Telegram link it holds,
+  /// or else goes to [PendingSharedText] for the composer.
   void offer(Uri uri) {
+    final shared = ShareLinks.sharedText(uri);
+    if (shared != null) {
+      final link = ShareLinks.telegramLinkIn(shared);
+      if (link == null) {
+        ref.read(pendingSharedTextProvider.notifier).offer(shared);
+        return;
+      }
+      uri = link;
+    }
+
     if (!TelegramLinks.couldBeTelegram(uri)) {
       debugPrint('[DeepLink] not a Telegram link: $uri');
       return;

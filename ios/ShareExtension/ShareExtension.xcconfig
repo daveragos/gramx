@@ -1,0 +1,4 @@
+// Flutter's build name and number, without Runner's CocoaPods settings.
+#include? "../Flutter/Generated.xcconfig"
+// Your signing team. See CONTRIBUTING.md.
+#include? "../Flutter/Signing.xcconfig"

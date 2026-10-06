@@ -100,6 +100,11 @@ class _AppShellState extends ConsumerState<AppShell>
     ref.listenManual<Uri?>(pendingDeepLinkProvider, (_, next) {
       if (next != null) unawaited(_openDeepLink());
     }, fireImmediately: true);
+
+    // Shares from the iOS share extension, which arrive as links.
+    ref.listenManual<String?>(pendingSharedTextProvider, (_, next) {
+      if (next != null) unawaited(_openSharedText());
+    }, fireImmediately: true);
   }
 
   @override
@@ -115,7 +120,9 @@ class _AppShellState extends ConsumerState<AppShell>
 
   /// Opens the composer on shared text, if the account can post anywhere.
   Future<void> _openSharedText() async {
-    final text = await ref.read(shareIntakeProvider).take();
+    final text =
+        ref.read(pendingSharedTextProvider.notifier).take() ??
+        await ref.read(shareIntakeProvider).take();
     if (text == null || !mounted) return;
 
     if (ref.read(composeTargetsProvider).isEmpty) {
