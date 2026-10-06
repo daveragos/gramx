@@ -88,23 +88,38 @@ class _AppShellState extends ConsumerState<AppShell>
 
     // Shares usually arrive on resume, so they are also collected there.
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_openSharedText());
+    _afterFrame(_openSharedText);
 
     // Notification taps and links from a cold start wait here for a navigator.
     ref.listenManual<String?>(pendingNotificationRouteProvider, (_, next) {
-      if (next == null) return;
-      final route = ref.read(pendingNotificationRouteProvider.notifier).take();
-      if (route != null && mounted) GoRouter.of(context).push(route);
+      if (next != null) _afterFrame(_openNotificationRoute);
     }, fireImmediately: true);
 
     ref.listenManual<Uri?>(pendingDeepLinkProvider, (_, next) {
-      if (next != null) unawaited(_openDeepLink());
+      if (next != null) _afterFrame(_openDeepLink);
     }, fireImmediately: true);
 
     // Shares from the iOS share extension, which arrive as links.
     ref.listenManual<String?>(pendingSharedTextProvider, (_, next) {
-      if (next != null) unawaited(_openSharedText());
+      if (next != null) _afterFrame(_openSharedText);
     }, fireImmediately: true);
+  }
+
+  /// Runs [action] after the current frame, scheduling one if the app is
+  /// idle. On a cold start the listeners above fire inside initState, where
+  /// taking a pending item (which clears it) would change a provider
+  /// mid-build.
+  void _afterFrame(Future<void> Function() action) {
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) {
+        if (mounted) unawaited(action());
+      })
+      ..ensureVisualUpdate();
+  }
+
+  Future<void> _openNotificationRoute() async {
+    final route = ref.read(pendingNotificationRouteProvider.notifier).take();
+    if (route != null && mounted) GoRouter.of(context).push(route);
   }
 
   @override
