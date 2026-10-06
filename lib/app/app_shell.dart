@@ -233,6 +233,10 @@ class _AppShellState extends ConsumerState<AppShell>
     if (isRetap && index == ShellTab.messages.index) {
       ref.read(chatsScrollToTopProvider.notifier).request();
     }
+    // As on X, tapping Search again starts a search.
+    if (isRetap && index == ShellTab.search.index) {
+      ref.read(searchFocusTriggerProvider.notifier).trigger();
+    }
 
     navigationShell.goBranch(index, initialLocation: isRetap);
   }

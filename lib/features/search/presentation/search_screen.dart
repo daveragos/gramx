@@ -195,10 +195,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isSearching = false;
 
-  // No autofocus, so the keyboard does not cover the Explore page. A hashtag
-  // tap still focuses the field through searchFocusTriggerProvider.
+  // No autofocus, so the keyboard does not cover the Explore page. Tapping
+  // the Search tab again focuses the field through searchFocusTriggerProvider.
+  @override
+  void initState() {
+    super.initState();
+    // The field's border follows focus.
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
