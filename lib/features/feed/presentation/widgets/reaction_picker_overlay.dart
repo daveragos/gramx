@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 
@@ -10,7 +11,7 @@ class ReactionPickerOverlay extends StatelessWidget {
 
   static const List<String> defaultEmojis = [
     '👍',
-    '❤️',
+    '\u2764', // TDLib's key for the heart has no U+FE0F.
     '🔥',
     '🎉',
     '👏',
@@ -116,7 +117,7 @@ class ReactionPickerOverlay extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Text(
-                  emoji,
+                  emojiForDisplay(emoji),
                   style: TextStyle(fontSize: isSelected ? 24 : 20),
                 ),
               ),

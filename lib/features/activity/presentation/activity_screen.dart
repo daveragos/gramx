@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -211,7 +212,9 @@ class _ActivityRow extends StatelessWidget {
                             kind: item.kind,
                             who: name,
                             where: item.chatTitle,
-                            emoji: item.emoji,
+                            emoji: item.emoji == null
+                                ? null
+                                : emojiForDisplay(item.emoji!),
                           ),
                           style: AppTypography.username(color: primary),
                           maxLines: 1,

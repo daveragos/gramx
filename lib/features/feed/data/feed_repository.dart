@@ -1234,8 +1234,9 @@ class FeedRepository {
         return emojis;
       }
     }
-    // Fallback when all reactions are allowed.
-    return ['👍', '❤️', '🔥', '🥰', '👏'];
+    // Fallback when all reactions are allowed. Keys as TDLib spells them:
+    // the heart has no U+FE0F.
+    return ['👍', '\u2764', '🔥', '🥰', '👏'];
   }
 
   /// Fetches a channel post's comments.

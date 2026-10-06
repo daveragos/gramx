@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -112,7 +113,10 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (activeEmoji != null)
-                Text(activeEmoji, style: TextStyle(fontSize: widget.emojiSize))
+                Text(
+                  emojiForDisplay(activeEmoji),
+                  style: TextStyle(fontSize: widget.emojiSize),
+                )
               else
                 // Filled only when the user has reacted.
                 Icon(

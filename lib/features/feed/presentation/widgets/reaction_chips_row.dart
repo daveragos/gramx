@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
@@ -107,7 +108,10 @@ class _Chip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(emoji, style: TextStyle(fontSize: compact ? 12 : 14)),
+              Text(
+                emojiForDisplay(emoji),
+                style: TextStyle(fontSize: compact ? 12 : 14),
+              ),
               const SizedBox(width: 4),
               Text(
                 TimeUtils.formatCount(count),

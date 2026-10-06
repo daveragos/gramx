@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -406,7 +407,10 @@ class _ReactionStrip extends StatelessWidget {
                         : Colors.transparent,
                     shape: BoxShape.circle,
                   ),
-                  child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                  child: Text(
+                    emojiForDisplay(emoji),
+                    style: const TextStyle(fontSize: 24),
+                  ),
                 ),
               ),
             ),
