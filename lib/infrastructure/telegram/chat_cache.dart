@@ -323,6 +323,26 @@ class ChatCacheState {
         );
         return true;
 
+      // Reading a mention or reaction one message at a time (viewing it here
+      // or on another device, or the Activity screen's read-all over loaded
+      // messages) reports the new count with the message, not on the chat.
+      // Without these the bell's badge kept counting what was already read.
+      case td.UpdateMessageMentionRead():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          unreadMentionCount: update.unreadMentionCount,
+        );
+        return true;
+
+      case td.UpdateMessageUnreadReactions():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          unreadReactionCount: update.unreadReactionCount,
+        );
+        return true;
+
       // The header's "Scheduled" row is drawn from this.
       case td.UpdateChatHasScheduledMessages():
         final existing = chats[update.chatId];

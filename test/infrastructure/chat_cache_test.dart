@@ -125,6 +125,47 @@ void main() {
       expect(state.chats[-1]?.unreadCount, 0);
     });
 
+    test('a mention read on its own message lowers the chat\'s count', () {
+      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1)));
+      state.apply(
+        const td.UpdateChatUnreadMentionCount(
+          chatId: -1,
+          unreadMentionCount: 2,
+        ),
+      );
+
+      state.apply(
+        const td.UpdateMessageMentionRead(
+          chatId: -1,
+          messageId: 1048576,
+          unreadMentionCount: 0,
+        ),
+      );
+
+      expect(state.chats[-1]?.unreadMentionCount, 0);
+    });
+
+    test('reactions read on their own message lower the chat\'s count', () {
+      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -1)));
+      state.apply(
+        const td.UpdateChatUnreadReactionCount(
+          chatId: -1,
+          unreadReactionCount: 1,
+        ),
+      );
+
+      state.apply(
+        const td.UpdateMessageUnreadReactions(
+          chatId: -1,
+          messageId: 1048576,
+          unreadReactions: [],
+          unreadReactionCount: 0,
+        ),
+      );
+
+      expect(state.chats[-1]?.unreadReactionCount, 0);
+    });
+
     test('UpdateChatTitle renames without dropping other fields', () {
       state.apply(
         TdFixtures.newChat(
