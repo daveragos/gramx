@@ -99,9 +99,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// The list itself, which rows are measured against.
   final GlobalKey _listKey = GlobalKey();
 
-  /// A row and its offset from the top of the list, taken just before the
-  /// conversation changed. See [_holdPosition].
-  ({Key key, double top})? _heldRow;
+  /// The rows on screen and their offsets from the top of the list, highest
+  /// first, taken just before the conversation changed. See [_holdPosition].
+  List<({Key key, double top})>? _heldRows;
 
   /// Above zero while the screen scrolls the list itself (to the unread band
   /// or a reply), so [_holdPosition] stays out of the way.
@@ -271,36 +271,41 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   /// Skipped at the bottom, where new messages should move the list, unless
   /// [wasWindowed] (the bottom edge was then only a page boundary).
   void _holdPosition({bool wasWindowed = false}) {
-    if (_heldRow != null || _walking > 0 || !_scroll.hasClients) return;
+    if (_heldRows != null || _walking > 0 || !_scroll.hasClients) return;
     final position = _scroll.position;
     if (!wasWindowed && position.pixels <= _atBottomSlack) return;
     // Don't fight a drag or fling in progress.
     if (position.isScrollingNotifier.value) return;
 
-    final held = _rows.topmostVisible(_listKey);
-    if (held == null) return;
-    _heldRow = held;
+    final held = _rows.visibleRows(_listKey);
+    if (held.isEmpty) return;
+    _heldRows = held;
     WidgetsBinding.instance.addPostFrameCallback((_) => _restorePosition());
   }
 
   void _restorePosition() {
-    final held = _heldRow;
-    _heldRow = null;
+    final held = _heldRows;
+    _heldRows = null;
     if (held == null || !mounted || !_scroll.hasClients) return;
 
-    final top = _rows.topOf(held.key, _listKey);
-    if (top == null) return;
-    // Reversed list: adding pixels moves the content down.
-    final drift = held.top - top;
-    if (drift.abs() < 0.5) return;
+    // The highest row still built. A tall arrival can push the top rows out
+    // of the list's cache, and then a lower one measures the same shift.
+    for (final row in held) {
+      final top = _rows.topOf(row.key, _listKey);
+      if (top == null) continue;
+      // Reversed list: adding pixels moves the content down.
+      final drift = row.top - top;
+      if (drift.abs() < 0.5) return;
 
-    final position = _scroll.position;
-    _scroll.jumpTo(
-      (position.pixels + drift).clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      ),
-    );
+      final position = _scroll.position;
+      _scroll.jumpTo(
+        (position.pixels + drift).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        ),
+      );
+      return;
+    }
   }
 
   void _markReadOnce() {
@@ -1914,22 +1919,23 @@ class _RowRegistry {
         list.localToGlobal(Offset.zero).dy;
   }
 
-  /// The highest row that is at least partly on screen.
-  ({Key key, double top})? topmostVisible(GlobalKey listKey) {
+  /// The rows at least partly on screen, highest first.
+  List<({Key key, double top})> visibleRows(GlobalKey listKey) {
     final list = _box(listKey.currentContext);
-    if (list == null) return null;
+    if (list == null) return const [];
     final listTop = list.localToGlobal(Offset.zero).dy;
 
-    ({Key key, double top})? best;
+    final rows = <({Key key, double top})>[];
     for (final MapEntry(:key, value: context) in _contexts.entries) {
       final row = _box(context);
       if (row == null) continue;
       final top = row.localToGlobal(Offset.zero).dy - listTop;
       final bottom = top + row.size.height;
       if (bottom <= 0 || top >= list.size.height) continue;
-      if (best == null || top < best.top) best = (key: key, top: top);
+      rows.add((key: key, top: top));
     }
-    return best;
+    rows.sort((a, b) => a.top.compareTo(b.top));
+    return rows;
   }
 
   static RenderBox? _box(BuildContext? context) {
