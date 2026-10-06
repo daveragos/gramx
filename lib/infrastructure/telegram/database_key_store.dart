@@ -48,13 +48,16 @@ class DatabaseKeyStore {
   }
 
   /// A fresh random key, from the platform's cryptographic RNG.
+  ///
+  /// Standard base64, which is how TDLib's JSON carries bytes. It rejects the
+  /// URL-safe alphabet's `-` and `_`.
   static String generate() {
     final random = Random.secure();
     final bytes = List<int>.generate(
       keyLengthBytes,
       (_) => random.nextInt(256),
     );
-    return base64UrlEncode(bytes);
+    return base64Encode(bytes);
   }
 }
 

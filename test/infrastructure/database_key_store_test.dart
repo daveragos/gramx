@@ -7,7 +7,7 @@ void main() {
   group('DatabaseKeyStore.generate', () {
     test('produces a 256-bit key', () {
       final key = DatabaseKeyStore.generate();
-      expect(base64Url.decode(key), hasLength(DatabaseKeyStore.keyLengthBytes));
+      expect(base64.decode(key), hasLength(DatabaseKeyStore.keyLengthBytes));
     });
 
     test('produces a different key every time', () {
@@ -15,10 +15,12 @@ void main() {
       expect(keys.toSet(), hasLength(50));
     });
 
-    test('is base64url, so it survives being stored as a string', () {
-      final key = DatabaseKeyStore.generate();
-      expect(() => base64Url.decode(key), returnsNormally);
-      expect(key, isNot(contains('\n')));
+    test('is base64 in the alphabet TDLib decodes bytes with', () {
+      // TDLib rejects `-` and `_`, and URL-safe base64 has one in most keys.
+      for (var i = 0; i < 200; i++) {
+        final key = DatabaseKeyStore.generate();
+        expect(key, matches(RegExp(r'^[A-Za-z0-9+/]+=*$')));
+      }
     });
 
     test(
