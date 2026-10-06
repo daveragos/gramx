@@ -8,6 +8,7 @@ import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/infrastructure/telegram/database_key_store.dart';
 import 'package:gramx/infrastructure/telegram/file_update_throttle.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_library.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_receiver.dart';
 import 'package:handy_tdlib/api.dart' as td;
 import 'package:handy_tdlib/handy_tdlib.dart';
@@ -274,7 +275,7 @@ class TdlibService {
       }
 
       _updateStatus('Loading TDLib binary...');
-      await TdPlugin.initialize();
+      await openTdlib();
 
       // Errors only, set before the client exists. At TDLib's default level
       // every request is logged in full, the database key and API hash

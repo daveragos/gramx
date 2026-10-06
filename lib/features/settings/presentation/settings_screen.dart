@@ -51,7 +51,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  /// Turns notifications on or off. Turning them on asks Android for the
+  /// Turns notifications on or off. Turning them on asks the system for
   /// permission, and a refusal is reported since Android 13+ declines quietly.
   Future<void> _setNotifications(
     BuildContext context,

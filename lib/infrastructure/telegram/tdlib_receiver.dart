@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_library.dart';
 import 'package:handy_tdlib/handy_tdlib.dart';
 
 /// Runs TDLib's blocking receive and the JSON decode on a background isolate.
@@ -89,7 +90,7 @@ class TdlibReceiver {
   /// Isolate entry point. Opens its own handle to the library, then loops.
   static Future<void> _receiveLoop(SendPort sendPort) async {
     try {
-      await TdPlugin.initialize();
+      await openTdlib();
     } catch (e) {
       sendPort.send(false);
       return;
