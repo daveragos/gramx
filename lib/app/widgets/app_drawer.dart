@@ -5,7 +5,6 @@ import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
-import 'package:gramx/features/activity/presentation/activity_screen.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/chats/presentation/open_saved_messages.dart';
@@ -133,10 +132,7 @@ class AppDrawer extends ConsumerWidget {
                   DrawerNavItem(
                     icon: Icons.notifications_none_rounded,
                     title: AppStrings.drawerActivity,
-                    onTap: () {
-                      Navigator.pop(context);
-                      GoRouter.of(context).push(ActivityScreen.route);
-                    },
+                    onTap: () => _goToTab(context, ShellTab.activity),
                   ),
                   DrawerNavItem(
                     icon: Icons.bookmark_border_rounded,
@@ -147,7 +143,7 @@ class AppDrawer extends ConsumerWidget {
                     },
                   ),
                   DrawerNavItem(
-                    icon: Icons.mail_outline_rounded,
+                    icon: Icons.chat_bubble_outline_rounded,
                     title: AppStrings.messagesTab,
                     onTap: () => _goToTab(context, ShellTab.messages),
                   ),

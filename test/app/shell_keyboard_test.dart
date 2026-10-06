@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/activity/presentation/activity_providers.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -55,6 +56,7 @@ void main() {
     // Keep the tab badges away from TDLib.
     overrides: [
       unreadChatCountProvider.overrideWith((ref) => 0),
+      activityBadgeProvider.overrideWith((ref) => 0),
       pendingPostsProvider.overrideWith(_NoPendingPosts.new),
     ],
     child: MaterialApp.router(routerConfig: shellRouter()),

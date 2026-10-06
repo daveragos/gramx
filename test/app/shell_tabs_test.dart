@@ -9,6 +9,7 @@ void main() {
         '/home',
         '/search',
         '/channels',
+        '/activity',
         '/messages',
       ]);
     });
@@ -17,7 +18,8 @@ void main() {
       expect(ShellTab.home.index, 0);
       expect(ShellTab.search.index, 1);
       expect(ShellTab.channels.index, 2);
-      expect(ShellTab.messages.index, 3);
+      expect(ShellTab.activity.index, 3);
+      expect(ShellTab.messages.index, 4);
     });
 
     test('every tab has a label and a distinct selected icon', () {

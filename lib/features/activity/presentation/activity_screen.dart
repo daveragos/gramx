@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/app/widgets/drawer_avatar_button.dart';
+import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -14,30 +16,16 @@ import 'package:gramx/features/activity/presentation/activity_providers.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/guest/presentation/widgets/guest_bookmarks_placeholder.dart';
 
-/// Mentions, replies and reactions as one newest-first list. Uses a plain
-/// `AppBar` because the feed's scroll-away header reacts to tab swipes.
-class ActivityScreen extends ConsumerStatefulWidget {
+/// Mentions, replies and reactions as one newest-first list, on its own tab
+/// like X's notifications. The shell reloads it when the tab opens with the
+/// bell lit; otherwise everything shown has already been marked seen.
+class ActivityScreen extends ConsumerWidget {
   static const route = '/activity';
 
   const ActivityScreen({super.key});
 
   @override
-  ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
-}
-
-class _ActivityScreenState extends ConsumerState<ActivityScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Rebuild only when the bell is lit. Otherwise everything has been marked
-    // seen, and a fresh load would come back empty.
-    if (ref.read(activityBadgeProvider) > 0) {
-      ref.invalidate(activityFeedProvider);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // A guest has no account, so nothing can mention or react to them.
     if (!ref.watch(readerCapabilitiesProvider).canBookmark) {
       return const GuestBookmarksPlaceholder();
@@ -56,28 +44,28 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     // Each tab filters the one loaded list, so switching costs nothing.
     return DefaultTabController(
       length: _ActivityTab.values.length,
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          leading: BackButton(color: primary, onPressed: () => context.pop()),
-          title: Text(
-            AppStrings.activityTitle,
-            style: AppTypography.heading(color: primary),
-          ),
-          bottom: TabBar(
-            indicatorColor: AppColors.accent,
-            labelColor: primary,
-            unselectedLabelColor: secondary,
-            dividerColor: borderColor,
-            dividerHeight: 0.5,
-            tabs: [for (final tab in _ActivityTab.values) Tab(text: tab.label)],
-          ),
+      child: ChromeScaffold(
+        // The tabs swipe sideways, so the header stays put.
+        observeScroll: false,
+        header: const ChromeHeaderRow(
+          title: AppStrings.activityTitle,
+          centerTitle: true,
+          leading: DrawerAvatarButton(),
         ),
-        body: TabBarView(
+        headerBottomHeight: kTextTabBarHeight,
+        headerBottom: TabBar(
+          labelColor: primary,
+          unselectedLabelColor: secondary,
+          dividerColor: borderColor,
+          dividerHeight: 0.5,
+          tabs: [for (final tab in _ActivityTab.values) Tab(text: tab.label)],
+        ),
+        body: (context, topPadding, bottomPadding) => TabBarView(
           children: [
             for (final tab in _ActivityTab.values)
               RefreshIndicator(
                 color: AppColors.accent,
+                edgeOffset: topPadding,
                 onRefresh: () async => ref.invalidate(activityFeedProvider),
                 child: activity.when(
                   loading: () => const Center(
@@ -88,6 +76,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                     body: AppStrings.activityError(error),
                     primary: primary,
                     secondary: secondary,
+                    topPadding: topPadding,
                   ),
                   data: (all) {
                     final items = tab.filter(all);
@@ -97,11 +86,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                         body: AppStrings.activityEmptyBody,
                         primary: primary,
                         secondary: secondary,
+                        topPadding: topPadding,
                       );
                     }
 
                     return ListView.separated(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                      padding: EdgeInsets.only(
+                        top: topPadding,
+                        bottom: bottomPadding + AppSpacing.xxl,
+                      ),
                       itemCount: items.length,
                       separatorBuilder: (_, _) => Divider(
                         height: 1,
@@ -253,18 +246,22 @@ class _Message extends StatelessWidget {
   final Color primary;
   final Color secondary;
 
+  /// Room for the header that overlays the top.
+  final double topPadding;
+
   const _Message({
     required this.title,
     required this.body,
     required this.primary,
     required this.secondary,
+    required this.topPadding,
   });
 
   @override
   Widget build(BuildContext context) {
     // Scrollable so pull-to-refresh still works with nothing in the list.
     return ListView(
-      padding: const EdgeInsets.only(top: AppSpacing.xxxl),
+      padding: EdgeInsets.only(top: topPadding + AppSpacing.xxxl),
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.xl),

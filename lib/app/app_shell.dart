@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/features/activity/presentation/activity_screen.dart';
+import 'package:gramx/features/activity/presentation/activity_providers.dart';
+import 'package:gramx/app/widgets/chat_bubble_icon.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/widgets/app_drawer.dart';
@@ -28,9 +31,16 @@ enum ShellTab {
   home(Icons.home_outlined, Icons.home, 'Home', '/home'),
   search(Icons.search_outlined, Icons.search, 'Search', '/search'),
   channels(Icons.list_alt_outlined, Icons.list_alt, 'Channels', '/channels'),
+  activity(
+    Icons.notifications_none_rounded,
+    Icons.notifications_rounded,
+    'Activity',
+    ActivityScreen.route,
+  ),
+  // Drawn by ChatBubbleIcon; these stand in where an IconData is needed.
   messages(
-    Icons.mail_outline_rounded,
-    Icons.mail_rounded,
+    Icons.chat_bubble_outline_rounded,
+    Icons.chat_bubble_rounded,
     'Messages',
     '/messages',
   );
@@ -237,6 +247,11 @@ class _AppShellState extends ConsumerState<AppShell>
     if (isRetap && index == ShellTab.search.index) {
       ref.read(searchFocusTriggerProvider.notifier).trigger();
     }
+    // Activity reloads when there's something new, or when asked again.
+    if (index == ShellTab.activity.index &&
+        (isRetap || ref.read(activityBadgeProvider) > 0)) {
+      ref.invalidate(activityFeedProvider);
+    }
 
     navigationShell.goBranch(index, initialLocation: isRetap);
   }
@@ -291,11 +306,8 @@ class _AppShellState extends ConsumerState<AppShell>
                       items: [
                         for (final tab in ShellTab.values)
                           BottomNavigationBarItem(
-                            icon: _TabIcon(tab: tab, icon: tab.icon),
-                            activeIcon: _TabIcon(
-                              tab: tab,
-                              icon: tab.activeIcon,
-                            ),
+                            icon: _TabIcon(tab: tab, active: false),
+                            activeIcon: _TabIcon(tab: tab, active: true),
                             label: tab.label,
                             tooltip: tab.label,
                           ),
@@ -316,30 +328,58 @@ class _AppShellState extends ConsumerState<AppShell>
 /// the icon so a new message does not rebuild the whole bar.
 class _TabIcon extends StatelessWidget {
   final ShellTab tab;
-  final IconData icon;
+  final bool active;
 
-  const _TabIcon({required this.tab, required this.icon});
+  const _TabIcon({required this.tab, required this.active});
 
   @override
   Widget build(BuildContext context) {
-    if (tab == ShellTab.home) return _HomeIcon(icon: icon);
-    if (tab != ShellTab.messages) return Icon(icon);
+    final icon = active ? tab.activeIcon : tab.icon;
+    return switch (tab) {
+      ShellTab.home => _HomeIcon(icon: icon),
+      ShellTab.activity => Consumer(
+        builder: (context, ref, child) => _CountBadge(
+          count: ref.watch(activityBadgeProvider),
+          semanticsLabel: AppStrings.a11yActivity,
+          child: child!,
+        ),
+        child: Icon(icon),
+      ),
+      ShellTab.messages => Consumer(
+        builder: (context, ref, child) => _CountBadge(
+          count: ref.watch(unreadChatCountProvider),
+          semanticsLabel: AppStrings.messagesUnreadSemantics,
+          child: child!,
+        ),
+        child: ChatBubbleIcon(filled: active),
+      ),
+      _ => Icon(icon),
+    };
+  }
+}
 
-    return Consumer(
-      builder: (context, ref, child) {
-        final count = ref.watch(unreadChatCountProvider);
-        if (count == 0) return child!;
+/// A tab icon with an unread count, as on X's bell and messages.
+class _CountBadge extends StatelessWidget {
+  final int count;
+  final String Function(int count) semanticsLabel;
+  final Widget child;
 
-        return Semantics(
-          label: AppStrings.messagesUnreadSemantics(count),
-          child: Badge(
-            label: Text(AppStrings.messagesUnreadBadge(count)),
-            backgroundColor: AppColors.accent,
-            child: child,
-          ),
-        );
-      },
-      child: Icon(icon),
+  const _CountBadge({
+    required this.count,
+    required this.semanticsLabel,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return child;
+    return Semantics(
+      label: semanticsLabel(count),
+      child: Badge(
+        label: Text(AppStrings.messagesUnreadBadge(count)),
+        backgroundColor: AppColors.accent,
+        child: child,
+      ),
     );
   }
 }

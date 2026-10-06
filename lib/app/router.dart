@@ -34,6 +34,7 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _searchNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'search');
 final _channelsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'channels');
+final _activityNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'activity');
 final _messagesNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'messages');
 
 /// How long the splash waits for TDLib's startup authorization states.
@@ -148,6 +149,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _activityNavigatorKey,
+            routes: [
+              GoRoute(
+                path: ShellTab.activity.path,
+                builder: (context, state) => const ActivityScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
             navigatorKey: _messagesNavigatorKey,
             routes: [
               GoRoute(
@@ -244,11 +254,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ProfileScreen(),
       ),
       // Reached from the drawer and the bell in the feed header.
-      GoRoute(
-        path: ActivityScreen.route,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ActivityScreen(),
-      ),
       GoRoute(
         path: '/settings',
         parentNavigatorKey: _rootNavigatorKey,

@@ -6,11 +6,10 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/widgets/drawer_avatar_button.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
-import 'package:gramx/core/widgets/channel_avatar.dart';
-import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/chats/data/affiliation_prefetcher.dart';
 import 'package:gramx/features/chats/domain/chat_filter.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
@@ -94,7 +93,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       header: ChromeHeaderRow(
         title: AppStrings.messagesTitle,
         centerTitle: true,
-        leading: _AccountAvatar(),
+        leading: const DrawerAvatarButton(),
         actions: [ChatFilterMenu(onAction: _handleMenu)],
       ),
       // Part of the header so it scrolls away with the rest of the chrome.
@@ -146,23 +145,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 );
               },
             ),
-    );
-  }
-}
-
-/// The account avatar, which opens the drawer.
-class _AccountAvatar extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final account = ref.watch(activeAccountProvider).value;
-    return Padding(
-      padding: const EdgeInsets.only(left: AppSpacing.md),
-      child: ChannelAvatar(
-        title: account?.displayName ?? AppStrings.drawerAccountFallback,
-        avatarPath: account?.avatarPath,
-        radius: AppSpacing.avatarSizeSmall / 2,
-        onTap: openAppDrawer,
-      ),
     );
   }
 }
