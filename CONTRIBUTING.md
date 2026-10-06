@@ -6,15 +6,25 @@ the [README](README.md).
 ## Requirements
 
 - Flutter 3.47 or later (stable channel), which brings Dart 3.11
-- Android SDK and NDK, and JDK 17
+- For Android: the Android SDK and NDK, and JDK 17
+- For iOS: Xcode, CocoaPods and CMake (`brew install cmake`)
 - A Telegram API id and hash, from <https://my.telegram.org> under
   "API development tools"
 
-gramX builds for Android only. TDLib, the library that talks to Telegram,
-comes from [`handy_tdlib`](https://pub.dev/packages/handy_tdlib), which ships
-it for Android alone. An iOS port would need its own TDLib build;
-`flutter create --platforms=ios .` recreates the iOS project if you want to
-start one.
+TDLib, the library that talks to Telegram, comes from
+[`handy_tdlib`](https://pub.dev/packages/handy_tdlib) on Android. It ships no
+iOS build, so the iOS app embeds its own, built from source. Before the first
+iOS build, run:
+
+```bash
+tool/build_tdlib_ios.sh
+```
+
+It builds the TDLib version handy_tdlib was generated from, with OpenSSL, for
+iPhones and for the simulator on Apple silicon, into
+`ios/Frameworks/tdjson.xcframework`. That takes a few minutes and the result
+is ignored by git. When handy_tdlib moves to a new TDLib, update `TD_COMMIT`
+in the script to match and run it again.
 
 ## Setup
 
@@ -68,6 +78,33 @@ flutter build apk --release --split-per-abi
 Without `key.properties` the build is signed with the debug key and Gradle
 warns about it. Don't distribute that build: phones that install it can't
 take an update signed with the real key.
+
+For iOS, put your Apple team id in `ios/Flutter/Signing.xcconfig`, which git
+ignores, so your team stays out of the repository:
+
+```
+DEVELOPMENT_TEAM = YOURTEAMID
+```
+
+Both the app and its share extension read it. That is enough for
+`flutter run` on an iPhone, and for a release:
+
+```bash
+flutter build ipa
+```
+
+A few things work differently on iOS:
+
+- **Voice messages.** Telegram sends and expects Opus in OGG, which Apple's
+  audio frameworks don't read. `lib/core/audio/opus_container.dart` moves
+  the audio into CAF for playback and back into OGG after recording, without
+  re-encoding.
+- **Sharing.** `ios/ShareExtension` puts gramX in the share sheet. It opens
+  the app with `gramx://share?text=…`, so it needs no app group. A shared
+  Telegram link opens in gramX; anything else opens the composer.
+- **Links.** `tg://` links open the app. `t.me` links can't open it directly,
+  since that would need t.me to list the app in its
+  `apple-app-site-association`, so they come in through the share sheet.
 
 The version comes from `pubspec.yaml` (`version: x.y.z+build`), which both
 the Android build and the app read.

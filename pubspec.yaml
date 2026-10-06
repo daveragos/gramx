@@ -1,5 +1,5 @@
 name: gramx
-description: "An Android client for Telegram channels, laid out as a timeline."
+description: "A Telegram client for channels, laid out as a timeline."
 publish_to: 'none'
 version: 1.0.0+1
 
