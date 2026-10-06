@@ -276,6 +276,15 @@ class TdlibService {
       _updateStatus('Loading TDLib binary...');
       await TdPlugin.initialize();
 
+      // Errors only, set before the client exists. At TDLib's default level
+      // every request is logged in full, the database key and API hash
+      // included, and the logging slows the first seconds of a launch.
+      TdPlugin.instance.tdExecute(
+        jsonEncode(
+          const td.SetLogVerbosityLevel(newVerbosityLevel: 1).toJson(),
+        ),
+      );
+
       _clientId = TdPlugin.instance.tdCreateClientId();
       _updateStatus('TDLib client initialized (ID: $_clientId)');
 
@@ -545,11 +554,6 @@ class TdlibService {
           _updateStatus('Parameters accepted by Telegram.');
           _markTdlibReady();
           if (storedKey == null) await _encryptDatabase();
-          try {
-            await sendRequest(
-              const td.SetLogVerbosityLevel(newVerbosityLevel: 1),
-            );
-          } catch (_) {}
         }
       } catch (e) {
         _updateStatus('Failed to set TDLib parameters: $e');
