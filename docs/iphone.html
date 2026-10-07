@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Install gramX on iPhone · gramX</title>
+  <meta name="description" content="gramX isn't in the App Store. Install it on your iPhone with a free helper app, Sideloadly, SideStore or AltStore, step by step.">
+  <link rel="canonical" href="https://daveragos.github.io/gramx/iphone.html">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Theme and platform, set before the first paint.
+    (function () {
+      var d = document.documentElement, t = null;
+      try { t = localStorage.getItem('gramx-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dim' && t !== 'dark') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      d.setAttribute('data-theme', t);
+      var ua = navigator.userAgent;
+      var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      d.setAttribute('data-platform', /Android/i.test(ua) ? 'android' : ios ? 'ios' : 'desktop');
+    })();
+  </script>
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" data-nav>
+    <div class="container nav-inner">
+      <a class="brand" href="./" aria-label="gramX home">
+        <img class="on-dark" src="assets/brand/glyph-on-dark.png" alt="" width="24" height="26">
+        <img class="on-light" src="assets/brand/glyph-on-light.png" alt="" width="24" height="26">
+        <span>gramX</span>
+      </a>
+      <div class="nav-actions">
+        <button class="icon-btn theme-toggle" type="button" data-theme-cycle aria-label="Change theme">
+          <svg class="i t-light" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>
+          <svg class="i t-dim" aria-hidden="true"><use href="assets/icons.svg#i-dim"/></svg>
+          <svg class="i t-dark" aria-hidden="true"><use href="assets/icons.svg#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="container guide">
+    <a class="back" href="./"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg>gramX home</a>
+    <h1>Install gramX on iPhone</h1>
+    <p class="summary">gramX isn't in the App Store. On iPhone, you install it with a free helper app and your own Apple Account. It takes about 20 minutes the first time, and you need a computer for part of it.</p>
+
+    <div class="open-both">
+      <div>
+        <p><b>Open this page on your computer and your iPhone.</b> You'll go back and forth between them.</p>
+        <button class="btn btn-ghost btn-sm" type="button" data-copy-link><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-copy"/></svg><span>Copy link</span></button>
+      </div>
+      <div class="qr" data-qr data-qr-hash="" role="img" aria-label="QR code that opens this page"></div>
+    </div>
+
+    <h2>Before you start</h2>
+    <ul class="checklist">
+      <li><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg><p><b>An iPhone with iOS 15 or newer.</b> To check, open <span class="path">Settings<i>›</i>General<i>›</i>About</span> and look at iOS Version.</p></li>
+      <li><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg><p><b>A computer</b>, Windows or Mac, and a cable that connects your iPhone to it.</p></li>
+      <li><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg><p><b>Your Apple Account</b> (also called Apple ID): the email and password you use for the App Store. The helper app uses it to let gramX run on your iPhone. If you'd rather not use your main one, <a href="https://account.apple.com">create a new free Apple Account</a> and use it only for this.</p></li>
+      <li><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg><p><b>Wi-Fi</b>, with your iPhone and your computer on the same network.</p></li>
+    </ul>
+
+    <div class="callout">
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>
+      <div>
+        <p><b>gramX needs a refresh once a week.</b> Apple lets apps installed this way run for 7 days at a time. Refreshing takes a few seconds, and the steps below show how. If the week runs out, gramX won't open until you refresh it, but nothing is lost and you stay signed in.</p>
+        <p><b>Three apps at most.</b> A free Apple Account can have three apps installed this way at once. SideStore and AltStore count as one of them.</p>
+      </div>
+    </div>
+
+    <h2 id="choose">Choose a helper app</h2>
+    <p>All three are free and do the same job. If you're not sure, choose Sideloadly.</p>
+
+    <div class="picker" role="tablist" aria-label="Helper app">
+      <a class="pick" role="tab" id="tab-sideloadly" href="#sideloadly" aria-controls="sideloadly" aria-selected="true">
+        <b>Sideloadly <em>Simplest</em></b>
+        <span>Everything happens on the computer. You plug in your iPhone once a week to refresh.</span>
+      </a>
+      <a class="pick" role="tab" id="tab-sidestore" href="#sidestore" aria-controls="sidestore" aria-selected="false">
+        <b>SideStore</b>
+        <span>After setup, you refresh on the iPhone itself, so you rarely need the computer.</span>
+      </a>
+      <a class="pick" role="tab" id="tab-altstore" href="#altstore" aria-controls="altstore" aria-selected="false">
+        <b>AltStore</b>
+        <span>Refreshes by itself while your iPhone is on the same Wi-Fi as your computer.</span>
+      </a>
+    </div>
+
+    <!-- Sideloadly -->
+    <section class="howto" id="sideloadly" role="tabpanel" aria-labelledby="tab-sideloadly">
+      <h2>Install with Sideloadly</h2>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
+      <ol>
+        <li><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> Sideloadly needs them to talk to your iPhone. Use the links on <a href="https://sideloadly.io">Sideloadly's website</a>. The versions from the Microsoft Store don't work, so if you have those, uninstall them first.</p></li>
+        <li><p><b>Install Sideloadly</b> from <a href="https://sideloadly.io">sideloadly.io</a>, its only official website.</p></li>
+        <li>
+          <p><b>Download gramX</b> to the computer. It's one file, ending in .ipa.</p>
+          <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/latest"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
+          <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+        </li>
+        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
+        <li><p><b>Open Sideloadly.</b> Drag the gramX file onto the IPA icon. Check that your iPhone is selected, and type your Apple Account email in the box for it.</p></li>
+        <li><p><b>Click Advanced options and tick Use automatic bundle ID</b>, if it isn't ticked already. Then click <b>Start</b>.</p></li>
+        <li><p><b>Sign in when asked.</b> Enter your Apple Account password, then the verification code that appears on your other Apple devices or arrives by text. Wait until Sideloadly says it's done.</p></li>
+      </ol>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
+      <ol>
+        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
+        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
+        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+      </ol>
+
+      <div class="weekly">
+        <h3>Every week</h3>
+        <p>Plug your iPhone into the computer, open Sideloadly, and click Start again with the same gramX file and Apple Account. gramX runs for another 7 days, and you stay signed in. Sideloadly can also refresh by itself while the computer is on; you'll find automatic refreshing in its settings.</p>
+      </div>
+    </section>
+
+    <!-- SideStore -->
+    <section class="howto" id="sidestore" role="tabpanel" aria-labelledby="tab-sidestore">
+      <h2>Install with SideStore</h2>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
+      <ol>
+        <li><p><b>Get LocalDevVPN from the App Store.</b> Open it, tap Connect, and allow it to add a VPN configuration. SideStore needs it switched on whenever it installs or refreshes an app.</p></li>
+      </ol>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
+      <ol>
+        <li><p><b>Windows only: install iTunes from Apple's website.</b> It lets the computer talk to your iPhone. The version from the Microsoft Store doesn't work.</p></li>
+        <li><p><b>Install iloader</b> from <a href="https://iloader.app">iloader.app</a>. It's the tool that puts SideStore on your iPhone.</p></li>
+        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
+        <li><p><b>Open iloader and sign in</b> with your Apple Account email and password, then the verification code Apple sends you.</p></li>
+        <li><p><b>Select your iPhone, then click SideStore (Stable).</b> Wait until iloader says <q>SideStore Installed!</q></p></li>
+      </ol>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>Back on your iPhone</h3>
+      <ol>
+        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
+        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
+        <li><p><b>Finish setting up SideStore.</b> Open LocalDevVPN and tap Connect. Open SideStore and sign in with the same Apple Account. Go to My Apps and tap the <q>7 DAYS</q> button next to SideStore. If it asks, tap Yes or Refresh Now.</p></li>
+        <li>
+          <p><b>Download gramX in Safari.</b> If you opened this page from Telegram or another app, open it in Safari first. When Safari asks, tap Download. The file goes to Downloads in the Files app.</p>
+          <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/latest"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
+          <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+        </li>
+        <li><p><b>Install gramX.</b> With LocalDevVPN connected, open SideStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads and wait for it to install.</p></li>
+        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+      </ol>
+
+      <div class="weekly">
+        <h3>Every week</h3>
+        <p>Open LocalDevVPN and tap Connect. Then open SideStore, go to My Apps and tap Refresh All. That refreshes SideStore and gramX together. If SideStore itself runs out, it won't open either: plug into the computer and install it with iloader again, as above.</p>
+      </div>
+    </section>
+
+    <!-- AltStore -->
+    <section class="howto" id="altstore" role="tabpanel" aria-labelledby="tab-altstore">
+      <h2>Install with AltStore</h2>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
+      <ol>
+        <li><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> AltServer needs them to talk to your iPhone. Use the links in <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows">AltStore's Windows guide</a>. The versions from the Microsoft Store don't work.</p></li>
+        <li><p><b>Install AltServer</b> from <a href="https://altstore.io">altstore.io</a>; you want AltStore Classic. On a Mac, move AltServer to Applications and open it; its icon appears in the menu bar. On Windows, run Setup, then find AltServer in the Start menu, right-click it and choose Run as administrator; its icon appears near the clock.</p></li>
+        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
+        <li><p><b>Turn on Wi-Fi sync</b>, so AltStore can refresh without the cable later. On a Mac, select your iPhone in Finder and tick <q>Show this iPhone when on Wi-Fi</q>. On Windows, open iTunes, select your iPhone and tick <q>Sync with this iPhone over Wi-Fi</q>. Click Apply.</p></li>
+        <li><p><b>Click the AltServer icon, choose Install AltStore, then your iPhone.</b> Enter your Apple Account email and password. On a Mac, if it asks you to install the Mail plug-in, follow <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos/enable-mail-plug-in">AltStore's steps for that</a> and try again. Wait until AltServer says AltStore was installed.</p></li>
+      </ol>
+
+      <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
+      <ol>
+        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
+        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
+        <li>
+          <p><b>Download gramX in Safari.</b> If you opened this page from Telegram or another app, open it in Safari first. When Safari asks, tap Download. The file goes to Downloads in the Files app.</p>
+          <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/latest"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
+          <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+        </li>
+        <li><p><b>Install gramX.</b> Make sure AltServer is running on the computer and both are on the same Wi-Fi. Open AltStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads. If AltStore asks you to sign in, use the same Apple Account.</p></li>
+        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+      </ol>
+
+      <div class="weekly">
+        <h3>Every week</h3>
+        <p>AltStore refreshes gramX on its own whenever your iPhone is on the same Wi-Fi as the computer and AltServer is running, so it helps to have AltServer open when the computer starts. To refresh by hand, open AltStore, go to My Apps and tap Refresh All.</p>
+      </div>
+    </section>
+
+    <h2 id="update">Updating gramX</h2>
+    <p>New versions are listed on the <a href="https://github.com/daveragos/gramx/releases">Releases page</a>. Download the new file and install it the same way as the first time, with the same helper app and Apple Account. It replaces the old version, and you stay signed in.</p>
+    <p class="sums">Want to check a download? Every release lists its files in <a data-dl="sums" href="https://github.com/daveragos/gramx/releases/latest">SHA256SUMS.txt</a>.</p>
+
+    <h2 id="help">If something goes wrong</h2>
+    <div class="faq">
+      <details>
+        <summary>gramX won't open, or closes right away<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>If it worked before, its 7 days have most likely run out. Refresh it with your helper app, as in the Every week box above. Don't delete gramX: that would remove its data and sign you out.</p><p>If it has never opened, check the two iPhone steps: trusting your Apple Account, and turning on Developer Mode.</p></div>
+      </details>
+      <details>
+        <summary>I can't find Developer Mode<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>It's only on iOS 16 and newer, and it appears once an app has been installed with your Apple Account. Finish the computer steps first, then look again under Settings, Privacy &amp; Security, near the bottom. On iOS 15 there's nothing to turn on, so skip that step.</p></div>
+      </details>
+      <details>
+        <summary>It says I've reached a limit<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>A free Apple Account can have three apps installed this way at once, counting SideStore or AltStore. Remove one you don't need and try again.</p><p>It can also add no more than ten new apps a week. If that's the limit you hit, wait a few days and try again.</p></div>
+      </details>
+      <details>
+        <summary>Is it safe to enter my Apple Account password?<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>The helper app sends it to Apple, to get the 7-day permission that lets gramX run on your iPhone. gramX itself never sees it.</p><p>If you'd rather keep your main account out of it, create a separate free Apple Account and use it only in the helper app. Your iPhone can stay signed in to your usual one.</p></div>
+      </details>
+      <details>
+        <summary>Does the weekly refresh affect my Telegram account?<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>No. It only decides whether the app opens. Your messages and channels are on Telegram, and the copy gramX keeps on your iPhone stays through every refresh.</p></div>
+      </details>
+      <details>
+        <summary>Is the iPhone version different from Android?<svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-expand"/></svg></summary>
+        <div class="answer"><p>One thing is missing: on iPhone, gramX doesn't appear when you tap Share in other apps. The rest of the app is the same.</p></div>
+      </details>
+    </div>
+
+    <p class="still">Still stuck? <a href="https://github.com/daveragos/gramx/issues">Report a problem</a> and say which helper app you used and what it showed.</p>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <a class="brand" href="./" aria-label="gramX home">
+          <img class="on-dark" src="assets/brand/glyph-on-dark.png" alt="" width="24" height="26">
+          <img class="on-light" src="assets/brand/glyph-on-light.png" alt="" width="24" height="26">
+          <span>gramX</span>
+        </a>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="./#install">Download for Android</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="https://github.com/daveragos/gramx">Source code</a>
+          <a href="https://github.com/daveragos/gramx/releases">Releases</a>
+          <a href="https://github.com/daveragos/gramx/issues">Report an issue</a>
+        </nav>
+      </div>
+      <p class="fine">gramX is an independent app. It is not made by, affiliated with, or endorsed by Telegram. Sideloadly, SideStore and AltStore are made by others and not affiliated with gramX. © <span data-year>2026</span> Dawit (RaGoose). The app is open source under the Apache License 2.0; the gramX name and logo are not.</p>
+    </div>
+  </footer>
+</body>
+</html>

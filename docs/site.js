@@ -101,12 +101,16 @@
       v7a: fallbackFile('armeabi-v7a', 44441437),
       x86: fallbackFile('x86_64', 56178584),
       sums: { name: 'SHA256SUMS.txt', url: DL + 'SHA256SUMS.txt', size: 0 }
+      // 1.0.0 has no iPhone file. Once the fallback release has one, add
+      // ipa: { name: ..., url: ..., size: ... } here; until then the iPhone
+      // buttons keep their link to the latest release's page.
     }
   };
   var PATTERNS = {
     arm64: /arm64-v8a\.apk$/i,
     v7a: /armeabi-v7a\.apk$/i,
     x86: /x86_64\.apk$/i,
+    ipa: /\.ipa$/i,
     sums: /sha256sums/i
   };
 
@@ -197,14 +201,15 @@
     return qrLoading;
   }
 
+  // A code opens this page at #install, or at the data-qr-hash it carries.
   function drawQrCodes() {
-    var url = pageUrl('#install');
-    if (!url) return;
+    if (!pageUrl()) return;
     loadQr().then(function () {
       $$('[data-qr]').forEach(function (el) {
         if (el.firstChild) return;
+        var hash = el.getAttribute('data-qr-hash');
         var q = window.qrcode(0, 'M');
-        q.addData(url);
+        q.addData(pageUrl(hash === null ? '#install' : hash));
         q.make();
         el.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
       });
@@ -222,7 +227,7 @@
     var f = release.files[key] || release.files.arm64;
     sheet.setAttribute('data-mode', platform);
     $('[data-sheet-title]', sheet).textContent = platform === 'ios'
-      ? 'gramX is for Android'
+      ? 'This file is for Android'
       : platform === 'desktop'
         ? 'Downloading to this computer'
         : 'Your download has started';
@@ -296,6 +301,47 @@
       });
     });
   });
+
+  // ── iPhone guide ───────────────────────────────────────────────────────
+  // One helper app's steps at a time. Without this script every guide shows,
+  // one after another, and the tabs are links to them.
+
+  var tabs = $$('.picker [role="tab"]');
+  if (tabs.length) {
+    var selectTab = function (tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+    };
+    var fromHash = function () {
+      var id = location.hash.slice(1);
+      return tabs.filter(function (t) { return t.getAttribute('aria-controls') === id; })[0];
+    };
+    selectTab(fromHash() || tabs[0]);
+    tabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function (e) {
+        e.preventDefault();
+        selectTab(tab);
+        // A link to this page then opens the same guide.
+        if (window.history && history.replaceState) history.replaceState(null, '', '#' + tab.getAttribute('aria-controls'));
+      });
+      tab.addEventListener('keydown', function (e) {
+        var step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        var next = tabs[(i + step + tabs.length) % tabs.length];
+        next.click();
+        next.focus();
+      });
+    });
+    window.addEventListener('hashchange', function () {
+      var tab = fromHash();
+      if (tab) selectTab(tab);
+    });
+  }
 
   // ── Reveal on scroll ───────────────────────────────────────────────────
   // Only what starts below the fold is hidden, and only once the observer

@@ -35,8 +35,12 @@ gramX runs on Android 7.0 or newer. Download the latest APK from the
 your phone. You may need to allow installs from your browser or file manager
 the first time.
 
-There is no iPhone release yet. gramX does build for iOS 15 and newer from
-source; see [CONTRIBUTING.md](CONTRIBUTING.md).
+On iPhone (iOS 15 or newer), gramX isn't in the App Store. Each release
+includes an `.ipa` file that you install with a free helper app such as
+Sideloadly, SideStore or AltStore, using your own Apple Account. Apps installed
+this way need a refresh once a week. The
+[iPhone guide](https://daveragos.github.io/gramx/iphone.html) walks through it
+step by step.
 
 Sign in with your Telegram phone number or by scanning a QR code from
 Telegram on another device, or skip signing in and use guest mode.
