@@ -656,43 +656,79 @@ class FeedRepository {
   static const int searchPageSize = 40;
 
   /// Searches posts on the server across every channel the user follows.
+  /// Posts matching [query] in the channels followed, newest first.
+  ///
+  /// With [inChats], only posts from those chats. Telegram's search across
+  /// chats takes the main or archive list but not a folder, and a folder's
+  /// search came back empty. It searches every channel instead, and keeps
+  /// the folder's, reading further pages until it has enough.
   Future<List<Post>> searchPosts(
     String query, {
     SearchFilters filters = const SearchFilters(),
+    List<int>? inChats,
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
     try {
-      final folderId = filters.folderId;
-      final res = await _tdlib.sendRequest(
-        td.SearchMessages(
-          chatList: folderId == null
-              ? const td.ChatListMain()
-              : td.ChatListFolder(chatFolderId: folderId),
-          onlyInChannels: true,
-          query: trimmed,
-          offset: '',
-          limit: searchPageSize,
-          filter: searchFilterFor(filters.type),
-          minDate: filters.minDateFor(DateTime.now()),
-          maxDate: 0,
-        ),
+      final messages = await _searchChannels(
+        trimmed,
+        filters,
+        onlyChats: inChats?.toSet(),
       );
-
-      if (res is! td.FoundMessages) return [];
-      final posts = await mapIncomingMessages(res.messages);
+      final posts = await mapIncomingMessages(messages);
       return [
         for (final post in posts)
           if (filters.keeps(post)) post,
       ];
-    } on TdlibRequestException catch (e) {
+    } catch (e) {
+      // Rethrown, timeouts included: an empty list read as "No results".
       debugPrint('[FeedRepo] searchPosts failed: $e');
       rethrow;
-    } catch (e) {
-      debugPrint('[FeedRepo] searchPosts failed: $e');
-      return [];
     }
+  }
+
+  /// Pages of a search kept to a folder's chats, at most.
+  static const int _folderSearchPages = 5;
+
+  /// Messages from Telegram's search across every channel, archived ones
+  /// included (its main list leaves them out), newest first. With
+  /// [onlyChats], only theirs, reading more pages to find
+  /// [searchPageSize] of them.
+  Future<List<td.Message>> _searchChannels(
+    String query,
+    SearchFilters filters, {
+    Set<int>? onlyChats,
+  }) async {
+    final found = <td.Message>[];
+    final minDate = filters.minDateFor(DateTime.now());
+    var offset = '';
+
+    for (var page = 0; page < _folderSearchPages; page++) {
+      final res = await _tdlib.sendRequest(
+        td.SearchMessages(
+          chatList: null,
+          onlyInChannels: true,
+          query: query,
+          offset: offset,
+          limit: onlyChats == null ? searchPageSize : 100,
+          filter: searchFilterFor(filters.type),
+          minDate: minDate,
+          maxDate: 0,
+        ),
+      );
+      if (res is! td.FoundMessages) break;
+
+      found.addAll(
+        onlyChats == null
+            ? res.messages
+            : res.messages.where((m) => onlyChats.contains(m.chatId)),
+      );
+      offset = res.nextOffset;
+      if (onlyChats == null || found.length >= searchPageSize) break;
+      if (offset.isEmpty) break;
+    }
+    return found;
   }
 
   /// TDLib's filter for a [SearchMediaType], or null for any post.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/features/folders/data/folder_repository.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -92,9 +93,17 @@ final searchFocusTriggerProvider = NotifierProvider<SearchFocusNotifier, int>(
 final searchedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return const [];
+  final filters = ref.watch(searchFiltersProvider);
+  final folderId = filters.folderId;
+  // Telegram can't search a folder; see FeedRepository.searchPosts.
+  final inChats = folderId == null
+      ? null
+      : await ref
+            .read(folderRepositoryProvider)
+            .getFolderChannelChatIds(folderId);
   return ref
       .watch(feedRepositoryProvider)
-      .searchPosts(query, filters: ref.watch(searchFiltersProvider));
+      .searchPosts(query, filters: filters, inChats: inChats);
 });
 
 /// Substring match over posts already loaded in the feed. Shown while the
