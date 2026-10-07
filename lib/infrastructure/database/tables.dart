@@ -22,6 +22,13 @@ class BookmarkEntries extends Table {
   /// syncs across devices. Null if the copy could not be written (offline or
   /// flood wait); that is not retried.
   IntColumn get savedMessageId => integer().nullable()();
+
+  /// Whether this bookmark was read back from Saved Messages rather than
+  /// made here. Saved Messages also holds the user's own saves, so restored
+  /// bookmarks can be hidden and removed together, and removing one never
+  /// deletes its Saved Messages copy. Null on rows from before this column
+  /// until `FeedRepository.loadBookmarks` works it out.
+  BoolColumn get isRestored => boolean().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   @override

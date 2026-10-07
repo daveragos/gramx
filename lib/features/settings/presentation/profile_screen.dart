@@ -13,7 +13,7 @@ import 'package:gramx/core/text/plain_text_links.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
-import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
@@ -433,7 +433,8 @@ class _BookmarksTab extends ConsumerWidget {
               },
               onChannelTap: () =>
                   NavigationUtils.openChannel(context, post.channelId),
-              onBookmarkTap: () => ref.read(bookmarkToggleProvider(post.id)),
+              onBookmarkTap: () =>
+                  ref.read(bookmarkControllerProvider.notifier).toggle(post),
             );
           },
         );

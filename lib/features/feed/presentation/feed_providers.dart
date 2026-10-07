@@ -392,14 +392,12 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     _startBackfill(repo, generation);
   }
 
-  /// Toggles a bookmark locally without refetching.
-  void toggleBookmarkOptimistic(String postId) {
+  /// Sets a post's bookmark locally without refetching.
+  void setBookmarkedOptimistic(String postId, bool bookmarked) {
     final current = state.value;
     if (current == null) return;
     final updated = current.map((p) {
-      if (p.id == postId) {
-        return p.copyWith(isBookmarked: !p.isBookmarked);
-      }
+      if (p.id == postId) return p.copyWith(isBookmarked: bookmarked);
       return p;
     }).toList();
     state = AsyncData(updated);
@@ -587,23 +585,6 @@ final postDetailProvider = Provider.family<AsyncValue<Post?>, String>((
       .whenData(
         (post) => post == null ? null : applyPostOverrides(post, overrides),
       );
-});
-
-/// Toggles a bookmark, locally first and then in TDLib.
-final bookmarkToggleProvider = FutureProvider.family<void, String>((
-  ref,
-  postId,
-) async {
-  final repo = ref.read(feedRepositoryProvider);
-  final parts = postId.split('_');
-  if (parts.length != 2) return;
-  final chatId = int.tryParse(parts[0]);
-  final messageId = int.tryParse(parts[1]);
-  if (chatId == null || messageId == null) return;
-
-  ref.read(feedPostsProvider.notifier).toggleBookmarkOptimistic(postId);
-
-  await repo.toggleBookmark(chatId, messageId);
 });
 
 /// The ids of channels muted right now. Rules and expiry times live in
@@ -938,14 +919,12 @@ class OptimisticPostUpdatesNotifier
     state = next;
   }
 
-  void toggleBookmark(String postId, Post currentPost) {
+  /// Shows [postId] as bookmarked or not until the data catches up.
+  void setBookmarked(String postId, bool bookmarked) {
     final currentData = state[postId] ?? {};
-    final currentIsBookmarked =
-        currentData['isBookmarked'] as bool? ?? currentPost.isBookmarked;
-
     state = {
       ...state,
-      postId: {...currentData, 'isBookmarked': !currentIsBookmarked},
+      postId: {...currentData, 'isBookmarked': bookmarked},
     };
   }
 

@@ -20,6 +20,9 @@ import 'package:gramx/infrastructure/telegram/message_content_support.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
+/// A channel post found in Saved Messages that could be a bookmark.
+typedef RestorableBookmark = ({int chatId, int messageId, int savedMessageId});
+
 class FeedRepository {
   final TdlibService _tdlib;
   final AppDatabase _db;
@@ -791,27 +794,33 @@ class FeedRepository {
     );
   }
 
-  /// Toggles a bookmark. The local row is the index; a forward to Saved
-  /// Messages survives a reinstall (see [restoreBookmarks]). The forward is
-  /// best effort and isn't retried.
-  Future<void> toggleBookmark(int chatId, int messageId) async {
-    final existing =
-        await (_db.select(_db.bookmarkEntries)..where(
-              (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
-            ))
-            .getSingleOrNull();
+  /// Bookmarks or unbookmarks a post. Setting a state rather than flipping
+  /// it means a repeated tap, or one racing an earlier write, can't undo
+  /// itself. The local row is the index; a forward to Saved Messages
+  /// survives a reinstall (see [findRestorableBookmarks]) and is best
+  /// effort, not retried.
+  Future<void> setBookmarked(
+    int chatId,
+    int messageId, {
+    required bool bookmarked,
+  }) async {
+    final existing = await _bookmarkRow(chatId, messageId);
 
-    if (existing != null) {
-      await (_db.delete(_db.bookmarkEntries)..where(
-            (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
-          ))
-          .go();
-      await _removeSavedCopy(existing.savedMessageId);
+    if (!bookmarked) {
+      if (existing == null) return;
+      await (_db.delete(
+        _db.bookmarkEntries,
+      )..where((b) => b.id.equals(existing.id))).go();
+      // Only a copy gramX wrote: a restored bookmark's copy can be a post the
+      // user saved themselves.
+      if (await _isOwnSavedCopy(existing)) {
+        await _removeSavedCopy(existing.savedMessageId);
+      }
       return;
     }
 
+    if (existing != null) return;
     final accountId = (await _activeAccount())?.id ?? 1;
-
     final savedMessageId = await _writeSavedCopy(chatId, messageId);
 
     await _db
@@ -822,8 +831,49 @@ class FeedRepository {
             chatId: chatId,
             messageId: messageId,
             savedMessageId: Value(savedMessageId),
+            isRestored: const Value(false),
           ),
+          mode: InsertMode.insertOrIgnore,
         );
+  }
+
+  Future<BookmarkEntry?> _bookmarkRow(int chatId, int messageId) =>
+      (_db.select(_db.bookmarkEntries)..where(
+            (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
+          ))
+          .getSingleOrNull();
+
+  /// How close a Saved Messages copy's date must be to its bookmark's for
+  /// the copy to be one gramX wrote when bookmarking.
+  static const Duration _ownCopyWindow = Duration(minutes: 2);
+
+  /// Whether [row]'s Saved Messages copy was written by gramX for it. A
+  /// restored row's copy was already there; for a row from before
+  /// [BookmarkEntries.isRestored], the copy's date tells.
+  Future<bool> _isOwnSavedCopy(BookmarkEntry row) async {
+    final restored = row.isRestored;
+    if (restored != null) return !restored;
+    final savedId = row.savedMessageId;
+    final saved = await _savedMessagesChatId();
+    if (savedId == null || saved == null) return false;
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetMessage(chatId: saved, messageId: savedId),
+      );
+      return res is td.Message && !wasRestored(row.createdAt, res.date);
+    } catch (_) {
+      // Gone, or unreadable: leave Saved Messages alone.
+      return false;
+    }
+  }
+
+  /// Whether a bookmark made at [bookmarkedAt] was restored from a Saved
+  /// Messages copy sent at [copyDate] (Unix seconds): a copy written when
+  /// bookmarking is sent within moments, a restored one long before.
+  @visibleForTesting
+  static bool wasRestored(DateTime bookmarkedAt, int copyDate) {
+    final copyAt = DateTime.fromMillisecondsSinceEpoch(copyDate * 1000);
+    return bookmarkedAt.difference(copyAt) > _ownCopyWindow;
   }
 
   /// The signed-in account's row.
@@ -910,15 +960,16 @@ class FeedRepository {
   static const int _restorePages = 8;
   static const int _restorePageSize = 100;
 
-  /// Rebuilds local bookmark rows from Saved Messages, using each mirror's
-  /// `forwardInfo`. Existing rows are kept. Returns how many were added.
-  Future<int> restoreBookmarks() async {
+  /// The channel posts in Saved Messages that aren't bookmarked, newest
+  /// first. gramX keeps a copy of each bookmark there, so after a reinstall
+  /// these include the old bookmarks, but also anything the user forwarded
+  /// there themselves. Nothing is added until [addRestoredBookmarks].
+  Future<List<RestorableBookmark>> findRestorableBookmarks() async {
     final saved = await _savedMessagesChatId();
-    if (saved == null) return 0;
+    if (saved == null) return const [];
 
-    final accountId = (await _activeAccount())?.id ?? 1;
     final known = await _bookmarkKeys();
-    var added = 0;
+    final found = <RestorableBookmark>[];
     var fromMessageId = 0;
 
     for (var page = 0; page < _restorePages; page++) {
@@ -929,25 +980,97 @@ class FeedRepository {
         final origin = bookmarkOriginOf(message);
         if (origin == null) continue;
         if (!known.add('${origin.chatId}_${origin.messageId}')) continue;
-
-        await _db
-            .into(_db.bookmarkEntries)
-            .insert(
-              BookmarkEntriesCompanion.insert(
-                accountId: accountId,
-                chatId: origin.chatId,
-                messageId: origin.messageId,
-                savedMessageId: Value(message.id),
-              ),
-              mode: InsertMode.insertOrIgnore,
-            );
-        added++;
+        found.add((
+          chatId: origin.chatId,
+          messageId: origin.messageId,
+          savedMessageId: message.id,
+        ));
       }
 
       fromMessageId = messages.last.id;
     }
+    return found;
+  }
 
+  /// Adds [restorable] as restored bookmarks. Returns how many were added.
+  Future<int> addRestoredBookmarks(List<RestorableBookmark> restorable) async {
+    final accountId = (await _activeAccount())?.id ?? 1;
+    var added = 0;
+    await _db.batch((batch) {
+      for (final item in restorable) {
+        batch.insert(
+          _db.bookmarkEntries,
+          BookmarkEntriesCompanion.insert(
+            accountId: accountId,
+            chatId: item.chatId,
+            messageId: item.messageId,
+            savedMessageId: Value(item.savedMessageId),
+            isRestored: const Value(true),
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+        added++;
+      }
+    });
     return added;
+  }
+
+  /// Removes every restored bookmark. Saved Messages is left as it is.
+  Future<int> removeRestoredBookmarks() async {
+    await _resolveRestoredFlags();
+    return (_db.delete(
+      _db.bookmarkEntries,
+    )..where((b) => b.isRestored.equals(true))).go();
+  }
+
+  /// Works out [BookmarkEntries.isRestored] for rows from before it, from
+  /// their Saved Messages copies' dates, and saves it. One request.
+  Future<void> _resolveRestoredFlags() async {
+    final unknown = await (_db.select(
+      _db.bookmarkEntries,
+    )..where((b) => b.isRestored.isNull())).get();
+    if (unknown.isEmpty) return;
+
+    final withCopy = [
+      for (final row in unknown)
+        if (row.savedMessageId != null) row,
+    ];
+    final copyDates = <int, int>{};
+    final saved = withCopy.isEmpty ? null : await _savedMessagesChatId();
+    if (saved != null) {
+      try {
+        final res = await _tdlib.sendRequest(
+          td.GetMessages(
+            chatId: saved,
+            messageIds: [for (final row in withCopy) row.savedMessageId!],
+          ),
+        );
+        if (res is td.Messages) {
+          for (final message in res.messages.whereType<td.Message>()) {
+            copyDates[message.id] = message.date;
+          }
+        }
+      } catch (e) {
+        // Unknown for now; asked again next time.
+        debugPrint('[FeedRepo] Could not read bookmark copies: $e');
+        return;
+      }
+    }
+
+    await _db.batch((batch) {
+      for (final row in unknown) {
+        final copyDate = copyDates[row.savedMessageId];
+        batch.update(
+          _db.bookmarkEntries,
+          BookmarkEntriesCompanion(
+            isRestored: Value(
+              copyDate != null && wasRestored(row.createdAt, copyDate),
+            ),
+          ),
+          where: (b) => b.id.equals(row.id),
+        );
+      }
+    });
   }
 
   Future<List<td.Message>> _savedMessagesPage(int chatId, int from) async {
@@ -1071,51 +1194,63 @@ class FeedRepository {
     return posts.isEmpty ? null : posts.first;
   }
 
-  Future<List<Post>> fetchBookmarkedPosts() async {
+  /// The bookmarked posts, most recently bookmarked first, and which of them
+  /// were restored from Saved Messages.
+  Future<({List<Post> posts, Set<String> restoredIds})> loadBookmarks() async {
+    await _resolveRestoredFlags();
     final bookmarks = await _db.select(_db.bookmarkEntries).get();
-    if (bookmarks.isEmpty) return [];
+    if (bookmarks.isEmpty) return (posts: <Post>[], restoredIds: <String>{});
 
-    final bookmarkKeys = bookmarks
-        .map((b) => '${b.chatId}_${b.messageId}')
-        .toSet();
+    final bookmarkKeys = {
+      for (final b in bookmarks) '${b.chatId}_${b.messageId}',
+    };
+    final bookmarkedAt = {
+      for (final b in bookmarks) '${b.chatId}_${b.messageId}': b.createdAt,
+    };
+    final restoredIds = {
+      for (final b in bookmarks)
+        if (b.isRestored == true) '${b.chatId}_${b.messageId}',
+    };
 
     final messagesByChatId = <int, List<int>>{};
     for (final b in bookmarks) {
       messagesByChatId.putIfAbsent(b.chatId, () => []).add(b.messageId);
     }
 
-    final bookmarkedPosts = <Post>[];
-
+    final posts = <Post>[];
     for (final entry in messagesByChatId.entries) {
-      final chatId = entry.key;
-      final messageIds = entry.value;
-
+      // Restored bookmarks can be from channels the user doesn't follow, so
+      // the chat may need looking up; it used to be skipped.
+      final chat = await _resolveChat(entry.key);
+      if (chat == null) continue;
       try {
-        final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
-        if (chatObj is! td.Chat) continue;
-
         final res = await _tdlib.sendRequest(
-          td.GetMessages(chatId: chatId, messageIds: messageIds),
+          td.GetMessages(chatId: entry.key, messageIds: entry.value),
         );
-
-        if (res is td.Messages && res.messages.isNotEmpty) {
-          final validMsgs = res.messages.whereType<td.Message>().toList();
-          final posts = TdlibMappers.mergeAlbumMessages(
-            validMsgs,
-            chatObj,
+        if (res is! td.Messages) continue;
+        posts.addAll(
+          TdlibMappers.mergeAlbumMessages(
+            res.messages.whereType<td.Message>().toList(),
+            chat,
             bookmarkedKeys: bookmarkKeys,
-          );
-          bookmarkedPosts.addAll(posts);
-        }
-      } catch (e) {
-        debugPrint(
-          '[FeedRepo] Failed to fetch bookmarked messages for chat $chatId: $e',
+          ),
         );
+      } catch (e) {
+        debugPrint('[FeedRepo] Bookmarks in chat ${entry.key} failed: $e');
       }
     }
 
-    bookmarkedPosts.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
-    return bookmarkedPosts;
+    // As X lists them: by when they were bookmarked, then by date.
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    posts.sort((a, b) {
+      final byBookmark = (bookmarkedAt[b.id] ?? epoch).compareTo(
+        bookmarkedAt[a.id] ?? epoch,
+      );
+      return byBookmark != 0
+          ? byBookmark
+          : b.publishedAt.compareTo(a.publishedAt);
+    });
+    return (posts: posts, restoredIds: restoredIds);
   }
 
   /// Marks a post as read. [forceRead] writes the read state even though the

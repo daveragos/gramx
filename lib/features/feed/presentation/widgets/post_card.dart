@@ -22,7 +22,7 @@ import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
-import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
@@ -98,18 +98,7 @@ class PostCard extends ConsumerWidget {
 
     final defaultBookmarkHandler =
         onBookmarkTap ??
-        () {
-          ref
-              .read(optimisticPostUpdatesProvider.notifier)
-              .toggleBookmark(post.id, post);
-          ref
-              .read(feedPostsProvider.notifier)
-              .toggleBookmarkOptimistic(post.id);
-          ref
-              .read(feedRepositoryProvider)
-              .toggleBookmark(post.chatId, post.messageId);
-          ref.invalidate(bookmarkedPostsProvider);
-        };
+        () => ref.read(bookmarkControllerProvider.notifier).toggle(post);
 
     void defaultReactionHandler(String emoji) {
       if (onLikeEmojiTap != null) {

@@ -38,7 +38,7 @@ import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_control.dart';
 import 'package:gramx/features/feed/presentation/widgets/link_preview_card.dart';
-import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
+import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
@@ -640,18 +640,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     ),
                                   )
                                 : null,
-                            onBookmarkTap: () {
-                              ref
-                                  .read(optimisticPostUpdatesProvider.notifier)
-                                  .toggleBookmark(post.id, post);
-                              ref
-                                  .read(feedPostsProvider.notifier)
-                                  .toggleBookmarkOptimistic(post.id);
-                              ref
-                                  .read(feedRepositoryProvider)
-                                  .toggleBookmark(post.chatId, post.messageId);
-                              ref.invalidate(bookmarkedPostsProvider);
-                            },
+                            onBookmarkTap: () => ref
+                                .read(bookmarkControllerProvider.notifier)
+                                .toggle(post),
                             onSelectReaction: (emoji) =>
                                 _toggleReaction(post, emoji),
                             onReplyTap: () {

@@ -431,12 +431,38 @@ abstract class AppStrings {
       'Error loading bookmarks: $error';
 
   static const bookmarksRestore = 'Restore from Saved Messages';
-
-  static String bookmarksRestored(int count) => switch (count) {
-    0 => 'Nothing to restore — every saved bookmark is already here.',
-    1 => 'Restored 1 bookmark.',
-    _ => 'Restored $count bookmarks.',
-  };
+  static const bookmarksMore = 'More bookmark options';
+  static const bookmarksLooking = 'Looking in Saved Messages…';
+  static const bookmarksNothingToRestore =
+      'Nothing to restore. Every channel post in Saved Messages is already '
+      'a bookmark.';
+  static String bookmarksRestoreTitle(int count) => count == 1
+      ? 'Add 1 post from Saved Messages?'
+      : 'Add $count posts from Saved Messages?';
+  static const bookmarksRestoreBody =
+      'gramX keeps a copy of each bookmark in your Saved Messages. These are '
+      "the channel posts there that aren't in your Bookmarks, which can "
+      "include posts you saved yourself. They'll be marked as from Saved "
+      'Messages, so you can hide or remove them later.';
+  static String bookmarksRestoreAction(int count) =>
+      count == 1 ? 'Add 1 post' : 'Add $count posts';
+  static const bookmarksRestoreCancel = 'Not now';
+  static String bookmarksRestored(int count) =>
+      count == 1 ? 'Added 1 bookmark.' : 'Added $count bookmarks.';
+  static const bookmarksRemoveRestored = 'Remove bookmarks from Saved Messages';
+  static String bookmarksRemoveRestoredTitle(int count) => count == 1
+      ? 'Remove 1 bookmark from Saved Messages?'
+      : 'Remove $count bookmarks from Saved Messages?';
+  static const bookmarksRemoveRestoredBody =
+      'They leave your Bookmarks. Your Saved Messages stay as they are.';
+  static const bookmarksRemoveRestoredAction = 'Remove';
+  static const bookmarksRemoveRestoredKeep = 'Keep';
+  static String bookmarksRemovedRestored(int count) =>
+      count == 1 ? 'Removed 1 bookmark.' : 'Removed $count bookmarks.';
+  static const bookmarksFilterAll = 'All';
+  static const bookmarksFilterHere = 'Bookmarked here';
+  static const bookmarksFilterRestored = 'From Saved Messages';
+  static const bookmarksFilterEmpty = 'No bookmarks here.';
 
   // ── Settings ───────────────────────────────────────────────────────────────
   static String settingsAccountError(Object error) =>

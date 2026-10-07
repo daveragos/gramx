@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -149,6 +150,11 @@ class _BottomSheetChrome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The post as it is now: a bookmark or reaction made here shows at once.
+    final post = applyPostOverrides(
+      this.post,
+      ref.watch(optimisticPostUpdatesProvider),
+    );
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -253,7 +259,8 @@ class _BottomSheetChrome extends ConsumerWidget {
                 trailing: localPath == null
                     ? null
                     : _OpenWithButton(path: localPath!, color: Colors.white70),
-                onBookmarkTap: () => ref.read(bookmarkToggleProvider(post.id)),
+                onBookmarkTap: () =>
+                    ref.read(bookmarkControllerProvider.notifier).toggle(post),
                 onSelectReaction: (emoji) {
                   ref
                       .read(optimisticPostUpdatesProvider.notifier)
