@@ -8,6 +8,7 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 /// `ReplyTarget` does not draw a quoted passage: the card places it above the
@@ -164,5 +165,47 @@ void main() {
       final own = tester.getTopLeft(find.text('the reply itself'));
       expect(line.dy, lessThan(own.dy));
     });
+  });
+
+  // A forward whose original channel arrived after the post was mapped read
+  // "Original Channel", with a blank face.
+  testWidgets('a repost names its original channel as TDLib knows it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fileDownloadProvider.overrideWith(
+            (ref, fileId) => Stream.value(null),
+          ),
+          readerCapabilitiesProvider.overrideWithValue(
+            ReaderCapabilities.signedIn,
+          ),
+          chatIdentityProvider.overrideWith(
+            (ref, chatId) => (
+              title: 'WTM Ethiopia',
+              avatarPath: null,
+              avatarFileId: 21,
+              username: 'Womentechmakers',
+              isVerified: true,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PostCard(
+                post: post().copyWith(forwardedFromChatId: '-1009876'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('WTM Ethiopia'), findsOneWidget);
+    expect(find.text('Original Channel'), findsNothing);
+    expect(find.text('@Womentechmakers'), findsOneWidget);
+    expect(find.byIcon(Icons.verified), findsOneWidget);
   });
 }

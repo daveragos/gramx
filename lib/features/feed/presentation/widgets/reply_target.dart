@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,10 @@ import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/media_path.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/features/settings/data/settings_store.dart';
+import 'package:gramx/infrastructure/telegram/chat_identity.dart';
+import 'package:gramx/core/time/time_utils.dart';
 
 /// Where in a post's column a reply shape goes. The "Replying to" line sits
 /// above the body; the quote card sits below it.
@@ -91,9 +96,13 @@ class ReplyTarget extends StatelessWidget {
       avatarPath: isSameChat ? post.channelAvatarUrl : null,
       avatarFileId: isSameChat ? post.channelAvatarFileId : null,
       avatarColorHex: isSameChat ? post.channelAvatarColor : null,
+      authorChatId: post.replyToChatId,
+      date: post.replyToDate,
       text: post.replyToText,
       thumbnailPath: post.replyToThumbnailUrl,
       thumbnailFileId: post.replyToThumbnailFileId,
+      mediaWidth: post.replyToMediaWidth,
+      mediaHeight: post.replyToMediaHeight,
       onTap: onOpenPost,
       onAuthorTap: onOpenAuthor,
     );
@@ -172,10 +181,14 @@ class _ReplyingToLine extends StatelessWidget {
 ///
 /// Drawn by the host rather than [ReplyTarget] because it spans the avatar
 /// gutter, so the connector can run down to the reply's avatar.
-class QuotedPassage extends StatelessWidget {
+class QuotedPassage extends ConsumerWidget {
   /// The passage's author, or null when Telegram doesn't say (such as a
   /// private channel). The byline and avatar are then omitted.
   final String? authorTitle;
+
+  /// The passage's chat, when it is another one. Its name, picture, handle
+  /// and badge come from TDLib's copy of that chat, as for [QuotedPostCard].
+  final int? authorChatId;
   final String? authorUsername;
   final bool isAuthorVerified;
   final String? avatarPath;
@@ -198,6 +211,7 @@ class QuotedPassage extends StatelessWidget {
     super.key,
     required this.passage,
     this.authorTitle,
+    this.authorChatId,
     this.authorUsername,
     this.isAuthorVerified = false,
     this.avatarPath,
@@ -210,7 +224,7 @@ class QuotedPassage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.onSurface;
@@ -219,7 +233,12 @@ class QuotedPassage extends StatelessWidget {
         : AppColors.lightTextSecondary;
     final connector = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    final title = authorTitle;
+    final other = authorChatId == null
+        ? null
+        : ref.watch(chatIdentityProvider(authorChatId!));
+    final title = other?.title ?? authorTitle;
+    final username = authorUsername ?? other?.username;
+    final isVerified = isAuthorVerified || (other?.isVerified ?? false);
 
     return Semantics(
       button: true,
@@ -243,8 +262,8 @@ class QuotedPassage extends StatelessWidget {
                     if (title != null)
                       ChannelAvatar(
                         title: title,
-                        avatarPath: avatarPath,
-                        avatarFileId: avatarFileId,
+                        avatarPath: other?.avatarPath ?? avatarPath,
+                        avatarFileId: other?.avatarFileId ?? avatarFileId,
                         avatarColorHex: avatarColorHex,
                         radius: avatarRadius,
                         onTap: onAuthorTap,
@@ -274,7 +293,13 @@ class QuotedPassage extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (title != null) ...[
-                          _byline(title, primary, secondary),
+                          _byline(
+                            title,
+                            username,
+                            isVerified,
+                            primary,
+                            secondary,
+                          ),
                           const SizedBox(height: AppSpacing.xs),
                         ],
                         Text(
@@ -293,7 +318,13 @@ class QuotedPassage extends StatelessWidget {
     );
   }
 
-  Widget _byline(String title, Color primary, Color secondary) {
+  Widget _byline(
+    String title,
+    String? username,
+    bool isVerified,
+    Color primary,
+    Color secondary,
+  ) {
     return Row(
       children: [
         Flexible(
@@ -307,15 +338,15 @@ class QuotedPassage extends StatelessWidget {
             ),
           ),
         ),
-        if (isAuthorVerified) ...[
+        if (isVerified) ...[
           const SizedBox(width: AppSpacing.xs),
           const Icon(Icons.verified, color: AppColors.verified, size: 16),
         ],
-        if (authorUsername != null && authorUsername!.isNotEmpty) ...[
+        if (username != null && username.isNotEmpty) ...[
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(
-              '@$authorUsername',
+              '@$username',
               style: AppTypography.username(color: secondary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -337,11 +368,22 @@ class QuotedPostCard extends ConsumerWidget {
   final int? avatarFileId;
   final String? avatarColorHex;
 
+  /// The quoted post's chat, when it is another one. Its picture, handle and
+  /// badge come from TDLib's copy of that chat.
+  final int? authorChatId;
+
+  /// When the quoted post was sent, if known.
+  final DateTime? date;
+
   /// The selected quote if any, otherwise the target's text or caption.
   final String? text;
 
   final String? thumbnailPath;
   final int? thumbnailFileId;
+
+  /// The picture's size in pixels, so it's drawn at its own shape.
+  final int? mediaWidth;
+  final int? mediaHeight;
 
   /// Opens the quoted post. Every caller should pass one.
   final VoidCallback? onTap;
@@ -357,12 +399,19 @@ class QuotedPostCard extends ConsumerWidget {
     this.avatarPath,
     this.avatarFileId,
     this.avatarColorHex,
+    this.authorChatId,
+    this.date,
     this.text,
     this.thumbnailPath,
     this.thumbnailFileId,
+    this.mediaWidth,
+    this.mediaHeight,
     this.onTap,
     this.onAuthorTap,
   });
+
+  /// The picture's box, for tests.
+  static const Key mediaKey = ValueKey('quoted-post-media');
 
   bool get _hasThumbnail =>
       (thumbnailFileId != null && thumbnailFileId != 0) ||
@@ -380,11 +429,23 @@ class QuotedPostCard extends ConsumerWidget {
 
     final body = text?.trim();
 
+    // Another chat's picture, handle and badge come from TDLib's copy of it.
+    final other = authorChatId == null
+        ? null
+        : ref.watch(chatIdentityProvider(authorChatId!));
+    final author = (
+      title: other?.title ?? authorTitle,
+      avatarPath: other?.avatarPath ?? avatarPath,
+      avatarFileId: other?.avatarFileId ?? avatarFileId,
+      username: authorUsername ?? other?.username,
+      isVerified: isAuthorVerified || (other?.isVerified ?? false),
+    );
+
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xs),
       child: Semantics(
         button: true,
-        label: AppStrings.quotedPostBy(authorTitle),
+        label: AppStrings.quotedPostBy(author.title),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
@@ -410,7 +471,7 @@ class QuotedPostCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _byline(primary, secondary),
+                      _byline(author, primary, secondary),
                       if (body != null && body.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.xs),
                         Text(
@@ -438,6 +499,7 @@ class QuotedPostCard extends ConsumerWidget {
                       child: _QuotedMedia(
                         path: thumbnailPath,
                         fileId: thumbnailFileId,
+                        aspectRatio: _mediaAspectRatio,
                         isDark: isDark,
                       ),
                     ),
@@ -450,14 +512,24 @@ class QuotedPostCard extends ConsumerWidget {
     );
   }
 
-  /// Avatar, name, badge and handle on one line.
-  Widget _byline(Color primary, Color secondary) {
+  /// The picture's shape, within limits, or null when unknown.
+  double? get _mediaAspectRatio {
+    final width = mediaWidth, height = mediaHeight;
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return null;
+    }
+    return (width / height).clamp(0.75, 2.0);
+  }
+
+  /// Avatar, name, badge, handle and time on one line, as on X.
+  Widget _byline(ChatIdentity author, Color primary, Color secondary) {
+    final username = author.username;
     return Row(
       children: [
         ChannelAvatar(
-          title: authorTitle,
-          avatarPath: avatarPath,
-          avatarFileId: avatarFileId,
+          title: author.title ?? authorTitle,
+          avatarPath: author.avatarPath,
+          avatarFileId: author.avatarFileId,
           avatarColorHex: avatarColorHex,
           radius: 12,
           onTap: onAuthorTap,
@@ -465,25 +537,33 @@ class QuotedPostCard extends ConsumerWidget {
         const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
-            authorTitle,
+            author.title ?? authorTitle,
             style: AppTypography.displayName(color: primary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (isAuthorVerified) ...[
+        if (author.isVerified) ...[
           const SizedBox(width: AppSpacing.xs),
           const Icon(Icons.verified, color: AppColors.verified, size: 14),
         ],
-        if (authorUsername != null && authorUsername!.isNotEmpty) ...[
+        if (username != null && username.isNotEmpty) ...[
           const SizedBox(width: AppSpacing.xs),
           Flexible(
             child: Text(
-              '@$authorUsername',
+              '@$username',
               style: AppTypography.username(color: secondary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+          ),
+        ],
+        if (date != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '· ${TimeUtils.relativeTime(date!)}',
+            style: AppTypography.timestamp(color: secondary),
+            maxLines: 1,
           ),
         ],
       ],
@@ -491,40 +571,69 @@ class QuotedPostCard extends ConsumerWidget {
   }
 }
 
-/// The quoted post's picture at the bottom of the card. Kept short because
-/// Telegram only sends a small thumbnail for a reply target.
+/// The quoted post's picture at the bottom of the card, at its own shape
+/// when that's known, as X draws it.
 class _QuotedMedia extends ConsumerWidget {
   final String? path;
   final int? fileId;
+  final double? aspectRatio;
   final bool isDark;
 
   const _QuotedMedia({
     required this.path,
     required this.fileId,
+    required this.aspectRatio,
     required this.isDark,
   });
 
+  /// The height when the shape isn't known.
   static const double _height = 140;
+
+  /// The tallest a picture gets, so a portrait can't take over the card.
+  static const double _maxHeight = 320;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resolved = resolveMediaPath(ref, fileId: fileId, rawPath: path);
-    final placeholder = Container(
-      height: _height,
-      width: double.infinity,
+    // With auto-download off, only a picture already on the device shows.
+    final waits =
+        fileId != null &&
+        fileId != 0 &&
+        !ref.watch(settingsProvider.select((s) => s.autoDownloadImagesEnabled));
+    final resolved = waits
+        ? ref.watch(fileDownloadStatusProvider(fileId!)).value?.localPath
+        : resolveMediaPath(ref, fileId: fileId, rawPath: path);
+    final placeholder = ColoredBox(
       color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
     );
 
-    if (resolved == null || resolved.isEmpty) return placeholder;
+    final Widget image = resolved == null || resolved.isEmpty
+        ? placeholder
+        : Image.file(
+            // Keyed by path so a late download replaces the placeholder.
+            key: ValueKey(resolved),
+            File(resolved),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => placeholder,
+          );
 
-    return Image.file(
-      // Keyed by path so a late download replaces the placeholder.
-      key: ValueKey(resolved),
-      File(resolved),
-      height: _height,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => placeholder,
+    final ratio = aspectRatio;
+    if (ratio == null) {
+      return SizedBox(
+        key: QuotedPostCard.mediaKey,
+        height: _height,
+        width: double.infinity,
+        child: image,
+      );
+    }
+    // The card's full width at the picture's shape, cropped once too tall.
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        key: QuotedPostCard.mediaKey,
+        width: constraints.maxWidth,
+        height: math.min(constraints.maxWidth / ratio, _maxHeight),
+        child: image,
+      ),
     );
   }
 }

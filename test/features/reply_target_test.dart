@@ -9,6 +9,7 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reply_presentation.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
+import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 
 Post post({
@@ -174,6 +175,16 @@ void main() {
       // Without TDLib every file stays "not downloaded", as on a first frame.
       overrides: [
         fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+        // TDLib knows nothing of the quoted chat.
+        chatIdentityProvider.overrideWith(
+          (ref, chatId) => (
+            title: null,
+            avatarPath: null,
+            avatarFileId: null,
+            username: null,
+            isVerified: false,
+          ),
+        ),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -385,13 +396,166 @@ void main() {
     });
   });
 
+  // As X draws a quote: the author's face, handle and badge, when it was
+  // posted, and its picture at its own shape.
+  group('QuotedPostCard', () {
+    Widget host(Widget card, {ChatIdentity? chat}) => ProviderScope(
+      overrides: [
+        fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+        chatIdentityProvider.overrideWith(
+          (ref, chatId) =>
+              chat ??
+              (
+                title: null,
+                avatarPath: null,
+                avatarFileId: null,
+                username: null,
+                isVerified: false,
+              ),
+        ),
+      ],
+      child: MaterialApp(home: Scaffold(body: card)),
+    );
+
+    testWidgets('names another chat by what TDLib knows of it', (tester) async {
+      await tester.pumpWidget(
+        host(
+          const QuotedPostCard(
+            authorTitle: 'adidas Football',
+            authorChatId: -200,
+            text: 'thank you for loving me so much',
+          ),
+          chat: (
+            title: null,
+            avatarPath: null,
+            avatarFileId: 7,
+            username: 'adidasfootball',
+            isVerified: true,
+          ),
+        ),
+      );
+
+      expect(find.text('@adidasfootball'), findsOneWidget);
+      expect(find.byIcon(Icons.verified), findsOneWidget);
+      expect(
+        tester.widget<ChannelAvatar>(find.byType(ChannelAvatar)).avatarFileId,
+        7,
+      );
+    });
+
+    testWidgets('says when the quoted post was sent', (tester) async {
+      await tester.pumpWidget(
+        host(
+          QuotedPostCard(
+            authorTitle: 'adidas Football',
+            date: DateTime.now().subtract(const Duration(hours: 9)),
+          ),
+        ),
+      );
+
+      expect(find.text('· 9h'), findsOneWidget);
+    });
+
+    // On a phone's width, where the card is about 340 points across.
+    void phone(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('draws the picture at its own shape', (tester) async {
+      phone(tester);
+      await tester.pumpWidget(
+        host(
+          const QuotedPostCard(
+            authorTitle: 'adidas Football',
+            thumbnailFileId: 5,
+            mediaWidth: 1600,
+            mediaHeight: 900,
+          ),
+        ),
+      );
+
+      final size = tester.getSize(find.byKey(QuotedPostCard.mediaKey));
+      expect(size.width / size.height, closeTo(16 / 9, 0.01));
+    });
+
+    testWidgets('keeps a tall picture from taking over the card', (
+      tester,
+    ) async {
+      phone(tester);
+      await tester.pumpWidget(
+        host(
+          const QuotedPostCard(
+            authorTitle: 'adidas Football',
+            thumbnailFileId: 5,
+            mediaWidth: 900,
+            mediaHeight: 1600,
+          ),
+        ),
+      );
+
+      final size = tester.getSize(find.byKey(QuotedPostCard.mediaKey));
+      expect(size.height, 320);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('QuotedPassage', () {
     Widget host(Widget child) => ProviderScope(
       overrides: [
         fileDownloadProvider.overrideWith((ref, fileId) => Stream.value(null)),
+        // TDLib knows nothing of the quoted chat.
+        chatIdentityProvider.overrideWith(
+          (ref, chatId) => (
+            title: null,
+            avatarPath: null,
+            avatarFileId: null,
+            username: null,
+            isVerified: false,
+          ),
+        ),
       ],
       child: MaterialApp(home: Scaffold(body: child)),
     );
+
+    // A passage from another channel, whose name the reply didn't carry: it
+    // was drawn with no face and no name.
+    testWidgets('names another chat by what TDLib knows of it', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            fileDownloadProvider.overrideWith(
+              (ref, fileId) => Stream.value(null),
+            ),
+            chatIdentityProvider.overrideWith(
+              (ref, chatId) => (
+                title: 'The Chill Coding Lounge',
+                avatarPath: null,
+                avatarFileId: 11,
+                username: 'chillcoding',
+                isVerified: false,
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: QuotedPassage(
+                authorChatId: -300,
+                passage: "I'm starting to hate mediocrity",
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('The Chill Coding Lounge'), findsOneWidget);
+      expect(find.text('@chillcoding'), findsOneWidget);
+      expect(
+        tester.widget<ChannelAvatar>(find.byType(ChannelAvatar)).avatarFileId,
+        11,
+      );
+    });
 
     testWidgets('draws the selected words under their author', (tester) async {
       await tester.pumpWidget(

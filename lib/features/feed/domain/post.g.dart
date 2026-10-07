@@ -57,6 +57,11 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   replyToChatId: (json['replyToChatId'] as num?)?.toInt(),
   replyToThumbnailUrl: json['replyToThumbnailUrl'] as String?,
   replyToThumbnailFileId: (json['replyToThumbnailFileId'] as num?)?.toInt(),
+  replyToMediaWidth: (json['replyToMediaWidth'] as num?)?.toInt(),
+  replyToMediaHeight: (json['replyToMediaHeight'] as num?)?.toInt(),
+  replyToDate: json['replyToDate'] == null
+      ? null
+      : DateTime.parse(json['replyToDate'] as String),
   hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
   authorSignature: json['authorSignature'] as String?,
   unsupportedKind: json['unsupportedKind'] as String?,
@@ -107,6 +112,9 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyToChatId': instance.replyToChatId,
   'replyToThumbnailUrl': instance.replyToThumbnailUrl,
   'replyToThumbnailFileId': instance.replyToThumbnailFileId,
+  'replyToMediaWidth': instance.replyToMediaWidth,
+  'replyToMediaHeight': instance.replyToMediaHeight,
+  'replyToDate': instance.replyToDate?.toIso8601String(),
   'hasDiscussionGroup': instance.hasDiscussionGroup,
   'authorSignature': instance.authorSignature,
   'unsupportedKind': instance.unsupportedKind,

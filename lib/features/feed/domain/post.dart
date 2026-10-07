@@ -61,6 +61,15 @@ abstract class Post with _$Post {
     int? replyToChatId,
     String? replyToThumbnailUrl,
     int? replyToThumbnailFileId,
+
+    /// The quoted picture's size in pixels, so the card can draw it at its
+    /// own shape. Null when unknown.
+    int? replyToMediaWidth,
+    int? replyToMediaHeight,
+
+    /// When the replied-to message was sent. Telegram gives it only for a
+    /// message from another chat.
+    DateTime? replyToDate,
     @Default(false) bool hasDiscussionGroup,
     String? authorSignature,
 

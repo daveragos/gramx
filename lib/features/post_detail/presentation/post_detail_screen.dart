@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/post_detail/domain/comment_threads.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -1365,6 +1366,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: QuotedPassage(
         authorTitle: post.replyToAuthorTitle,
+        authorChatId: post.replyToChatId,
         authorUsername: isSameChat ? post.channelUsername : null,
         isAuthorVerified: isSameChat && post.isChannelVerified,
         avatarPath: isSameChat ? post.channelAvatarUrl : null,
@@ -1374,7 +1376,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         avatarRadius: AppSpacing.avatarSizeLarge / 2,
         gutterGap: AppSpacing.avatarGap,
         onTap: () => _openReplyTarget(context, post),
-        onAuthorTap: () => context.push('/channel/${post.channelId}'),
+        // The passage's own chat, which may not be this one.
+        onAuthorTap: () => NavigationUtils.openChannel(
+          context,
+          '${post.replyToChatId ?? post.chatId}',
+        ),
       ),
     );
   }

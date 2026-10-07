@@ -64,6 +64,16 @@ class TdlibMappers {
     return preview ?? sizes.first;
   }
 
+  /// The size of a quoted photo to draw across its card: the first about as
+  /// wide as the card is in pixels, or else the largest. The smallest, used
+  /// before, looked blurred at that width. TDLib lists sizes smallest first.
+  static td.PhotoSize? quotedPhotoSize(List<td.PhotoSize> sizes) {
+    for (final size in sizes) {
+      if (size.width >= 640) return size;
+    }
+    return sizes.lastOrNull;
+  }
+
   /// This app's entity models for a TDLib entity list. See [plainTextOf].
   static List<TextEntity>? entitiesOf(List<td.TextEntity>? entities) =>
       _parseEntities(entities);
@@ -280,10 +290,18 @@ class TdlibMappers {
     int? replyToMessageId;
     String? replyToThumbnailUrl;
     int? replyToThumbnailFileId;
+    int? replyToMediaWidth;
+    int? replyToMediaHeight;
+    DateTime? replyToDate;
     int? replyToChatId;
     final replyTo = message.replyTo;
     if (replyTo is td.MessageReplyToMessage) {
       replyToMessageId = replyTo.messageId;
+      if (replyTo.originSendDate > 0) {
+        replyToDate = DateTime.fromMillisecondsSinceEpoch(
+          replyTo.originSendDate * 1000,
+        );
+      }
       // 0 means the same chat; anything else is a cross-chat reply.
       replyToChatId = replyTo.chatId != 0 && replyTo.chatId != chat.id
           ? replyTo.chatId
@@ -349,8 +367,11 @@ class TdlibMappers {
             thumbnail = previewType.document.thumbnail;
           }
 
-          if (photo != null && photo.sizes.isNotEmpty) {
-            final f = photo.sizes.first.photo;
+          final size = photo == null ? null : quotedPhotoSize(photo.sizes);
+          if (size != null) {
+            final f = size.photo;
+            replyToMediaWidth = size.width;
+            replyToMediaHeight = size.height;
             replyToThumbnailFileId = f.id;
             replyToThumbnailUrl =
                 f.local.isDownloadingCompleted && f.local.path.isNotEmpty
@@ -358,6 +379,8 @@ class TdlibMappers {
                 : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
           } else if (thumbnail != null) {
             final f = thumbnail.file;
+            replyToMediaWidth = thumbnail.width;
+            replyToMediaHeight = thumbnail.height;
             replyToThumbnailFileId = f.id;
             replyToThumbnailUrl =
                 f.local.isDownloadingCompleted && f.local.path.isNotEmpty
@@ -370,8 +393,11 @@ class TdlibMappers {
         replyToText = captionText != null && captionText.isNotEmpty
             ? captionText
             : '📷 Photo';
-        if (content.photo.sizes.isNotEmpty) {
-          final f = content.photo.sizes.first.photo;
+        final size = quotedPhotoSize(content.photo.sizes);
+        if (size != null) {
+          final f = size.photo;
+          replyToMediaWidth = size.width;
+          replyToMediaHeight = size.height;
           replyToThumbnailFileId = f.id;
           replyToThumbnailUrl =
               f.local.isDownloadingCompleted && f.local.path.isNotEmpty
@@ -385,6 +411,8 @@ class TdlibMappers {
             : '📹 Video';
         final thumbFile = content.video.thumbnail?.file;
         if (thumbFile != null) {
+          replyToMediaWidth = content.video.width;
+          replyToMediaHeight = content.video.height;
           replyToThumbnailFileId = thumbFile.id;
           replyToThumbnailUrl =
               thumbFile.local.isDownloadingCompleted &&
@@ -398,6 +426,8 @@ class TdlibMappers {
         replyToText = 'GIF';
         final thumbFile = content.animation.thumbnail?.file;
         if (thumbFile != null) {
+          replyToMediaWidth = content.animation.width;
+          replyToMediaHeight = content.animation.height;
           replyToThumbnailFileId = thumbFile.id;
           replyToThumbnailUrl =
               thumbFile.local.isDownloadingCompleted &&
@@ -497,6 +527,9 @@ class TdlibMappers {
       replyToChatId: replyToChatId,
       replyToThumbnailUrl: replyToThumbnailUrl,
       replyToThumbnailFileId: replyToThumbnailFileId,
+      replyToMediaWidth: replyToMediaWidth,
+      replyToMediaHeight: replyToMediaHeight,
+      replyToDate: replyToDate,
       hasDiscussionGroup: hasDiscussionGroup,
       authorSignature: message.authorSignature.isNotEmpty
           ? message.authorSignature

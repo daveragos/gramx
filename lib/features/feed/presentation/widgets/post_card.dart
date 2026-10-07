@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -173,7 +173,15 @@ class PostCard extends ConsumerWidget {
           );
         };
 
+    // The original channel of a forward, as TDLib knows it now: the name the
+    // post was mapped with can be missing.
+    final originChatId = int.tryParse(post.forwardedFromChatId ?? '');
+    final origin = originChatId == null
+        ? null
+        : ref.watch(chatIdentityProvider(originChatId));
+
     final forwardedText =
+        origin?.title ??
         post.forwardedFromTitle ??
         post.forwardedFromUsername ??
         (post.forwardedFromChatId != null ? 'Original Channel' : null);
@@ -181,11 +189,10 @@ class PostCard extends ConsumerWidget {
     // A forward is drawn the way X draws a repost: who reposted it on a line
     // of its own, then the post under its original author.
     final isRepost = forwardedText != null && forwardedText.isNotEmpty;
-    final originChatId = int.tryParse(post.forwardedFromChatId ?? '');
-    final originPhoto = isRepost && originChatId != null
-        ? ref.read(chatCacheProvider).chat(originChatId)?.photo?.small
-        : null;
     final authorTitle = isRepost ? forwardedText : post.channelTitle;
+    final isAuthorVerified = isRepost
+        ? (origin?.isVerified ?? false)
+        : post.isChannelVerified;
     final openPoster =
         onChannelTap ??
         () => NavigationUtils.openChannel(context, post.channelId);
@@ -193,7 +200,7 @@ class PostCard extends ConsumerWidget {
         ? () => _handleForwardedTap(context, ref)
         : openPoster;
     final authorUsername = isRepost
-        ? post.forwardedFromUsername
+        ? (post.forwardedFromUsername ?? origin?.username)
         : post.channelUsername;
 
     return InkWell(
@@ -245,13 +252,10 @@ class PostCard extends ConsumerWidget {
                   ChannelAvatar(
                     title: authorTitle,
                     avatarPath: isRepost
-                        ? (originPhoto != null &&
-                                  originPhoto.local.path.isNotEmpty
-                              ? originPhoto.local.path
-                              : null)
+                        ? origin?.avatarPath
                         : post.channelAvatarUrl,
                     avatarFileId: isRepost
-                        ? originPhoto?.id
+                        ? origin?.avatarFileId
                         : post.channelAvatarFileId,
                     avatarColorHex: isRepost ? null : post.channelAvatarColor,
                     onTap: openAuthor,
@@ -279,7 +283,7 @@ class PostCard extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
-                                  if (!isRepost && post.isChannelVerified) ...[
+                                  if (isAuthorVerified) ...[
                                     const SizedBox(width: 4),
                                     const Icon(
                                       Icons.verified,
@@ -477,6 +481,7 @@ class PostCard extends ConsumerWidget {
     final isSameChat = post.replyToChatId == null;
     return QuotedPassage(
       authorTitle: post.replyToAuthorTitle,
+      authorChatId: post.replyToChatId,
       authorUsername: isSameChat ? post.channelUsername : null,
       isAuthorVerified: isSameChat && post.isChannelVerified,
       avatarPath: isSameChat ? post.channelAvatarUrl : null,
@@ -484,7 +489,11 @@ class PostCard extends ConsumerWidget {
       avatarColorHex: isSameChat ? post.channelAvatarColor : null,
       passage: post.replyToText!,
       onTap: () => _openReplyTarget(context),
-      onAuthorTap: () => NavigationUtils.openChannel(context, post.channelId),
+      // The passage's own chat, which may not be this one.
+      onAuthorTap: () => NavigationUtils.openChannel(
+        context,
+        '${post.replyToChatId ?? post.chatId}',
+      ),
     );
   }
 
