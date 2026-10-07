@@ -112,3 +112,32 @@ class StatFigureTile extends StatelessWidget {
     );
   }
 }
+
+/// Figure tiles side by side, all as tall as the tallest. A stretched row
+/// alone has no height to stretch to inside a list, and failed its layout,
+/// taking everything below it on the page with it.
+class StatFigureRow extends StatelessWidget {
+  final List<Widget> tiles;
+  final double gap;
+
+  const StatFigureRow({
+    super.key,
+    required this.tiles,
+    this.gap = AppSpacing.sm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
+            Expanded(child: tiles[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}

@@ -243,6 +243,8 @@ abstract class AppStrings {
   static String subscriberCountShort(String formattedCount) =>
       '$formattedCount subscribers';
 
+  static String statsSharesShowAll(int count) => 'Show all $count';
+  static const statsSharesShowFewer = 'Show fewer';
   static const channelsFilterAll = 'All';
 
   // ── Channel profile tabs ───────────────────────────────────────────────────

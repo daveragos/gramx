@@ -160,39 +160,9 @@ class _Body extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
           _PostFigures(post: post!),
         ],
-        // Who reposted it comes first, above the charts. No heading until
-        // the reposts have loaded.
-        if (shares != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.sm,
-            ),
-            child: Text(
-              AppStrings.statsPublicShares,
-              style: AppTypography.subheading(
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        if (shares != null && shares.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.lg,
-            ),
-            child: Text(
-              AppStrings.statsPublicSharesEmpty,
-              style: AppTypography.body(color: secondary),
-            ),
-          ),
-        for (final share in shares ?? const [])
-          _ShareRow(share: share, secondary: secondary),
-        if (shares != null) const SizedBox(height: AppSpacing.lg),
+        // Who reposted it comes first, above the charts, cut short so the
+        // charts stay in reach. No heading until the reposts have loaded.
+        if (shares != null) _SharedBy(shares: shares, secondary: secondary),
         StatSection(
           chatId: chatId,
           title: AppStrings.statsPostInteractions,
@@ -231,31 +201,101 @@ class _PostFigures extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.lg,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: StatFigureTile(
-              label: AppStrings.statViews,
-              figure: StatFigure(value: post.viewCount.toDouble()),
-            ),
+      child: StatFigureRow(
+        tiles: [
+          StatFigureTile(
+            label: AppStrings.statViews,
+            figure: StatFigure(value: post.viewCount.toDouble()),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: StatFigureTile(
-              label: AppStrings.statReposts,
-              figure: StatFigure(value: post.forwardCount.toDouble()),
-            ),
+          StatFigureTile(
+            label: AppStrings.statReposts,
+            figure: StatFigure(value: post.forwardCount.toDouble()),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: StatFigureTile(
-              label: AppStrings.statLikes,
-              figure: StatFigure(value: reactions.toDouble()),
-            ),
+          StatFigureTile(
+            label: AppStrings.statLikes,
+            figure: StatFigure(value: reactions.toDouble()),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The channels that reposted the post: the most viewed few, and the rest on
+/// request. A popular post's list was long enough to bury the charts.
+class _SharedBy extends StatefulWidget {
+  final List<PublicShare> shares;
+  final Color secondary;
+
+  const _SharedBy({required this.shares, required this.secondary});
+
+  /// How many show before "Show all".
+  static const int collapsedCount = 5;
+
+  @override
+  State<_SharedBy> createState() => _SharedByState();
+}
+
+class _SharedByState extends State<_SharedBy> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final shares = widget.shares;
+    final canCollapse = shares.length > _SharedBy.collapsedCount;
+    final shown = _expanded || !canCollapse
+        ? shares
+        : shares.take(_SharedBy.collapsedCount);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Text(
+            AppStrings.statsPublicShares,
+            style: AppTypography.subheading(color: theme.colorScheme.onSurface),
+          ),
+        ),
+        if (shares.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
+            child: Text(
+              AppStrings.statsPublicSharesEmpty,
+              style: AppTypography.body(color: widget.secondary),
+            ),
+          ),
+        for (final share in shown)
+          _ShareRow(share: share, secondary: widget.secondary),
+        if (canCollapse)
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              child: Text(
+                _expanded
+                    ? AppStrings.statsSharesShowFewer
+                    : AppStrings.statsSharesShowAll(shares.length),
+                style: AppTypography.body(color: AppColors.accent),
+              ),
+            ),
+          ),
+        const SizedBox(height: AppSpacing.lg),
+      ],
     );
   }
 }

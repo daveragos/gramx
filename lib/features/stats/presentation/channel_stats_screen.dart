@@ -338,24 +338,20 @@ class _FigureGrid extends StatelessWidget {
           for (var i = 0; i < entries.length; i += 2)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: StatFigureTile(
-                      label: _figureLabel(entries[i].$1),
-                      figure: entries[i].$2,
-                    ),
+              child: StatFigureRow(
+                gap: AppSpacing.md,
+                tiles: [
+                  StatFigureTile(
+                    label: _figureLabel(entries[i].$1),
+                    figure: entries[i].$2,
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: i + 1 < entries.length
-                        ? StatFigureTile(
-                            label: _figureLabel(entries[i + 1].$1),
-                            figure: entries[i + 1].$2,
-                          )
-                        : const SizedBox.shrink(),
-                  ),
+                  if (i + 1 < entries.length)
+                    StatFigureTile(
+                      label: _figureLabel(entries[i + 1].$1),
+                      figure: entries[i + 1].$2,
+                    )
+                  else
+                    const SizedBox.shrink(),
                 ],
               ),
             ),

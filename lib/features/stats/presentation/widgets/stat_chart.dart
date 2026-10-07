@@ -132,6 +132,10 @@ class StatChartPainter extends CustomPainter {
   /// Room for the dates below the plot.
   static const double bottomGutter = 18;
 
+  /// Room above the plot for the top line's label, which sits over its line.
+  /// Without it the label rose out of the chart into the legend.
+  static const double topGutter = 16;
+
   const StatChartPainter({
     required this.graph,
     required this.colors,
@@ -143,10 +147,13 @@ class StatChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final plot = Size(
       (size.width - leftGutter).clamp(1.0, double.infinity),
-      (size.height - bottomGutter).clamp(1.0, double.infinity),
+      (size.height - topGutter - bottomGutter).clamp(1.0, double.infinity),
     );
     final geometry = StatChartGeometry.of(graph, plot);
     if (geometry.isEmpty) return;
+
+    canvas.save();
+    canvas.translate(0, topGutter);
 
     _paintGrid(canvas, geometry, plot);
 
@@ -156,6 +163,7 @@ class StatChartPainter extends CustomPainter {
     canvas.restore();
 
     _paintDates(canvas, geometry, plot);
+    canvas.restore();
   }
 
   void _paintGrid(Canvas canvas, StatChartGeometry geometry, Size plot) {

@@ -164,6 +164,57 @@ void main() {
     });
   });
 
+  group('StatFigureRow', () {
+    final tiles = [
+      for (final label in ['Views', 'Reposts', 'Likes'])
+        StatFigureTile(label: label, figure: const StatFigure(value: 108)),
+    ];
+
+    // As on the post analytics page, where a stretched row failed its layout
+    // and nothing under it was drawn.
+    testWidgets('lays out inside a list, with what follows it', (tester) async {
+      await tester.pumpWidget(
+        host(
+          ListView(
+            children: [
+              StatFigureRow(tiles: tiles),
+              const Text('Shared by'),
+            ],
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Shared by'), findsOneWidget);
+    });
+
+    testWidgets('makes the tiles one height', (tester) async {
+      await tester.pumpWidget(
+        host(
+          ListView(
+            children: [
+              StatFigureRow(
+                tiles: [
+                  ...tiles.take(2),
+                  const StatFigureTile(
+                    label: 'A label long enough to wrap onto a second line',
+                    figure: StatFigure(value: 1),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final heights = tester
+          .widgetList<StatFigureTile>(find.byType(StatFigureTile))
+          .map((tile) => tester.getSize(find.byWidget(tile)).height)
+          .toSet();
+      expect(heights, hasLength(1));
+    });
+  });
+
   group('StatSection', () {
     testWidgets('draws the chart when the data is there', (tester) async {
       await tester.pumpWidget(
