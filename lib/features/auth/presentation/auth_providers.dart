@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/search/data/recent_searches.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_state_rules.dart';
 import 'package:gramx/infrastructure/database/database.dart';
@@ -513,9 +514,10 @@ class AuthController extends Notifier<AuthState> {
     await db.delete(db.bookmarkEntries).go();
     await db.delete(db.accounts).go();
 
-    // Chats and seen posts are per account.
+    // Chats, seen posts and recent searches are per account.
     ref.read(chatCacheProvider).clear();
     await ref.read(seenPostsProvider.notifier).clear();
+    await ref.read(recentQueriesProvider.notifier).clear();
 
     // The step moves before the request, so the router can act on it even if
     // the request never comes back.

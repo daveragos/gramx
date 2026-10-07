@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/features/search/domain/search_filters.dart';
 import 'package:gramx/core/async/ui_yield.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/compose/data/compose_repository.dart';
@@ -652,25 +653,36 @@ class FeedRepository {
   static const int searchPageSize = 40;
 
   /// Searches posts on the server across every channel the user follows.
-  Future<List<Post>> searchPosts(String query) async {
+  Future<List<Post>> searchPosts(
+    String query, {
+    SearchFilters filters = const SearchFilters(),
+  }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
     try {
+      final folderId = filters.folderId;
       final res = await _tdlib.sendRequest(
         td.SearchMessages(
-          chatList: const td.ChatListMain(),
+          chatList: folderId == null
+              ? const td.ChatListMain()
+              : td.ChatListFolder(chatFolderId: folderId),
           onlyInChannels: true,
           query: trimmed,
           offset: '',
           limit: searchPageSize,
-          minDate: 0,
+          filter: searchFilterFor(filters.type),
+          minDate: filters.minDateFor(DateTime.now()),
           maxDate: 0,
         ),
       );
 
       if (res is! td.FoundMessages) return [];
-      return await mapIncomingMessages(res.messages);
+      final posts = await mapIncomingMessages(res.messages);
+      return [
+        for (final post in posts)
+          if (filters.keeps(post)) post,
+      ];
     } on TdlibRequestException catch (e) {
       debugPrint('[FeedRepo] searchPosts failed: $e');
       rethrow;
@@ -679,6 +691,18 @@ class FeedRepository {
       return [];
     }
   }
+
+  /// TDLib's filter for a [SearchMediaType], or null for any post.
+  static td.SearchMessagesFilter? searchFilterFor(SearchMediaType type) =>
+      switch (type) {
+        SearchMediaType.any => null,
+        SearchMediaType.photos => const td.SearchMessagesFilterPhoto(),
+        SearchMediaType.videos => const td.SearchMessagesFilterVideo(),
+        SearchMediaType.links => const td.SearchMessagesFilterUrl(),
+        SearchMediaType.files => const td.SearchMessagesFilterDocument(),
+        SearchMediaType.voice => const td.SearchMessagesFilterVoiceNote(),
+        SearchMediaType.music => const td.SearchMessagesFilterAudio(),
+      };
 
   /// Maps messages from the update stream into posts, dropping any not from
   /// a subscribed channel.

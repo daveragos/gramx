@@ -204,7 +204,40 @@ abstract class AppStrings {
   static String postError(Object error) => 'Error: $error';
 
   // ── Search ─────────────────────────────────────────────────────────────────
-  static const searchHint = 'Search posts and channels';
+  static const searchHint = 'Search';
+  static const searchCancel = 'Cancel';
+  static const a11ySearchFilters = 'Search filters';
+  static const a11ySearchFiltersOn = 'Search filters, some on';
+  static const searchEmptyPrompt =
+      'Try searching for channels, posts or #hashtags.';
+  static const searchRecentTitle = 'Recent searches';
+  static const searchRecentClear = 'Clear recent searches';
+  static const searchRecentClearConfirm = 'Clear all recent searches?';
+  static const searchRecentClearAction = 'Clear';
+  static const searchRecentKeep = 'Keep';
+  static String a11ySearchRecentFill(String query) =>
+      'Put "$query" in the search field';
+  static const searchFiltersTitle = 'Filters';
+  static const searchFilterFrom = 'From';
+  static const searchFromAllChannels = 'Channels you follow';
+  static const searchFilterDate = 'Date posted';
+  static const searchDateAllTime = 'All time';
+  static const searchDateDay = 'Past 24 hours';
+  static const searchDateWeek = 'Past week';
+  static const searchDateMonth = 'Past month';
+  static const searchDateYear = 'Past year';
+  static const searchFilterType = 'Type';
+  static const searchTypeAny = 'Any';
+  static const searchTypePhotos = 'Photos';
+  static const searchTypeVideos = 'Videos';
+  static const searchTypeLinks = 'Links';
+  static const searchTypeFiles = 'Files';
+  static const searchTypeVoice = 'Voice messages';
+  static const searchTypeMusic = 'Music';
+  static const searchFilterExcludeReplies = 'Exclude replies';
+  static const searchFilterExcludeReposts = 'Exclude reposts';
+  static const searchFiltersReset = 'Reset';
+  static const searchFiltersApply = 'Search';
   static const searchNoResults = 'No results found';
   static const searchClear = 'Clear search';
   static const searchFilterAll = 'All';

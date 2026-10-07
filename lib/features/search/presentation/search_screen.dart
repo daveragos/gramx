@@ -20,6 +20,9 @@ import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
+import 'package:gramx/features/search/presentation/search_filters_sheet.dart';
+import 'package:gramx/features/search/presentation/recent_searches_view.dart';
+import 'package:gramx/features/search/data/recent_searches.dart';
 
 /// The search query as typed.
 class SearchNotifier extends Notifier<String> {
@@ -88,7 +91,9 @@ final searchFocusTriggerProvider = NotifierProvider<SearchFocusNotifier, int>(
 final searchedPostsProvider = FutureProvider<List<Post>>((ref) async {
   final query = ref.watch(debouncedSearchQueryProvider).trim();
   if (query.isEmpty) return const [];
-  return ref.watch(feedRepositoryProvider).searchPosts(query);
+  return ref
+      .watch(feedRepositoryProvider)
+      .searchPosts(query, filters: ref.watch(searchFiltersProvider));
 });
 
 /// Substring match over posts already loaded in the feed. Shown while the
@@ -121,8 +126,12 @@ final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
 
   if (query.isEmpty) return postsAsync;
 
-  final local = postsAsync.whenData((posts) => matchLoadedPosts(posts, query));
   final remote = ref.watch(searchedPostsProvider);
+  // Loaded posts can't be checked against a folder or a type, so filtered
+  // searches show Telegram's answer alone.
+  if (!ref.watch(searchFiltersProvider).isDefault) return remote;
+
+  final local = postsAsync.whenData((posts) => matchLoadedPosts(posts, query));
 
   return remote.when(
     data: (results) {
@@ -200,13 +209,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    // The field's border follows focus.
+    // The header changes with focus.
     _focusNode.addListener(_onFocusChanged);
+    // A search started before this tab first opened, such as a #hashtag.
+    final pending = ref.read(searchQueryProvider);
+    if (pending.isNotEmpty) {
+      _controller.text = pending;
+      _isSearching = pending.trim().isNotEmpty;
+    }
   }
 
   void _onFocusChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      if (_focusNode.hasFocus) _inSearchMode = true;
+    });
   }
+
+  /// Whether the page is in search mode, from focusing the field until
+  /// Cancel, as on X. Focus alone won't do: the filters sheet takes it.
+  bool _inSearchMode = false;
 
   @override
   void dispose() {
@@ -223,14 +245,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
+  /// Puts [query] in the field, with the cursor at its end.
+  void _setText(String query) {
+    _controller.value = TextEditingValue(
+      text: query,
+      selection: TextSelection.collapsed(offset: query.length),
+    );
+    _onQueryChanged(query);
+  }
+
+  /// Runs [query], as from a recent search: the results, without the
+  /// keyboard.
+  void _runSearch(String query) {
+    _setText(query);
+    rememberSearch(ref, query: query);
+    _focusNode.unfocus();
+  }
+
   void _clearSearch() {
     _controller.clear();
     ref.read(searchQueryProvider.notifier).clear();
     setState(() {
       _isSearching = false;
+      _inSearchMode = false;
     });
     _focusNode.unfocus();
   }
+
+  /// Whether the account picture gives way to the filters and Cancel.
+  bool get _isActive => _inSearchMode || _isSearching;
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +281,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (next > 0) {
         _focusNode.requestFocus();
       }
+    });
+    // A search started elsewhere, such as a tapped #hashtag, shows in the
+    // field.
+    ref.listen<String>(searchQueryProvider, (_, query) {
+      if (query == _controller.text) return;
+      _setText(query);
+      if (query.trim().isNotEmpty) rememberSearch(ref, query: query);
     });
 
     final theme = Theme.of(context);
@@ -257,18 +307,45 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
         child: Row(
           children: [
-            Semantics(
-              button: true,
-              label: AppStrings.a11yOpenMenu,
-              child: ChannelAvatar(
-                title: account?.displayName ?? AppStrings.drawerAccountFallback,
-                avatarPath: account?.avatarPath,
-                radius: AppSpacing.avatarSizeSmall / 2,
-                onTap: openAppDrawer,
+            if (!_isActive) ...[
+              Semantics(
+                button: true,
+                label: AppStrings.a11yOpenMenu,
+                child: ChannelAvatar(
+                  title:
+                      account?.displayName ?? AppStrings.drawerAccountFallback,
+                  avatarPath: account?.avatarPath,
+                  radius: AppSpacing.avatarSizeSmall / 2,
+                  onTap: openAppDrawer,
+                ),
               ),
+              const SizedBox(width: AppSpacing.md),
+            ],
+            // Keyed: the avatar leaving on focus shifts the field, which
+            // would otherwise be rebuilt and drop the keyboard's input.
+            Expanded(
+              key: const ValueKey('search-field'),
+              child: _searchField(context),
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: _searchField(context)),
+            if (_isActive) ...[
+              // Filters need Telegram's search, which a guest doesn't have.
+              if (ref.watch(readerCapabilitiesProvider).canSearchServerSide)
+                _FiltersButton(color: secondaryColor),
+              TextButton(
+                onPressed: _clearSearch,
+                style: TextButton.styleFrom(
+                  foregroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  minimumSize: const Size(0, 40),
+                ),
+                child: Text(
+                  AppStrings.searchCancel,
+                  style: AppTypography.bodyLarge(color: primaryColor),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -276,6 +353,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ? _SearchResults(
               primaryColor: primaryColor,
               secondaryColor: secondaryColor,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+            )
+          : _isActive
+          ? RecentSearchesView(
+              onSearch: _runSearch,
+              onFill: _setText,
               topPadding: topPadding,
               bottomPadding: bottomPadding,
             )
@@ -299,17 +383,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ? AppColors.darkSurfaceVariant
         : AppColors.lightSurfaceVariant;
     final primaryColor = theme.colorScheme.onSurface;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
+    // A borderless pill, as on X.
     return Container(
       height: 40,
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _focusNode.hasFocus ? AppColors.accent : borderColor,
-          width: _focusNode.hasFocus ? 1.0 : 0.5,
-        ),
       ),
       child: Row(
         children: [
@@ -321,11 +401,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               controller: _controller,
               focusNode: _focusNode,
               onChanged: _onQueryChanged,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (query) => rememberSearch(ref, query: query),
               style: AppTypography.body(color: primaryColor),
               decoration: InputDecoration(
                 hintText: AppStrings.searchHint,
                 hintStyle: AppTypography.body(color: secondaryColor),
+                // The pill is the field; the app theme's outline and fill
+                // would draw a second box inside it.
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
@@ -346,6 +433,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Opens the filters, marked while any is set.
+class _FiltersButton extends ConsumerWidget {
+  final Color color;
+
+  const _FiltersButton({required this.color});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = !ref.watch(searchFiltersProvider).isDefault;
+    return IconButton(
+      tooltip: active
+          ? AppStrings.a11ySearchFiltersOn
+          : AppStrings.a11ySearchFilters,
+      onPressed: () => showSearchFilters(context),
+      icon: Badge(
+        isLabelVisible: active,
+        backgroundColor: AppColors.accent,
+        smallSize: 8,
+        child: Icon(
+          Icons.tune_rounded,
+          color: active ? AppColors.accent : color,
+        ),
       ),
     );
   }
@@ -453,6 +567,11 @@ class _SearchResults extends ConsumerWidget {
                         channel: channel,
                         primaryColor: primaryColor,
                         secondaryColor: secondaryColor,
+                        onOpen: () => rememberSearch(
+                          ref,
+                          query: ref.read(searchQueryProvider),
+                          chatId: channel.chatId,
+                        ),
                       ),
                     ),
                     const Divider(),
@@ -494,10 +613,16 @@ class _SearchResults extends ConsumerWidget {
               }
 
               return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => PostCard(post: posts[index]),
-                  childCount: posts.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final post = posts[index];
+                  return PostCard(
+                    post: post,
+                    onTap: () {
+                      rememberSearch(ref, query: ref.read(searchQueryProvider));
+                      context.push('/post/${post.id}');
+                    },
+                  );
+                }, childCount: posts.length),
               );
             },
           ),
@@ -533,10 +658,14 @@ class _ChannelResultTile extends StatelessWidget {
   final Color primaryColor;
   final Color secondaryColor;
 
+  /// Called as the channel opens, to record the search that found it.
+  final VoidCallback? onOpen;
+
   const _ChannelResultTile({
     required this.channel,
     required this.primaryColor,
     required this.secondaryColor,
+    this.onOpen,
   });
 
   Color _parseColor(String hex) {
@@ -547,7 +676,10 @@ class _ChannelResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => NavigationUtils.openChannel(context, channel.id),
+      onTap: () {
+        onOpen?.call();
+        NavigationUtils.openChannel(context, channel.id);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
