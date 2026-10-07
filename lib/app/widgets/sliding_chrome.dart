@@ -243,10 +243,6 @@ class ChromeScaffold extends StatelessWidget {
   /// itself, as with the feed's tabs.
   final bool observeScroll;
 
-  /// A FAB that hides with the chrome. Passed to the `Scaffold` only while
-  /// the chrome is visible, so the `Scaffold` animates it.
-  final Widget? floatingActionButton;
-
   const ChromeScaffold({
     super.key,
     required this.header,
@@ -254,7 +250,6 @@ class ChromeScaffold extends StatelessWidget {
     this.headerBottom,
     this.headerBottomHeight = 0,
     this.observeScroll = true,
-    this.floatingActionButton,
   });
 
   @override
@@ -271,64 +266,53 @@ class ChromeScaffold extends StatelessWidget {
       content = ChromeScrollObserver(extent: totalHeight, child: content);
     }
 
-    // Built outside the Consumer below so the same instance is reused when
-    // the FAB toggles, and only the Scaffold rebuilds.
-    final stack = Stack(
-      children: [
-        Positioned.fill(child: content),
-        const Positioned(top: 0, left: 0, right: 0, child: StatusBarScrim()),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: ChromeSlide(
-            fromTop: true,
-            child: BlurredChrome(
-              border: Border(
-                bottom: BorderSide(color: borderColor, width: 0.5),
-              ),
-              child: SizedBox(
-                height: totalHeight,
-                // Overlaid on the header's bottom edge so it never shifts the
-                // feed, and hides with the header.
-                child: Stack(
-                  children: [
-                    SafeArea(
-                      bottom: false,
-                      child: Column(
-                        children: [
-                          SizedBox(height: headerHeight, child: header),
-                          if (headerBottom != null)
-                            SizedBox(
-                              height: headerBottomHeight,
-                              child: headerBottom,
-                            ),
-                        ],
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(child: content),
+          const Positioned(top: 0, left: 0, right: 0, child: StatusBarScrim()),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ChromeSlide(
+              fromTop: true,
+              child: BlurredChrome(
+                border: Border(
+                  bottom: BorderSide(color: borderColor, width: 0.5),
+                ),
+                child: SizedBox(
+                  height: totalHeight,
+                  // Overlaid on the header's bottom edge so it never shifts the
+                  // feed, and hides with the header.
+                  child: Stack(
+                    children: [
+                      SafeArea(
+                        bottom: false,
+                        child: Column(
+                          children: [
+                            SizedBox(height: headerHeight, child: header),
+                            if (headerBottom != null)
+                              SizedBox(
+                                height: headerBottomHeight,
+                                child: headerBottom,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: PostProgressBar(),
-                    ),
-                  ],
+                      const Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: PostProgressBar(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
-    );
-
-    if (floatingActionButton == null) return Scaffold(body: stack);
-
-    return Consumer(
-      builder: (context, ref, _) => Scaffold(
-        floatingActionButton: ref.watch(chromeVisibleProvider)
-            ? floatingActionButton
-            : null,
-        body: stack,
+        ],
       ),
     );
   }

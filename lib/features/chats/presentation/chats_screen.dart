@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
-import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/widgets/drawer_avatar_button.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -99,18 +98,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       // Part of the header so it scrolls away with the rest of the chrome.
       headerBottomHeight: _searchFieldHeight,
       headerBottom: _SearchField(controller: _search),
-      floatingActionButton: Padding(
-        // The bottom bar overlays the content, so lift the button above it.
-        padding: const EdgeInsets.only(bottom: ShellChrome.bottomBarHeight),
-        child: FloatingActionButton(
-          backgroundColor: AppColors.accent,
-          foregroundColor: Colors.white,
-          tooltip: AppStrings.messagesNewChat,
-          shape: const CircleBorder(),
-          onPressed: () => NewChatSheet.show(context),
-          child: const Icon(Icons.maps_ugc_outlined),
-        ),
-      ),
       body: (context, topPadding, bottomPadding) => chats.isEmpty
           ? Padding(
               padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),

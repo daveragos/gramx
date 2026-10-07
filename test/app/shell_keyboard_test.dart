@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:gramx/features/activity/presentation/activity_providers.dart';
@@ -57,6 +58,8 @@ void main() {
     overrides: [
       unreadChatCountProvider.overrideWith((ref) => 0),
       activityBadgeProvider.overrideWith((ref) => 0),
+      // The shell's button asks; nothing here can post.
+      canComposeProvider.overrideWithValue(false),
       pendingPostsProvider.overrideWith(_NoPendingPosts.new),
     ],
     child: MaterialApp.router(routerConfig: shellRouter()),

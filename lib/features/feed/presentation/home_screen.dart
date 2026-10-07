@@ -11,8 +11,6 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/loading_skeleton.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
-import 'package:gramx/features/compose/presentation/compose_providers.dart';
-import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/feed_onboarding_view.dart';
 import 'package:gramx/features/feed/presentation/widgets/folder_feed.dart';
@@ -107,10 +105,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: ChromeScaffold(
           // Each tab's list reports its own scrolling.
           observeScroll: false,
-          // No button when there is nowhere to post.
-          floatingActionButton: ref.watch(canComposeProvider)
-              ? const ComposeFab()
-              : null,
           headerBottomHeight: _tabBarHeight,
           header: header,
           headerBottom: _FolderTabBar(

@@ -19,7 +19,8 @@ import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/navigation/share_intake.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
-import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
+import 'package:gramx/features/compose/presentation/compose_screen.dart';
+import 'package:gramx/app/widgets/shell_fab.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
@@ -87,6 +88,9 @@ class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   /// How long a second back press still counts as confirming exit.
   static const Duration _exitWindow = Duration(seconds: 2);
+
+  /// The floating button's distance from the edge and from the bar.
+  static const double _fabMargin = 16;
 
   DateTime? _lastBackPress;
 
@@ -160,7 +164,7 @@ class _AppShellState extends ConsumerState<AppShell>
       return;
     }
 
-    GoRouter.of(context).push(ComposeFab.route, extra: text);
+    GoRouter.of(context).push(ComposeScreen.route, extra: text);
   }
 
   /// Opens the pending deep link (a username costs one `SearchPublicChat`).
@@ -277,6 +281,17 @@ class _AppShellState extends ConsumerState<AppShell>
         body: Stack(
           children: [
             navigationShell,
+            // Above the bar, where a Scaffold would float it.
+            PositionedDirectional(
+              end: _fabMargin,
+              bottom:
+                  ShellChrome.bottomBarHeight +
+                  MediaQuery.viewPaddingOf(context).bottom +
+                  _fabMargin,
+              child: ShellFab(
+                tab: ShellTab.values[navigationShell.currentIndex],
+              ),
+            ),
             Positioned(
               left: 0,
               right: 0,

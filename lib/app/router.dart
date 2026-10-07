@@ -20,7 +20,6 @@ import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/conversation_screen.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/compose/presentation/compose_screen.dart';
-import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
 import 'package:gramx/features/feed/presentation/home_screen.dart';
 import 'package:gramx/features/folders/presentation/folders_screen.dart';
 import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart';
@@ -211,7 +210,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const GuestChannelsScreen(),
       ),
       GoRoute(
-        path: ComposeFab.route,
+        path: ComposeScreen.route,
         parentNavigatorKey: _rootNavigatorKey,
         // Shared text goes in `extra` since it can be long.
         builder: (context, state) =>

@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/app/widgets/sliding_chrome.dart';
-import 'package:gramx/features/compose/presentation/widgets/compose_fab.dart';
+import 'package:gramx/app/app_shell.dart';
+import 'package:gramx/app/widgets/shell_fab.dart';
+import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
@@ -27,26 +30,63 @@ Post post(String id, {int chatId = -100, int minutesAgo = 1}) => Post(
 void main() {
   Widget host(Widget child) => ProviderScope(child: MaterialApp(home: child));
 
-  // The scaffold removes the button with the chrome rather than sliding it by
-  // a measured offset.
-  group('the compose button leaves with the chrome', () {
-    Widget scaffold() => host(
-      ChromeScaffold(
-        header: const SizedBox(),
-        floatingActionButton: const ComposeFab(),
-        body: (context, top, bottom) => const SizedBox(),
+  // One button for the whole shell, as on X.
+  group('the shell button', () {
+    Widget shell(ShellTab tab, {bool canCompose = true}) => ProviderScope(
+      overrides: [canComposeProvider.overrideWithValue(canCompose)],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(child: ShellFab(tab: tab)),
+        ),
       ),
     );
 
-    testWidgets('is on screen while the chrome is', (tester) async {
-      await tester.pumpWidget(scaffold());
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+    testWidgets('composes on Home', (tester) async {
+      await tester.pumpWidget(shell(ShellTab.home));
+      expect(find.byTooltip(AppStrings.a11yCompose), findsOneWidget);
+    });
+
+    testWidgets('starts a chat on Messages', (tester) async {
+      await tester.pumpWidget(shell(ShellTab.messages));
+      expect(find.byTooltip(AppStrings.messagesNewChat), findsOneWidget);
+    });
+
+    testWidgets('turns its icon over going from Home to Messages', (
+      tester,
+    ) async {
+      await tester.pumpWidget(shell(ShellTab.home));
+      final button = tester.element(find.byType(FloatingActionButton));
+
+      await tester.pumpWidget(shell(ShellTab.messages));
+      await tester.pump(ShellFab.duration ~/ 2);
+
+      // The same button, with both icons on it mid-turn.
+      expect(tester.element(find.byType(FloatingActionButton)), button);
+      expect(find.byIcon(ShellFabAction.compose.icon), findsOneWidget);
+      expect(find.byIcon(ShellFabAction.newChat.icon), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(ShellFabAction.compose.icon), findsNothing);
+      expect(find.byIcon(ShellFabAction.newChat.icon), findsOneWidget);
+    });
+
+    testWidgets('shrinks away on a tab without an action', (tester) async {
+      await tester.pumpWidget(shell(ShellTab.home));
+      await tester.pumpWidget(shell(ShellTab.search));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FloatingActionButton), findsNothing);
+    });
+
+    testWidgets('is absent on Home with nowhere to post', (tester) async {
+      await tester.pumpWidget(shell(ShellTab.home, canCompose: false));
+      expect(find.byType(FloatingActionButton), findsNothing);
     });
 
     testWidgets('is gone entirely once the chrome retires', (tester) async {
-      await tester.pumpWidget(scaffold());
+      await tester.pumpWidget(shell(ShellTab.home));
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChromeScaffold)),
+        tester.element(find.byType(ShellFab)),
       );
 
       container
@@ -58,7 +98,7 @@ void main() {
     });
 
     testWidgets('is a circle', (tester) async {
-      await tester.pumpWidget(scaffold());
+      await tester.pumpWidget(shell(ShellTab.home));
       final fab = tester.widget<FloatingActionButton>(
         find.byType(FloatingActionButton),
       );

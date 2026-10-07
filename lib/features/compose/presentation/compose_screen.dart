@@ -26,6 +26,9 @@ import 'package:gramx/app/widgets/pill_button.dart';
 /// Writing a post, with a pill that picks the destination chat. The draft
 /// lives in this State, so closing the screen discards it.
 class ComposeScreen extends ConsumerStatefulWidget {
+  /// The compose screen's root-level route.
+  static const String route = '/compose';
+
   /// Text shared into gramX from another app, or null to start empty.
   final String? initialText;
 
