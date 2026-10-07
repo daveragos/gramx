@@ -226,6 +226,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (pending.isNotEmpty) {
       _controller.text = pending;
       _isSearching = pending.trim().isNotEmpty;
+      // After the frame: recording it changes a provider, which can't
+      // happen while widgets build.
+      if (_isSearching) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) rememberSearch(ref, query: pending);
+        });
+      }
     }
   }
 
@@ -934,5 +941,13 @@ class _ExploreView extends ConsumerWidget {
 void openHashtagSearch(BuildContext context, WidgetRef ref, String hashtag) {
   ref.read(searchQueryProvider.notifier).setQuery(hashtag);
   ref.read(searchCategoryProvider.notifier).setCategory(SearchCategory.posts);
-  StatefulNavigationShell.of(context).goBranch(ShellTab.search.index);
+  // Inside a tab, switch tabs. Elsewhere (a post or channel page over the
+  // tabs, or the shell itself for a link) there is no tab shell to ask, and
+  // asking threw, so the Search tab is gone to by its route.
+  final shell = StatefulNavigationShell.maybeOf(context);
+  if (shell != null) {
+    shell.goBranch(ShellTab.search.index);
+  } else {
+    GoRouter.of(context).go(ShellTab.search.path);
+  }
 }
