@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/feed/presentation/copy_post_link.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -137,28 +137,7 @@ class PostCard extends ConsumerWidget {
 
     final defaultShareHandler =
         onShareTap ??
-        () async {
-          final messenger = ScaffoldMessenger.of(context);
-          final link = await ref.read(feedRepositoryProvider).postLink(post);
-          if (link == null) {
-            messenger.showSnackBar(
-              const SnackBar(
-                content: Text(AppStrings.postNotLinkable),
-                behavior: SnackBarBehavior.floating,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            return;
-          }
-          await Clipboard.setData(ClipboardData(text: link));
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text(AppStrings.postLinkCopied),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        };
+        () => copyPostLink(ref, ScaffoldMessenger.of(context), post);
 
     // The original channel of a forward, as TDLib knows it now: the name the
     // post was mapped with can be missing.

@@ -1224,12 +1224,47 @@ class FeedRepository {
 
   Future<Post?> _postFrom(td.Message message, td.Chat chat) async {
     final posts = TdlibMappers.mergeAlbumMessages(
-      [message],
+      await _withAlbum([message]),
       chat,
       bookmarkedKeys: await _bookmarkKeys(),
     );
     return posts.isEmpty ? null : posts.first;
   }
+
+  /// [messages] with the rest of any album they start. A post is its album's
+  /// first message, so one looked up by id showed only its first photo.
+  Future<List<td.Message>> _withAlbum(List<td.Message> messages) async {
+    final all = [...messages];
+    final seen = {for (final m in messages) m.id};
+    for (final message in messages) {
+      final albumId = message.mediaAlbumId.toInt();
+      if (albumId == 0) continue;
+      try {
+        // An album is at most ten messages, sent one after another. A link
+        // can point at any of them, so look both ways.
+        final res = await _tdlib.sendRequest(
+          td.GetChatHistory(
+            chatId: message.chatId,
+            fromMessageId: message.id,
+            offset: -_albumMaxSize,
+            limit: _albumMaxSize * 2,
+            onlyLocal: false,
+          ),
+        );
+        if (res is! td.Messages) continue;
+        for (final sibling in res.messages) {
+          if (sibling.mediaAlbumId.toInt() == albumId && seen.add(sibling.id)) {
+            all.add(sibling);
+          }
+        }
+      } catch (e) {
+        debugPrint('[FeedRepo] Album of ${message.id} failed: $e');
+      }
+    }
+    return all;
+  }
+
+  static const _albumMaxSize = 10;
 
   /// The bookmarked posts, most recently bookmarked first, and which of them
   /// were restored from Saved Messages.
@@ -1267,7 +1302,7 @@ class FeedRepository {
         if (res is! td.Messages) continue;
         posts.addAll(
           TdlibMappers.mergeAlbumMessages(
-            res.messages.whereType<td.Message>().toList(),
+            await _withAlbum(res.messages.whereType<td.Message>().toList()),
             chat,
             bookmarkedKeys: bookmarkKeys,
           ),
@@ -1532,10 +1567,26 @@ class FeedRepository {
 
         return posts;
       }
-    } catch (e) {
-      debugPrint('[FeedRepo] Failed to fetch comments thread: $e');
+    } on TdlibRequestException catch (e) {
+      // A post from before comments were turned on has no thread. Other
+      // errors are shown with a retry; they used to look like a thread with
+      // no comments.
+      if (e.code == 400) return [];
+      rethrow;
     }
     return [];
+  }
+
+  /// The chat a post's comments are in, or null if it has none.
+  Future<int?> commentsChatId(int chatId, int messageId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetMessageThread(chatId: chatId, messageId: messageId),
+      );
+      return res is td.MessageThreadInfo ? res.chatId : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// A downloaded photo's path, or a remote id the loader can resolve later.

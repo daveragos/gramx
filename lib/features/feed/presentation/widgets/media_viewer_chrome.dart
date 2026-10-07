@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/feed/presentation/copy_post_link.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -282,7 +283,10 @@ class _BottomSheetChrome extends ConsumerWidget {
                   Navigator.of(context).pop();
                   if (!atPost) router.push('/post/${post.id}?focusReply=true');
                 },
-                onShareTap: () => Navigator.of(context).pop(),
+                // Copies the link, as share does on the post; it used to
+                // just close the viewer.
+                onShareTap: () =>
+                    copyPostLink(ref, ScaffoldMessenger.of(context), post),
               ),
             ],
           ),

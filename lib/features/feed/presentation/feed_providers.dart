@@ -545,38 +545,37 @@ final feedPostsProvider = AsyncNotifierProvider<FeedNotifier, List<Post>>(
 
 /// Fetches a post by its `chatId_messageId` id, ignoring optimistic overrides
 /// so a reaction doesn't refetch. Read [postDetailProvider] instead.
-final postDetailFetchProvider = FutureProvider.family<Post?, String>((
-  ref,
-  postId,
-) async {
-  final parts = postId.split('_');
-  if (parts.length != 2) return null;
-  final chatId = int.tryParse(parts[0]);
-  final messageId = int.tryParse(parts[1]);
-  if (chatId == null || messageId == null) return null;
+///
+/// Fetched each time the post is opened; it used to keep the first copy for
+/// the whole session.
+final postDetailFetchProvider = FutureProvider.autoDispose
+    .family<Post?, String>((ref, postId) async {
+      final parts = postId.split('_');
+      if (parts.length != 2) return null;
+      final chatId = int.tryParse(parts[0]);
+      final messageId = int.tryParse(parts[1]);
+      if (chatId == null || messageId == null) return null;
 
-  // A guest post has no TDLib message; the guest feed already holds it.
-  if (GuestPostMapper.isSynthetic(chatId)) {
-    final feed = await ref.watch(guestFeedProvider.future);
-    return feed.posts.where((p) => p.id == postId).firstOrNull;
-  }
+      // A guest post has no TDLib message; the guest feed already holds it.
+      if (GuestPostMapper.isSynthetic(chatId)) {
+        final feed = await ref.watch(guestFeedProvider.future);
+        return feed.posts.where((p) => p.id == postId).firstOrNull;
+      }
 
-  final repo = ref.watch(feedRepositoryProvider);
-  return repo.fetchSinglePost(chatId, messageId);
-});
+      final repo = ref.watch(feedRepositoryProvider);
+      return repo.fetchSinglePost(chatId, messageId);
+    });
 
 /// A single post with optimistic state applied.
-final postDetailProvider = Provider.family<AsyncValue<Post?>, String>((
-  ref,
-  postId,
-) {
-  final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return ref
-      .watch(postDetailFetchProvider(postId))
-      .whenData(
-        (post) => post == null ? null : applyPostOverrides(post, overrides),
-      );
-});
+final postDetailProvider = Provider.autoDispose
+    .family<AsyncValue<Post?>, String>((ref, postId) {
+      final overrides = ref.watch(optimisticPostUpdatesProvider);
+      return ref
+          .watch(postDetailFetchProvider(postId))
+          .whenData(
+            (post) => post == null ? null : applyPostOverrides(post, overrides),
+          );
+    });
 
 /// The ids of channels muted right now. Rules and expiry times live in
 /// [MuteRegistry].
@@ -737,33 +736,32 @@ final feedScrollToTopProvider =
 
 /// Fetches a post's comments. Overrides are applied by
 /// [postCommentsProvider], so a reaction doesn't refetch the thread.
-final postCommentsFetchProvider = FutureProvider.family<List<Post>, String>((
-  ref,
-  postId,
-) async {
-  final parts = postId.split('_');
-  if (parts.length != 2) return [];
-  final chatId = int.tryParse(parts[0]);
-  final messageId = int.tryParse(parts[1]);
-  if (chatId == null || messageId == null) return [];
+///
+/// Fetched each time the post is opened; it used to keep the first thread
+/// for the whole session.
+final postCommentsFetchProvider = FutureProvider.autoDispose
+    .family<List<Post>, String>((ref, postId) async {
+      final parts = postId.split('_');
+      if (parts.length != 2) return [];
+      final chatId = int.tryParse(parts[0]);
+      final messageId = int.tryParse(parts[1]);
+      if (chatId == null || messageId == null) return [];
 
-  final repo = ref.watch(feedRepositoryProvider);
-  return repo.fetchPostComments(chatId, messageId);
-});
+      final repo = ref.watch(feedRepositoryProvider);
+      return repo.fetchPostComments(chatId, messageId);
+    });
 
 /// The comment thread with optimistic reaction state applied.
-final postCommentsProvider = Provider.family<AsyncValue<List<Post>>, String>((
-  ref,
-  postId,
-) {
-  final overrides = ref.watch(optimisticPostUpdatesProvider);
-  return ref
-      .watch(postCommentsFetchProvider(postId))
-      .whenData(
-        (comments) =>
-            comments.map((c) => applyPostOverrides(c, overrides)).toList(),
-      );
-});
+final postCommentsProvider = Provider.autoDispose
+    .family<AsyncValue<List<Post>>, String>((ref, postId) {
+      final overrides = ref.watch(optimisticPostUpdatesProvider);
+      return ref
+          .watch(postCommentsFetchProvider(postId))
+          .whenData(
+            (comments) =>
+                comments.map((c) => applyPostOverrides(c, overrides)).toList(),
+          );
+    });
 
 /// Marks a post read because the user opened it.
 final markPostAsReadProvider = FutureProvider.family<void, String>((

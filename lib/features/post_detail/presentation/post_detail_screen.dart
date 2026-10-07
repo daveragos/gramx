@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/feed/presentation/copy_post_link.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/post_detail/domain/comment_threads.dart';
@@ -77,6 +78,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   StreamSubscription<LivePostUpdate>? _liveSub;
   Timer? _refreshDebounce;
 
+  /// The chat the comments are in, looked up so that an empty thread still
+  /// shows the first comment as it arrives.
+  int? _threadChatId;
+
   /// Replies arrive in bursts, so a short wait batches them into one refetch.
   static const Duration _commentsRefreshDebounce = Duration(milliseconds: 600);
 
@@ -95,12 +100,24 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   /// Keeps an open thread current, matching updates on the comments' chat id.
   void _watchForNewComments() {
+    final parts = widget.postId.split('_');
+    final chatId = int.tryParse(parts.first);
+    final messageId = parts.length == 2 ? int.tryParse(parts.last) : null;
+    if (chatId != null && messageId != null) {
+      ref
+          .read(feedRepositoryProvider)
+          .commentsChatId(chatId, messageId)
+          .then((id) => _threadChatId = id);
+    }
+
     _liveSub = ref.read(syncServiceProvider).livePostUpdates.listen((update) {
       if (update is! LiveNewMessage) return;
 
       final loaded = ref.read(postCommentsProvider(widget.postId)).value;
-      if (loaded == null || loaded.isEmpty) return;
-      if (update.message.chatId != loaded.first.chatId) return;
+      final threadChatId = loaded?.firstOrNull?.chatId ?? _threadChatId;
+      if (threadChatId == null || update.message.chatId != threadChatId) {
+        return;
+      }
 
       _refreshDebounce?.cancel();
       _refreshDebounce = Timer(_commentsRefreshDebounce, () {
@@ -116,29 +133,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     _commentController.dispose();
     _commentFocusNode.dispose();
     super.dispose();
-  }
-
-  Future<void> _handleShare(BuildContext context, Post post) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final link = await ref.read(feedRepositoryProvider).postLink(post);
-    if (link == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(AppStrings.postNotLinkable),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-    await Clipboard.setData(ClipboardData(text: link));
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text(AppStrings.postLinkCopied),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   /// Reacts to the post or a comment. The update stream reconciles it.
@@ -223,8 +217,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             attachments: attachments,
             remote: remote,
           );
-      ref.invalidate(postCommentsFetchProvider(widget.postId));
       if (mounted) {
+        ref.invalidate(postCommentsFetchProvider(widget.postId));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(AppStrings.commentPosted),
@@ -391,8 +385,15 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 child: RefreshIndicator(
                   color: AppColors.accent,
                   onRefresh: () async {
-                    ref.invalidate(postDetailFetchProvider(widget.postId));
-                    ref.invalidate(postCommentsFetchProvider(widget.postId));
+                    // Waits for both, so the spinner shows until they're in.
+                    await Future.wait<Object?>([
+                      ref.refresh(
+                        postDetailFetchProvider(widget.postId).future,
+                      ),
+                      ref.refresh(
+                        postCommentsFetchProvider(widget.postId).future,
+                      ),
+                    ]).catchError((_) => <Object?>[]);
                   },
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -662,7 +663,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 );
                               }
                             },
-                            onShareTap: () => _handleShare(context, post),
+                            onShareTap: () => copyPostLink(
+                              ref,
+                              ScaffoldMessenger.of(context),
+                              post,
+                            ),
                           ),
                         ),
                         const Divider(height: 1),
@@ -710,10 +715,24 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       ),
                                     ),
                                   ),
-                                  error: (err, _) => Text(
-                                    'Error loading comments: $err',
-                                    style: AppTypography.body(
-                                      color: secondaryColor,
+                                  error: (_, _) => Center(
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          AppStrings.commentsLoadFailed,
+                                          style: AppTypography.body(
+                                            color: secondaryColor,
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => ref.invalidate(
+                                            postCommentsFetchProvider(
+                                              widget.postId,
+                                            ),
+                                          ),
+                                          child: const Text(AppStrings.retry),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   data: (comments) {
@@ -1142,7 +1161,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                         InkWell(
                           onTap: () {
                             HapticFeedback.lightImpact();
-                            _handleShare(context, comment);
+                            copyPostLink(
+                              ref,
+                              ScaffoldMessenger.of(context),
+                              comment,
+                            );
                           },
                           borderRadius: BorderRadius.circular(16),
                           child: Padding(

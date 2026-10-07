@@ -282,6 +282,7 @@ abstract class AppStrings {
 
   static const channelLinkCopied = 'Channel link copied to clipboard.';
   static const reactionFailed = "Couldn't react. Try again.";
+  static const commentsLoadFailed = "Couldn't load the comments.";
   static const reactionsOff = 'Reactions are turned off here.';
   static const similarChannelsTitle = 'Similar channels';
   static String similarChannelsLabel(int count) =>
