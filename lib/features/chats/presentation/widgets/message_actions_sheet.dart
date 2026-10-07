@@ -409,7 +409,7 @@ class _ReactionStrip extends StatelessWidget {
                   ),
                   child: Text(
                     emojiForDisplay(emoji),
-                    style: const TextStyle(fontSize: 24),
+                    style: emojiStyle(fontSize: 24),
                   ),
                 ),
               ),

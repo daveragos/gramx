@@ -92,10 +92,7 @@ class _Chip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                emojiForDisplay(emoji),
-                style: const TextStyle(fontSize: 13),
-              ),
+              Text(emojiForDisplay(emoji), style: emojiStyle(fontSize: 13)),
               if (count > 1) ...[
                 const SizedBox(width: 4),
                 Text(

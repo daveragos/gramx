@@ -115,7 +115,7 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
               if (activeEmoji != null)
                 Text(
                   emojiForDisplay(activeEmoji),
-                  style: TextStyle(fontSize: widget.emojiSize),
+                  style: emojiStyle(fontSize: widget.emojiSize),
                 )
               else
                 // Filled only when the user has reacted.

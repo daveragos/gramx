@@ -110,7 +110,7 @@ class _Chip extends StatelessWidget {
             children: [
               Text(
                 emojiForDisplay(emoji),
-                style: TextStyle(fontSize: compact ? 12 : 14),
+                style: emojiStyle(fontSize: compact ? 12 : 14),
               ),
               const SizedBox(width: 4),
               Text(

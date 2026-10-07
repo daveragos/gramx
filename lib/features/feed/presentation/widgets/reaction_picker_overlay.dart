@@ -118,7 +118,7 @@ class ReactionPickerOverlay extends StatelessWidget {
                 ),
                 child: Text(
                   emojiForDisplay(emoji),
-                  style: TextStyle(fontSize: isSelected ? 24 : 20),
+                  style: emojiStyle(fontSize: isSelected ? 24 : 20),
                 ),
               ),
             );

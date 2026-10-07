@@ -1,4 +1,7 @@
-/// [emoji] as it should be drawn: in color.
+import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
+
+/// [emoji] as it should be drawn: in color. Use with [emojiStyle].
 ///
 /// Telegram's reaction keys leave out the variation selector U+FE0F. Without
 /// it "❤" and other older symbols draw as plain text glyphs in the text
@@ -28,3 +31,21 @@ String emojiForDisplay(String emoji) {
 
 const int _presentationSelector = 0xFE0F;
 const int _zeroWidthJoiner = 0x200D;
+
+/// The style for text that is only emoji, such as a reaction: the system's
+/// color emoji font, ahead of the app's.
+///
+/// The selector alone isn't enough. Inter has its own plain glyphs for "❤"
+/// and similar symbols, and Flutter keeps to the first font with a glyph,
+/// selector or not.
+TextStyle emojiStyle({double? fontSize}) => TextStyle(
+  fontSize: fontSize,
+  fontFamily: switch (defaultTargetPlatform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => _appleEmoji,
+    _ => _notoEmoji,
+  },
+  fontFamilyFallback: const [_appleEmoji, _notoEmoji],
+);
+
+const String _appleEmoji = 'Apple Color Emoji';
+const String _notoEmoji = 'Noto Color Emoji';
