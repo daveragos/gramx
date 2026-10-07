@@ -272,15 +272,23 @@ class TextEntityRenderer extends StatelessWidget {
       // Telegram links open in the app, as a link from outside would: the
       // shell resolves who or what it names, and a link to a message opens
       // at that message. A guest can't resolve, so it opens the channel.
-      if (TelegramLinks.parse(uri) != null) {
+      final link = TelegramLinks.parse(uri);
+      if (link != null) {
         final container = ProviderScope.containerOf(context, listen: false);
         if (!container.read(isGuestModeProvider)) {
           container.read(pendingDeepLinkProvider.notifier).offer(uri);
           return;
         }
-        final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-        if (segments.isNotEmpty && segments.first != 'c') {
-          NavigationUtils.openChannel(context, segments.first);
+        // The name from the parsed link: reading the path's first segment
+        // opened channels called "s", "joinchat" and "+hash". Invite and
+        // private links open in Telegram.
+        final username = switch (link) {
+          TelegramChannelLink(:final username) => username,
+          TelegramPostLink(:final username) => username,
+          _ => null,
+        };
+        if (username != null) {
+          NavigationUtils.openChannel(context, username);
           return;
         }
       }

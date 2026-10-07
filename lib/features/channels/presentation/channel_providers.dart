@@ -232,6 +232,9 @@ Future<void> refreshChannel(WidgetRef ref, String channelId) async {
   ref.read(channelTabNotifierProvider.notifier).reset(channelId);
   ref.invalidate(channelDetailProvider(channelId));
   ref.invalidate(channelPinnedPostProvider(channelId));
+  // A guest channel's posts come from here; refreshing used to show the
+  // first fetch again.
+  ref.invalidate(guestChannelPostsProvider);
   ref.invalidate(initialChannelPostsProvider(channelId));
   await ref.read(initialChannelPostsProvider(channelId).future);
 }

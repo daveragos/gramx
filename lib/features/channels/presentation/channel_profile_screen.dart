@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/guest/presentation/widgets/guest_banner.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/data/guest_post_mapper.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -225,6 +227,10 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   }
 
   Future<void> _toggleMembership(Channel channel) async {
+    // A guest has no account to join with; it used to fail silently.
+    if (!ref.read(readerCapabilitiesProvider).canJoin) {
+      return GuestSignInSheet.show(context);
+    }
     if (channel.isJoined && !await _confirmLeave(channel)) return;
     if (!mounted) return;
 

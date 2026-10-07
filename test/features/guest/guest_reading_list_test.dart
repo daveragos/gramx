@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,6 +29,34 @@ void main() {
     addTearDown(container.dispose);
     return container;
   }
+
+  // Adding fetched the channel, then saved the list from before the fetch,
+  // so a channel removed meanwhile came back.
+  test('a channel removed while another is added stays removed', () async {
+    final tme = GatedTme();
+    final container = keep(
+      ProviderContainer(
+        overrides: [
+          guestChannelStoreProvider.overrideWithValue(
+            MemoryStore([channel('alpha'), channel('bravo')]),
+          ),
+          tmePreviewClientProvider.overrideWithValue(tme),
+        ],
+      ),
+    );
+    final notifier = container.read(guestChannelsProvider.notifier);
+    await container.read(guestChannelsProvider.future);
+
+    final adding = notifier.add('charlie');
+    await notifier.remove('alpha');
+    tme.gate.complete();
+    await adding;
+
+    expect(
+      container.read(guestChannelsProvider).value!.map((c) => c.username),
+      ['charlie', 'bravo'],
+    );
+  });
 
   group('undo', () {
     test('puts a removed channel back where it was', () async {
@@ -282,6 +312,22 @@ class ScriptedTme extends TmePreviewClient {
         olderCursor: 28,
       ),
     );
+  }
+}
+
+/// Answers once [gate] opens.
+class GatedTme extends ScriptedTme {
+  final gate = Completer<void>();
+
+  @override
+  Future<TmeFetchResult> fetchPage(
+    String username, {
+    int? before,
+    String? etag,
+    String? lastModified,
+  }) async {
+    await gate.future;
+    return super.fetchPage(username, before: before);
   }
 }
 

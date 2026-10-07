@@ -875,7 +875,8 @@ final folderExcludesReadProvider = FutureProvider.family<bool, int>((
   return folderRepo.folderExcludesRead(folderId);
 });
 
-bool _isPostMuted(Post post, Set<String> mutedIds) {
+/// Whether [post]'s channel is among [mutedIds], under any of its ids.
+bool isPostMuted(Post post, Set<String> mutedIds) {
   if (mutedIds.isEmpty) return false;
   // See MuteRegistry.aliasesOf.
   return MuteRegistry.aliasesOf(
@@ -1044,7 +1045,7 @@ List<Post> filterPostsForFolder(Ref ref, List<Post> posts, String folderIdStr) {
 
   var list = posts;
   if (mutedChannelIds.isNotEmpty) {
-    list = list.where((p) => !_isPostMuted(p, mutedChannelIds)).toList();
+    list = list.where((p) => !isPostMuted(p, mutedChannelIds)).toList();
   }
 
   final folderId = int.tryParse(folderIdStr);

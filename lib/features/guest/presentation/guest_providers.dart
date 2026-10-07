@@ -54,21 +54,30 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
     }
 
     final result = await ref.read(tmePreviewClientProvider).fetchPage(username);
+    // The list as it is now: a channel removed or added during the fetch
+    // used to be undone by this one.
+    final current = state.value ?? [];
     return switch (result) {
       TmeFetchSuccess(:final page, :final etag, :final lastModified) =>
-        await _store([
-          GuestChannel(
-            username: page.channel.username,
-            title: page.channel.title,
-            avatarUrl: page.channel.avatarUrl,
-            subscribers: page.channel.subscribers,
-            isVerified: page.channel.isVerified,
-            addedAt: DateTime.now(),
-            etag: etag,
-            lastModified: lastModified,
-          ),
-          ...existing,
-        ]),
+        current.any(
+              (c) =>
+                  c.username.toLowerCase() ==
+                  page.channel.username.toLowerCase(),
+            )
+            ? AppStrings.guestAlreadyAdded(page.channel.username)
+            : await _store([
+                GuestChannel(
+                  username: page.channel.username,
+                  title: page.channel.title,
+                  avatarUrl: page.channel.avatarUrl,
+                  subscribers: page.channel.subscribers,
+                  isVerified: page.channel.isVerified,
+                  addedAt: DateTime.now(),
+                  etag: etag,
+                  lastModified: lastModified,
+                ),
+                ...current,
+              ]),
       TmeFetchUnavailable() => AppStrings.guestChannelNotPublic(username),
       TmeFetchFailure(:final message) => message,
       // No validators were sent, so this shouldn't happen.
@@ -128,9 +137,12 @@ class GuestChannelsNotifier extends AsyncNotifier<List<GuestChannel>> {
     state = const AsyncData([]);
   }
 
+  /// Shows [channels], then saves them. Shown first so a second change
+  /// made before the save finishes starts from this one, not the list
+  /// before it.
   Future<String?> _store(List<GuestChannel> channels) async {
-    await ref.read(guestChannelStoreProvider).save(channels);
     state = AsyncData(channels);
+    await ref.read(guestChannelStoreProvider).save(channels);
     return null;
   }
 }
@@ -302,6 +314,20 @@ class GuestFeed {
   });
 
   static const empty = GuestFeed();
+
+  /// This feed without the posts [hide] picks out.
+  GuestFeed withoutPosts(bool Function(Post post) hide) => GuestFeed(
+    posts: [
+      for (final post in posts)
+        if (!hide(post)) post,
+    ],
+    failures: failures,
+    answered: answered,
+    total: total,
+    isLoadingMore: isLoadingMore,
+    exhausted: exhausted,
+    ready: ready,
+  );
 
   /// True while channels are still being fetched for this pass.
   bool get isFilling => !ready || answered < total;

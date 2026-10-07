@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -33,8 +34,11 @@ class GuestFeedScreen extends ConsumerWidget {
         : AppColors.lightTextSecondary;
 
     // Drawn from the value, which Riverpod keeps during a refresh, so the
-    // scroll position survives.
-    final feed = feedAsync.value ?? GuestFeed.empty;
+    // scroll position survives. Without muted channels, which a guest can
+    // mute from a post's menu but still saw.
+    final feed = (feedAsync.value ?? GuestFeed.empty).withoutPosts(
+      (post) => isPostMuted(post, ref.watch(mutedChannelsProvider)),
+    );
     final isFirstLoad = feedAsync.isLoading && feedAsync.value == null;
 
     return ChromeScaffold(
