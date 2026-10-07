@@ -368,13 +368,17 @@ class FeedPollCard extends ConsumerWidget {
       onVote: (optionIds) async {
         final chatId = int.tryParse(channelId);
         final postId = chatId != null ? '${chatId}_$messageId' : channelId;
+        final overrides = ref.read(optimisticPostUpdatesProvider.notifier);
+        final feed = ref.read(feedPostsProvider.notifier);
 
-        // Real counts arrive later via `updateMessageContent`.
-        ref
-            .read(feedPostsProvider.notifier)
-            .votePollOptimistic(postId, optionIds);
+        // Shown at once in every view; the real counts arrive as the
+        // message's new content (see LivePollUpdate).
+        final voted = pollWithVote(poll, optionIds);
+        overrides.setPoll(postId, voted);
+        feed.setPoll(postId, voted);
 
-        if (chatId != null && chatId != 0) {
+        if (chatId == null || chatId == 0) return;
+        try {
           await ref
               .read(syncServiceProvider)
               .voteInPoll(
@@ -382,6 +386,12 @@ class FeedPollCard extends ConsumerWidget {
                 messageId: messageId,
                 optionIds: optionIds,
               );
+        } catch (_) {
+          // Put the poll back, so it can be voted on again. It stayed
+          // marked as voted, and couldn't be.
+          overrides.setPoll(postId, poll);
+          feed.setPoll(postId, poll);
+          rethrow;
         }
       },
     );

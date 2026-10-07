@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/chats/data/chat_events.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
@@ -376,28 +377,7 @@ class ConversationState {
         return message;
       }
 
-      final total = poll.totalVoterCount + 1;
-      final options = [
-        for (var i = 0; i < poll.options.length; i++)
-          if (optionIds.contains(i))
-            poll.options[i].copyWith(
-              isChosen: true,
-              voterCount: poll.options[i].voterCount + 1,
-              votePercentage: (poll.options[i].voterCount + 1) * 100 / total,
-            )
-          else
-            poll.options[i].copyWith(
-              votePercentage: poll.options[i].voterCount * 100 / total,
-            ),
-      ];
-
-      return message.copyWith(
-        poll: poll.copyWith(
-          options: options,
-          totalVoterCount: total,
-          chosenOptionIds: optionIds,
-        ),
-      );
+      return message.copyWith(poll: pollWithVote(poll, optionIds));
     });
   }
 }

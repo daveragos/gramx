@@ -36,3 +36,24 @@ abstract class Poll with _$Poll {
 
   factory Poll.fromJson(Map<String, dynamic> json) => _$PollFromJson(json);
 }
+
+/// [poll] as it looks once [optionIds] are voted for, until Telegram sends
+/// the real counts.
+Poll pollWithVote(Poll poll, List<int> optionIds) {
+  final total = poll.totalVoterCount + 1;
+  return poll.copyWith(
+    totalVoterCount: total,
+    chosenOptionIds: {...poll.chosenOptionIds, ...optionIds}.toList(),
+    options: [
+      for (final (index, option) in poll.options.indexed)
+        if (optionIds.contains(index))
+          option.copyWith(
+            voterCount: option.voterCount + 1,
+            votePercentage: (option.voterCount + 1) / total * 100,
+            isChosen: true,
+          )
+        else
+          option.copyWith(votePercentage: option.voterCount / total * 100),
+    ],
+  );
+}

@@ -360,9 +360,32 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     final optimistic = current.withOptimisticVote(messageId, optionIds);
     if (optimistic != null) state = AsyncData(optimistic);
 
-    await ref
-        .read(syncServiceProvider)
-        .voteInPoll(chatId: chatId, messageId: messageId, optionIds: optionIds);
+    try {
+      await ref
+          .read(syncServiceProvider)
+          .voteInPoll(
+            chatId: chatId,
+            messageId: messageId,
+            optionIds: optionIds,
+          );
+    } catch (_) {
+      // Put the message's poll back so it can be voted on again; it stayed
+      // marked as voted.
+      _restorePoll(current, messageId);
+      rethrow;
+    }
+  }
+
+  /// Puts the poll of [messageId] back as it was in [before].
+  void _restorePoll(ConversationState before, int messageId) {
+    final now = state.value;
+    if (now == null) return;
+    final old = before.messages.where((m) => m.messageId == messageId);
+    final index = now.messages.indexWhere((m) => m.messageId == messageId);
+    if (old.isEmpty || index < 0) return;
+    final messages = [...now.messages];
+    messages[index] = messages[index].copyWith(poll: old.first.poll);
+    state = AsyncData(now.copyWith(messages: messages));
   }
 
   /// Sends this device's location. Returns whether Telegram queued it.

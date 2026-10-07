@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:handy_tdlib/api.dart' as td;
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
@@ -16,6 +17,13 @@ class LiveReactionsUpdate extends LivePostUpdate {
   final Map<String, int> reactions;
   final Set<String> chosenReactions;
   LiveReactionsUpdate(this.postId, this.reactions, this.chosenReactions);
+}
+
+/// A poll's real results, which come as the message's new content.
+class LivePollUpdate extends LivePostUpdate {
+  final String postId;
+  final Poll poll;
+  LivePollUpdate(this.postId, this.poll);
 }
 
 /// A message that just arrived in a followed chat.
@@ -59,6 +67,14 @@ LivePostUpdate? mapCounterUpdate(td.TdObject update) {
       reactions: mapped.counts,
       chosenReactions: mapped.chosen,
     );
+  }
+
+  if (update is td.UpdateMessageContent) {
+    final content = update.newContent;
+    if (content is! td.MessagePoll) return null;
+    final poll = TdlibMappers.mapPoll(content.poll);
+    if (poll == null) return null;
+    return LivePollUpdate('${update.chatId}_${update.messageId}', poll);
   }
 
   if (update is td.UpdateMessageReactions) {

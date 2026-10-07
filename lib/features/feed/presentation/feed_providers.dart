@@ -7,6 +7,7 @@ import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/domain/feed_thread.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
@@ -146,6 +147,8 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
           update.reactions,
           update.chosenReactions,
         );
+      } else if (update is LivePollUpdate) {
+        updatePollLive(update.postId, update.poll);
       } else if (update is LiveInteractionUpdate) {
         updateMetadataLive(
           update.postId,
@@ -473,44 +476,20 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     state = AsyncData(updated);
   }
 
-  /// Updates poll counts locally when the user votes.
-  void votePollOptimistic(String postId, List<int> optionIds) {
+  /// Sets a post's poll in this list.
+  void setPoll(String postId, Poll poll) {
     final current = state.value;
     if (current == null) return;
-    final updated = current.map((p) {
-      if (p.id == postId && p.poll != null) {
-        final currentPoll = p.poll!;
-        final newTotalVoters = currentPoll.totalVoterCount + 1;
+    state = AsyncData([
+      for (final p in current) p.id == postId ? p.copyWith(poll: poll) : p,
+    ]);
+  }
 
-        final updatedOptions = currentPoll.options.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final opt = entry.value;
-          final isNewlyChosen = optionIds.contains(idx);
-          final newCount = isNewlyChosen ? opt.voterCount + 1 : opt.voterCount;
-          final pct = newTotalVoters > 0
-              ? (newCount / newTotalVoters) * 100
-              : 0.0;
-          return opt.copyWith(
-            voterCount: newCount,
-            votePercentage: pct,
-            isChosen: isNewlyChosen || opt.isChosen,
-          );
-        }).toList();
-
-        final updatedPoll = currentPoll.copyWith(
-          options: updatedOptions,
-          totalVoterCount: newTotalVoters,
-          chosenOptionIds: {
-            ...currentPoll.chosenOptionIds,
-            ...optionIds,
-          }.toList(),
-        );
-
-        return p.copyWith(poll: updatedPoll);
-      }
-      return p;
-    }).toList();
-    state = AsyncData(updated);
+  /// A poll's real results: in every view for a poll voted on here, and in
+  /// this list.
+  void updatePollLive(String postId, Poll poll) {
+    ref.read(optimisticPostUpdatesProvider.notifier).refreshPoll(postId, poll);
+    setPoll(postId, poll);
   }
 
   /// Shows a saved edit without refetching. Entities are dropped, since the
@@ -936,6 +915,19 @@ class OptimisticPostUpdatesNotifier
     }
   }
 
+  /// Shows [poll] for [postId] until the data catches up.
+  void setPoll(String postId, Poll poll) {
+    state = {
+      ...state,
+      postId: {...?state[postId], 'poll': poll},
+    };
+  }
+
+  /// Replaces a vote made here with Telegram's results, in every view.
+  void refreshPoll(String postId, Poll poll) {
+    if (state[postId]?.containsKey('poll') ?? false) setPoll(postId, poll);
+  }
+
   /// Drops the optimistic reaction guess once the server reports real counts.
   void clearReactions(String postId) {
     final currentData = state[postId];
@@ -1011,6 +1003,7 @@ Post applyPostOverrides(
       // The old entities would point at the wrong characters in the new text.
       : post.copyWith(text: text.isEmpty ? null : text, entities: const []);
   return edited.copyWith(
+    poll: data['poll'] as Poll? ?? post.poll,
     reactions: data['reactions'] as Map<String, int>? ?? post.reactions,
     chosenReactions:
         data['chosenReactions'] as Set<String>? ?? post.chosenReactions,
