@@ -1092,17 +1092,21 @@ class ChatsRepository {
 
   /// The Saved Messages chat id, which is [selfUserId]. Creates the chat if a
   /// fresh account doesn't have it yet. Null when [selfUserId] hasn't loaded.
-  Future<int?> savedMessagesChatId(int? selfUserId) async {
-    if (selfUserId == null) return null;
-    if (_chatCache.chat(selfUserId) != null) return selfUserId;
+  Future<int?> savedMessagesChatId(int? selfUserId) async =>
+      selfUserId == null ? null : privateChatId(selfUserId);
+
+  /// The private chat with [userId], created if TDLib doesn't have one yet,
+  /// as for someone never written to. Null if it couldn't be.
+  Future<int?> privateChatId(int userId) async {
+    if (_chatCache.chat(userId) != null) return userId;
 
     try {
       final res = await _tdlib.sendRequest(
-        td.CreatePrivateChat(userId: selfUserId, force: false),
+        td.CreatePrivateChat(userId: userId, force: false),
       );
       return res is td.Chat ? res.id : null;
     } catch (e) {
-      debugPrint('[ChatsRepo] savedMessages failed: $e');
+      debugPrint('[ChatsRepo] private chat with $userId failed: $e');
       return null;
     }
   }

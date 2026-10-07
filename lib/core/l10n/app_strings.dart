@@ -1239,6 +1239,7 @@ abstract class AppStrings {
   static const profileUserMissing = "Telegram doesn't know this account.";
   static const profileUserDeleted = 'This account was deleted.';
   static const profileMessageAction = 'Message';
+  static const profileMessageFailed = "Couldn't open a chat with them.";
   static const profileBotBadge = 'Bot';
   static const profileContactBadge = 'In your contacts';
   static const profileBioHeading = 'Bio';

@@ -67,6 +67,25 @@ class _Body extends ConsumerWidget {
 
   const _Body({required this.profile});
 
+  /// Opens the chat with this user, creating it first if there's none yet.
+  /// Opening it by id alone showed a chat TDLib didn't have.
+  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+    final chatId = await ref
+        .read(chatsRepositoryProvider)
+        .privateChatId(profile.userId);
+    if (!context.mounted) return;
+    if (chatId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.profileMessageFailed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    context.push(ChatsScreen.routeFor(chatId));
+  }
+
   /// Opens a secret chat with this user after confirming. A secret chat is a
   /// separate, device-only chat, so a mis-tap shouldn't land the user in one.
   Future<void> _startSecretChat(BuildContext context, WidgetRef ref) async {
@@ -165,8 +184,7 @@ class _Body extends ConsumerWidget {
                   label: AppStrings.profileMessageAction,
                   icon: Icons.mail_outline_rounded,
                   compact: true,
-                  onPressed: () =>
-                      context.push(ChatsScreen.routeFor(profile.chatId)),
+                  onPressed: () => _openChat(context, ref),
                 ),
               ] else
                 // Keeps the name clear of the avatar's overhang.
