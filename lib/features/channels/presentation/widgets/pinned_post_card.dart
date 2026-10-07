@@ -14,12 +14,17 @@ import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 /// [PostVisibilityReporter], since it stays on screen while the profile is
 /// open and would be marked read on every device.
 class PinnedPostCard extends ConsumerWidget {
-  final Post post;
+  final Post pinned;
 
-  const PinnedPostCard({super.key, required this.post});
+  const PinnedPostCard({super.key, required Post post}) : pinned = post;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // As it is now, with any reaction or bookmark made since it loaded.
+    final post = applyPostOverrides(
+      pinned,
+      ref.watch(optimisticPostUpdatesProvider),
+    );
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final secondary = isDark

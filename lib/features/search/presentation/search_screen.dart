@@ -123,7 +123,19 @@ List<Post> matchLoadedPosts(List<Post> posts, String query) {
 
 /// Search results: server hits once they land, local matches until then.
 /// Guests get local matching only, since `SearchMessages` needs an account.
+///
+/// Shown with this session's changes, so a post bookmarked or reacted to
+/// elsewhere looks the same here.
 final searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
+  final overrides = ref.watch(optimisticPostUpdatesProvider);
+  return ref
+      .watch(_searchResultsProvider)
+      .whenData(
+        (posts) => [for (final p in posts) applyPostOverrides(p, overrides)],
+      );
+});
+
+final _searchResultsProvider = Provider<AsyncValue<List<Post>>>((ref) {
   final query = ref.watch(searchQueryProvider).trim();
 
   if (!ref.watch(readerCapabilitiesProvider).canSearchServerSide) {
