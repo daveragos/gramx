@@ -209,6 +209,8 @@ class AuthController extends Notifier<AuthState> {
       _restartedAfterClose = false;
     }
     if (tdState is td.AuthorizationStateClosed) {
+      // A reset closes the client on purpose and starts its own.
+      if (_resetting) return;
       _stayAtChooser = false;
 
       // Expected after a log out: restart once, which reopens at sign-in.
@@ -501,13 +503,22 @@ class AuthController extends Notifier<AuthState> {
     });
   }
 
+  /// Whether [resetSession] is running, so the close it causes doesn't
+  /// start a second client.
+  bool _resetting = false;
+
   Future<void> resetSession() async {
     state = const AuthState(
       step: AuthStep.loading,
       statusMessage: 'Resetting session...',
     );
     _startConnectionTimeout();
-    await _tdlib.resetSession();
+    _resetting = true;
+    try {
+      await _tdlib.resetSession();
+    } finally {
+      _resetting = false;
+    }
   }
 
   /// Signs out locally first and then tells Telegram, so a slow or failed

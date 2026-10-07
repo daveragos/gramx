@@ -648,6 +648,9 @@ class TdlibService {
   Future<void> resetSession() async {
     try {
       _updateStatus('Resetting TDLib local data...');
+      // The old client holds the database open. It used to be left running
+      // while its files were deleted and a new client opened them.
+      await _closeClient();
       _pollTimer?.cancel();
       _pollTimer = null;
       await _receiver?.stop();
@@ -667,6 +670,21 @@ class TdlibService {
       await initialize();
     } catch (e) {
       _updateStatus('Error resetting session: $e');
+    }
+  }
+
+  /// Closes the client and waits until TDLib says it has, or a few seconds.
+  /// Unlike [close], the service stays usable for a new client.
+  Future<void> _closeClient() async {
+    if (_clientId == null) return;
+    final closed = _authEventController.stream
+        .firstWhere((state) => state is td.AuthorizationStateClosed)
+        .timeout(const Duration(seconds: 5));
+    try {
+      await sendRequest(const td.Close(), timeout: const Duration(seconds: 3));
+      await closed;
+    } catch (e) {
+      debugPrint('[TDLib] close before reset failed: $e');
     }
   }
 
