@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
@@ -631,7 +632,27 @@ class MutedChannelsNotifier extends Notifier<Set<String>> {
 
   void unmute(String channelId, {int? chatId, String? username}) {
     _registry.unmute(channelId, chatId: chatId, username: username);
+    // A mute made where the channel's username was known is filed under it
+    // too. Unmuting from a post that didn't carry it left the channel muted.
+    for (final name in _usernamesOf(chatId)) {
+      _registry.unmute(channelId, chatId: chatId, username: name);
+    }
     _commit();
+  }
+
+  /// The channel's usernames, as TDLib knows them.
+  Iterable<String> _usernamesOf(int? chatId) {
+    if (chatId == null) return const [];
+    final cache = ref.read(chatCacheProvider);
+    final chat = cache.chat(chatId);
+    if (chat == null) return const [];
+    final usernames = cache.supergroupForChat(chat)?.usernames;
+    return [
+      ...?usernames?.activeUsernames,
+      if (usernames?.editableUsername case final String name
+          when name.isNotEmpty)
+        name,
+    ];
   }
 
   /// Mutes indefinitely, or unmutes.
@@ -832,6 +853,10 @@ final folderChannelIdsProvider = FutureProvider.family<Set<String>, int>((
 ) async {
   // Rebuild once the cache fills, or the folder looks empty.
   ref.watch(channelsKnownProvider);
+  // And when a folder is edited or a channel joined or left, which can change
+  // what's in it; the tab used to keep its first answer.
+  ref.watch(foldersProvider);
+  ref.watch(channelsProvider);
 
   final folderRepo = ref.watch(folderRepositoryProvider);
   final allowedChannelIds = await folderRepo.getFolderChannelChatIds(folderId);
@@ -844,6 +869,8 @@ final folderExcludesReadProvider = FutureProvider.family<bool, int>((
   ref,
   folderId,
 ) async {
+  // A folder edited in Telegram can change it.
+  ref.watch(foldersProvider);
   final folderRepo = ref.watch(folderRepositoryProvider);
   return folderRepo.folderExcludesRead(folderId);
 });

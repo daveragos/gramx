@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:handy_tdlib/api.dart' as td;
+
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/channels/presentation/channels_list_screen.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 Channel channel({
   required String id,
@@ -25,7 +29,11 @@ void main() {
         channel(id: '-100222', chatId: -100222, title: 'Muted', username: 'm'),
       ];
       final container = ProviderContainer(
-        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+        overrides: [
+          channelsProvider.overrideWith((ref) async => channels),
+          // Unmuting looks up the channel's usernames in the chat cache.
+          chatCacheProvider.overrideWith((ref) => ChatCache(_SilentTdlib())),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -48,7 +56,11 @@ void main() {
         channel(id: '-100222', chatId: -100222, title: 'Muted'),
       ];
       final container = ProviderContainer(
-        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+        overrides: [
+          channelsProvider.overrideWith((ref) async => channels),
+          // Unmuting looks up the channel's usernames in the chat cache.
+          chatCacheProvider.overrideWith((ref) => ChatCache(_SilentTdlib())),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -75,7 +87,11 @@ void main() {
         ),
       ];
       final container = ProviderContainer(
-        overrides: [channelsProvider.overrideWith((ref) async => channels)],
+        overrides: [
+          channelsProvider.overrideWith((ref) async => channels),
+          // Unmuting looks up the channel's usernames in the chat cache.
+          chatCacheProvider.overrideWith((ref) => ChatCache(_SilentTdlib())),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -87,4 +103,14 @@ void main() {
       expect(container.read(mutedChannelsListProvider), hasLength(1));
     });
   });
+}
+
+/// A TDLib that sends no updates and answers nothing.
+class _SilentTdlib implements TdlibService {
+  @override
+  Stream<td.TdObject> get updatesStream => const Stream.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }

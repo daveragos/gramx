@@ -10,7 +10,6 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/time/time_utils.dart';
-import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/domain/channel_tab.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
@@ -77,6 +76,18 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
 
     _tabController = TabController(length: _tabs.length, vsync: this)
       ..addListener(_onTabChanged);
+
+    // A channel seen before shows as it was, and is re-checked: its name,
+    // subscriber count, Join state and newest posts were kept from the first
+    // visit for the whole session.
+    if (ref.exists(channelDetailProvider(widget.channelId))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.invalidate(channelDetailProvider(widget.channelId));
+        ref.invalidate(channelPinnedPostProvider(widget.channelId));
+        ref.invalidate(initialChannelPostsProvider(widget.channelId));
+      });
+    }
 
     // Opening a chat is a TDLib request, so it can't happen during build.
     // fireImmediately covers a channel that is already cached.
@@ -218,29 +229,24 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     if (!mounted) return;
 
     setState(() => _isActionLoading = true);
-    final channelRepo = ref.read(channelRepositoryProvider);
+    final membership = ref.read(channelMembershipProvider.notifier);
     final messenger = ScaffoldMessenger.of(context);
 
     final success = channel.isJoined
-        ? await channelRepo.leaveChannel(channel.chatId)
-        : await channelRepo.joinChannel(channel.chatId);
+        ? await membership.leave(channel.chatId)
+        : await membership.join(channel.chatId);
 
-    if (success && mounted) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            channel.isJoined
-                ? AppStrings.channelLeft(channel.title)
-                : AppStrings.channelJoined(channel.title),
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-
-    ref.invalidate(channelDetailProvider(widget.channelId));
-    ref.invalidate(channelsProvider);
-    ref.invalidate(feedPostsProvider);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(switch ((channel.isJoined, success)) {
+          (true, true) => AppStrings.channelLeft(channel.title),
+          (true, false) => AppStrings.channelLeaveFailed,
+          (false, true) => AppStrings.channelJoined(channel.title),
+          (false, false) => AppStrings.channelsAddJoinFailed,
+        }),
+        duration: const Duration(seconds: 2),
+      ),
+    );
     if (mounted) setState(() => _isActionLoading = false);
   }
 

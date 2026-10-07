@@ -8,7 +8,6 @@ import 'package:gramx/app/widgets/edit_text_dialog.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
-import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/channels/presentation/widgets/mute_sheet.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
@@ -224,13 +223,10 @@ abstract class PostMenuSheet {
     );
     if (confirmed != true) return;
 
-    final left = await ref
-        .read(channelRepositoryProvider)
-        .leaveChannel(post.chatId);
-    if (left) {
-      ref.invalidate(channelsProvider);
-      ref.invalidate(feedPostsProvider);
-    }
+    // Read before the wait: the post's card can be gone by the time the
+    // dialog closes.
+    final membership = ref.read(channelMembershipProvider.notifier);
+    final left = await membership.leave(post.chatId);
     messenger.showSnackBar(
       SnackBar(
         content: Text(

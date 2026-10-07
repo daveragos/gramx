@@ -16,7 +16,6 @@ import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/presentation/channel_profile_screen.dart'
     show ChannelRetry;
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
-import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// The channels Telegram finds like one, listed the way X lists followers:
 /// avatar, name, handle and description, with a join button on each.
@@ -121,23 +120,23 @@ class _SimilarChannelRowState extends ConsumerState<SimilarChannelRow> {
 
   Future<void> _join() async {
     setState(() => _joining = true);
+    final messenger = ScaffoldMessenger.of(context);
     final joined = await ref
-        .read(channelRepositoryProvider)
-        .joinChannel(widget.channel.chatId);
-    if (!mounted) return;
-    setState(() => _joining = false);
-    if (!joined) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
+        .read(channelMembershipProvider.notifier)
+        .join(widget.channel.chatId);
+    // A failed join used to say nothing.
+    messenger.showSnackBar(
       SnackBar(
-        content: Text(AppStrings.channelJoined(widget.channel.title)),
+        content: Text(
+          joined
+              ? AppStrings.channelJoined(widget.channel.title)
+              : AppStrings.channelsAddJoinFailed,
+        ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
     );
-    ref.invalidate(similarChannelsProvider(widget.sourceChatId));
-    ref.invalidate(channelsProvider);
-    ref.invalidate(feedPostsProvider);
+    if (mounted) setState(() => _joining = false);
   }
 
   @override

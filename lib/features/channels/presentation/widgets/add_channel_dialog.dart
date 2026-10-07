@@ -6,7 +6,6 @@ import 'package:gramx/app/widgets/pill_button.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/channels/data/channel_repository.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
-import 'package:gramx/features/feed/presentation/feed_providers.dart';
 
 /// Asks for a public channel's username and joins it.
 Future<void> showAddChannelDialog(BuildContext context) {
@@ -46,39 +45,32 @@ class _AddChannelDialogState extends ConsumerState<AddChannelDialog> {
     // Captured before the dialog closes, since the toast outlives it.
     final messenger = ScaffoldMessenger.of(context);
     final repo = ref.read(channelRepositoryProvider);
-    try {
-      final channel = await repo.getChannelByIdentifier(username);
-      if (channel == null) {
-        setState(() {
-          _isLoading = false;
-          _errorMsg = AppStrings.channelsAddNotFound;
-        });
-        return;
-      }
+    final membership = ref.read(channelMembershipProvider.notifier);
 
-      final joined = await repo.joinChannel(channel.chatId);
-      if (!joined) {
-        setState(() {
-          _isLoading = false;
-          _errorMsg = AppStrings.channelsAddJoinFailed;
-        });
-        return;
-      }
-
-      ref.invalidate(channelsProvider);
-      ref.invalidate(feedPostsProvider);
-
-      if (!mounted) return;
-      Navigator.pop(context);
-      messenger.showSnackBar(
-        SnackBar(content: Text(AppStrings.channelsAdded(channel.title))),
-      );
-    } catch (e) {
+    void fail(String message) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMsg = e.toString().replaceFirst('Exception: ', '');
+        _errorMsg = message;
       });
+    }
+
+    try {
+      final channel = await repo.getChannelByIdentifier(username);
+      if (channel == null) return fail(AppStrings.channelsAddNotFound);
+
+      if (!await membership.join(channel.chatId)) {
+        return fail(AppStrings.channelsAddJoinFailed);
+      }
+
+      if (mounted) Navigator.pop(context);
+      messenger.showSnackBar(
+        SnackBar(content: Text(AppStrings.channelsAdded(channel.title))),
+      );
+    } catch (_) {
+      // Telegram's own error text isn't for people; a lookup that fails is
+      // most often a name nobody has.
+      fail(AppStrings.channelsAddNotFound);
     }
   }
 

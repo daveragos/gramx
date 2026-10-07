@@ -236,6 +236,42 @@ Future<void> refreshChannel(WidgetRef ref, String channelId) async {
   await ref.read(initialChannelPostsProvider(channelId).future);
 }
 
+/// Joins and leaves channels, from every join and leave button.
+///
+/// Afterwards it refreshes every view of channels: a profile opened by
+/// username as well as by id, the lists, the feed, and the suggestions that
+/// show a Join button. Each button refreshed only some of them, and could
+/// fail if its screen closed first.
+class ChannelMembership extends Notifier<void> {
+  @override
+  void build() {}
+
+  /// Whether it joined.
+  Future<bool> join(int chatId) => _set(chatId, join: true);
+
+  /// Whether it left.
+  Future<bool> leave(int chatId) => _set(chatId, join: false);
+
+  Future<bool> _set(int chatId, {required bool join}) async {
+    final repo = ref.read(channelRepositoryProvider);
+    final done = join
+        ? await repo.joinChannel(chatId)
+        : await repo.leaveChannel(chatId);
+    if (done) {
+      ref.invalidate(channelDetailProvider);
+      ref.invalidate(channelsProvider);
+      ref.invalidate(feedPostsProvider);
+      ref.invalidate(similarChannelsProvider);
+      ref.invalidate(recommendedChannelsProvider);
+    }
+    return done;
+  }
+}
+
+final channelMembershipProvider = NotifierProvider<ChannelMembership, void>(
+  ChannelMembership.new,
+);
+
 /// The signed-in account's database row.
 final activeAccountProvider = StreamProvider<Account?>((ref) {
   final db = ref.watch(databaseProvider);
