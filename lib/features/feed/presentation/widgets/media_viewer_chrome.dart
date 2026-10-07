@@ -161,11 +161,12 @@ class _BottomSheetChrome extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: Padding(
+          // No bottom padding: the action bar's tap areas reach into it.
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.postPadding,
             AppSpacing.xl,
             AppSpacing.postPadding,
-            AppSpacing.sm,
+            0,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -245,7 +246,7 @@ class _BottomSheetChrome extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.sm),
                 controls!,
               ],
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.md - PostActionBar.touchSlop),
               PostActionBar(
                 post: post,
                 secondaryColor: Colors.white70,

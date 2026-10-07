@@ -29,6 +29,10 @@ class ReactionControl extends ConsumerStatefulWidget {
   final double emojiSize;
   final double? countFontSize;
 
+  /// Tap area around the icon and count. Given room, as in the action bar's
+  /// cells, the control fills it with the icon at the start.
+  final EdgeInsets hitPadding;
+
   const ReactionControl({
     super.key,
     required this.post,
@@ -37,6 +41,7 @@ class ReactionControl extends ConsumerStatefulWidget {
     this.iconSize = 18,
     this.emojiSize = 16,
     this.countFontSize,
+    this.hitPadding = EdgeInsets.zero,
   });
 
   @override
@@ -95,40 +100,53 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
       color: hasOwnReaction ? AppColors.like : widget.color,
     ).copyWith(fontSize: widget.countFontSize);
 
-    return KeyedSubtree(
-      key: _anchorKey,
-      child: Semantics(
-        button: true,
-        label: hasOwnReaction
-            ? AppStrings.a11yCurrentReaction(post.chosenReactions.first)
-            : AppStrings.a11yReact,
-        excludeSemantics: true,
-        child: GestureDetector(
-          onTap: _handleTap,
-          onLongPress: () {
-            HapticFeedback.mediumImpact();
-            _showPicker();
-          },
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (activeEmoji != null)
-                Text(
-                  emojiForDisplay(activeEmoji),
-                  style: emojiStyle(fontSize: widget.emojiSize),
-                )
-              else
-                // Filled only when the user has reacted.
-                Icon(
-                  hasOwnReaction ? Icons.favorite : Icons.favorite_border,
-                  color: hasOwnReaction ? AppColors.like : widget.color,
-                  size: widget.iconSize,
-                ),
-              if (totalReactions > 0) ...[
-                const SizedBox(width: 4),
-                Text(TimeUtils.formatCount(totalReactions), style: countStyle),
-              ],
-            ],
+    return Semantics(
+      button: true,
+      label: hasOwnReaction
+          ? AppStrings.a11yCurrentReaction(post.chosenReactions.first)
+          : AppStrings.a11yReact,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _handleTap,
+        onLongPress: () {
+          HapticFeedback.mediumImpact();
+          _showPicker();
+        },
+        child: Padding(
+          padding: widget.hitPadding,
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            widthFactor: widget.hitPadding == EdgeInsets.zero ? 1 : null,
+            heightFactor: 1,
+            // The picker opens over the icon, not the whole tap area.
+            child: KeyedSubtree(
+              key: _anchorKey,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (activeEmoji != null)
+                    Text(
+                      emojiForDisplay(activeEmoji),
+                      style: emojiStyle(fontSize: widget.emojiSize),
+                    )
+                  else
+                    // Filled only when the user has reacted.
+                    Icon(
+                      hasOwnReaction ? Icons.favorite : Icons.favorite_border,
+                      color: hasOwnReaction ? AppColors.like : widget.color,
+                      size: widget.iconSize,
+                    ),
+                  if (totalReactions > 0) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      TimeUtils.formatCount(totalReactions),
+                      style: countStyle,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

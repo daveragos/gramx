@@ -28,6 +28,11 @@ class PostActionBar extends ConsumerWidget {
   /// plain figure.
   final VoidCallback? onViewsTap;
 
+  /// How far the actions' tap areas reach above and below the icons. The bar
+  /// is this much taller than its row of icons on each side, so callers take
+  /// it off the space around it.
+  static const double touchSlop = 10;
+
   const PostActionBar({
     super.key,
     required this.post,
@@ -59,118 +64,193 @@ class PostActionBar extends ConsumerWidget {
     final can = ref.watch(readerCapabilitiesProvider);
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        can.canComment
-            ? PostActionButton(
-                icon: Icons.chat_bubble_outline,
-                count: post.replyCount,
-                color: secondaryColor,
-                activeColor: AppColors.reply,
-                semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
-                onTap: onReplyTap,
-              )
-            : PostStat(
-                icon: Icons.chat_bubble_outline,
-                count: post.replyCount,
-                color: secondaryColor,
-                semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
-              ),
-
-        can.canForward
-            ? PostActionButton(
-                icon: Icons.repeat,
-                count: post.forwardCount,
-                color: secondaryColor,
-                activeColor: AppColors.repost,
-                semanticLabel: AppStrings.a11yForward,
-                onTap: () => _forward(context),
-              )
-            : PostStat(
-                icon: Icons.repeat,
-                count: post.forwardCount,
-                color: secondaryColor,
-                semanticLabel: AppStrings.a11yForward,
-              ),
-
+        Expanded(
+          child: can.canComment
+              ? PostActionButton(
+                  icon: Icons.chat_bubble_outline,
+                  count: post.replyCount,
+                  color: secondaryColor,
+                  activeColor: AppColors.reply,
+                  semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
+                  onTap: onReplyTap,
+                )
+              : PostStat(
+                  icon: Icons.chat_bubble_outline,
+                  count: post.replyCount,
+                  color: secondaryColor,
+                  semanticLabel: AppStrings.a11yReplyWithCount(post.replyCount),
+                ),
+        ),
+        Expanded(
+          child: can.canForward
+              ? PostActionButton(
+                  icon: Icons.repeat,
+                  count: post.forwardCount,
+                  color: secondaryColor,
+                  activeColor: AppColors.repost,
+                  semanticLabel: AppStrings.a11yForward,
+                  onTap: () => _forward(context),
+                )
+              : PostStat(
+                  icon: Icons.repeat,
+                  count: post.forwardCount,
+                  color: secondaryColor,
+                  semanticLabel: AppStrings.a11yForward,
+                ),
+        ),
         // Tap toggles the user's reaction, long press picks another. Guests
         // see the counts without being able to react.
-        can.canReact
-            ? ReactionControl(
-                post: post,
-                color: secondaryColor,
-                onSelectReaction: onSelectReaction,
-              )
-            : PostStat(
-                icon: Icons.favorite_border,
-                count: post.reactions.values.fold(0, (a, b) => a + b),
-                color: secondaryColor,
-                semanticLabel: AppStrings.a11yReactionsReadOnly,
-              ),
-
-        // View count: a button only where statistics can be opened.
-        onViewsTap != null
-            ? PostActionButton(
-                icon: Icons.bar_chart,
-                count: post.viewCount,
-                color: secondaryColor,
-                activeColor: AppColors.accent,
-                semanticLabel: AppStrings.a11yPostAnalytics,
-                onTap: onViewsTap,
-              )
-            : PostStat(
-                icon: Icons.bar_chart,
-                count: post.viewCount,
-                color: secondaryColor,
-                semanticLabel: AppStrings.a11yViews,
-              ),
-
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (can.canBookmark) ...[
-              Semantics(
-                button: true,
-                label: post.isBookmarked
-                    ? AppStrings.a11yBookmarkRemove
-                    : AppStrings.a11yBookmarkAdd,
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    onBookmarkTap();
-                  },
-                  child: Icon(
-                    post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                    color: post.isBookmarked
-                        ? AppColors.accent
-                        : secondaryColor,
-                    size: 18,
-                  ),
+        Expanded(
+          child: can.canReact
+              ? ReactionControl(
+                  post: post,
+                  color: secondaryColor,
+                  onSelectReaction: onSelectReaction,
+                  hitPadding: _cellPadding,
+                )
+              : PostStat(
+                  icon: Icons.favorite_border,
+                  count: post.reactions.values.fold(0, (a, b) => a + b),
+                  color: secondaryColor,
+                  semanticLabel: AppStrings.a11yReactionsReadOnly,
                 ),
-              ),
-              const SizedBox(width: AppSpacing.lg),
-            ],
-            Semantics(
-              button: true,
-              label: AppStrings.a11yCopyLink,
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onShareTap();
-                },
-                child: Icon(Icons.ios_share, color: secondaryColor, size: 18),
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: AppSpacing.lg),
-              trailing!,
-            ],
-          ],
         ),
+        // View count: a button only where statistics can be opened.
+        Expanded(
+          child: onViewsTap != null
+              ? PostActionButton(
+                  icon: Icons.bar_chart,
+                  count: post.viewCount,
+                  color: secondaryColor,
+                  activeColor: AppColors.accent,
+                  semanticLabel: AppStrings.a11yPostAnalytics,
+                  onTap: onViewsTap,
+                )
+              : PostStat(
+                  icon: Icons.bar_chart,
+                  count: post.viewCount,
+                  color: secondaryColor,
+                  semanticLabel: AppStrings.a11yViews,
+                ),
+        ),
+        if (can.canBookmark)
+          _IconAction(
+            icon: post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+            color: post.isBookmarked ? AppColors.accent : secondaryColor,
+            semanticLabel: post.isBookmarked
+                ? AppStrings.a11yBookmarkRemove
+                : AppStrings.a11yBookmarkAdd,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              touchSlop,
+              AppSpacing.sm,
+              touchSlop,
+            ),
+            onTap: onBookmarkTap,
+          ),
+        _IconAction(
+          icon: Icons.ios_share,
+          color: secondaryColor,
+          semanticLabel: AppStrings.a11yCopyLink,
+          // Flush with the column's edge, like the reply icon at the start.
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            touchSlop,
+            trailing == null ? 0 : AppSpacing.sm,
+            touchSlop,
+          ),
+          onTap: onShareTap,
+        ),
+        ?trailing,
       ],
     );
   }
 }
+
+/// Bookmark and share: an icon with no count, in a tap area larger than it.
+class _IconAction extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String semanticLabel;
+  final EdgeInsets padding;
+  final VoidCallback onTap;
+
+  const _IconAction({
+    required this.icon,
+    required this.color,
+    required this.semanticLabel,
+    required this.padding,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Padding(
+          padding: padding,
+          child: Icon(icon, color: color, size: 18),
+        ),
+      ),
+    );
+  }
+}
+
+/// An action's icon and count, at the start of a cell that is all tap area.
+class _CellContent extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final Color color;
+
+  const _CellContent({
+    required this.icon,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: _cellPadding,
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        heightFactor: 1,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 18),
+            if (count > 0) ...[
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  TimeUtils.formatCount(count),
+                  style: AppTypography.actionCount(color: color),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.fade,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// How far each action's tap area reaches above and below its icon.
+const EdgeInsets _cellPadding = EdgeInsets.symmetric(
+  vertical: PostActionBar.touchSlop,
+);
 
 /// A read-only figure in the action bar, with no touch feedback.
 class PostStat extends StatelessWidget {
@@ -192,19 +272,7 @@ class PostStat extends StatelessWidget {
     return Semantics(
       label: AppStrings.a11yCountedAction(count, semanticLabel),
       excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          if (count > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              TimeUtils.formatCount(count),
-              style: AppTypography.actionCount(color: color),
-            ),
-          ],
-        ],
-      ),
+      child: _CellContent(icon: icon, count: count, color: color),
     );
   }
 }
@@ -243,25 +311,15 @@ class PostActionButton extends StatelessWidget {
 
   Widget _buildButton(BuildContext context) {
     return GestureDetector(
+      // The whole cell answers, not just the icon.
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         if (onTap != null) {
           HapticFeedback.lightImpact();
           onTap!();
         }
       },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          if (count > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              TimeUtils.formatCount(count),
-              style: AppTypography.actionCount(color: color),
-            ),
-          ],
-        ],
-      ),
+      child: _CellContent(icon: icon, count: count, color: color),
     );
   }
 }

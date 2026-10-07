@@ -608,11 +608,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ),
                         const Divider(height: 1),
-                        // The same action bar as the feed card.
+                        // The same action bar as the feed card, whose tap
+                        // areas make its vertical padding.
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.postPadding,
-                            vertical: AppSpacing.sm,
                           ),
                           child: PostActionBar(
                             post: post,

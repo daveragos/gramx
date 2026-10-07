@@ -236,7 +236,8 @@ class PostCard extends ConsumerWidget {
                     ? 0
                     : (isRepost ? AppSpacing.xs : AppSpacing.postPadding),
                 AppSpacing.postPadding,
-                AppSpacing.postPadding,
+                // The action bar's tap areas reach into this.
+                AppSpacing.postPadding - PostActionBar.touchSlop,
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,7 +432,9 @@ class PostCard extends ConsumerWidget {
                           ),
                         ],
 
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(
+                          height: AppSpacing.md - PostActionBar.touchSlop,
+                        ),
 
                         PostActionBar(
                           post: post,
