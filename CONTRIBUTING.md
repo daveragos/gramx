@@ -89,12 +89,21 @@ DEVELOPMENT_TEAM[sdk=iphoneos*] = YOURTEAMID
 Both the app and its share extension read it. It is for device builds only:
 the simulator needs no team, and adding one later moves the app's keychain,
 which holds the key to its local database, so a signed-in simulator would
-start over. That is enough for
-`flutter run` on an iPhone, and for a release:
+start over. That is enough for `flutter run` on an iPhone.
+
+Releases carry an unsigned IPA for sideloading, which needs no team:
 
 ```bash
-flutter build ipa
+tool/build_ipa.sh
 ```
+
+It writes `build/ios/ipa/gramx-<version>.ipa` and prints its SHA-256. People
+install it with Sideloadly, SideStore or AltStore, which sign it with their own
+Apple Account; the [iPhone guide](docs/iphone.html) on the website walks them
+through it. The IPA leaves out the share extension, because those tools count
+an extension against the three apps a free Apple Account can have installed.
+Attach it to the GitHub release next to the APKs, and add its line to
+`SHA256SUMS.txt`.
 
 A few things work differently on iOS:
 
@@ -123,10 +132,10 @@ python3 -m http.server --directory docs
 
 The download buttons look up the latest GitHub release when the page loads,
 so publishing a release is enough and the page needs no edit. They find the
-APKs by the `arm64-v8a`, `armeabi-v7a` and `x86_64` in their file names, so
-keep those in the names of release assets. Visitors who can't reach GitHub's
-API get the version in `FALLBACK_VERSION` in `docs/site.js`; bump it with
-each release.
+APKs by the `arm64-v8a`, `armeabi-v7a` and `x86_64` in their file names, and
+the iPhone file by its `.ipa` extension, so keep those in the names of release
+assets. Visitors who can't reach GitHub's API get the version in
+`FALLBACK_VERSION` in `docs/site.js`; bump it with each release.
 
 The site's privacy policy and terms are generated from
 `lib/core/l10n/legal_text.dart`. After changing that file, run:
