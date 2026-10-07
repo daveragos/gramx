@@ -239,7 +239,12 @@ class _ProfileHeader extends StatelessWidget {
                     label: AppStrings.drawerChannelsCount,
                     primary: primary,
                     secondary: secondary,
-                    onTap: () => context.push('/channels'),
+                    // The Channels tab below, as X's counts open their
+                    // lists. Pushing the shell's Channels route over this
+                    // screen put that tab's navigator in the tree twice.
+                    onTap: () => DefaultTabController.of(
+                      context,
+                    ).animateTo(_ProfileTab.channels.index),
                   ),
                   const SizedBox(width: AppSpacing.xl),
                   _Count(
