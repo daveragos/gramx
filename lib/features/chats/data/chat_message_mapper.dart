@@ -17,6 +17,19 @@ abstract class ChatMessageMapper {
   /// Maps one message. Messages at or below [lastReadOutboxMessageId] have
   /// been read by the other side (TDLib has no per-message read flag). Sender
   /// names are drawn only when [isGroup].
+
+  /// The date Telegram sends "when they come online" messages at, as the
+  /// scheduled list reads it.
+  static const int whenOnlineDate = 2147483646;
+
+  /// When [message] was sent, or for a scheduled one, when it will be. A
+  /// scheduled message's date is 0, so the scheduled list showed 1970.
+  static int sendDateOf(td.Message message) =>
+      switch (message.schedulingState) {
+        td.MessageSchedulingStateSendAtDate(:final sendDate) => sendDate,
+        td.MessageSchedulingStateSendWhenOnline() => whenOnlineDate,
+        _ => message.date,
+      };
   static ChatMessage map(
     td.Message message, {
     required Map<int, td.User> users,
@@ -89,7 +102,7 @@ abstract class ChatMessageMapper {
       selfDestructSeconds: destruct is td.MessageSelfDestructTypeTimer
           ? destruct.selfDestructTime
           : 0,
-      sentAt: DateTime.fromMillisecondsSinceEpoch(message.date * 1000),
+      sentAt: DateTime.fromMillisecondsSinceEpoch(sendDateOf(message) * 1000),
       editedAt: message.editDate > 0
           ? DateTime.fromMillisecondsSinceEpoch(message.editDate * 1000)
           : null,

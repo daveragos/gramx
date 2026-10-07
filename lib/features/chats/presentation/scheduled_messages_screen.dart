@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -81,12 +82,9 @@ class _ScheduledRow extends ConsumerWidget {
 
   const _ScheduledRow({required this.chatId, required this.message});
 
-  /// The send date Telegram uses to mean "when they come online".
-  static const int _whenOnlineSentinel = 2147483646;
-
   String _whenLabel() {
     final seconds = message.sentAt.millisecondsSinceEpoch ~/ 1000;
-    if (seconds >= _whenOnlineSentinel) {
+    if (seconds >= ChatMessageMapper.whenOnlineDate) {
       return AppStrings.scheduleWhenOnlineRow;
     }
     return TimeUtils.fullDateTime(message.sentAt);
