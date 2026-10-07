@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -8,8 +9,76 @@ import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
+
+import '../support/td_fixtures.dart';
 
 void main() {
+  // With auto-download off, a photo nobody tapped is incomplete but idle. It
+  // read as loading, and its spinner never stopped.
+  group('FileDownloadProgressState', () {
+    td.File file({bool active = false, String localPath = ''}) {
+      final json = TdFixtures.fileJson(id: 9, localPath: localPath);
+      (json['local'] as Map<String, dynamic>)['is_downloading_active'] = active;
+      return td.File.fromJson(json);
+    }
+
+    test('a file nobody asked for is not downloading', () {
+      final state = FileDownloadProgressState.of(file());
+      expect(state.isCompleted, isFalse);
+      expect(state.isDownloading, isFalse);
+    });
+
+    test('a file TDLib is fetching is', () {
+      expect(
+        FileDownloadProgressState.of(file(active: true)).isDownloading,
+        isTrue,
+      );
+    });
+
+    test('a finished file has its path', () {
+      final state = FileDownloadProgressState.of(file(localPath: '/tmp/a.jpg'));
+      expect(state.isCompleted, isTrue);
+      expect(state.localPath, '/tmp/a.jpg');
+    });
+  });
+
+  // A photo shows a small size while the full one loads, then sharpens.
+  group('TdlibMappers.previewPhotoSize', () {
+    td.PhotoSize size(String type, int width) => td.PhotoSize(
+      type: type,
+      photo: td.File.fromJson(TdFixtures.fileJson(id: width)),
+      width: width,
+      height: width * 3 ~/ 4,
+      progressiveSizes: const [],
+    );
+
+    test('takes the largest small size, not the smallest', () {
+      final sizes = [
+        size('s', 90),
+        size('m', 320),
+        size('x', 800),
+        size('y', 1280),
+      ];
+      expect(TdlibMappers.previewPhotoSize(sizes)?.type, 'm');
+    });
+
+    test('never the full size itself', () {
+      final sizes = [size('m', 320), size('x', 800)];
+      expect(TdlibMappers.previewPhotoSize(sizes)?.type, 'm');
+    });
+
+    test('falls back to the smallest when every size is large', () {
+      final sizes = [size('x', 800), size('y', 1280)];
+      expect(TdlibMappers.previewPhotoSize(sizes)?.type, 'x');
+    });
+
+    test('has none for a photo with one size', () {
+      expect(TdlibMappers.previewPhotoSize([size('y', 1280)]), isNull);
+    });
+  });
+
   // Several photos sit side by side at one height, scrolling sideways.
   group('PostMediaGrid.rowItemWidth', () {
     MediaItem photo(int width, int height) =>

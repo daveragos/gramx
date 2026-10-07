@@ -52,6 +52,18 @@ class TdlibMappers {
   /// The plain text of a TDLib `FormattedText`, or null when it is empty.
   static String? plainTextOf(dynamic raw) => _parseFormattedText(raw);
 
+  /// A small size of a photo to show while the full one loads: the largest
+  /// up to about 480 pixels wide, short of the full size. Null for a photo
+  /// with one size. Smaller than this looked blurred stretched over a post.
+  static td.PhotoSize? previewPhotoSize(List<td.PhotoSize> sizes) {
+    if (sizes.length < 2) return null;
+    td.PhotoSize? preview;
+    for (final size in sizes.take(sizes.length - 1)) {
+      if (size.width <= 480) preview = size;
+    }
+    return preview ?? sizes.first;
+  }
+
   /// This app's entity models for a TDLib entity list. See [plainTextOf].
   static List<TextEntity>? entitiesOf(List<td.TextEntity>? entities) =>
       _parseEntities(entities);
@@ -535,7 +547,7 @@ class TdlibMappers {
           : (bestPhotoFile.remote.id.isNotEmpty
                 ? bestPhotoFile.remote.id
                 : bestPhotoFile.id.toString());
-      final thumbFile = photo.sizes.first.photo;
+      final thumbFile = (previewPhotoSize(photo.sizes) ?? bestSize).photo;
       final thumbPath =
           thumbFile.local.isDownloadingCompleted &&
               thumbFile.local.path.isNotEmpty

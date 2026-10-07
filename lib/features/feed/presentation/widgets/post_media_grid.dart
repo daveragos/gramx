@@ -303,6 +303,43 @@ class _MediaTile extends ConsumerWidget {
           )
         : Container(color: bgColor);
 
+    // A photo's small size, which comes long before the full one. It shows
+    // while that loads, sharper than the blur, and the full one fades in
+    // over it. Fetched only while the full one is on its way; one fetched
+    // earlier this session is reused.
+    String? previewPath;
+    final previewId = item.type == MediaType.photo
+        ? item.thumbnailFileId
+        : null;
+    if (previewId != null && previewId != 0 && previewId != item.fileId) {
+      final fetching =
+          !isDownloaded &&
+          (autoDownload || (downloadState?.isDownloading ?? false));
+      if (fetching || ref.exists(fileDownloadProgressProvider(previewId))) {
+        previewPath = ref
+            .watch(fileDownloadProgressProvider(previewId))
+            .value
+            ?.localPath;
+      }
+    }
+    final Widget lowRes = previewPath == null
+        ? underlay
+        : Stack(
+            fit: StackFit.expand,
+            children: [
+              underlay,
+              Image.file(
+                File(previewPath),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                gaplessPlayback: true,
+                frameBuilder: fadeInFrame,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ],
+          );
+
     Widget contentWidget;
 
     if (item.type == MediaType.sticker) {
@@ -319,7 +356,7 @@ class _MediaTile extends ConsumerWidget {
       contentWidget = Stack(
         fit: StackFit.expand,
         children: [
-          underlay,
+          lowRes,
           Hero(
             tag: heroTag,
             child: Image.file(
@@ -359,39 +396,23 @@ class _MediaTile extends ConsumerWidget {
         );
       }
     } else {
-      final placeholderWidget = minithumbnail != null
-          ? underlay
+      // What there is of the picture yet, and no spinner: the small size
+      // sharpening into the full one says enough.
+      final placeholderWidget = minithumbnail != null || previewPath != null
+          ? lowRes
           : _buildPlaceholder(bgColor, iconColor);
 
-      final progress = downloadState?.progress ?? 0.0;
-      final isProgressing = downloadState != null && !downloadState.isCompleted;
+      // With auto-download off, a photo nobody tapped waits for a tap.
+      final waitsForTap =
+          item.type == MediaType.photo &&
+          !autoDownload &&
+          !(downloadState?.isDownloading ?? false);
 
       contentWidget = Stack(
         fit: StackFit.expand,
         children: [
           placeholderWidget,
-          Container(color: Colors.black.withValues(alpha: 0.15)),
-          if (isProgressing)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
-                ),
-                child: SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    value: progress > 0 ? progress : null,
-                    strokeWidth: 3,
-                    color: Colors.white,
-                    backgroundColor: Colors.white24,
-                  ),
-                ),
-              ),
-            )
-          else if (item.type == MediaType.video || item.type == MediaType.gif)
+          if (item.type == MediaType.video || item.type == MediaType.gif)
             Center(
               child: Container(
                 decoration: const BoxDecoration(
@@ -406,8 +427,10 @@ class _MediaTile extends ConsumerWidget {
                 ),
               ),
             )
-          else if (!autoDownload)
+          else if (waitsForTap) ...[
+            Container(color: Colors.black.withValues(alpha: 0.15)),
             const Center(child: TapToLoadBadge()),
+          ],
         ],
       );
     }

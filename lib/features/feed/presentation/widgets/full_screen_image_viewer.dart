@@ -24,13 +24,24 @@ class ViewerImage {
   /// Telegram's inline blur preview (base64), sent with the message.
   final String? minithumbnail;
 
-  const ViewerImage({this.path, this.fileId, this.minithumbnail});
+  /// A smaller size of the same photo, shown while the full one loads.
+  final int? previewFileId;
+
+  const ViewerImage({
+    this.path,
+    this.fileId,
+    this.minithumbnail,
+    this.previewFileId,
+  });
 
   factory ViewerImage.of(MediaItem item, {String? downloadedPath}) =>
       ViewerImage(
         path: downloadedPath ?? item.localPath ?? item.url,
         fileId: item.fileId,
         minithumbnail: item.minithumbnail,
+        previewFileId: item.type == MediaType.photo
+            ? item.thumbnailFileId
+            : null,
       );
 
   /// Whether this is worth opening at all.
@@ -305,13 +316,42 @@ class _ViewerImage extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) => report(resolved));
     }
 
+    // The photo's small size, which comes long before the full one.
+    final previewId = item.previewFileId;
+    final hasPreview =
+        previewId != null && previewId != 0 && previewId != fileId;
+
     if (resolved != null && resolved.isNotEmpty) {
       final file = File(resolved);
       if (file.existsSync()) {
-        return Image.file(
+        final full = Image.file(
           file,
           fit: BoxFit.contain,
+          gaplessPlayback: true,
+          frameBuilder: fadeInFrame,
           errorBuilder: (_, _, _) => const _BrokenImage(),
+        );
+        // Fades in over the small size if that was showing, rather than
+        // over black. One already on screen was fetched while this loaded.
+        final preview =
+            hasPreview && ref.exists(fileDownloadProgressProvider(previewId))
+            ? ref
+                  .watch(fileDownloadProgressProvider(previewId))
+                  .value
+                  ?.localPath
+            : null;
+        if (preview == null) return full;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.file(
+              File(preview),
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+            full,
+          ],
         );
       }
     }
@@ -321,8 +361,12 @@ class _ViewerImage extends ConsumerWidget {
         item.path != null &&
         (item.path!.startsWith('http://') || item.path!.startsWith('https://'));
     if (download != null || isRemote) {
+      final preview = hasPreview
+          ? ref.watch(fileDownloadProgressProvider(previewId)).value?.localPath
+          : null;
       return _LoadingImage(
         minithumbnail: item.minithumbnail,
+        previewPath: preview,
         progress: download?.progress ?? 0,
       );
     }
@@ -331,30 +375,54 @@ class _ViewerImage extends ConsumerWidget {
   }
 }
 
-/// A loading picture: Telegram's blur preview, if any, under a progress ring.
+/// A loading picture: the photo's small size once it's in, sharpening into
+/// the full one, and before that Telegram's blur preview. A progress ring
+/// shows only while there is nothing of the photo to see.
 class _LoadingImage extends StatelessWidget {
   final String? minithumbnail;
+  final String? previewPath;
   final double progress;
 
-  const _LoadingImage({required this.minithumbnail, required this.progress});
+  const _LoadingImage({
+    required this.minithumbnail,
+    required this.previewPath,
+    required this.progress,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final preview = Minithumbnail.provider(minithumbnail);
-    final blur = preview == null
+    final blurProvider = Minithumbnail.provider(minithumbnail);
+    final blur = blurProvider == null
         ? null
-        : Image(image: preview, fit: BoxFit.contain, gaplessPlayback: true);
+        : Image(
+            image: blurProvider,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+          );
+    final previewPath = this.previewPath;
 
     return Stack(
       alignment: Alignment.center,
+      fit: StackFit.expand,
       children: [
         ?blur,
-        CircularProgressIndicator(
-          value: progress > 0 ? progress : null,
-          color: Colors.white,
-          backgroundColor: Colors.white24,
-          strokeWidth: 3,
-        ),
+        if (previewPath != null)
+          Image.file(
+            File(previewPath),
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            frameBuilder: fadeInFrame,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          )
+        else if (blur == null)
+          Center(
+            child: CircularProgressIndicator(
+              value: progress > 0 ? progress : null,
+              color: Colors.white,
+              backgroundColor: Colors.white24,
+              strokeWidth: 3,
+            ),
+          ),
       ],
     );
   }

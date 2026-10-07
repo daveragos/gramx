@@ -8,6 +8,10 @@ class FileDownloadProgressState {
   final int downloadedSize;
   final int totalSize;
   final bool isCompleted;
+
+  /// Whether TDLib is fetching the file now. A file nobody asked for is
+  /// incomplete too, and must not read as loading.
+  final bool isDownloading;
   final String? localPath;
 
   const FileDownloadProgressState({
@@ -15,8 +19,22 @@ class FileDownloadProgressState {
     this.downloadedSize = 0,
     this.totalSize = 0,
     this.isCompleted = false,
+    this.isDownloading = false,
     this.localPath,
   });
+
+  factory FileDownloadProgressState.of(td.File file) {
+    final isDone =
+        file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
+    return FileDownloadProgressState(
+      fileId: file.id,
+      downloadedSize: file.local.downloadedSize,
+      totalSize: file.expectedSize > 0 ? file.expectedSize : file.size,
+      isCompleted: isDone,
+      isDownloading: file.local.isDownloadingActive,
+      localPath: isDone ? file.local.path : null,
+    );
+  }
 
   double get progress {
     if (isCompleted) return 1.0;
@@ -40,22 +58,10 @@ final fileDownloadProgressProvider =
       try {
         final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
         if (result is td.File) {
-          final isDone =
-              result.local.isDownloadingCompleted &&
-              result.local.path.isNotEmpty;
-          final total = result.expectedSize > 0
-              ? result.expectedSize
-              : result.size;
+          final state = FileDownloadProgressState.of(result);
+          yield state;
 
-          yield FileDownloadProgressState(
-            fileId: fileId,
-            downloadedSize: result.local.downloadedSize,
-            totalSize: total,
-            isCompleted: isDone,
-            localPath: isDone ? result.local.path : null,
-          );
-
-          if (isDone) return;
+          if (state.isCompleted) return;
 
           if (!result.local.isDownloadingActive) {
             await tdlib.sendRequest(
@@ -85,20 +91,10 @@ final fileDownloadProgressProvider =
 
       await for (final update in tdlib.fileUpdates) {
         if (update.file.id == fileId) {
-          final file = update.file;
-          final isDone =
-              file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
-          final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+          final state = FileDownloadProgressState.of(update.file);
+          yield state;
 
-          yield FileDownloadProgressState(
-            fileId: fileId,
-            downloadedSize: file.local.downloadedSize,
-            totalSize: total,
-            isCompleted: isDone,
-            localPath: isDone ? file.local.path : null,
-          );
-
-          if (isDone) return;
+          if (state.isCompleted) return;
         }
       }
     });
@@ -118,41 +114,19 @@ final fileDownloadStatusProvider =
       try {
         final result = await tdlib.sendRequest(td.GetFile(fileId: fileId));
         if (result is td.File) {
-          final isDone =
-              result.local.isDownloadingCompleted &&
-              result.local.path.isNotEmpty;
-          final total = result.expectedSize > 0
-              ? result.expectedSize
-              : result.size;
+          final state = FileDownloadProgressState.of(result);
+          yield state;
 
-          yield FileDownloadProgressState(
-            fileId: fileId,
-            downloadedSize: result.local.downloadedSize,
-            totalSize: total,
-            isCompleted: isDone,
-            localPath: isDone ? result.local.path : null,
-          );
-
-          if (isDone) return;
+          if (state.isCompleted) return;
         }
       } catch (_) {}
 
       await for (final update in tdlib.fileUpdates) {
         if (update.file.id == fileId) {
-          final file = update.file;
-          final isDone =
-              file.local.isDownloadingCompleted && file.local.path.isNotEmpty;
-          final total = file.expectedSize > 0 ? file.expectedSize : file.size;
+          final state = FileDownloadProgressState.of(update.file);
+          yield state;
 
-          yield FileDownloadProgressState(
-            fileId: fileId,
-            downloadedSize: file.local.downloadedSize,
-            totalSize: total,
-            isCompleted: isDone,
-            localPath: isDone ? file.local.path : null,
-          );
-
-          if (isDone) return;
+          if (state.isCompleted) return;
         }
       }
     });
