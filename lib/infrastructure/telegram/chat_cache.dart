@@ -37,6 +37,10 @@ class ChatCacheState {
   /// Last-message updates that arrived before their chat's `UpdateNewChat`.
   final Map<int, td.UpdateChatLastMessage> pendingLastMessages = {};
 
+  /// The account-wide notification settings for private chats, groups and
+  /// channels, which a chat on the default follows.
+  final Map<NotificationScope, td.ScopeNotificationSettings> scopeSettings = {};
+
   /// Every cached chat, most recently active first.
   List<td.Chat> get allChats {
     final list = chats.values.toList();
@@ -206,6 +210,11 @@ class ChatCacheState {
   /// Folds one update in. Returns true if anything changed.
   bool apply(td.TdObject update) {
     switch (update) {
+      case td.UpdateScopeNotificationSettings():
+        scopeSettings[NotificationScope.of(update.scope)] =
+            update.notificationSettings;
+        return true;
+
       case td.UpdateNewChat():
         chats[update.chat.id] = update.chat;
         _flushPendingLastMessage(update.chat.id);
@@ -466,7 +475,31 @@ class ChatCacheState {
     users.clear();
     userFullInfos.clear();
     pendingLastMessages.clear();
+    scopeSettings.clear();
   }
+}
+
+/// The groups of chats Telegram has default notification settings for.
+enum NotificationScope {
+  privateChats,
+  groups,
+  channels;
+
+  static NotificationScope of(td.NotificationSettingsScope scope) =>
+      switch (scope) {
+        td.NotificationSettingsScopePrivateChats() => privateChats,
+        td.NotificationSettingsScopeGroupChats() => groups,
+        td.NotificationSettingsScopeChannelChats() => channels,
+      };
+
+  /// The scope [chat] falls under, given its supergroup if it has one.
+  static NotificationScope ofChat(td.Chat chat, td.Supergroup? supergroup) =>
+      switch (chat.type) {
+        td.ChatTypePrivate() || td.ChatTypeSecret() => privateChats,
+        td.ChatTypeBasicGroup() => groups,
+        td.ChatTypeSupergroup(:final isChannel) =>
+          isChannel ? channels : groups,
+      };
 }
 
 /// In-memory mirror of the chats TDLib has loaded, built from the update
@@ -530,6 +563,10 @@ class ChatCache {
   Map<int, td.Chat> get chatsById => _state.chats;
 
   Map<int, td.Supergroup> get supergroupsById => _state.supergroups;
+
+  /// See [ChatCacheState.scopeSettings].
+  Map<NotificationScope, td.ScopeNotificationSettings> get scopeSettings =>
+      _state.scopeSettings;
 
   td.User? user(int userId) => _state.users[userId];
 
@@ -611,6 +648,7 @@ class ChatCache {
   }
 
   Future<void> _load() async {
+    unawaited(_loadScopeSettings());
     final firstPage = _firstPage = Completer<void>();
     try {
       await _loadRounds(firstPage);
@@ -618,6 +656,27 @@ class ChatCache {
       // Release anyone waiting, however the load ended.
       if (!firstPage.isCompleted) firstPage.complete();
       _settleRound();
+    }
+  }
+
+  /// Asks for the notification defaults, in case their updates came before
+  /// the cache was listening.
+  Future<void> _loadScopeSettings() async {
+    for (final scope in const <td.NotificationSettingsScope>[
+      td.NotificationSettingsScopePrivateChats(),
+      td.NotificationSettingsScopeGroupChats(),
+      td.NotificationSettingsScopeChannelChats(),
+    ]) {
+      try {
+        final res = await _tdlib.sendRequest(
+          td.GetScopeNotificationSettings(scope: scope),
+        );
+        if (res is! td.ScopeNotificationSettings) continue;
+        _state.scopeSettings[NotificationScope.of(scope)] = res;
+        _notify();
+      } catch (e) {
+        debugPrint('[ChatCache] notification defaults failed: $e');
+      }
     }
   }
 

@@ -29,6 +29,10 @@ abstract class ChatListBuilder {
 
     /// Secret chat records by secret chat id, read for their state.
     Map<int, td.SecretChat> secretChats = const {},
+
+    /// The defaults a chat's notifications follow; see [isMuted].
+    Map<NotificationScope, td.ScopeNotificationSettings> scopeSettings =
+        const {},
   }) {
     final rows = [
       for (final chat in chats)
@@ -41,6 +45,7 @@ abstract class ChatListBuilder {
             userFullInfos: userFullInfos,
             chatsById: chatsById,
             secretChats: secretChats,
+            scopeSettings: scopeSettings,
           ),
     ];
     rows.sort(compare);
@@ -77,6 +82,8 @@ abstract class ChatListBuilder {
     Map<int, td.UserFullInfo> userFullInfos = const {},
     Map<int, td.Chat> chatsById = const {},
     Map<int, td.SecretChat> secretChats = const {},
+    Map<NotificationScope, td.ScopeNotificationSettings> scopeSettings =
+        const {},
   }) {
     final type = chat.type;
     // A secret chat carries the other person's id on its type, so it resolves
@@ -161,7 +168,10 @@ abstract class ChatListBuilder {
       isMarkedAsUnread: chat.isMarkedAsUnread,
       unreadMentionCount: chat.unreadMentionCount,
       unreadReactionCount: chat.unreadReactionCount,
-      isMuted: isMuted(chat.notificationSettings),
+      isMuted: isMuted(
+        chat.notificationSettings,
+        scope: scopeSettings[NotificationScope.ofChat(chat, supergroup)],
+      ),
       isVerified: user?.isVerified ?? supergroup?.isVerified ?? false,
       // Saved Messages shows no Premium mark, emoji status or presence.
       isPremium: !isSaved && (user?.isPremium ?? false),
@@ -229,9 +239,13 @@ abstract class ChatListBuilder {
   }
 
   /// Whether notifications for this chat are silenced. A chat on the
-  /// account-wide default reads as unmuted, since that default isn't loaded.
-  static bool isMuted(td.ChatNotificationSettings settings) {
-    if (settings.useDefaultMuteFor) return false;
+  /// account-wide default follows [scope]; it used to read as unmuted, so
+  /// with all groups muted in Telegram they showed here as unmuted.
+  static bool isMuted(
+    td.ChatNotificationSettings settings, {
+    td.ScopeNotificationSettings? scope,
+  }) {
+    if (settings.useDefaultMuteFor) return (scope?.muteFor ?? 0) > 0;
     return settings.muteFor > 0;
   }
 

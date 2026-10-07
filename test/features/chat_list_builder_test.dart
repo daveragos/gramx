@@ -152,6 +152,37 @@ void main() {
       );
     });
 
+    // With every private chat muted in Telegram, a chat on the default
+    // showed here as unmuted.
+    test('a chat on the default follows its scope', () {
+      const muted = td.ScopeNotificationSettings(
+        muteFor: 3600,
+        soundId: 0,
+        showPreview: true,
+        useDefaultMuteStories: true,
+        muteStories: false,
+        storySoundId: 0,
+        showStorySender: true,
+        disablePinnedMessageNotifications: false,
+        disableMentionNotifications: false,
+      );
+      final row = ChatListBuilder.summaryFor(
+        TdFixtures.conversation(id: 1),
+        users: const {},
+        supergroups: const {},
+        scopeSettings: {NotificationScope.privateChats: muted},
+      );
+      expect(row.isMuted, isTrue);
+
+      final group = ChatListBuilder.summaryFor(
+        TdFixtures.groupChat(id: -100200),
+        users: const {},
+        supergroups: const {},
+        scopeSettings: {NotificationScope.privateChats: muted},
+      );
+      expect(group.isMuted, isFalse, reason: 'groups have their own default');
+    });
+
     // A chat marked unread by hand has an unreadCount of zero.
     test('a hand-marked chat is unread without a count', () {
       final row = _summary(

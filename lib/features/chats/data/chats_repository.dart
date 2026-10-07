@@ -80,6 +80,7 @@ class ChatsRepository {
     userFullInfos: _chatCache.userFullInfosById,
     chatsById: _chatCache.chatsById,
     secretChats: _chatCache.secretChatsById,
+    scopeSettings: _chatCache.scopeSettings,
   );
 
   /// One chat's row, or null if the cache doesn't know it.
@@ -94,6 +95,7 @@ class ChatsRepository {
       userFullInfos: _chatCache.userFullInfosById,
       chatsById: _chatCache.chatsById,
       secretChats: _chatCache.secretChatsById,
+      scopeSettings: _chatCache.scopeSettings,
     );
   }
 
@@ -1216,17 +1218,24 @@ class ChatsRepository {
 
   /// Mutes a chat forever, or unmutes it. Unmuting returns the chat to the
   /// account-wide default instead of setting it to zero, so it keeps following
-  /// later changes to that default.
+  /// later changes to that default, unless that default is muted.
   Future<bool> setMuted(int chatId, {required bool isMuted}) async {
-    final current = _chatCache.chat(chatId)?.notificationSettings;
-    if (current == null) return false;
+    final chat = _chatCache.chat(chatId);
+    final current = chat?.notificationSettings;
+    if (chat == null || current == null) return false;
+
+    final scope = NotificationScope.ofChat(
+      chat,
+      _chatCache.supergroupForChat(chat),
+    );
+    final defaultMuted = (_chatCache.scopeSettings[scope]?.muteFor ?? 0) > 0;
 
     try {
       final res = await _tdlib.sendRequest(
         td.SetChatNotificationSettings(
           chatId: chatId,
           notificationSettings: current.copyWith(
-            useDefaultMuteFor: !isMuted,
+            useDefaultMuteFor: !isMuted && !defaultMuted,
             muteFor: isMuted ? muteForever : 0,
           ),
         ),
@@ -1356,6 +1365,7 @@ class ChatsRepository {
     users: _chatCache.usersById,
     supergroups: _chatCache.supergroupsById,
     selfUserId: selfUserId,
+    scopeSettings: _chatCache.scopeSettings,
   );
 
   /// What a `@username` refers to, so a tap can open the right screen. One
@@ -1508,6 +1518,7 @@ class ChatsRepository {
                 supergroups: _chatCache.supergroupsById,
                 selfUserId: selfUserId,
                 secretChats: _chatCache.secretChatsById,
+                scopeSettings: _chatCache.scopeSettings,
               ),
       ];
     } catch (e) {
