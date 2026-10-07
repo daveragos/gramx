@@ -153,7 +153,8 @@ void main() {
         isCaption: true,
       );
 
-      expect(tdlib.asked, [
+      // Each edit reads the message first, for its formatting.
+      expect(tdlib.asked.where((request) => request is! td.GetMessage), [
         isA<td.EditMessageText>(),
         isA<td.EditMessageCaption>().having(
           (c) => c.caption?.text,

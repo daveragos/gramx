@@ -818,7 +818,10 @@ class ChatsRepository {
     required String text,
     bool isCaption = false,
   }) async {
-    final formatted = td.FormattedText(text: text, entities: const []);
+    final formatted = td.FormattedText(
+      text: text,
+      entities: keptEntities(await _currentText(chatId, messageId), text),
+    );
     try {
       // Media messages need `EditMessageCaption`; Telegram rejects
       // `EditMessageText` for them.
@@ -845,6 +848,87 @@ class ChatsRepository {
       return false;
     }
   }
+
+  /// The message's text or caption as Telegram has it, with its formatting.
+  Future<td.FormattedText?> _currentText(int chatId, int messageId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetMessage(chatId: chatId, messageId: messageId),
+      );
+      if (res is! td.Message) return null;
+      return switch (res.content) {
+        td.MessageText(:final text) => text,
+        td.MessagePhoto(:final caption) ||
+        td.MessageVideo(:final caption) ||
+        td.MessageAnimation(:final caption) ||
+        td.MessageDocument(:final caption) ||
+        td.MessageAudio(:final caption) ||
+        td.MessageVoiceNote(:final caption) => caption,
+        _ => null,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The formatting of [before] that still applies once its text is
+  /// [text]: marks on the unchanged start and end are kept, and a mark
+  /// around the whole change stretches with it. An edit used to drop every
+  /// bold, link and custom emoji. Only marks Telegram takes from a client
+  /// are kept; it finds links, mentions and hashtags itself.
+  @visibleForTesting
+  static List<td.TextEntity> keptEntities(
+    td.FormattedText? before,
+    String text,
+  ) {
+    if (before == null || before.entities.isEmpty) return const [];
+    final old = before.text;
+
+    final shortest = old.length < text.length ? old.length : text.length;
+    var prefix = 0;
+    while (prefix < shortest &&
+        old.codeUnitAt(prefix) == text.codeUnitAt(prefix)) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < shortest - prefix &&
+        old.codeUnitAt(old.length - 1 - suffix) ==
+            text.codeUnitAt(text.length - 1 - suffix)) {
+      suffix++;
+    }
+    final changeEnd = old.length - suffix;
+    final shift = text.length - old.length;
+
+    return [
+      for (final entity in before.entities)
+        if (_sentByClients(entity.type))
+          if (entity.offset + entity.length <= prefix)
+            entity
+          else if (entity.offset >= changeEnd)
+            entity.copyWith(offset: entity.offset + shift)
+          else if (entity.offset <= prefix &&
+              entity.offset + entity.length >= changeEnd &&
+              entity.length + shift > 0)
+            entity.copyWith(length: entity.length + shift),
+    ];
+  }
+
+  static bool _sentByClients(td.TextEntityType type) => switch (type) {
+    td.TextEntityTypeBold() ||
+    td.TextEntityTypeItalic() ||
+    td.TextEntityTypeUnderline() ||
+    td.TextEntityTypeStrikethrough() ||
+    td.TextEntityTypeSpoiler() ||
+    td.TextEntityTypeCode() ||
+    td.TextEntityTypePre() ||
+    td.TextEntityTypePreCode() ||
+    td.TextEntityTypeBlockQuote() ||
+    td.TextEntityTypeExpandableBlockQuote() ||
+    td.TextEntityTypeTextUrl() ||
+    td.TextEntityTypeMentionName() ||
+    td.TextEntityTypeCustomEmoji() => true,
+    _ => false,
+  };
 
   /// Deletes messages. [revoke] deletes them for everybody, not just this
   /// account.
