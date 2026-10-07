@@ -396,6 +396,58 @@ void main() {
     });
   });
 
+  // Attachments that couldn't all be one album were sent as their first
+  // item alone.
+  group('ComposeMessages.batches', () {
+    const doc = ComposeAttachment(
+      path: '/tmp/a.pdf',
+      kind: ComposeMediaKind.document,
+      width: 0,
+      height: 0,
+    );
+    List<Type> shape(List<List<td.InputMessageContent>> batches) => [
+      for (final batch in batches) batch.first.runtimeType,
+    ];
+
+    test('photos and a file go as an album and a file', () {
+      final contents = ComposeMessages.build(
+        text: 'all of it',
+        attachments: [
+          _photo(path: '/tmp/1.jpg'),
+          doc,
+          _video(),
+        ],
+      );
+      final batches = ComposeMessages.batches(contents);
+
+      expect(batches.map((b) => b.length), [2, 1]);
+      expect(shape(batches), [td.InputMessagePhoto, td.InputMessageDocument]);
+      expect(ComposeMessages.isAlbum(batches.first), isTrue);
+      expect(batches.expand((b) => b), hasLength(3));
+    });
+
+    test('one album is one batch', () {
+      final contents = ComposeMessages.build(
+        text: '',
+        attachments: [
+          _photo(path: '/tmp/1.jpg'),
+          _photo(path: '/tmp/2.jpg'),
+        ],
+      );
+
+      expect(ComposeMessages.batches(contents), [contents]);
+    });
+
+    test('an album holds at most ten', () {
+      final contents = ComposeMessages.build(
+        text: '',
+        attachments: [for (var i = 0; i < 12; i++) _photo(path: '/tmp/$i.jpg')],
+      );
+
+      expect(ComposeMessages.batches(contents).map((b) => b.length), [10, 2]);
+    });
+  });
+
   group('ComposeMessages.build', () {
     test('no attachments makes one text message', () {
       final contents = ComposeMessages.build(

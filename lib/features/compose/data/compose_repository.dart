@@ -138,6 +138,33 @@ abstract class ComposeMessages {
     ];
   }
 
+  /// [contents] split into what can be sent together, in order: photos and
+  /// videos as albums, files and audio as albums, the rest one by one. Only
+  /// the first used to be sent when they couldn't all be one album.
+  static List<List<td.InputMessageContent>> batches(
+    List<td.InputMessageContent> contents,
+  ) {
+    final byFamily = <int, List<td.InputMessageContent>>{};
+    final batches = <List<td.InputMessageContent>>[];
+    for (final content in contents) {
+      final family = _albumFamilyOf(content);
+      if (family == null) {
+        batches.add([content]);
+        continue;
+      }
+      final group = byFamily[family];
+      if (group == null || group.length == _albumMaxSize) {
+        batches.add(byFamily[family] = [content]);
+      } else {
+        group.add(content);
+      }
+    }
+    return batches;
+  }
+
+  /// The most items Telegram takes in one album.
+  static const _albumMaxSize = 10;
+
   /// Whether these contents can be sent as one album. TDLib refuses albums
   /// that mix groups (see [_albumFamilyOf]).
   static bool isAlbum(List<td.InputMessageContent> contents) {
@@ -355,45 +382,44 @@ class ComposeRepository {
       remote: remote,
     );
 
+    final sent = <td.Message>[];
     try {
-      if (ComposeMessages.isAlbum(contents)) {
-        final res = await _tdlib.sendRequest(
-          td.SendMessageAlbum(
-            chatId: chatId,
-            messageThreadId: 0,
-            options: _sendOptions,
-            inputMessageContents: contents,
-          ),
-        );
-        if (res is! td.Messages) return ComposeSendResult.refused;
-        final sent = res.messages;
-        return ComposeSendResult(
-          accepted: sent.isNotEmpty,
-          messageIds: [for (final m in sent) m.id],
-          fileIds: [
-            for (final m in sent) ...ComposeMessages.uploadingFileIds(m),
-          ],
-        );
+      for (final batch in ComposeMessages.batches(contents)) {
+        if (ComposeMessages.isAlbum(batch)) {
+          final res = await _tdlib.sendRequest(
+            td.SendMessageAlbum(
+              chatId: chatId,
+              messageThreadId: 0,
+              options: _sendOptions,
+              inputMessageContents: batch,
+            ),
+          );
+          if (res is! td.Messages || res.messages.isEmpty) break;
+          sent.addAll(res.messages);
+        } else {
+          final res = await _tdlib.sendRequest(
+            td.SendMessage(
+              chatId: chatId,
+              messageThreadId: 0,
+              options: _sendOptions,
+              inputMessageContent: batch.single,
+            ),
+          );
+          if (res is! td.Message) break;
+          sent.add(res);
+        }
       }
-
-      final res = await _tdlib.sendRequest(
-        td.SendMessage(
-          chatId: chatId,
-          messageThreadId: 0,
-          options: _sendOptions,
-          inputMessageContent: contents.first,
-        ),
-      );
-      if (res is! td.Message) return ComposeSendResult.refused;
-      return ComposeSendResult(
-        accepted: true,
-        messageIds: [res.id],
-        fileIds: ComposeMessages.uploadingFileIds(res),
-      );
     } catch (e) {
       debugPrint('[ComposeRepo] Send failed: $e');
-      return ComposeSendResult.refused;
     }
+
+    // What was queued is tracked either way, but only all of it counts as
+    // sent.
+    return ComposeSendResult(
+      accepted: sent.length == contents.length,
+      messageIds: [for (final m in sent) m.id],
+      fileIds: [for (final m in sent) ...ComposeMessages.uploadingFileIds(m)],
+    );
   }
 
   /// Sends a poll as its own message.

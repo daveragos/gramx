@@ -518,38 +518,42 @@ class ChatsRepository {
         : td.InputMessageReplyToMessage(messageId: replyToMessageId);
     final options = _optionsFor(schedule);
 
+    // Attachments that can't share an album go as several messages; only
+    // the first used to be sent. The first message carries the caption.
+    td.Message? first;
     try {
-      if (ComposeMessages.isAlbum(contents)) {
-        final res = await _tdlib.sendRequest(
-          td.SendMessageAlbum(
-            chatId: chatId,
-            messageThreadId: 0,
-            replyTo: replyTo,
-            options: options,
-            inputMessageContents: contents,
-          ),
-        );
-        // The first message of an album carries the caption.
-        if (res is td.Messages) {
-          return res.messages.isEmpty ? null : res.messages.first;
+      for (final batch in ComposeMessages.batches(contents)) {
+        final td.Message? queued;
+        if (ComposeMessages.isAlbum(batch)) {
+          final res = await _tdlib.sendRequest(
+            td.SendMessageAlbum(
+              chatId: chatId,
+              messageThreadId: 0,
+              replyTo: replyTo,
+              options: options,
+              inputMessageContents: batch,
+            ),
+          );
+          queued = res is td.Messages ? res.messages.firstOrNull : null;
+        } else {
+          final res = await _tdlib.sendRequest(
+            td.SendMessage(
+              chatId: chatId,
+              messageThreadId: 0,
+              replyTo: replyTo,
+              options: options,
+              inputMessageContent: batch.single,
+            ),
+          );
+          queued = res is td.Message ? res : null;
         }
-        return null;
+        if (queued == null) break;
+        first ??= queued;
       }
-
-      final res = await _tdlib.sendRequest(
-        td.SendMessage(
-          chatId: chatId,
-          messageThreadId: 0,
-          replyTo: replyTo,
-          options: options,
-          inputMessageContent: contents.first,
-        ),
-      );
-      return res is td.Message ? res : null;
     } catch (e) {
       debugPrint('[ChatsRepo] send to $chatId failed: $e');
-      return null;
     }
+    return first;
   }
 
   /// The send options for one schedule. An immediate send leaves
