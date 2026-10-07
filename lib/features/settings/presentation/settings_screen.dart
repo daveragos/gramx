@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 import 'package:gramx/core/config/app_links.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -32,9 +33,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _clearCache() async {
     setState(() => _isClearingCache = true);
     final messenger = ScaffoldMessenger.of(context);
+    // Used after the wait, which this screen may not outlive.
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       final freed = await ref.read(storageRepositoryProvider).clear();
-      ref.invalidate(storageUsageProvider);
+      container
+        ..invalidate(storageUsageProvider)
+        // Downloads already marked done pointed at deleted files, so their
+        // pictures stayed broken and were never fetched again.
+        ..invalidate(fileDownloadProgressProvider)
+        ..invalidate(fileDownloadStatusProvider)
+        ..invalidate(fileDownloadProvider)
+        ..invalidate(fileExistsProvider);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
