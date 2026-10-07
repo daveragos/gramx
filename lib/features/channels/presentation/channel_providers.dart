@@ -246,6 +246,22 @@ final activeAccountProvider = StreamProvider<Account?>((ref) {
 
 /// Channels Telegram suggests, for the Explore view. Kept alive so switching
 /// back to the Search tab doesn't cost another request.
+/// The channels Telegram finds like a channel, by chat id.
+final similarChannelsProvider = FutureProvider.family<List<Channel>, int>((
+  ref,
+  chatId,
+) {
+  return ref.watch(channelRepositoryProvider).similarChannels(chatId);
+}, isAutoDispose: true);
+
+/// How many channels Telegram finds like a channel, by chat id.
+final similarChannelCountProvider = FutureProvider.family<int, int>((
+  ref,
+  chatId,
+) {
+  return ref.watch(channelRepositoryProvider).similarChannelCount(chatId);
+}, isAutoDispose: true);
+
 final recommendedChannelsProvider = FutureProvider<List<Channel>>((ref) async {
   ref.keepAlive();
   return ref.watch(channelRepositoryProvider).recommendedChannels();

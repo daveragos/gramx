@@ -49,6 +49,82 @@ class ChannelRepository {
     }
   }
 
+  /// The most similar channels listed, each with full info for its
+  /// description. Telegram itself sends no more than a handful.
+  static const int maxSimilarChannels = 20;
+
+  /// The channels Telegram finds like [chatId], as its own apps list them
+  /// under a channel, with descriptions. TDLib pushes each chat before
+  /// naming it, so only the descriptions are asked for.
+  Future<List<Channel>> similarChannels(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChatSimilarChats(chatId: chatId),
+      );
+      if (res is! td.Chats) return const [];
+
+      final channels = <Channel>[];
+      for (final similarId in res.chatIds.take(maxSimilarChannels)) {
+        final chat = _chatCache.chat(similarId) ?? await _fetchChat(similarId);
+        if (chat == null) continue;
+        final type = chat.type;
+        if (type is! td.ChatTypeSupergroup) continue;
+
+        var supergroup = _chatCache.supergroupForChat(chat);
+        td.SupergroupFullInfo? fullInfo;
+        try {
+          if (supergroup == null) {
+            final sg = await _tdlib.sendRequest(
+              td.GetSupergroup(supergroupId: type.supergroupId),
+            );
+            if (sg is td.Supergroup) supergroup = sg;
+          }
+          final info = await _tdlib.sendRequest(
+            td.GetSupergroupFullInfo(supergroupId: type.supergroupId),
+          );
+          if (info is td.SupergroupFullInfo) fullInfo = info;
+        } catch (_) {
+          // The row still shows, without a description.
+        }
+
+        channels.add(
+          TdlibMappers.mapChatToChannel(
+            chat,
+            supergroup: supergroup,
+            fullInfo: fullInfo,
+          ),
+        );
+      }
+      return channels;
+    } catch (e) {
+      debugPrint('[ChannelRepo] similar channels unavailable: $e');
+      return const [];
+    }
+  }
+
+  /// How many similar channels Telegram has for [chatId], 0 when none or
+  /// unknown.
+  Future<int> similarChannelCount(int chatId) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetChatSimilarChatCount(chatId: chatId, returnLocal: false),
+      );
+      return res is td.Count ? res.count : 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Tells Telegram a similar channel was opened from [chatId]'s list, as
+  /// its own apps do.
+  Future<void> openedSimilarChannel(int chatId, int openedChatId) async {
+    try {
+      await _tdlib.sendRequest(
+        td.OpenChatSimilarChat(chatId: chatId, openedChatId: openedChatId),
+      );
+    } catch (_) {}
+  }
+
   /// Every subscribed broadcast channel, most recently active first, read
   /// from [ChatCache]. Full info is networked, so the profile fetches it.
   Future<List<Channel>> getSubscribedChannels() async {

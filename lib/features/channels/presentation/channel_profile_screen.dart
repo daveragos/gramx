@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -14,6 +15,7 @@ import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/channels/domain/channel_tab.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/features/channels/presentation/channel_tab_providers.dart';
+import 'package:gramx/features/channels/presentation/similar_channels_screen.dart';
 import 'package:gramx/features/channels/presentation/widgets/channel_file_list.dart';
 import 'package:gramx/features/channels/presentation/widgets/channel_header.dart';
 import 'package:gramx/features/channels/presentation/widgets/channel_media_grid.dart';
@@ -48,6 +50,9 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   late final FeedRepository _feedRepository;
+
+  /// The page's outer scroll, which the bar and cover follow.
+  final ScrollController _scroll = ScrollController();
 
   bool _isActionLoading = false;
   int? _openedChatId;
@@ -90,6 +95,7 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
+    _scroll.dispose();
 
     if (_openedChatId != null) {
       _feedRepository.closeChat(_openedChatId!);
@@ -260,71 +266,99 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       username: channel?.username,
     );
 
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.onSurface;
+    final muteTooltip = isMuted
+        ? (mutedUntil != null
+              ? AppStrings.channelsMutedUntil(TimeUtils.untilWhen(mutedUntil))
+              : AppStrings.channelsUnmuteAction)
+        : AppStrings.channelsMuteAction;
+
+    if (channel == null) {
+      final theme = Theme.of(context);
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            AppStrings.channelFallbackTitle,
+            style: AppTypography.heading(color: theme.colorScheme.onSurface),
+          ),
+        ),
+        body: channelAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.accent),
+          ),
+          error: (err, _) => ChannelRetry(
+            message: AppStrings.channelLoadFailed,
+            detail: err.toString(),
+            onRetry: _refresh,
+          ),
+          data: (_) => ChannelRetry(
+            message: AppStrings.channelUnavailable,
+            onRetry: _refresh,
+          ),
+        ),
+      );
+    }
+
+    final geometry = ChannelProfileGeometry(MediaQuery.paddingOf(context).top);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          channel?.title ?? AppStrings.channelFallbackTitle,
-          style: AppTypography.heading(color: primaryColor),
-        ),
-        actions: [
-          // Shown only when Telegram offers statistics for this channel.
-          if (channel?.canViewStatistics == true)
-            IconButton(
-              tooltip: AppStrings.a11yChannelAnalytics,
-              onPressed: () =>
-                  context.push(ChannelStatsScreen.routeFor(channel!.chatId)),
-              icon: Icon(Icons.bar_chart_rounded, color: primaryColor),
+      // The cover runs under the status bar, which is always over a photo
+      // or the dark bar.
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Stack(
+          children: [
+            // Starts under the bar, so the tabs pin below it.
+            Positioned.fill(
+              top: geometry.barExtent,
+              child: _buildBody(
+                channel,
+                geometry: geometry,
+                isMuted: isMuted,
+                muteTooltip: muteTooltip,
+              ),
             ),
-          IconButton(
-            tooltip: isMuted
-                ? (mutedUntil != null
-                      ? AppStrings.channelsMutedUntil(
-                          TimeUtils.untilWhen(mutedUntil),
-                        )
-                      : AppStrings.channelsUnmuteAction)
-                : AppStrings.channelsMuteAction,
-            onPressed: () => MuteSheet.show(
-              context,
-              ref,
-              channelId: widget.channelId,
-              chatId: channel?.chatId,
-              username: channel?.username,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ChannelProfileBar(
+                channel: channel,
+                geometry: geometry,
+                scroll: _scroll,
+                // Shown only when Telegram offers statistics for it.
+                onAnalyticsPressed: channel.canViewStatistics
+                    ? () => context.push(
+                        ChannelStatsScreen.routeFor(channel.chatId),
+                      )
+                    : null,
+              ),
             ),
-            icon: Icon(
-              isMuted
-                  ? Icons.notifications_off_rounded
-                  : Icons.notifications_none_rounded,
-              color: isMuted ? AppColors.error : primaryColor,
-            ),
-          ),
-        ],
-      ),
-      body: channelAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.accent),
+          ],
         ),
-        error: (err, _) => ChannelRetry(
-          message: AppStrings.channelLoadFailed,
-          detail: err.toString(),
-          onRetry: _refresh,
-        ),
-        data: (channel) {
-          if (channel == null) {
-            return ChannelRetry(
-              message: AppStrings.channelUnavailable,
-              onRetry: _refresh,
-            );
-          }
-          return _buildBody(channel);
-        },
       ),
     );
   }
 
-  Widget _buildBody(Channel channel) {
+  Future<void> _copyLink(Channel channel) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(
+      ClipboardData(text: 'https://t.me/${channel.username}'),
+    );
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.channelLinkCopied),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    Channel channel, {
+    required ChannelProfileGeometry geometry,
+    required bool isMuted,
+    required String muteTooltip,
+  }) {
     final pinnedAsync = ref.watch(channelPinnedPostProvider(widget.channelId));
 
     return RefreshIndicator(
@@ -336,22 +370,56 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       // whichever body is on screen, and each body paginates through its own
       // `NotificationListener` (see `_onTabScroll`).
       child: NestedScrollView(
+        controller: _scroll,
+        // The cover paints up under the bar, above this view's top.
+        clipBehavior: Clip.none,
         headerSliverBuilder: (context, _) => [
           SliverToBoxAdapter(
-            child: ChannelHeader(
+            child: ChannelCover(
               channel: channel,
+              geometry: geometry,
+              scroll: _scroll,
+              isMuted: isMuted,
+              muteTooltip: muteTooltip,
+              onMutePressed: () => MuteSheet.show(
+                context,
+                ref,
+                channelId: widget.channelId,
+                chatId: channel.chatId,
+                username: channel.username,
+              ),
+              onSharePressed: channel.username == null
+                  ? null
+                  : () => _copyLink(channel),
               isActionBusy: _isActionLoading,
               onJoinPressed: () => _toggleMembership(channel),
             ),
           ),
+          SliverToBoxAdapter(
+            child: ChannelIdentity(
+              channel: channel,
+              // A guest channel isn't in TDLib to ask about.
+              similarCount: _isGuestChannel
+                  ? null
+                  : ref
+                        .watch(similarChannelCountProvider(channel.chatId))
+                        .value,
+              onSimilarTap: () =>
+                  context.push(SimilarChannelsScreen.routeFor(channel.chatId)),
+            ),
+          ),
           if (pinnedAsync.value != null)
             SliverToBoxAdapter(child: PinnedPostCard(post: pinnedAsync.value!)),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _TabBarHeader(
-              tabs: _tabs,
-              controller: _tabController,
-              background: Theme.of(context).scaffoldBackgroundColor,
+          // Absorbed so each tab's list starts below the pinned tabs.
+          SliverOverlapAbsorber(
+            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+            sliver: SliverPersistentHeader(
+              pinned: true,
+              delegate: _TabBarHeader(
+                tabs: _tabs,
+                controller: _tabController,
+                background: Theme.of(context).scaffoldBackgroundColor,
+              ),
             ),
           ),
         ],
@@ -374,9 +442,18 @@ class _ChannelProfileScreenState extends ConsumerState<ChannelProfileScreen>
       },
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) => _onTabScroll(tab, notification),
-        child: CustomScrollView(
-          key: PageStorageKey<ChannelTab>(tab),
-          slivers: _tabSlivers(channel, tab),
+        child: Builder(
+          builder: (context) => CustomScrollView(
+            key: PageStorageKey<ChannelTab>(tab),
+            slivers: [
+              SliverOverlapInjector(
+                handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                  context,
+                ),
+              ),
+              ..._tabSlivers(channel, tab),
+            ],
+          ),
         ),
       ),
     );
@@ -557,8 +634,6 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
               indicatorSize: TabBarIndicatorSize.label,
               labelColor: theme.colorScheme.onSurface,
               unselectedLabelColor: secondary,
-              labelStyle: AppTypography.button().copyWith(fontSize: 15),
-              unselectedLabelStyle: AppTypography.body(),
               dividerColor: Colors.transparent,
               tabs: [for (final tab in tabs) Tab(text: _labelFor(tab))],
             ),

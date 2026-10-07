@@ -243,8 +243,21 @@ abstract class AppStrings {
   static String subscriberCountShort(String formattedCount) =>
       '$formattedCount subscribers';
 
+  /// The word after a subscriber count drawn on its own, as on a profile.
+  static String subscribersLabel(int count) =>
+      count == 1 ? 'subscriber' : 'subscribers';
+
+  static const channelLinkCopied = 'Channel link copied to clipboard.';
+  static const similarChannelsTitle = 'Similar channels';
+  static String similarChannelsLabel(int count) =>
+      count == 1 ? 'similar channel' : 'similar channels';
+  static const similarChannelsEmpty =
+      'Telegram has no similar channels for this one.';
+  static const similarChannelsFailed = "Couldn't load similar channels.";
   static String statsSharesShowAll(int count) => 'Show all $count';
   static const statsSharesShowFewer = 'Show fewer';
+  static const a11yCopyChannelLink = 'Copy link to channel';
+
   static const channelsFilterAll = 'All';
 
   // ── Channel profile tabs ───────────────────────────────────────────────────

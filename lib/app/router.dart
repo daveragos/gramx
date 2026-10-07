@@ -13,6 +13,7 @@ import 'package:gramx/app/splash_screen.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 import 'package:gramx/features/auth/presentation/auth_screen.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmarks_screen.dart';
+import 'package:gramx/features/channels/presentation/similar_channels_screen.dart';
 import 'package:gramx/features/channels/presentation/channel_profile_screen.dart';
 import 'package:gramx/features/stats/presentation/channel_stats_screen.dart';
 import 'package:gramx/features/stats/presentation/post_stats_screen.dart';
@@ -206,6 +207,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             highlightMessageId: highlightMessageId,
           );
         },
+      ),
+      GoRoute(
+        path: SimilarChannelsScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => SimilarChannelsScreen(
+          chatId: int.parse(state.pathParameters['channelId']!),
+        ),
       ),
       GoRoute(
         path: '/guest/channels',
