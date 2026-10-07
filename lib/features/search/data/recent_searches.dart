@@ -60,6 +60,9 @@ class RecentQueries extends Notifier<List<String>> {
   /// How many are kept.
   static const int limit = 10;
 
+  /// Counts clears, so a restore that finishes after one is dropped.
+  int _clears = 0;
+
   @override
   List<String> build() {
     unawaited(_restore());
@@ -67,7 +70,11 @@ class RecentQueries extends Notifier<List<String>> {
   }
 
   Future<void> _restore() async {
+    final clears = _clears;
     final saved = await ref.read(recentQueryStoreProvider).load();
+    // Cleared while the file loaded, as on signing out: the old searches
+    // used to come back.
+    if (clears != _clears) return;
     // Anything added while the file loaded comes first.
     if (saved.isNotEmpty) state = _merged(state, saved);
   }
@@ -86,6 +93,7 @@ class RecentQueries extends Notifier<List<String>> {
 
   /// Forgets them all, as on clearing recent searches or signing out.
   Future<void> clear() async {
+    _clears++;
     state = const [];
     await ref.read(recentQueryStoreProvider).save(const []);
   }

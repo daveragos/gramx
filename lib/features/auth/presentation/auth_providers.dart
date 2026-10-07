@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/app/account_reset.dart';
 import 'package:gramx/features/search/data/recent_searches.dart';
 import 'package:gramx/core/diagnostics/startup_trace.dart';
 import 'package:gramx/features/auth/presentation/auth_state_rules.dart';
@@ -89,6 +90,10 @@ class AuthState {
 
 /// Drives sign-in and the connection to Telegram.
 class AuthController extends Notifier<AuthState> {
+  /// Whether an account was signed in earlier in this run. The next one
+  /// starts from a clean slate.
+  bool _hadSession = false;
+
   late TdlibService _tdlib;
   StreamSubscription? _authSub;
   StreamSubscription? _statusSub;
@@ -247,6 +252,9 @@ class AuthController extends Notifier<AuthState> {
 
       // In the background, so the splash waits only on GetMe.
       if (me is td.User) unawaited(_saveAccount(me));
+
+      if (_hadSession) forgetPreviousAccount(ref);
+      _hadSession = true;
 
       state = state.copyWith(step: AuthStep.authenticated);
       StartupTrace.mark('account loaded, leaving the splash');
