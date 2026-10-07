@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
+import 'package:gramx/features/chats/presentation/chats_providers.dart';
 
 /// How long typing must pause before a query goes to Telegram. Each search is
 /// a networked `SearchChatMessages` request.
@@ -83,10 +85,25 @@ final inChatSearchResultsProvider = FutureProvider.autoDispose
 /// The message pinned in one chat.
 ///
 /// Not auto-disposed: each lookup costs a request even when there is no pin,
-/// so the answer is kept for the session.
+/// so the answer is kept for the session. It is looked up again when a
+/// message in the chat is pinned, unpinned or deleted, here or elsewhere; it
+/// used to keep showing the first answer.
 final pinnedMessageProvider = FutureProvider.family<ChatMessage?, int>((
   ref,
   chatId,
 ) async {
-  return ref.read(chatsRepositoryProvider).pinnedMessage(chatId);
+  final pinned = ref.read(chatsRepositoryProvider).pinnedMessage(chatId);
+  final sub = ref.read(chatUpdatesProvider).listen((update) async {
+    final changed = switch (update) {
+      td.UpdateMessageIsPinned(chatId: final id) => id == chatId,
+      td.UpdateDeleteMessages(chatId: final id, :final isPermanent) =>
+        id == chatId &&
+            isPermanent &&
+            update.messageIds.contains((await pinned)?.messageId),
+      _ => false,
+    };
+    if (changed) ref.invalidateSelf();
+  });
+  ref.onDispose(sub.cancel);
+  return pinned;
 });
