@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/app/widgets/shell_branch_stack.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/features/guest/presentation/guest_channels_screen.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
@@ -104,7 +105,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SplashScreen(),
       ),
       // Branches must be declared in ShellTab order.
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
+        // Stacked like `indexedStack`, with the keyboard kept from hidden tabs.
+        navigatorContainerBuilder: ShellBranchStack.containerBuilder,
         // A fade, since the splash and sign-in screens share the shell's mark.
         pageBuilder: (context, state, navigationShell) => CustomTransitionPage(
           key: state.pageKey,
