@@ -1283,6 +1283,19 @@ class ChatsRepository {
     }
   }
 
+  /// Which screen a chat known by id belongs on, or null if TDLib can't
+  /// find it. A `t.me/c/` link names a channel or a group alike.
+  Future<ResolvedChatKind?> chatKind(int chatId) async {
+    try {
+      final chat =
+          _chatCache.chat(chatId) ??
+          await _tdlib.sendRequest(td.GetChat(chatId: chatId));
+      return chat is td.Chat ? resolvedKindOf(chat.type) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Which screen a resolved chat belongs on.
   static ResolvedChatKind resolvedKindOf(td.ChatType type) => switch (type) {
     td.ChatTypePrivate() || td.ChatTypeSecret() => ResolvedChatKind.person,

@@ -1043,6 +1043,7 @@ class TdlibMappers {
         String? customEmojiId;
 
         String? language;
+        int? userId;
 
         // Any entity type not named here renders as plain text.
         if (type is td.TextEntityTypeBold) {
@@ -1073,6 +1074,7 @@ class TdlibMappers {
           typeStr = 'mention';
         } else if (type is td.TextEntityTypeMentionName) {
           typeStr = 'mentionName';
+          userId = type.userId;
         } else if (type is td.TextEntityTypeHashtag) {
           typeStr = 'hashtag';
         } else if (type is td.TextEntityTypeCashtag) {
@@ -1101,6 +1103,7 @@ class TdlibMappers {
           'url': ?url,
           'customEmojiId': ?customEmojiId,
           'language': ?language,
+          'userId': ?userId,
         };
       }).toList();
       return jsonEncode(list);

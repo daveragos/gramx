@@ -21,8 +21,8 @@ enum TextEntityType {
   textUrl,
   mention,
 
-  /// A mention of a user with no username. Telegram gives only the id, so it
-  /// is styled but not tappable.
+  /// A mention of a user by id rather than username, as bots write them.
+  /// Opens the person's profile from [TextEntity.userId].
   mentionName,
   hashtag,
   cashtag,
@@ -45,6 +45,7 @@ abstract class TextEntity with _$TextEntity {
     String? url, // for textUrl
     String? customEmojiId, // for customEmoji
     String? language, // for a fenced code block
+    int? userId, // for mentionName
   }) = _TextEntity;
 
   factory TextEntity.fromJson(Map<String, dynamic> json) =>

@@ -239,7 +239,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           final chatId = int.tryParse(state.pathParameters['chatId'] ?? '');
           // A malformed link falls back to the chat list.
           if (chatId == null) return const ChatsScreen();
-          return ConversationScreen(chatId: chatId);
+          return ConversationScreen(
+            chatId: chatId,
+            // From a link to one message.
+            initialMessageId: int.tryParse(
+              state.uri.queryParameters['message'] ?? '',
+            ),
+          );
         },
       ),
       GoRoute(

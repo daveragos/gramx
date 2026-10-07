@@ -212,14 +212,25 @@ void main() {
       );
     });
 
-    test('a link to a message in a group opens the group', () {
+    // It opened the group's chat at the bottom, not at the message.
+    test('a link to a message in a group opens the group at it', () {
       expect(
         DeepLinkRoutes.routeFor(
           TelegramPostLink('flutter_ethiopia', 3),
           chatId: -100888,
           kind: ResolvedChatKind.group,
         ),
-        '/chat/-100888',
+        '/chat/-100888?message=${3 << 20}',
+      );
+    });
+
+    test('a private link to a message in a group does the same', () {
+      expect(
+        DeepLinkRoutes.routeFor(
+          TelegramPrivatePostLink(888, 3),
+          kind: ResolvedChatKind.group,
+        ),
+        '/chat/-100888?message=${3 << 20}',
       );
     });
 

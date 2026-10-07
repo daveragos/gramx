@@ -33,12 +33,15 @@ abstract class DeepLinkRoutes {
       // A private chat's id is its user's id.
       ResolvedChatKind.person => '/user/$chatId',
     },
-    // A message link in a group opens the group, not the post screen.
+    // A message in a group opens the group's chat at that message, not the
+    // post screen.
     TelegramPostLink()
         when chatId != null && kind != ResolvedChatKind.channel =>
-      '/chat/$chatId',
+      '/chat/$chatId?message=${link.tdlibMessageId}',
     TelegramPostLink() when chatId != null =>
       '/post/${chatId}_${link.tdlibMessageId}',
+    TelegramPrivatePostLink() when kind != ResolvedChatKind.channel =>
+      '/chat/${link.chatId}?message=${link.tdlibMessageId}',
     TelegramPrivatePostLink() => '/post/${link.chatId}_${link.tdlibMessageId}',
     // The id is already TDLib's, so no resolution is needed.
     TelegramPrivateChannelLink() => '/channel/${link.chatId}',

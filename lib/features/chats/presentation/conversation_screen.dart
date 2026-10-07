@@ -3,13 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
-import 'package:gramx/core/navigation/navigation_utils.dart';
+import 'package:gramx/core/navigation/mention_navigation.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
@@ -23,7 +22,6 @@ import 'package:gramx/features/chats/domain/message_schedule.dart';
 import 'package:gramx/features/chats/presentation/widgets/premium_mark.dart';
 import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
-import 'package:gramx/features/chats/presentation/chats_screen.dart';
 import 'package:gramx/features/chats/presentation/chat_search_providers.dart';
 import 'package:gramx/features/chats/presentation/conversation_providers.dart';
 import 'package:gramx/features/chats/presentation/widgets/auto_delete_sheet.dart';
@@ -51,7 +49,14 @@ import 'package:gramx/app/widgets/app_sheet.dart';
 class ConversationScreen extends ConsumerStatefulWidget {
   final int chatId;
 
-  const ConversationScreen({super.key, required this.chatId});
+  /// A message to open the chat at, as from a link to it.
+  final int? initialMessageId;
+
+  const ConversationScreen({
+    super.key,
+    required this.chatId,
+    this.initialMessageId,
+  });
 
   @override
   ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
@@ -113,6 +118,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _hasAnchoredToUnread = false;
   bool _hasCheckedViewport = false;
 
+  /// Whether the chat has gone to [ConversationScreen.initialMessageId].
+  bool _openedAtInitial = false;
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +139,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           .read(conversationProvider(widget.chatId).notifier)
           .setVisible(isVisible: true);
     });
+    // Opened from a link to one message: go to it once the chat has loaded.
+    final initial = widget.initialMessageId;
+    if (initial != null) {
+      ref.listenManual(conversationProvider(widget.chatId), (_, next) {
+        if (_openedAtInitial || next.value == null) return;
+        _openedAtInitial = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _jumpToMessage(initial);
+        });
+      }, fireImmediately: true);
+    }
   }
 
   @override
@@ -657,32 +676,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     await _jumpToMessage(message.messageId);
   }
 
-  /// Opens whatever an `@name` refers to, after one lookup per tap.
-  Future<void> _openMention(String username) async {
-    final resolved = await ref
-        .read(chatsRepositoryProvider)
-        .resolveUsername(username);
-    if (!mounted) return;
-
-    if (resolved == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.chatMentionUnknown(username)),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // People and groups open a conversation; channels open the channel screen.
-    switch (resolved.kind) {
-      case ResolvedChatKind.person:
-      case ResolvedChatKind.group:
-        context.push(ChatsScreen.routeFor(resolved.chatId));
-      case ResolvedChatKind.channel:
-        NavigationUtils.openChannel(context, resolved.chatId.toString());
-    }
-  }
+  /// Opens whoever an `@name` is: a person's profile, a channel or a group.
+  Future<void> _openMention(String username) => openMention(context, username);
 
   // ── Selecting several messages ────────────────────────────────────────────
 

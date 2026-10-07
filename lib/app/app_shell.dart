@@ -189,6 +189,12 @@ class _AppShellState extends ConsumerState<AppShell>
     var chatId = link is TelegramPrivatePostLink ? link.chatId : null;
     var kind = ResolvedChatKind.channel;
 
+    // A private message link can be a group's, which opens as a chat.
+    if (link is TelegramPrivatePostLink) {
+      kind =
+          await ref.read(chatsRepositoryProvider).chatKind(link.chatId) ?? kind;
+    }
+
     final username = DeepLinkRoutes.usernameToResolve(link);
     if (username != null) {
       final resolved = await ref

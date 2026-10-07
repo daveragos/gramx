@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/core/navigation/mention_navigation.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
@@ -15,6 +17,27 @@ import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import '../support/td_fixtures.dart';
 
 void main() {
+  // An `@name` can be anyone; it was always opened as a channel.
+  group('mentionRouteFor', () {
+    test('a person opens their profile', () {
+      expect(mentionRouteFor(ResolvedChatKind.person, 42), '/user/42');
+    });
+
+    test('a channel opens its profile', () {
+      expect(
+        mentionRouteFor(ResolvedChatKind.channel, -1001234),
+        '/channel/-1001234',
+      );
+    });
+
+    test('a group opens its chat', () {
+      expect(
+        mentionRouteFor(ResolvedChatKind.group, -1005678),
+        '/chat/-1005678',
+      );
+    });
+  });
+
   // With auto-download off, a photo nobody tapped is incomplete but idle. It
   // read as loading, and its spinner never stopped.
   group('FileDownloadProgressState', () {

@@ -13,6 +13,7 @@ _TextEntity _$TextEntityFromJson(Map<String, dynamic> json) => _TextEntity(
   url: json['url'] as String?,
   customEmojiId: json['customEmojiId'] as String?,
   language: json['language'] as String?,
+  userId: (json['userId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
@@ -23,6 +24,7 @@ Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
       'url': instance.url,
       'customEmojiId': instance.customEmojiId,
       'language': instance.language,
+      'userId': instance.userId,
     };
 
 const _$TextEntityTypeEnumMap = {

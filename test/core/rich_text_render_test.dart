@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
@@ -196,6 +200,81 @@ void main() {
       await tester.pump();
 
       expect(find.text(AppStrings.postShowLess), findsOneWidget);
+    });
+  });
+
+  group('taps on people and links', () {
+    // Bots name people by id, which drew coloured and did nothing.
+    testWidgets('a mention by id opens the person', (tester) async {
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const Scaffold(
+              body: TextEntityRenderer(
+                text: '7493358198',
+                selectable: false,
+                entities: [
+                  TextEntity(
+                    offset: 0,
+                    length: 10,
+                    type: TextEntityType.mentionName,
+                    userId: 7493358198,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/user/:userId',
+            builder: (_, state) =>
+                Text('profile ${state.pathParameters['userId']}'),
+          ),
+        ],
+      );
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      await tester.tap(find.text('7493358198'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('profile 7493358198'), findsOneWidget);
+    });
+
+    // A link to a message opened only its group or channel.
+    testWidgets('a Telegram link goes where a link from outside would', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isGuestModeProvider.overrideWithValue(false)],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: wrap(
+            const TextEntityRenderer(
+              text: 'here',
+              selectable: false,
+              entities: [
+                TextEntity(
+                  offset: 0,
+                  length: 4,
+                  type: TextEntityType.textUrl,
+                  url: 'https://t.me/flutter_ethiopia/3',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('here'));
+      await tester.pump();
+
+      expect(
+        container.read(pendingDeepLinkProvider),
+        Uri.parse('https://t.me/flutter_ethiopia/3'),
+      );
     });
   });
 }

@@ -1,12 +1,17 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/core/navigation/telegram_link.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/text/text_clamp.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/navigation/mention_navigation.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/presentation/widgets/custom_emoji_span.dart';
@@ -23,8 +28,8 @@ class TextEntityRenderer extends StatelessWidget {
   /// outgoing bubble, which is accent-coloured, passes its foreground colour.
   final Color? linkColor;
 
-  /// Called when an `@name` is tapped. Without it the mention opens as a
-  /// channel, which is wrong in a chat where most mentions are people.
+  /// Called when an `@name` is tapped. Without it [openMention] asks
+  /// Telegram who the name belongs to and opens that.
   final ValueChanged<String>? onMentionTap;
 
   /// Called when a hashtag is tapped. Null renders hashtags as plain text.
@@ -193,8 +198,16 @@ class TextEntityRenderer extends StatelessWidget {
             ..onTap = () => _handleMentionTap(context, entityText),
         );
       case TextEntityType.mentionName:
-        // A user id with no profile screen to open: coloured, not tappable.
-        return TextSpan(text: entityText, style: accentStyle);
+        final userId = entity.userId;
+        if (userId == null) {
+          return TextSpan(text: entityText, style: accentStyle);
+        }
+        return TextSpan(
+          text: entityText,
+          style: accentStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => openUserProfile(context, userId),
+        );
       case TextEntityType.emailAddress:
         return TextSpan(
           text: entityText,
@@ -256,29 +269,19 @@ class TextEntityRenderer extends StatelessWidget {
     try {
       final uri = normalizeUrl(rawUrl);
 
-      // Telegram links open in the app.
-      if (uri.host == 't.me' ||
-          uri.host == 'telegram.me' ||
-          uri.host == 'www.t.me') {
+      // Telegram links open in the app, as a link from outside would: the
+      // shell resolves who or what it names, and a link to a message opens
+      // at that message. A guest can't resolve, so it opens the channel.
+      if (TelegramLinks.parse(uri) != null) {
+        final container = ProviderScope.containerOf(context, listen: false);
+        if (!container.read(isGuestModeProvider)) {
+          container.read(pendingDeepLinkProvider.notifier).offer(uri);
+          return;
+        }
         final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-        if (segments.isNotEmpty) {
-          if (segments.length == 1) {
-            final target = segments.first;
-            if (!target.startsWith('c')) {
-              NavigationUtils.openChannel(context, target);
-              return;
-            }
-          } else if (segments.length == 2) {
-            final first = segments[0];
-            final second = segments[1];
-            if (first == 'c') {
-              NavigationUtils.openChannel(context, second);
-              return;
-            } else {
-              NavigationUtils.openChannel(context, first);
-              return;
-            }
-          }
+        if (segments.isNotEmpty && segments.first != 'c') {
+          NavigationUtils.openChannel(context, segments.first);
+          return;
         }
       }
 
@@ -305,8 +308,7 @@ class TextEntityRenderer extends StatelessWidget {
       handler(username);
       return;
     }
-    // No handler: assume a channel, which is what a mention is in a feed.
-    NavigationUtils.openChannel(context, username);
+    await openMention(context, username);
   }
 }
 

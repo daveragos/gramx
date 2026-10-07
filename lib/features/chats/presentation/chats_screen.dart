@@ -27,7 +27,9 @@ class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
   /// The route for a conversation. Root-level, so it covers the bottom bar.
-  static String routeFor(int chatId) => '/chat/$chatId';
+  /// A chat, opened at [messageId] when given.
+  static String routeFor(int chatId, {int? messageId}) =>
+      messageId == null ? '/chat/$chatId' : '/chat/$chatId?message=$messageId';
 
   @override
   ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
