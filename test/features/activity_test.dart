@@ -243,18 +243,19 @@ void main() {
   });
 
   // Viewing the list clears unread mentions and reactions for the chats it
-  // queried, without moving any read cursor.
+  // listed in full, without moving any read cursor.
   group('ActivityRepository.markSeen', () {
-    test('acknowledges each kind in each chat that had it', () async {
+    test('acknowledges each kind in each chat listed in full', () async {
       final tdlib = _RecordingTdlib();
       final repository = ActivityRepository(tdlib, ChatCache(tdlib));
 
-      await repository.markSeen([
-        _chat(1, mentions: 2),
-        _chat(2, reactions: 1),
-        _chat(3, mentions: 1, reactions: 1),
-        _chat(4),
-      ]);
+      await repository.markSeen(
+        const ActivityLoad(
+          items: [],
+          mentionsListed: {1, 3},
+          reactionsListed: {2, 3},
+        ),
+      );
 
       final mentions = tdlib.asked.whereType<td.ReadAllChatMentions>();
       final reactions = tdlib.asked.whereType<td.ReadAllChatReactions>();
@@ -264,13 +265,64 @@ void main() {
       expect(tdlib.asked, hasLength(4));
     });
 
-    test('a chat with nothing waiting is not touched', () async {
-      final tdlib = _RecordingTdlib();
+    // It cleared every chat it searched, so mentions past the first ten,
+    // or from a failed search, were marked read without being shown.
+    test('a chat listed only in part keeps its count', () async {
+      final tdlib = _AnsweringTdlib(found: 10);
       final repository = ActivityRepository(tdlib, ChatCache(tdlib));
 
-      await repository.markSeen([_chat(1), _chat(2)]);
+      final loaded = await repository.load([_chat(1, mentions: 25)]);
+      expect(loaded.mentionsListed, isEmpty);
 
-      expect(tdlib.asked, isEmpty);
+      await repository.markSeen(loaded);
+      expect(tdlib.asked.whereType<td.ReadAllChatMentions>(), isEmpty);
+    });
+
+    test('asks a chat for all its unread, and clears it once listed', () async {
+      final tdlib = _AnsweringTdlib(found: 25);
+      final repository = ActivityRepository(tdlib, ChatCache(tdlib));
+
+      final loaded = await repository.load([_chat(1, mentions: 25)]);
+      final search = tdlib.asked.whereType<td.SearchChatMessages>().single;
+      expect(search.limit, 25);
+      expect(loaded.mentionsListed, {1});
+    });
+
+    test('a failed search keeps the count', () async {
+      final tdlib = _AnsweringTdlib(found: 0, fail: true);
+      final repository = ActivityRepository(tdlib, ChatCache(tdlib));
+
+      final loaded = await repository.load([_chat(1, reactions: 2)]);
+      expect(loaded.reactionsListed, isEmpty);
     });
   });
+}
+
+/// Answers each search with [found] messages, or fails it.
+class _AnsweringTdlib extends _RecordingTdlib {
+  final int found;
+  final bool fail;
+
+  _AnsweringTdlib({required this.found, this.fail = false});
+
+  @override
+  Future<td.TdObject> sendRequest(
+    td.TdFunction function, {
+    String? extraId,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    asked.add(function);
+    if (function is! td.SearchChatMessages) return const td.Ok();
+    if (fail) throw StateError('flood wait');
+    return td.FoundChatMessages(
+      totalCount: found,
+      messages: [
+        for (var i = 1; i <= found; i++)
+          td.Message.fromJson(
+            TdFixtures.textMessageJson(id: i, chatId: function.chatId),
+          ),
+      ],
+      nextFromMessageId: 0,
+    );
+  }
 }

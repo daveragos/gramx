@@ -14,8 +14,12 @@ abstract class ActivityPlan {
   /// The most chats one refresh searches (at most 24 requests).
   static const int maxChats = 12;
 
-  /// How many messages each search returns.
+  /// The fewest messages each search asks for.
   static const int perChatLimit = 10;
+
+  /// How many to ask a chat for: all [unread], so the list can show every
+  /// one before they are cleared, up to what one search returns.
+  static int limitFor(int unread) => unread.clamp(perChatLimit, 100);
 
   /// What to search, newest chat first so the cap keeps recent chats.
   static List<ActivityQuery> queriesFor(List<ChatSummary> chats) {
@@ -52,6 +56,22 @@ abstract class ActivityPlan {
   }
 }
 
+/// One Activity load: the items, and the chats whose unread mentions or
+/// reactions it listed in full. Only those may be cleared; a chat with more
+/// than one search returns, or whose search failed, keeps its count.
+@immutable
+class ActivityLoad {
+  final List<ActivityItem> items;
+  final Set<int> mentionsListed;
+  final Set<int> reactionsListed;
+
+  const ActivityLoad({
+    required this.items,
+    this.mentionsListed = const {},
+    this.reactionsListed = const {},
+  });
+}
+
 /// Builds the Activity list.
 class ActivityRepository {
   final TdlibService _tdlib;
@@ -61,43 +81,61 @@ class ActivityRepository {
 
   /// Unread mentions, replies and reactions, newest first. One
   /// `SearchChatMessages` per [ActivityPlan] query, run when the screen opens.
-  Future<List<ActivityItem>> load(List<ChatSummary> chats) async {
+  Future<ActivityLoad> load(List<ChatSummary> chats) async {
     final items = <ActivityItem>[];
+    final mentionsListed = <int>{};
+    final reactionsListed = <int>{};
+    final byId = {for (final chat in chats) chat.chatId: chat};
 
     for (final query in ActivityPlan.queriesFor(chats)) {
+      final chat = byId[query.chatId]!;
       if (query.wantsMentions) {
-        items.addAll(
-          await _search(
-            query.chatId,
-            const td.SearchMessagesFilterUnreadMention(),
-          ),
+        final found = await _search(
+          query.chatId,
+          const td.SearchMessagesFilterUnreadMention(),
+          limit: ActivityPlan.limitFor(chat.unreadMentionCount),
         );
+        if (found != null) {
+          items.addAll(found);
+          if (found.length >= chat.unreadMentionCount) {
+            mentionsListed.add(query.chatId);
+          }
+        }
       }
       if (query.wantsReactions) {
-        items.addAll(
-          await _search(
-            query.chatId,
-            const td.SearchMessagesFilterUnreadReaction(),
-          ),
+        final found = await _search(
+          query.chatId,
+          const td.SearchMessagesFilterUnreadReaction(),
+          limit: ActivityPlan.limitFor(chat.unreadReactionCount),
         );
+        if (found != null) {
+          items.addAll(found);
+          if (found.length >= chat.unreadReactionCount) {
+            reactionsListed.add(query.chatId);
+          }
+        }
       }
     }
 
     items.sort((a, b) => b.at.compareTo(a.at));
-    return items;
+    return ActivityLoad(
+      items: items,
+      mentionsListed: mentionsListed,
+      reactionsListed: reactionsListed,
+    );
   }
 
-  /// Clears the unread mention and reaction counts for the chats [load]
-  /// searched, since Telegram otherwise clears them only when the message is
-  /// viewed in its chat. Each chat's read position is left alone.
-  Future<void> markSeen(List<ChatSummary> chats) async {
-    for (final query in ActivityPlan.queriesFor(chats)) {
-      if (query.wantsMentions) {
-        await _acknowledge(td.ReadAllChatMentions(chatId: query.chatId));
-      }
-      if (query.wantsReactions) {
-        await _acknowledge(td.ReadAllChatReactions(chatId: query.chatId));
-      }
+  /// Clears the unread mention and reaction counts of the chats [loaded]
+  /// listed in full, since Telegram otherwise clears them only when the
+  /// message is viewed in its chat. It cleared every chat it searched, which
+  /// lost mentions past the first ten, or from a search that failed. Each
+  /// chat's read position is left alone.
+  Future<void> markSeen(ActivityLoad loaded) async {
+    for (final chatId in loaded.mentionsListed) {
+      await _acknowledge(td.ReadAllChatMentions(chatId: chatId));
+    }
+    for (final chatId in loaded.reactionsListed) {
+      await _acknowledge(td.ReadAllChatReactions(chatId: chatId));
     }
   }
 
@@ -110,10 +148,12 @@ class ActivityRepository {
     }
   }
 
-  Future<List<ActivityItem>> _search(
+  /// One chat's unread mentions or reactions, or null if the search failed.
+  Future<List<ActivityItem>?> _search(
     int chatId,
-    td.SearchMessagesFilter filter,
-  ) async {
+    td.SearchMessagesFilter filter, {
+    required int limit,
+  }) async {
     try {
       final res = await _tdlib.sendRequest(
         td.SearchChatMessages(
@@ -121,14 +161,14 @@ class ActivityRepository {
           query: '',
           fromMessageId: 0,
           offset: 0,
-          limit: ActivityPlan.perChatLimit,
+          limit: limit,
           filter: filter,
           // The whole chat, not one thread or saved-messages topic.
           messageThreadId: 0,
           savedMessagesTopicId: 0,
         ),
       );
-      if (res is! td.FoundChatMessages) return const [];
+      if (res is! td.FoundChatMessages) return null;
 
       final chat = _chatCache.chat(chatId);
       return [
@@ -144,9 +184,10 @@ class ActivityRepository {
           ),
       ];
     } catch (e) {
-      // A failed chat (say, a flood wait) is just left out of the list.
+      // A failed chat (say, a flood wait) is left out of the list, and keeps
+      // its count.
       debugPrint('[Activity] search in $chatId failed: $e');
-      return const [];
+      return null;
     }
   }
 

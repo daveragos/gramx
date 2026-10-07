@@ -20,7 +20,7 @@ final activityFeedProvider = FutureProvider<List<ActivityItem>>((ref) async {
   // below changes them too.
   final chats = ref.read(chatListProvider);
   final repository = ref.read(activityRepositoryProvider);
-  final items = await repository.load(chats);
-  unawaited(repository.markSeen(chats));
-  return items;
+  final loaded = await repository.load(chats);
+  unawaited(repository.markSeen(loaded));
+  return loaded.items;
 });
