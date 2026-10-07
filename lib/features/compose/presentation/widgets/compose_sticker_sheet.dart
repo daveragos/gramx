@@ -54,6 +54,24 @@ class _ComposeStickerSheetState extends ConsumerState<ComposeStickerSheet>
       vsync: this,
       initialIndex: widget.initialKind == ComposeRemoteKind.animation ? 1 : 0,
     );
+
+    // Lists loaded on an earlier opening are shown, and read again from
+    // TDLib's copy: they were kept for the session, so a sticker just sent
+    // never reached the recents, and a failed load stayed empty.
+    final loadedBefore = [
+      savedGifsProvider,
+      installedStickerSetsProvider,
+      stickersProvider(const FavouriteStickers()),
+      stickersProvider(const RecentStickers()),
+    ].where(ref.exists).toList();
+    if (loadedBefore.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        for (final provider in loadedBefore) {
+          ref.invalidate(provider);
+        }
+      });
+    }
   }
 
   @override
