@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/activity/presentation/activity_screen.dart';
 import 'package:gramx/features/activity/presentation/activity_providers.dart';
 import 'package:gramx/app/widgets/chat_bubble_icon.dart';
@@ -154,7 +156,19 @@ class _AppShellState extends ConsumerState<AppShell>
         await ref.read(shareIntakeProvider).take();
     if (text == null || !mounted) return;
 
-    if (ref.read(composeTargetsProvider).isEmpty) {
+    var hasTargets = ref.read(composeTargetsProvider).isNotEmpty;
+    // At a cold start the chats are still loading, and the share was turned
+    // away as having nowhere to go. A guest has nowhere anyway.
+    if (!hasTargets && ref.read(readerCapabilitiesProvider).canPost) {
+      await ref
+          .read(chatCacheProvider)
+          .ensureFirstPage()
+          .timeout(const Duration(seconds: 15), onTimeout: () {});
+      if (!mounted) return;
+      hasTargets = ref.read(composeTargetsSourceProvider)().isNotEmpty;
+    }
+
+    if (!hasTargets) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(AppStrings.shareNowhereToPost),
