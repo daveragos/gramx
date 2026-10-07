@@ -666,12 +666,14 @@ final typingSignalProvider = Provider.family<TypingSignal, int>((ref, chatId) {
 });
 
 /// What this account may do with one message. Fetched only when watched, on
-/// long-press.
+/// long-press, and each time: the rights change, as when the time to edit
+/// runs out, and were kept for the session.
 final messageActionsProvider =
     FutureProvider.family<MessageActions, MessageRef>(
       (ref, target) => ref
           .watch(chatsRepositoryProvider)
           .messageActions(chatId: target.chatId, messageId: target.messageId),
+      isAutoDispose: true,
     );
 
 /// Addresses one message. A value type, so the family caches per message.
@@ -697,4 +699,5 @@ final chatReactionsProvider = FutureProvider.family<List<String>, MessageRef>(
   (ref, target) => ref
       .watch(chatsRepositoryProvider)
       .messageReactions(chatId: target.chatId, messageId: target.messageId),
+  isAutoDispose: true,
 );

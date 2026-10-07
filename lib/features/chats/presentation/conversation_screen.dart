@@ -110,6 +110,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _appInFront = true;
   late final AppLifecycleListener _lifecycle;
 
+  /// Kept from the start, so leaving the chat can stop "typing…": the other
+  /// side saw it for a while after the chat closed.
+  late final TypingSignal _typing;
+
   /// Where each built row is, so one can be held still while others change.
   final _RowRegistry _rows = _RowRegistry();
 
@@ -144,6 +148,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       (previous, _) =>
           _holdPosition(wasWindowed: previous?.value?.hasMoreNewer ?? false),
     );
+    _typing = ref.read(typingSignalProvider(widget.chatId));
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) {
         _appInFront = state == AppLifecycleState.resumed;
@@ -187,6 +192,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   void dispose() {
+    _typing.stop();
     _lifecycle.dispose();
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
@@ -1201,11 +1207,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   : null,
               onPickSchedule: _pickSchedule,
               onChanged: (value) {
-                final signal = ref.read(typingSignalProvider(widget.chatId));
                 if (value.isEmpty) {
-                  signal.stop();
+                  _typing.stop();
                 } else {
-                  signal.onTyping();
+                  _typing.onTyping();
                 }
               },
             ),
