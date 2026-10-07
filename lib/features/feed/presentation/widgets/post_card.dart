@@ -408,7 +408,11 @@ class PostCard extends ConsumerWidget {
 
                         if (post.media.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
-                          PostMediaGrid(media: post.media, post: post),
+                          PostMediaGrid(
+                            media: post.media,
+                            post: post,
+                            bleed: AppSpacing.postPadding,
+                          ),
                         ],
 
                         // The quoted post being answered, below the answer.

@@ -518,7 +518,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               ],
                               if (post.media.isNotEmpty) ...[
                                 const SizedBox(height: AppSpacing.md),
-                                PostMediaGrid(media: post.media, post: post),
+                                PostMediaGrid(
+                                  media: post.media,
+                                  post: post,
+                                  bleed: AppSpacing.postPadding,
+                                ),
                               ],
                               // The post being answered, under the answer.
                               ReplyTarget(

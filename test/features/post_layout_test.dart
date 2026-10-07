@@ -2,12 +2,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
 void main() {
+  // Several photos sit side by side at one height, scrolling sideways.
+  group('PostMediaGrid.rowItemWidth', () {
+    MediaItem photo(int width, int height) =>
+        MediaItem(id: '1', type: MediaType.photo, width: width, height: height);
+
+    test('keeps a photo at its own shape', () {
+      expect(
+        PostMediaGrid.rowItemWidth(photo(400, 300), height: 200, maxWidth: 300),
+        closeTo(266.7, 0.1),
+      );
+    });
+
+    test('stops a wide photo short of the row, so the next one shows', () {
+      expect(
+        PostMediaGrid.rowItemWidth(
+          photo(1600, 900),
+          height: 200,
+          maxWidth: 300,
+        ),
+        300,
+      );
+    });
+
+    test('keeps a tall photo at least half as wide as the row is high', () {
+      expect(
+        PostMediaGrid.rowItemWidth(
+          photo(300, 1200),
+          height: 200,
+          maxWidth: 300,
+        ),
+        100,
+      );
+    });
+
+    test('draws a photo of unknown size square', () {
+      expect(
+        PostMediaGrid.rowItemWidth(photo(0, 0), height: 200, maxWidth: 300),
+        200,
+      );
+    });
+  });
+
   group('PostActionBar', () {
     Post post() => Post(
       id: '-100123_4194304',

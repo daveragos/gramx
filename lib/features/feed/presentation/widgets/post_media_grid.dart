@@ -34,12 +34,24 @@ class PostMediaGrid extends StatelessWidget {
   /// onto whatever came next.
   final double? maxVisualHeight;
 
+  /// How far a row of several photos may run past the right edge. The card's
+  /// padding, so the row reaches the screen's edge as on X.
+  final double bleed;
+
   const PostMediaGrid({
     super.key,
     required this.media,
     this.post,
     this.maxVisualHeight,
+    this.bleed = 0,
   });
+
+  /// A row's height, as a share of the width it starts in.
+  static const double rowHeightFactor = 0.62;
+
+  /// The widest a photo in a row gets, as a share of that width, so the next
+  /// one always shows.
+  static const double rowItemMaxWidthFactor = 0.88;
 
   @override
   Widget build(BuildContext context) {
@@ -87,35 +99,10 @@ class PostMediaGrid extends StatelessWidget {
     if (visualItems.isNotEmpty) {
       final borderColor =
           Theme.of(context).dividerTheme.color ?? AppColors.darkBorder;
-      final items = visualItems.take(4).toList();
-
       children.add(
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: borderColor,
-                width: AppSpacing.mediaBorderWidth,
-              ),
-              borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.mediaRadius - 1),
-              child: maxVisualHeight == null
-                  ? _buildGrid(context, items, visualItems, borderColor)
-                  : ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: maxVisualHeight!),
-                      child: _buildGrid(
-                        context,
-                        items,
-                        visualItems,
-                        borderColor,
-                      ),
-                    ),
-            ),
-          ),
-        ),
+        visualItems.length == 1
+            ? _single(visualItems.first, borderColor)
+            : _row(visualItems, borderColor),
       );
     }
 
@@ -129,175 +116,103 @@ class PostMediaGrid extends StatelessWidget {
     );
   }
 
-  Widget _buildGrid(
-    BuildContext context,
-    List<MediaItem> items,
-    List<MediaItem> allVisual,
-    Color borderColor,
-  ) {
-    switch (items.length) {
-      case 1:
-        return _buildSingleMedia(context, items[0], allVisual);
-      case 2:
-        return _buildTwoMedia(context, items, allVisual);
-      case 3:
-        return _buildThreeMedia(context, items, allVisual);
-      default:
-        return _buildFourMedia(context, items, allVisual);
-    }
-  }
-
-  Widget _buildSingleMedia(
-    BuildContext context,
-    MediaItem item,
-    List<MediaItem> allVisual,
-  ) {
-    return AspectRatio(
-      aspectRatio: item.width > 0 && item.height > 0
-          ? (item.width / item.height).clamp(0.5, 2.0)
-          : 16 / 9,
-      child: _MediaTile(item: item, index: 0, allMedia: allVisual, post: post),
-    );
-  }
-
-  Widget _buildTwoMedia(
-    BuildContext context,
-    List<MediaItem> items,
-    List<MediaItem> allVisual,
-  ) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: Row(
-        children: [
-          Expanded(
-            child: _MediaTile(
-              item: items[0],
-              index: 0,
-              allMedia: allVisual,
-              post: post,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(
-            child: _MediaTile(
-              item: items[1],
-              index: 1,
-              allMedia: allVisual,
-              post: post,
-            ),
-          ),
-        ],
+  /// One photo or video at its own shape, within limits.
+  Widget _single(MediaItem item, Color borderColor) {
+    final tile = _framed(
+      borderColor,
+      AspectRatio(
+        aspectRatio: item.width > 0 && item.height > 0
+            ? (item.width / item.height).clamp(0.5, 2.0)
+            : 16 / 9,
+        child: _MediaTile(item: item, index: 0, allMedia: [item], post: post),
       ),
     );
-  }
-
-  Widget _buildThreeMedia(
-    BuildContext context,
-    List<MediaItem> items,
-    List<MediaItem> allVisual,
-  ) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: Row(
-        children: [
-          Expanded(
-            child: _MediaTile(
-              item: items[0],
-              index: 0,
-              allMedia: allVisual,
-              post: post,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.mediaGap),
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(
-                  child: _MediaTile(
-                    item: items[1],
-                    index: 1,
-                    allMedia: allVisual,
-                    post: post,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.mediaGap),
-                Expanded(
-                  child: _MediaTile(
-                    item: items[2],
-                    index: 2,
-                    allMedia: allVisual,
-                    post: post,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    if (maxVisualHeight == null) return tile;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxVisualHeight!),
+      child: tile,
     );
   }
 
-  Widget _buildFourMedia(
-    BuildContext context,
-    List<MediaItem> items,
-    List<MediaItem> allVisual,
-  ) {
-    final hasMore = allVisual.length > 4;
-    final extraCount = hasMore ? (allVisual.length - 3) : null;
+  /// Several photos and videos side by side at one height, each at its own
+  /// shape, scrolling sideways. X shows every one this way rather than four
+  /// and a count of the rest.
+  Widget _row(List<MediaItem> items, Color borderColor) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        var height = width * rowHeightFactor;
+        if (maxVisualHeight != null && maxVisualHeight! < height) {
+          height = maxVisualHeight!;
+        }
+        return SizedBox(
+          height: height,
+          // Wider than its slot by the bleed, which it paints into.
+          child: OverflowBox(
+            alignment: AlignmentDirectional.centerStart,
+            minWidth: width + bleed,
+            maxWidth: width + bleed,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsetsDirectional.only(end: bleed),
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.xs),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return SizedBox(
+                  width: rowItemWidth(
+                    item,
+                    height: height,
+                    maxWidth: width * rowItemMaxWidthFactor,
+                  ),
+                  child: _framed(
+                    borderColor,
+                    _MediaTile(
+                      item: item,
+                      index: index,
+                      allMedia: items,
+                      post: post,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MediaTile(
-                    item: items[0],
-                    index: 0,
-                    allMedia: allVisual,
-                    post: post,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(
-                  child: _MediaTile(
-                    item: items[1],
-                    index: 1,
-                    allMedia: allVisual,
-                    post: post,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.mediaGap),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _MediaTile(
-                    item: items[2],
-                    index: 2,
-                    allMedia: allVisual,
-                    post: post,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.mediaGap),
-                Expanded(
-                  child: _MediaTile(
-                    item: items[3],
-                    index: 3,
-                    allMedia: allVisual,
-                    post: post,
-                    extraCount: extraCount,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+  /// A photo's width in a row of [height]: its own shape, from half as wide
+  /// as tall up to [maxWidth].
+  static double rowItemWidth(
+    MediaItem item, {
+    required double height,
+    required double maxWidth,
+  }) {
+    final aspect = item.width > 0 && item.height > 0
+        ? item.width / item.height
+        : 1.0;
+    final minWidth = height * 0.5;
+    return (height * aspect).clamp(
+      minWidth,
+      maxWidth < minWidth ? minWidth : maxWidth,
+    );
+  }
+
+  /// Rounded, with a hairline edge so a dark photo doesn't melt into the page.
+  Widget _framed(Color borderColor, Widget child) {
+    return Container(
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(
+          color: borderColor,
+          width: AppSpacing.mediaBorderWidth,
+        ),
+        borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+        child: child,
       ),
     );
   }
@@ -322,14 +237,12 @@ class _MediaTile extends ConsumerWidget {
   final int index;
   final List<MediaItem> allMedia;
   final Post? post;
-  final int? extraCount;
 
   const _MediaTile({
     required this.item,
     required this.index,
     required this.allMedia,
     this.post,
-    this.extraCount,
   });
 
   @override
@@ -495,29 +408,6 @@ class _MediaTile extends ConsumerWidget {
             )
           else if (!autoDownload)
             const Center(child: TapToLoadBadge()),
-        ],
-      );
-    }
-
-    if (extraCount != null && extraCount! > 0) {
-      contentWidget = Stack(
-        fit: StackFit.expand,
-        children: [
-          contentWidget,
-          Container(
-            color: Colors.black.withValues(alpha: 0.55),
-            child: Center(
-              child: Text(
-                '+$extraCount',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          ),
         ],
       );
     }
