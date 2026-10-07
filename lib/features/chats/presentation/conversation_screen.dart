@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +101,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   bool _showJumpButton = false;
   bool _hasMarkedRead = false;
 
+  /// Whether the user can see the chat: its route on top, its tab showing,
+  /// and the app in front. Arrivals are marked read only then. It used to be
+  /// set once, so a chat under its profile or a viewer, in another tab, or
+  /// in a backgrounded app kept marking new messages read.
+  bool _isSeen = false;
+  bool _routeShowing = false;
+  bool _appInFront = true;
+  late final AppLifecycleListener _lifecycle;
+
   /// Where each built row is, so one can be held still while others change.
   final _RowRegistry _rows = _RowRegistry();
 
@@ -133,13 +144,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       (previous, _) =>
           _holdPosition(wasWindowed: previous?.value?.hasMoreNewer ?? false),
     );
-    // The notifier marks nothing read until the screen is showing.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref
-          .read(conversationProvider(widget.chatId).notifier)
-          .setVisible(isVisible: true);
-    });
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        _appInFront = state == AppLifecycleState.resumed;
+        _updateSeen();
+      },
+    );
     // Opened from a link to one message: go to it once the chat has loaded.
     final initial = widget.initialMessageId;
     if (initial != null) {
@@ -154,7 +164,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Both are inherited, so this runs again as a route covers or uncovers
+    // the chat, and as its tab is left or returned to.
+    _routeShowing =
+        (ModalRoute.of(context)?.isCurrent ?? true) &&
+        TickerMode.valuesOf(context).enabled;
+    _updateSeen();
+  }
+
+  /// Tells the notifier whether the chat is seen, and on coming back to it
+  /// marks what arrived meanwhile read.
+  void _updateSeen() {
+    final seen = _routeShowing && _appInFront;
+    if (seen == _isSeen) return;
+    _isSeen = seen;
+    final notifier = ref.read(conversationProvider(widget.chatId).notifier);
+    notifier.setVisible(isVisible: seen);
+    if (seen && _hasMarkedRead) unawaited(notifier.markVisibleRead());
+  }
+
+  @override
   void dispose() {
+    _lifecycle.dispose();
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
     super.dispose();
@@ -333,9 +366,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _hasMarkedRead = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final notifier = ref.read(conversationProvider(widget.chatId).notifier);
-      notifier.setVisible(isVisible: true);
-      notifier.markVisibleRead();
+      // Only if seen; otherwise it happens on coming back to the chat.
+      if (_isSeen) {
+        ref
+            .read(conversationProvider(widget.chatId).notifier)
+            .markVisibleRead();
+      }
     });
   }
 
