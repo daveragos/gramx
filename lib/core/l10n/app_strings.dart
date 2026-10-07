@@ -1173,6 +1173,7 @@ abstract class AppStrings {
   /// The button the composer's tools collapse into while typing.
   static const chatComposerMoreTools = 'More';
   static const chatDeleteFailed = "Telegram wouldn't delete that.";
+  static const chatDeleteNotAllowed = "Some of these can't be deleted.";
 
   /// Marks the first unread message when a chat opens.
   static const chatUnreadBand = 'Unread messages';

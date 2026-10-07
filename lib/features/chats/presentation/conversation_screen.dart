@@ -748,6 +748,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
+  /// Whether every selected message can be deleted for this account alone.
+  /// In a group or channel Telegram deletes for everyone, so "for me" there
+  /// deleted them for everybody.
+  bool get _canDeleteSelectionForSelf {
+    final selected = _selected;
+    if (selected == null || selected.isEmpty) return false;
+    return selected.every(
+      (id) => _selectionRights[id]?.canDeleteForSelf ?? false,
+    );
+  }
+
   bool get _canForwardSelection {
     final selected = _selected;
     if (selected == null || selected.isEmpty) return false;
@@ -830,6 +841,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     final ids = _selected?.toList();
     if (ids == null || ids.isEmpty) return;
 
+    if (!_canRevokeSelection && !_canDeleteSelectionForSelf) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.chatDeleteNotAllowed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final revoke = await showAppDialog<bool>(
       context,
       title: AppStrings.chatDeleteCountTitle(ids.length),
@@ -842,12 +863,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             isPrimary: true,
             isDestructive: true,
           ),
-        AppDialogAction(
-          label: AppStrings.chatActionDeleteForMe,
-          value: false,
-          isPrimary: !_canRevokeSelection,
-          isDestructive: true,
-        ),
+        if (_canDeleteSelectionForSelf)
+          AppDialogAction(
+            label: AppStrings.chatActionDeleteForMe,
+            value: false,
+            isPrimary: !_canRevokeSelection,
+            isDestructive: true,
+          ),
         const AppDialogAction.cancel(AppStrings.chatCancel),
       ],
     );
