@@ -39,6 +39,22 @@ void main() {
       },
     );
 
+    // The composer kept the rights a group had when it loaded.
+    test('UpdateChatPermissions changes what members may send', () {
+      state.apply(TdFixtures.newChat(TdFixtures.chat(id: -100123)));
+      final permissions = state.chats[-100123]!.permissions.copyWith(
+        canSendBasicMessages: true,
+      );
+
+      expect(
+        state.apply(
+          td.UpdateChatPermissions(chatId: -100123, permissions: permissions),
+        ),
+        isTrue,
+      );
+      expect(state.chats[-100123]!.permissions.canSendBasicMessages, isTrue);
+    });
+
     test('UpdateChatReadInbox for an unknown chat changes nothing', () {
       expect(
         state.apply(

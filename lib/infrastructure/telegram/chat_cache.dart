@@ -266,6 +266,16 @@ class ChatCacheState {
         chats[update.chatId] = existing.copyWith(title: update.title);
         return true;
 
+      // What members may send. Without it, the composer kept the rights the
+      // chat had when it loaded.
+      case td.UpdateChatPermissions():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(
+          permissions: update.permissions,
+        );
+        return true;
+
       case td.UpdateChatPhoto():
         final existing = chats[update.chatId];
         if (existing == null) return false;
