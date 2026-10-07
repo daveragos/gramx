@@ -83,13 +83,28 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     List<ComposeTarget> targets, {
     ComposeLengthLimits limits = ComposeLengthLimits.free,
   }) => ComposeDraft(
-    target: _chosenTarget ?? (targets.isEmpty ? null : targets.first),
+    target: _chosenTarget ?? _defaultFrom(targets),
     text: _controller.text,
     attachments: _attachments,
     remote: _remote,
     isSending: _isSending,
     limits: limits,
   );
+
+  /// The destination shown before the user picks one. Kept once shown: the
+  /// list reorders as chats get new messages, which moved a post's
+  /// destination while it was being written.
+  ComposeTarget? _shownDefault;
+
+  ComposeTarget? _defaultFrom(List<ComposeTarget> targets) {
+    final shown = _shownDefault;
+    if (shown != null) {
+      // The current copy, in case its name or rights changed.
+      final current = targets.where((t) => t.chatId == shown.chatId);
+      if (current.isNotEmpty) return current.first;
+    }
+    return _shownDefault = targets.firstOrNull;
+  }
 
   ComposeDraft _currentDraft() => _draft(
     ref.read(composeTargetsProvider),
