@@ -65,8 +65,14 @@ class NotificationService {
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   /// Sets up the plugin, enables TDLib notifications and listens. Idempotent.
+  /// Once started it only turns TDLib's notifications back on, which
+  /// [disableTdlibNotifications] turns off: it used to return early, so
+  /// notifications switched off and on again stayed off until a restart.
   Future<void> start() async {
-    if (_started) return;
+    if (_started) {
+      await _enableTdlibNotifications();
+      return;
+    }
     _started = true;
 
     await _initialisePlugin();

@@ -46,12 +46,18 @@ Future<ProviderContainer> bootstrap() async {
   unawaited(container.read(pendingDeepLinkProvider.notifier).start());
 
   // Starting the service makes TDLib generate notification groups, so it
-  // only starts when notifications are on.
+  // only starts when notifications are on. Listened to, not read: the
+  // saved settings load after this runs, and a read saw only the default
+  // (off), so notifications never started at launch.
   final notifications = container.read(notificationServiceProvider);
   unawaited(notifications.collectLaunchTap());
-  if (container.read(settingsProvider).notificationsEnabled) {
-    unawaited(notifications.start());
-  }
+  container.listen<bool>(
+    settingsProvider.select((s) => s.notificationsEnabled),
+    (_, enabled) {
+      if (enabled) unawaited(notifications.start());
+    },
+    fireImmediately: true,
+  );
 
   return container;
 }
