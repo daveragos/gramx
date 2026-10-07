@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
@@ -24,8 +26,6 @@ import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
-import 'package:gramx/features/feed/presentation/feed_providers.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 
@@ -105,21 +105,19 @@ class PostCard extends ConsumerWidget {
         onLikeEmojiTap!(emoji);
         return;
       }
-      ref
-          .read(optimisticPostUpdatesProvider.notifier)
-          .toggleReaction(post.id, emoji, post);
-      ref
-          .read(feedPostsProvider.notifier)
-          .toggleReactionOptimistic(post.id, emoji);
-
-      ref
-          .read(syncServiceProvider)
-          .togglePostReaction(
-            chatId: post.chatId,
-            messageId: post.messageId,
-            reactionEmoji: emoji,
-            isCurrentlyLiked: post.chosenReactions.contains(emoji),
+      final messenger = ScaffoldMessenger.of(context);
+      ref.read(reactionControllerProvider.notifier).react(post, emoji).then((
+        sent,
+      ) {
+        if (!sent && isSendableReaction(emoji)) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(AppStrings.reactionFailed),
+              behavior: SnackBarBehavior.floating,
+            ),
           );
+        }
+      });
     }
 
     void defaultReplyHandler() {
@@ -425,6 +423,9 @@ class PostCard extends ConsumerWidget {
                             reactions: post.reactions,
                             chosen: post.chosenReactions,
                             onTap: defaultReactionHandler,
+                            enabled: ref
+                                .watch(readerCapabilitiesProvider)
+                                .canReact,
                             compact: true,
                           ),
                         ],

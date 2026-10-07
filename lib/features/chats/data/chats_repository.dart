@@ -947,8 +947,9 @@ class ChatsRepository {
     }
   }
 
-  /// Adds or removes one of this account's reactions on a message.
-  Future<void> toggleReaction({
+  /// Adds or removes one of this account's reactions on a message. Returns
+  /// false if Telegram refused it.
+  Future<bool> toggleReaction({
     required int chatId,
     required int messageId,
     required String emoji,
@@ -974,8 +975,10 @@ class ChatsRepository {
           ),
         );
       }
+      return true;
     } catch (e) {
       debugPrint('[ChatsRepo] react on $chatId/$messageId failed: $e');
+      return false;
     }
   }
 

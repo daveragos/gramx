@@ -207,7 +207,8 @@ class SyncService {
   }
 
   /// Adds or removes a reaction on a post.
-  Future<void> togglePostReaction({
+  /// Adds or removes a reaction. Returns false if Telegram refused it.
+  Future<bool> togglePostReaction({
     required int chatId,
     required int messageId,
     required String reactionEmoji,
@@ -233,39 +234,10 @@ class SyncService {
           ),
         );
       }
+      return true;
     } catch (e) {
       debugPrint('[Sync] Failed to toggle post reaction: $e');
-    }
-  }
-
-  /// Toggles a bookmark in the local database.
-  Future<void> toggleBookmark(int chatId, int messageId) async {
-    final existing =
-        await (_db.select(_db.bookmarkEntries)..where(
-              (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
-            ))
-            .getSingleOrNull();
-
-    if (existing != null) {
-      await (_db.delete(_db.bookmarkEntries)..where(
-            (b) => b.chatId.equals(chatId) & b.messageId.equals(messageId),
-          ))
-          .go();
-    } else {
-      final accounts = await (_db.select(
-        _db.accounts,
-      )..where((a) => a.isActive.equals(true))).get();
-      final accountId = accounts.isNotEmpty ? accounts.first.id : 1;
-
-      await _db
-          .into(_db.bookmarkEntries)
-          .insert(
-            BookmarkEntriesCompanion.insert(
-              accountId: accountId,
-              chatId: chatId,
-              messageId: messageId,
-            ),
-          );
+      return false;
     }
   }
 

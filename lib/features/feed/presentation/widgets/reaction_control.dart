@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -64,6 +65,15 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
         .read(feedRepositoryProvider)
         .getAvailableReactions(post.chatId);
     if (!mounted) return;
+    if (availableEmojis.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.reactionsOff),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     ReactionPickerOverlay.show(
       context: context,
@@ -79,7 +89,9 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
   void _handleTap() {
     HapticFeedback.lightImpact();
     final chosen = widget.post.chosenReactions;
-    if (chosen.isNotEmpty) {
+    // A paid or custom emoji reaction can't be taken back as an emoji, so
+    // the picker opens instead.
+    if (chosen.isNotEmpty && isSendableReaction(chosen.first)) {
       widget.onSelectReaction(chosen.first);
       return;
     }

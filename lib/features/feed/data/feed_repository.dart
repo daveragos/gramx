@@ -10,6 +10,7 @@ import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/domain/standard_reactions.dart';
 import 'package:gramx/features/feed/domain/post_sender.dart';
 import 'package:gramx/features/feed/domain/seen_posts.dart';
 import 'package:gramx/infrastructure/database/database.dart';
@@ -1415,6 +1416,7 @@ class FeedRepository {
     }
   }
 
+  /// The reactions a chat allows, or none if it has them turned off.
   Future<List<String>> getAvailableReactions(int chatId) async {
     final chatObj = await _tdlib.sendRequest(td.GetChat(chatId: chatId));
     if (chatObj is td.Chat) {
@@ -1429,9 +1431,9 @@ class FeedRepository {
         return emojis;
       }
     }
-    // Fallback when all reactions are allowed. Keys as TDLib spells them:
-    // the heart has no U+FE0F.
-    return ['👍', '\u2764', '🔥', '🥰', '👏'];
+    // Every reaction is allowed. Keys as TDLib spells them: the heart has no
+    // U+FE0F.
+    return standardReactions;
   }
 
   /// Fetches a channel post's comments.

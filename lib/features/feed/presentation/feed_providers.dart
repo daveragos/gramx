@@ -429,9 +429,21 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
     Map<String, int> reactions,
     Set<String> chosenReactions,
   ) {
-    // Drop the optimistic guess, or it masks every later update.
-    ref.read(optimisticPostUpdatesProvider.notifier).clearReactions(postId);
+    // The server's counts replace a reaction made here, in every view. It
+    // was dropped instead, and views other than this list fell back to the
+    // snapshot from before the tap.
+    ref
+        .read(optimisticPostUpdatesProvider.notifier)
+        .refreshReactions(postId, reactions, chosenReactions);
+    setReactions(postId, reactions, chosenReactions);
+  }
 
+  /// Sets a post's reactions in this list.
+  void setReactions(
+    String postId,
+    Map<String, int> reactions,
+    Set<String> chosenReactions,
+  ) {
     final current = state.value;
     if (current == null) return;
     final updated = current.map((p) {
@@ -894,6 +906,34 @@ class OptimisticPostUpdatesNotifier
         'chosenReactions': next.chosen,
       },
     };
+  }
+
+  /// Shows [reactions] for [postId] until the data catches up.
+  void setReactions(
+    String postId,
+    Map<String, int> reactions,
+    Set<String> chosenReactions,
+  ) {
+    state = {
+      ...state,
+      postId: {
+        ...?state[postId],
+        'reactions': reactions,
+        'chosenReactions': chosenReactions,
+      },
+    };
+  }
+
+  /// Replaces a reaction made here with the server's counts, so every view
+  /// shows them. Posts not reacted to here are left to their own data.
+  void refreshReactions(
+    String postId,
+    Map<String, int> reactions,
+    Set<String> chosenReactions,
+  ) {
+    if (state[postId]?.containsKey('reactions') ?? false) {
+      setReactions(postId, reactions, chosenReactions);
+    }
   }
 
   /// Drops the optimistic reaction guess once the server reports real counts.

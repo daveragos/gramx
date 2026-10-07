@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -15,12 +16,16 @@ class ReactionChipsRow extends StatelessWidget {
   final ValueChanged<String> onTap;
   final bool compact;
 
+  /// Whether the chips can be tapped. Off for a guest, who can't react.
+  final bool enabled;
+
   const ReactionChipsRow({
     super.key,
     required this.reactions,
     required this.chosen,
     required this.onTap,
     this.compact = false,
+    this.enabled = true,
   });
 
   @override
@@ -51,10 +56,13 @@ class ReactionChipsRow extends StatelessWidget {
                   fill: fill,
                   textColor: secondary,
                   compact: compact,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    onTap(entry.key);
-                  },
+                  // Paid and custom emoji reactions can't be sent as emoji.
+                  onTap: enabled && isSendableReaction(entry.key)
+                      ? () {
+                          HapticFeedback.lightImpact();
+                          onTap(entry.key);
+                        }
+                      : null,
                 ),
               ),
           ],
@@ -71,7 +79,7 @@ class _Chip extends StatelessWidget {
   final Color fill;
   final Color textColor;
   final bool compact;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _Chip({
     required this.emoji,
@@ -88,7 +96,7 @@ class _Chip extends StatelessWidget {
     final radius = BorderRadius.circular(999);
 
     return Semantics(
-      button: true,
+      button: onTap != null,
       selected: isChosen,
       label: '$emoji ${TimeUtils.formatCount(count)}',
       excludeSemantics: true,

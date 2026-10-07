@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/features/chats/data/chat_events.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
@@ -494,12 +495,17 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   }
 
   /// Adds or removes one of this account's reactions, optimistically.
-  Future<void> toggleReaction(int messageId, String emoji) async {
+  /// Reacts to a message, or takes the reaction back. Shown at once, and put
+  /// back if Telegram refuses: a refused reaction used to stay on screen.
+  /// Returns false if it wasn't sent.
+  Future<bool> toggleReaction(int messageId, String emoji) async {
+    // Paid and custom emoji reactions can't be sent as emoji.
+    if (!isSendableReaction(emoji)) return false;
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return false;
 
     final index = current.messages.indexWhere((m) => m.messageId == messageId);
-    if (index < 0) return;
+    if (index < 0) return false;
 
     final message = current.messages[index];
     final isChosen = message.chosenReactions.contains(emoji);
@@ -526,7 +532,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     );
     state = AsyncData(current.copyWith(messages: messages));
 
-    await ref
+    final sent = await ref
         .read(chatsRepositoryProvider)
         .toggleReaction(
           chatId: chatId,
@@ -534,6 +540,24 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
           emoji: emoji,
           isChosen: isChosen,
         );
+    if (!sent) _restoreReactions(message);
+    return sent;
+  }
+
+  /// Puts [before]'s reactions back on its message, if it's still there.
+  void _restoreReactions(ChatMessage before) {
+    final current = state.value;
+    if (current == null) return;
+    final index = current.messages.indexWhere(
+      (m) => m.messageId == before.messageId,
+    );
+    if (index < 0) return;
+    final messages = [...current.messages];
+    messages[index] = messages[index].copyWith(
+      reactions: before.reactions,
+      chosenReactions: before.chosenReactions,
+    );
+    state = AsyncData(current.copyWith(messages: messages));
   }
 
   /// Deletes messages. Irreversible, so the screen confirms before calling.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -42,7 +43,8 @@ class MessageReactionsRow extends StatelessWidget {
             isChosen: chosen.contains(entry.key),
             surface: surface,
             textColor: secondary,
-            onTap: onTap == null
+            // Paid and custom emoji reactions can't be sent as emoji.
+            onTap: onTap == null || !isSendableReaction(entry.key)
                 ? null
                 : () {
                     HapticFeedback.lightImpact();

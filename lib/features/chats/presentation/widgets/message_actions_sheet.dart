@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -76,8 +77,20 @@ class MessageActionsSheet extends ConsumerWidget {
                 final conversation = ref.read(
                   conversationProvider(chatId).notifier,
                 );
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.of(context).pop();
-                conversation.toggleReaction(message.messageId, emoji);
+                conversation.toggleReaction(message.messageId, emoji).then((
+                  sent,
+                ) {
+                  if (!sent && isSendableReaction(emoji)) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(AppStrings.reactionFailed),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                });
               },
             ),
           actions.when(

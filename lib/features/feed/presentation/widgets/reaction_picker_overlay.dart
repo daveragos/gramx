@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
+import 'package:gramx/features/feed/domain/standard_reactions.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 
@@ -9,18 +10,9 @@ class ReactionPickerOverlay extends StatelessWidget {
   final String? selectedEmoji;
   final ValueChanged<String> onEmojiSelected;
 
-  static const List<String> defaultEmojis = [
-    '👍',
-    '\u2764', // TDLib's key for the heart has no U+FE0F.
-    '🔥',
-    '🎉',
-    '👏',
-    '😂',
-    '😮',
-    '😢',
-    '💩',
-    '🙏',
-  ];
+  /// For a chat that allows every reaction. 😂 and 😮 were here, but aren't
+  /// reactions Telegram takes.
+  static const List<String> defaultEmojis = standardReactions;
 
   const ReactionPickerOverlay({
     super.key,
@@ -74,7 +66,7 @@ class ReactionPickerOverlay extends StatelessWidget {
     final backgroundColor = isDark ? AppColors.darkSurface : Colors.white;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final screenWidth = MediaQuery.of(context).size.width;
-    final emojis = availableEmojis.isEmpty ? defaultEmojis : availableEmojis;
+    final emojis = availableEmojis;
 
     return Container(
       constraints: BoxConstraints(maxWidth: screenWidth - 32),

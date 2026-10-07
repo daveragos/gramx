@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/post_detail/domain/comment_threads.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -140,22 +141,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     );
   }
 
-  void _toggleReaction(Post post, String emoji) {
-    ref
-        .read(optimisticPostUpdatesProvider.notifier)
-        .toggleReaction(post.id, emoji, post);
-    ref
-        .read(feedPostsProvider.notifier)
-        .toggleReactionOptimistic(post.id, emoji);
-    ref
-        .read(syncServiceProvider)
-        .togglePostReaction(
-          chatId: post.chatId,
-          messageId: post.messageId,
-          reactionEmoji: emoji,
-          isCurrentlyLiked: post.chosenReactions.contains(emoji),
-        );
-    // No invalidate: the update stream reconciles the optimistic override.
+  /// Reacts to the post or a comment. The update stream reconciles it.
+  Future<void> _toggleReaction(Post post, String emoji) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sent = await ref
+        .read(reactionControllerProvider.notifier)
+        .react(post, emoji);
+    if (!sent && isSendableReaction(emoji)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.reactionFailed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   bool get _canSendComment =>
@@ -541,6 +540,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   chosen: post.chosenReactions,
                                   onTap: (emoji) =>
                                       _toggleReaction(post, emoji),
+                                  enabled: ref
+                                      .watch(readerCapabilitiesProvider)
+                                      .canReact,
                                 ),
                               ],
                               const SizedBox(height: AppSpacing.lg),

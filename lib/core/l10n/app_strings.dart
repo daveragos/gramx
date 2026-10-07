@@ -281,6 +281,8 @@ abstract class AppStrings {
       count == 1 ? 'subscriber' : 'subscribers';
 
   static const channelLinkCopied = 'Channel link copied to clipboard.';
+  static const reactionFailed = "Couldn't react. Try again.";
+  static const reactionsOff = 'Reactions are turned off here.';
   static const similarChannelsTitle = 'Similar channels';
   static String similarChannelsLabel(int count) =>
       count == 1 ? 'similar channel' : 'similar channels';

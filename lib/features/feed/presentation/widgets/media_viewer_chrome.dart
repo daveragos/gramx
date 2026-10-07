@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -14,7 +15,6 @@ import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
-import 'package:gramx/infrastructure/sync/sync_service.dart';
 
 /// The frame around full-screen media: the post's author, caption and the
 /// same actions the feed card offers.
@@ -261,21 +261,19 @@ class _BottomSheetChrome extends ConsumerWidget {
                     : _OpenWithButton(path: localPath!, color: Colors.white70),
                 onBookmarkTap: () =>
                     ref.read(bookmarkControllerProvider.notifier).toggle(post),
-                onSelectReaction: (emoji) {
-                  ref
-                      .read(optimisticPostUpdatesProvider.notifier)
-                      .toggleReaction(post.id, emoji, post);
-                  ref
-                      .read(feedPostsProvider.notifier)
-                      .toggleReactionOptimistic(post.id, emoji);
-                  ref
-                      .read(syncServiceProvider)
-                      .togglePostReaction(
-                        chatId: post.chatId,
-                        messageId: post.messageId,
-                        reactionEmoji: emoji,
-                        isCurrentlyLiked: post.chosenReactions.contains(emoji),
-                      );
+                onSelectReaction: (emoji) async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final sent = await ref
+                      .read(reactionControllerProvider.notifier)
+                      .react(post, emoji);
+                  if (!sent && isSendableReaction(emoji)) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(AppStrings.reactionFailed),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 },
                 // Comments are on the post screen.
                 onReplyTap: () {

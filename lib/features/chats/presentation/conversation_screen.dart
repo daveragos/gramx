@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -676,6 +677,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     await _jumpToMessage(message.messageId);
   }
 
+  /// Reacts to a message, saying so if Telegram refuses.
+  Future<void> _react(int messageId, String emoji) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sent = await ref
+        .read(conversationProvider(widget.chatId).notifier)
+        .toggleReaction(messageId, emoji);
+    if (!sent && isSendableReaction(emoji)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(AppStrings.reactionFailed),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   /// Opens whoever an `@name` is: a person's profile, a channel or a group.
   Future<void> _openMention(String username) => openMention(context, username);
 
@@ -1052,9 +1069,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             context.push(UserProfileScreen.routeFor(userId)),
                         jumpKey: _jumpKey,
                         jumpTargetId: _jumpTargetId,
-                        onReact: (message, emoji) => ref
-                            .read(conversationProvider(widget.chatId).notifier)
-                            .toggleReaction(message.messageId, emoji),
+                        onReact: (message, emoji) =>
+                            _react(message.messageId, emoji),
                         onVote: (message, optionIds) => ref
                             .read(conversationProvider(widget.chatId).notifier)
                             .vote(message.messageId, optionIds),
