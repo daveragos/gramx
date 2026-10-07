@@ -30,7 +30,7 @@ abstract class AppStrings {
 
   /// The app version, also reported to Telegram for the active sessions list.
   /// Must match `pubspec.yaml`; a test checks this.
-  static const appVersion = '1.0.0';
+  static const appVersion = '1.1.0';
 
   /// The version alone, for the Settings row.
   static const appVersionValue = 'v$appVersion';

@@ -86,7 +86,7 @@
   // below, so bump FALLBACK_VERSION when publishing.
 
   var REPO = 'daveragos/gramx';
-  var FALLBACK_VERSION = '1.0.0';
+  var FALLBACK_VERSION = '1.1.0';
 
   function fallbackFile(abi, size) {
     var name = 'gramx-' + FALLBACK_VERSION + '-' + abi + '.apk';
@@ -97,13 +97,15 @@
     version: FALLBACK_VERSION,
     url: 'https://github.com/' + REPO + '/releases/tag/v' + FALLBACK_VERSION,
     files: {
-      arm64: fallbackFile('arm64-v8a', 52565955),
-      v7a: fallbackFile('armeabi-v7a', 44441437),
-      x86: fallbackFile('x86_64', 56178584),
+      arm64: fallbackFile('arm64-v8a', 52697115),
+      v7a: fallbackFile('armeabi-v7a', 44588985),
+      x86: fallbackFile('x86_64', 56309748),
+      ipa: {
+        name: 'gramx-' + FALLBACK_VERSION + '.ipa',
+        url: DL + 'gramx-' + FALLBACK_VERSION + '.ipa',
+        size: 23763921
+      },
       sums: { name: 'SHA256SUMS.txt', url: DL + 'SHA256SUMS.txt', size: 0 }
-      // 1.0.0 has no iPhone file. Once the fallback release has one, add
-      // ipa: { name: ..., url: ..., size: ... } here; until then the iPhone
-      // buttons keep their link to the latest release's page.
     }
   };
   var PATTERNS = {
