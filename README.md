@@ -54,7 +54,7 @@ and terms are in the app under Settings.
 ## Support
 
 If gramX is useful to you, you can support its development at
-<https://gurshaplus.com/ragoose>.
+<https://daveragos.github.io/gramx/support.html>.
 
 Found a bug or have an idea? Open an
 [issue](https://github.com/daveragos/gramx/issues).

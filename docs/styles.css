@@ -1100,3 +1100,9 @@ h1, h2, h3 { margin: 0; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Support ──────────────────────────────────────────────────────────── */
+
+.support-state { margin-top: 28px; }
+.support-state[hidden] { display: none; }
+.support-form { margin-top: 32px; }

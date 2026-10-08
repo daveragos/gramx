@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Support gramX · gramX</title>
+  <meta name="description" content="gramX is free, with no ads and nothing to buy. If it's useful to you, you can send RaGoose, who makes it, any amount you like.">
+  <link rel="canonical" href="https://daveragos.github.io/gramx/support.html">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    (function () {
+      var d = document.documentElement, t = null;
+      try { t = localStorage.getItem('gramx-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dim' && t !== 'dark') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      d.setAttribute('data-theme', t);
+    })();
+  </script>
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="nav" data-nav>
+    <div class="container nav-inner">
+      <a class="brand" href="./" aria-label="gramX home">
+        <img class="on-dark" src="assets/brand/glyph-on-dark.png" alt="" width="24" height="26">
+        <img class="on-light" src="assets/brand/glyph-on-light.png" alt="" width="24" height="26">
+        <span>gramX</span>
+      </a>
+      <div class="nav-actions">
+        <button class="icon-btn theme-toggle" type="button" data-theme-cycle aria-label="Change theme">
+          <svg class="i t-light" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>
+          <svg class="i t-dim" aria-hidden="true"><use href="assets/icons.svg#i-dim"/></svg>
+          <svg class="i t-dark" aria-hidden="true"><use href="assets/icons.svg#i-moon"/></svg>
+        </button>
+        <a class="btn btn-primary btn-sm" href="./#install">Download</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="container guide">
+    <a class="back" href="./"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg>gramX home</a>
+    <h1>Support gramX</h1>
+    <p class="summary">gramX is free, with no ads and nothing to buy. It's made by one person, RaGoose. If it's useful to you, you can send any amount you like.</p>
+
+    <!-- After a payment, the checkout sends people back with ?state=, and
+         site.js shows the matching message. -->
+    <div class="callout support-state" data-support-state="paid" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-heart-fill"/></svg>
+      <div><p><b>Thank you!</b> Your payment arrived. It went straight to RaGoose and helps keep gramX going.</p></div>
+    </div>
+    <div class="callout support-state" data-support-state="verifying" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>
+      <div>
+        <p><b>Checking your payment.</b> This usually takes less than a minute, and this page checks again by itself.</p>
+        <p><a data-support-recheck href="#">Check now</a></p>
+      </div>
+    </div>
+    <div class="callout support-state" data-support-state="waiting" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>
+      <div>
+        <p><b>Your payment hasn't arrived yet.</b> If you've sent it, <a data-support-recheck href="#">check again</a> in a minute. If you haven't, you can start again below.</p>
+      </div>
+    </div>
+    <div class="callout support-state" data-support-state="failed" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-close"/></svg>
+      <div>
+        <p><b>That payment didn't go through.</b> You can try again below. If money left your account anyway, email <a href="mailto:daveyeinde@gmail.com">daveyeinde@gmail.com</a> with the transaction reference.</p>
+      </div>
+    </div>
+    <div class="callout support-state" data-support-state="expired" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>
+      <div><p><b>The payment page timed out.</b> It stays open for an hour. You can start again below.</p></div>
+    </div>
+    <div class="callout support-state" data-support-state="review" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>
+      <div><p><b>Your payment is being reviewed.</b> It needs a closer look before it's confirmed. There's nothing more you need to do.</p></div>
+    </div>
+    <div class="callout support-state" data-support-state="unavailable" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-cloud-off"/></svg>
+      <div><p><b>Payments aren't working right now.</b> Nothing was charged. Please try again later.</p></div>
+    </div>
+    <div class="callout support-state" data-support-state="unknown" role="status" hidden>
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-cloud-off"/></svg>
+      <div>
+        <p><b>We couldn't check your payment.</b> If you sent it, it went straight to RaGoose's account. If something looks wrong, email <a href="mailto:daveyeinde@gmail.com">daveyeinde@gmail.com</a> with the transaction reference.</p>
+      </div>
+    </div>
+
+    <section class="howto">
+      <h2>How it works</h2>
+      <ol>
+        <li><p><b>Tap Continue to payment.</b> You'll go to Verify Checkout, which shows RaGoose's account and how to pay.</p></li>
+        <li><p><b>Send the amount you choose</b> with telebirr or your bank's app, then enter the transaction reference it gives you.</p></li>
+        <li><p><b>Verify Checkout confirms the transfer</b> and brings you back here.</p></li>
+      </ol>
+    </section>
+
+    <div class="callout">
+      <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>
+      <div>
+        <p><b>Your money goes straight to RaGoose's account.</b> Verify Checkout only confirms the transfer. It never holds your money, and gramX never sees your payment.</p>
+      </div>
+    </div>
+
+    <form class="support-form" method="post" action="https://gramx-support.WORKERS-SUBDOMAIN.workers.dev/checkout" data-support-form>
+      <button class="btn btn-primary btn-lg" type="submit">
+        <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-support"/></svg>
+        Continue to payment
+      </button>
+    </form>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <a class="brand" href="./" aria-label="gramX home">
+          <img class="on-dark" src="assets/brand/glyph-on-dark.png" alt="" width="24" height="26">
+          <img class="on-light" src="assets/brand/glyph-on-light.png" alt="" width="24" height="26">
+          <span>gramX</span>
+        </a>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="./#install">Download for Android</a>
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="https://github.com/daveragos/gramx">Source code</a>
+          <a href="https://github.com/daveragos/gramx/releases">Releases</a>
+          <a href="https://github.com/daveragos/gramx/issues">Report an issue</a>
+        </nav>
+      </div>
+      <p class="fine">gramX is an independent app. It is not made by, affiliated with, or endorsed by Telegram. Verify Checkout is run by Verify.et and is not affiliated with gramX. © <span data-year>2026</span> Dawit (RaGoose). The app is open source under the Apache License 2.0; the gramX name and logo are not.</p>
+    </div>
+  </footer>
+</body>
+</html>

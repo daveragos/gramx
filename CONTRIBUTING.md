@@ -144,6 +144,39 @@ The site's privacy policy and terms are generated from
 dart run tool/site_legal.dart
 ```
 
+## Support checkout
+
+The website's support page (`docs/support.html`) takes payments through
+[Verify Checkout](https://checkout.verify.et). Supporters pay RaGoose's own
+account from telebirr or their bank, and Verify Checkout confirms the
+transfer. Each payment has to be created with a secret API key, which can't
+live in the app or on a static page, so a small Cloudflare Worker in
+`support/` holds it. The app's Support link only opens the support page.
+
+To set it up in the Verify Checkout dashboard:
+
+1. Add a receiving account under Accounts.
+2. Under Developers, create an API key with `deposits:create` and
+   `deposits:read`. It is shown once; copy it straight into the Worker's
+   secret below.
+3. Under Developers, register and activate the Worker's origin, for example
+   `https://gramx-support.<you>.workers.dev`, as a return origin.
+
+Then deploy the Worker from `support/`:
+
+```bash
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret put VERIFY_CHECKOUT_API_KEY
+```
+
+and point the form in `docs/support.html` at the deployed `/checkout`. The
+Worker's tests need only Node:
+
+```bash
+node --test support/worker.test.mjs
+```
+
 ## Code layout
 
 ```

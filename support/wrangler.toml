@@ -1,0 +1,16 @@
+# The checkout behind the website's support page. See "Support checkout" in
+# CONTRIBUTING.md for setting it up and deploying it.
+name = "gramx-support"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+
+[vars]
+SUPPORT_PAGE = "https://daveragos.github.io/gramx/support.html"
+ALLOWED_ORIGIN = "https://daveragos.github.io"
+
+# VERIFY_CHECKOUT_API_KEY is a secret. Set it with
+#   npx wrangler secret put VERIFY_CHECKOUT_API_KEY
+# and never write it here.
+
+[observability]
+enabled = true

@@ -51,3 +51,7 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# The support checkout's local secrets and Wrangler's cache.
+/support/.dev.vars
+/support/.wrangler/

@@ -1,5 +1,6 @@
 // gramX website. No tracking, no cookies; the only request it makes on its
-// own is to GitHub, to find the latest release.
+// own is to GitHub, to find the latest release. The support page also goes
+// back to the checkout by itself while a payment is being verified.
 (function () {
   'use strict';
 
@@ -343,6 +344,41 @@
       var tab = fromHash();
       if (tab) selectTab(tab);
     });
+  }
+
+  // ── Support page ───────────────────────────────────────────────────────
+  // The checkout (support/worker.mjs) looks a payment up and sends people
+  // back here with ?state=. Show that state's message, and while a payment is
+  // still being verified, go back to the checkout a few times to ask again.
+
+  var supportForm = $('[data-support-form]');
+  if (supportForm) {
+    var recheckUrl = supportForm.action.replace(/\/checkout$/, '/return');
+    $$('[data-support-recheck]').forEach(function (a) { a.href = recheckUrl; });
+
+    var supportState = new URLSearchParams(location.search).get('state');
+    $$('[data-support-state]').forEach(function (el) {
+      el.hidden = el.getAttribute('data-support-state') !== supportState;
+    });
+
+    var CHECKS = 'gramx-support-checks';
+    if (supportState === 'verifying') {
+      var checks = Number(store('sessionStorage', CHECKS)) || 0;
+      if (checks < 6) {
+        store('sessionStorage', CHECKS, String(checks + 1));
+        setTimeout(function () { location.assign(recheckUrl); }, Math.min(4000 * Math.pow(1.5, checks), 20000));
+      }
+    } else {
+      store('sessionStorage', CHECKS, '0');
+    }
+
+    // A second tap would start a second payment.
+    var supportButton = $('button', supportForm);
+    supportForm.addEventListener('submit', function () {
+      setTimeout(function () { supportButton.disabled = true; }, 0);
+    });
+    // Coming back with the Back button restores the page as it was left.
+    window.addEventListener('pageshow', function () { supportButton.disabled = false; });
   }
 
   // ── Reveal on scroll ───────────────────────────────────────────────────
