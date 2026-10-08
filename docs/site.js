@@ -97,13 +97,13 @@
     version: FALLBACK_VERSION,
     url: 'https://github.com/' + REPO + '/releases/tag/v' + FALLBACK_VERSION,
     files: {
-      arm64: fallbackFile('arm64-v8a', 52697115),
-      v7a: fallbackFile('armeabi-v7a', 44588985),
-      x86: fallbackFile('x86_64', 56309748),
+      arm64: fallbackFile('arm64-v8a', 52762667),
+      v7a: fallbackFile('armeabi-v7a', 44670917),
+      x86: fallbackFile('x86_64', 56375296),
       ipa: {
         name: 'gramx-' + FALLBACK_VERSION + '.ipa',
         url: DL + 'gramx-' + FALLBACK_VERSION + '.ipa',
-        size: 23763921
+        size: 23791121
       },
       sums: { name: 'SHA256SUMS.txt', url: DL + 'SHA256SUMS.txt', size: 0 }
     }
