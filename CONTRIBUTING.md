@@ -160,7 +160,7 @@ To set it up in the Verify Checkout dashboard:
    `deposits:read`. It is shown once; copy it straight into the Worker's
    secret below.
 3. Under Developers, register and activate the Worker's origin, for example
-   `https://gramx-support.<you>.workers.dev`, as a return origin.
+   `https://gramx-support.ragoose.workers.dev`, as a return origin.
 
 Then deploy the Worker from `support/`:
 
