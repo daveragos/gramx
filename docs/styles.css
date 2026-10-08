@@ -290,6 +290,7 @@ h1, h2, h3 { margin: 0; }
 }
 
 .cta-meta { margin-top: 16px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.cta-meta a { white-space: nowrap; }
 
 .platform-note {
   display: none;
@@ -302,6 +303,12 @@ h1, h2, h3 { margin: 0; }
 }
 .platform-note .i { width: 20px; height: 20px; color: var(--accent); }
 :root[data-platform="ios"] .platform-note { display: flex; }
+
+/* On an iPhone the iPhone guide leads, and the APK steps back. */
+:root[data-platform="ios"] .hero .cta-iphone { order: -1; border-color: transparent; background: var(--accent); color: var(--on-accent); }
+:root[data-platform="ios"] .hero .cta-iphone:hover { background: #63c6ff; }
+:root[data-platform="ios"] .hero .cta-android { border-color: var(--border); background: transparent; color: var(--text); }
+:root[data-platform="ios"] .hero .cta-android:hover { background: var(--surface); }
 
 .qr-card {
   display: none;
