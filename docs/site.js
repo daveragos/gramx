@@ -104,7 +104,7 @@
       ipa: {
         name: 'gramx-' + FALLBACK_VERSION + '.ipa',
         url: DL + 'gramx-' + FALLBACK_VERSION + '.ipa',
-        size: 23791121
+        size: 23791083
       },
       sums: { name: 'SHA256SUMS.txt', url: DL + 'SHA256SUMS.txt', size: 0 }
     }
