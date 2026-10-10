@@ -50,7 +50,7 @@
   <main id="main" class="container guide">
     <a class="back" href="./"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg>gramX home</a>
     <h1>Install gramX on iPhone</h1>
-    <p class="summary">gramX isn't in the App Store. On iPhone, you install it with a free helper app and your own Apple Account. It takes about 20 minutes the first time, and you need a computer for part of it.</p>
+    <p class="summary">gramX isn't in the App Store. On iPhone, you install it with a free helper app and your own Apple Account. It takes about 20 minutes the first time, and you need a computer for part of it. Each step shows the screen you'll see; tap a picture to make it bigger.</p>
 
     <div class="open-both">
       <div>
@@ -100,24 +100,54 @@
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
       <ol>
-        <li><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> Sideloadly needs them to talk to your iPhone. Use the links on <a href="https://sideloadly.io">Sideloadly's website</a>. The versions from the Microsoft Store don't work, so if you have those, uninstall them first.</p></li>
-        <li><p><b>Install Sideloadly</b> from <a href="https://sideloadly.io">sideloadly.io</a>, its only official website.</p></li>
         <li>
+          <div class="step"><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> Sideloadly needs them to talk to your iPhone. Use the links on <a href="https://sideloadly.io">Sideloadly's website</a>. The versions from the Microsoft Store don't work, so if you have those, uninstall them first.</p></div>
+          <figure class="step-shot"><a href="assets/guide/itunes-icloud.svg" data-zoom><img src="assets/guide/itunes-icloud.svg" width="360" height="200" loading="lazy" alt="Download buttons for iTunes and iCloud from Apple’s website, not the Microsoft Store."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Install Sideloadly</b> from <a href="https://sideloadly.io">sideloadly.io</a>, its only official website.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sideloadly-site.svg" data-zoom><img src="assets/guide/sideloadly-site.svg" width="360" height="164" loading="lazy" alt="The download buttons on sideloadly.io."></a></figure>
+        </li>
+        <li>
+          <div class="step">
           <p><b>Download gramX</b> to the computer. It's one file, ending in .ipa.</p>
           <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/download/v1.1.0/gramx-1.1.0.ipa"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
           <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+          </div>
+          <figure class="step-shot"><a href="assets/guide/download-ipa.svg" data-zoom><img src="assets/guide/download-ipa.svg" width="360" height="150" loading="lazy" alt="The browser’s downloads list showing the gramX file, finished."></a></figure>
         </li>
-        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
-        <li><p><b>Open Sideloadly.</b> Drag the gramX file onto the IPA icon. Check that your iPhone is selected, and type your Apple Account email in the box for it.</p></li>
-        <li><p><b>Click Advanced options and tick Use automatic bundle ID</b>, if it isn't ticked already. Then click <b>Start</b>.</p></li>
-        <li><p><b>Sign in when asked.</b> Enter your Apple Account password, then the verification code that appears on your other Apple devices or arrives by text. Wait until Sideloadly says it's done.</p></li>
+        <li>
+          <div class="step"><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-computer.svg" data-zoom><img src="assets/guide/trust-computer.svg" width="320" height="290" loading="lazy" alt="The iPhone asks whether to trust this computer."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Open Sideloadly.</b> Drag the gramX file onto the IPA icon. Check that your iPhone is selected, and type your Apple Account email in the box for it.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sideloadly-main.svg" data-zoom><img src="assets/guide/sideloadly-main.svg" width="380" height="224" loading="lazy" alt="Sideloadly with the gramX file dropped on the IPA box, your iPhone selected, and your Apple Account typed in."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Click Advanced options and tick Use automatic bundle ID</b>, if it isn't ticked already. Then click <b>Start</b>.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sideloadly-advanced.svg" data-zoom><img src="assets/guide/sideloadly-advanced.svg" width="380" height="300" loading="lazy" alt="Sideloadly’s advanced options, with Use automatic bundle ID ticked, and the Start button."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Sign in when asked.</b> Enter your Apple Account password, then the verification code that appears on your other Apple devices or arrives by text. Wait until Sideloadly says it's done.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sideloadly-signin.svg" data-zoom><img src="assets/guide/sideloadly-signin.svg" width="380" height="250" loading="lazy" alt="Sideloadly asks for your Apple Account password, then for the verification code."></a></figure>
+        </li>
       </ol>
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
       <ol>
-        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
-        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
-        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+        <li>
+          <div class="step"><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-developer.svg" data-zoom><img src="assets/guide/trust-developer.svg" width="320" height="448" loading="lazy" alt="Settings: the page for your Apple Account, with its Trust button and the confirmation."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/developer-mode.svg" data-zoom><img src="assets/guide/developer-mode.svg" width="320" height="330" loading="lazy" alt="Settings: Developer Mode switched on, and the prompt to restart."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></div>
+          <figure class="step-shot"><a href="assets/guide/open-gramx.svg" data-zoom><img src="assets/guide/open-gramx.svg" width="320" height="400" loading="lazy" alt="The gramX welcome screen: continue with a phone number, log in via QR code, or browse without an account."></a></figure>
+        </li>
       </ol>
 
       <div class="weekly">
@@ -132,30 +162,66 @@
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
       <ol>
-        <li><p><b>Get LocalDevVPN from the App Store.</b> Open it, tap Connect, and allow it to add a VPN configuration. SideStore needs it switched on whenever it installs or refreshes an app.</p></li>
+        <li>
+          <div class="step"><p><b>Get LocalDevVPN from the App Store.</b> Open it, tap Connect, and allow it to add a VPN configuration. SideStore needs it switched on whenever it installs or refreshes an app.</p></div>
+          <figure class="step-shot"><a href="assets/guide/localdevvpn.svg" data-zoom><img src="assets/guide/localdevvpn.svg" width="320" height="372" loading="lazy" alt="LocalDevVPN with its Connect button, and the iPhone asking to allow a VPN configuration."></a></figure>
+        </li>
       </ol>
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
       <ol>
-        <li><p><b>Windows only: install iTunes from Apple's website.</b> It lets the computer talk to your iPhone. The version from the Microsoft Store doesn't work.</p></li>
-        <li><p><b>Install iloader</b> from <a href="https://iloader.app">iloader.app</a>. It's the tool that puts SideStore on your iPhone.</p></li>
-        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
-        <li><p><b>Open iloader and sign in</b> with your Apple Account email and password, then the verification code Apple sends you.</p></li>
-        <li><p><b>Select your iPhone, then click SideStore (Stable).</b> Wait until iloader says <q>SideStore Installed!</q></p></li>
+        <li>
+          <div class="step"><p><b>Windows only: install iTunes from Apple's website.</b> It lets the computer talk to your iPhone. The version from the Microsoft Store doesn't work.</p></div>
+          <figure class="step-shot"><a href="assets/guide/itunes.svg" data-zoom><img src="assets/guide/itunes.svg" width="360" height="134" loading="lazy" alt="The download button for iTunes from Apple’s website, not the Microsoft Store."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Install iloader</b> from <a href="https://iloader.app">iloader.app</a>. It's the tool that puts SideStore on your iPhone.</p></div>
+          <figure class="step-shot"><a href="assets/guide/iloader-site.svg" data-zoom><img src="assets/guide/iloader-site.svg" width="360" height="176" loading="lazy" alt="The download buttons on iloader.app, for Windows and for Mac."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-computer.svg" data-zoom><img src="assets/guide/trust-computer.svg" width="320" height="290" loading="lazy" alt="The iPhone asks whether to trust this computer."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Open iloader and sign in</b> with your Apple Account email and password, then the verification code Apple sends you.</p></div>
+          <figure class="step-shot"><a href="assets/guide/iloader-signin.svg" data-zoom><img src="assets/guide/iloader-signin.svg" width="400" height="230" loading="lazy" alt="iloader’s Apple ID panel with the Sign In button, and the verification code prompt."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Select your iPhone, then click SideStore (Stable).</b> Wait until iloader says <q>SideStore Installed!</q></p></div>
+          <figure class="step-shot"><a href="assets/guide/iloader-install.svg" data-zoom><img src="assets/guide/iloader-install.svg" width="400" height="232" loading="lazy" alt="iloader with your iPhone selected, the SideStore (Stable) button, and the message that SideStore was installed."></a></figure>
+        </li>
       </ol>
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>Back on your iPhone</h3>
       <ol>
-        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
-        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
-        <li><p><b>Finish setting up SideStore.</b> Open LocalDevVPN and tap Connect. Open SideStore and sign in with the same Apple Account. Go to My Apps and tap the <q>7 DAYS</q> button next to SideStore. If it asks, tap Yes or Refresh Now.</p></li>
         <li>
+          <div class="step"><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-developer.svg" data-zoom><img src="assets/guide/trust-developer.svg" width="320" height="448" loading="lazy" alt="Settings: the page for your Apple Account, with its Trust button and the confirmation."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/developer-mode.svg" data-zoom><img src="assets/guide/developer-mode.svg" width="320" height="330" loading="lazy" alt="Settings: Developer Mode switched on, and the prompt to restart."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Finish setting up SideStore.</b> Open LocalDevVPN and tap Connect. Open SideStore and sign in with the same Apple Account. Go to My Apps and tap the <q>7 DAYS</q> button next to SideStore. If it asks, tap Yes or Refresh Now.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sidestore-refresh.svg" data-zoom><img src="assets/guide/sidestore-refresh.svg" width="320" height="340" loading="lazy" alt="SideStore’s My Apps tab, with the 7 DAYS button next to SideStore."></a></figure>
+        </li>
+        <li>
+          <div class="step">
           <p><b>Download gramX in Safari.</b> If you opened this page from Telegram or another app, open it in Safari first. When Safari asks, tap Download. The file goes to Downloads in the Files app.</p>
           <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/download/v1.1.0/gramx-1.1.0.ipa"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
           <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+          </div>
+          <figure class="step-shot"><a href="assets/guide/safari-download.svg" data-zoom><img src="assets/guide/safari-download.svg" width="320" height="300" loading="lazy" alt="Safari asks whether to download the gramX file."></a></figure>
         </li>
-        <li><p><b>Install gramX.</b> With LocalDevVPN connected, open SideStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads and wait for it to install.</p></li>
-        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+        <li>
+          <div class="step"><p><b>Install gramX.</b> With LocalDevVPN connected, open SideStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads and wait for it to install.</p></div>
+          <figure class="step-shot"><a href="assets/guide/sidestore-add.svg" data-zoom><img src="assets/guide/sidestore-add.svg" width="320" height="372" loading="lazy" alt="SideStore’s My Apps tab with the plus button at the top, and the gramX file chosen from Downloads."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></div>
+          <figure class="step-shot"><a href="assets/guide/open-gramx.svg" data-zoom><img src="assets/guide/open-gramx.svg" width="320" height="400" loading="lazy" alt="The gramX welcome screen: continue with a phone number, log in via QR code, or browse without an account."></a></figure>
+        </li>
       </ol>
 
       <div class="weekly">
@@ -170,24 +236,54 @@
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-laptop"/></svg>On your computer</h3>
       <ol>
-        <li><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> AltServer needs them to talk to your iPhone. Use the links in <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows">AltStore's Windows guide</a>. The versions from the Microsoft Store don't work.</p></li>
-        <li><p><b>Install AltServer</b> from <a href="https://altstore.io">altstore.io</a>; you want AltStore Classic. On a Mac, move AltServer to Applications and open it; its icon appears in the menu bar. On Windows, run Setup, then find AltServer in the Start menu, right-click it and choose Run as administrator; its icon appears near the clock.</p></li>
-        <li><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></li>
-        <li><p><b>Turn on Wi-Fi sync</b>, so AltStore can refresh without the cable later. On a Mac, select your iPhone in Finder and tick <q>Show this iPhone when on Wi-Fi</q>. On Windows, open iTunes, select your iPhone and tick <q>Sync with this iPhone over Wi-Fi</q>. Click Apply.</p></li>
-        <li><p><b>Click the AltServer icon, choose Install AltStore, then your iPhone.</b> Enter your Apple Account email and password. On a Mac, if it asks you to install the Mail plug-in, follow <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos/enable-mail-plug-in">AltStore's steps for that</a> and try again. Wait until AltServer says AltStore was installed.</p></li>
+        <li>
+          <div class="step"><p><b>Windows only: install iTunes and iCloud from Apple's website.</b> AltServer needs them to talk to your iPhone. Use the links in <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows">AltStore's Windows guide</a>. The versions from the Microsoft Store don't work.</p></div>
+          <figure class="step-shot"><a href="assets/guide/itunes-icloud.svg" data-zoom><img src="assets/guide/itunes-icloud.svg" width="360" height="200" loading="lazy" alt="Download buttons for iTunes and iCloud from Apple’s website, not the Microsoft Store."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Install AltServer</b> from <a href="https://altstore.io">altstore.io</a>; you want AltStore Classic. On a Mac, move AltServer to Applications and open it; its icon appears in the menu bar. On Windows, run Setup, then find AltServer in the Start menu, right-click it and choose Run as administrator; its icon appears near the clock.</p></div>
+          <figure class="step-shot"><a href="assets/guide/altstore-site.svg" data-zoom><img src="assets/guide/altstore-site.svg" width="360" height="206" loading="lazy" alt="The AltServer download buttons on altstore.io, and where its icon appears once it runs."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Connect your iPhone</b> to the computer with the cable, and unlock it. If the iPhone asks <q>Trust This Computer?</q>, tap Trust and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-computer.svg" data-zoom><img src="assets/guide/trust-computer.svg" width="320" height="290" loading="lazy" alt="The iPhone asks whether to trust this computer."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Turn on Wi-Fi sync</b>, so AltStore can refresh without the cable later. On a Mac, select your iPhone in Finder and tick <q>Show this iPhone when on Wi-Fi</q>. On Windows, open iTunes, select your iPhone and tick <q>Sync with this iPhone over Wi-Fi</q>. Click Apply.</p></div>
+          <figure class="step-shot"><a href="assets/guide/wifi-sync.svg" data-zoom><img src="assets/guide/wifi-sync.svg" width="400" height="244" loading="lazy" alt="The Wi-Fi sync box: Show this iPhone when on Wi-Fi in Finder on a Mac, or Sync with this iPhone over Wi-Fi in iTunes on Windows."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Click the AltServer icon, choose Install AltStore, then your iPhone.</b> Enter your Apple Account email and password. On a Mac, if it asks you to install the Mail plug-in, follow <a href="https://faq.altstore.io/altstore-classic/how-to-install-altstore-macos/enable-mail-plug-in">AltStore's steps for that</a> and try again. Wait until AltServer says AltStore was installed.</p></div>
+          <figure class="step-shot"><a href="assets/guide/altserver-install.svg" data-zoom><img src="assets/guide/altserver-install.svg" width="380" height="262" loading="lazy" alt="The AltServer menu with Install AltStore open and your iPhone listed, and the Apple ID sign-in it shows next."></a></figure>
+        </li>
       </ol>
 
       <h3 class="where"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-smartphone"/></svg>On your iPhone</h3>
       <ol>
-        <li><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></li>
-        <li><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></li>
         <li>
+          <div class="step"><p><b>Trust your Apple Account.</b> Open <span class="path">Settings<i>›</i>General<i>›</i>VPN &amp; Device Management</span>. Under Developer App, tap your email, tap Trust, then tap Trust again.</p></div>
+          <figure class="step-shot"><a href="assets/guide/trust-developer.svg" data-zoom><img src="assets/guide/trust-developer.svg" width="320" height="448" loading="lazy" alt="Settings: the page for your Apple Account, with its Trust button and the confirmation."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Turn on Developer Mode</b> (iOS 16 and newer). Open <span class="path">Settings<i>›</i>Privacy &amp; Security<i>›</i>Developer Mode</span>, near the bottom. Turn it on and tap Restart. When the iPhone is back on, tap Turn On and enter your passcode.</p></div>
+          <figure class="step-shot"><a href="assets/guide/developer-mode.svg" data-zoom><img src="assets/guide/developer-mode.svg" width="320" height="330" loading="lazy" alt="Settings: Developer Mode switched on, and the prompt to restart."></a></figure>
+        </li>
+        <li>
+          <div class="step">
           <p><b>Download gramX in Safari.</b> If you opened this page from Telegram or another app, open it in Safari first. When Safari asks, tap Download. The file goes to Downloads in the Files app.</p>
           <a class="btn btn-primary" data-dl="ipa" href="https://github.com/daveragos/gramx/releases/download/v1.1.0/gramx-1.1.0.ipa"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-download"/></svg>Download gramX for iPhone</a>
           <p class="file-meta"><span data-size="ipa">24&nbsp;MB</span> · iOS 15 or newer</p>
+          </div>
+          <figure class="step-shot"><a href="assets/guide/safari-download.svg" data-zoom><img src="assets/guide/safari-download.svg" width="320" height="300" loading="lazy" alt="Safari asks whether to download the gramX file."></a></figure>
         </li>
-        <li><p><b>Install gramX.</b> Make sure AltServer is running on the computer and both are on the same Wi-Fi. Open AltStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads. If AltStore asks you to sign in, use the same Apple Account.</p></li>
-        <li><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></li>
+        <li>
+          <div class="step"><p><b>Install gramX.</b> Make sure AltServer is running on the computer and both are on the same Wi-Fi. Open AltStore, go to My Apps, and tap <b>+</b> at the top. Choose the gramX file from Downloads. If AltStore asks you to sign in, use the same Apple Account.</p></div>
+          <figure class="step-shot"><a href="assets/guide/altstore-add.svg" data-zoom><img src="assets/guide/altstore-add.svg" width="320" height="372" loading="lazy" alt="AltStore’s My Apps tab with the plus button at the top, and the gramX file chosen from Downloads."></a></figure>
+        </li>
+        <li>
+          <div class="step"><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></div>
+          <figure class="step-shot"><a href="assets/guide/open-gramx.svg" data-zoom><img src="assets/guide/open-gramx.svg" width="320" height="400" loading="lazy" alt="The gramX welcome screen: continue with a phone number, log in via QR code, or browse without an account."></a></figure>
+        </li>
       </ol>
 
       <div class="weekly">
@@ -230,6 +326,11 @@
 
     <p class="still">Still stuck? <a href="https://github.com/daveragos/gramx/issues">Report a problem</a> and say which helper app you used and what it showed.</p>
   </main>
+
+  <dialog class="lightbox" data-lightbox aria-label="Screen, enlarged">
+    <button class="icon-btn" type="button" data-close aria-label="Close"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-close"/></svg></button>
+    <img src="" alt="" width="320" height="320">
+  </dialog>
 
   <footer class="footer">
     <div class="container">

@@ -346,6 +346,31 @@
     });
   }
 
+  // Tapping one of the guide's screens shows it large. Without this script
+  // the link opens the image on its own.
+
+  var lightbox = $('[data-lightbox]');
+  if (lightbox && typeof lightbox.showModal === 'function') {
+    var lightboxImg = $('img', lightbox);
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[data-zoom]');
+      if (!a) return;
+      e.preventDefault();
+      var img = $('img', a);
+      lightboxImg.width = img.width;
+      lightboxImg.height = img.height;
+      lightboxImg.alt = img.alt;
+      lightboxImg.src = img.src;
+      lightbox.showModal();
+    });
+    $$('[data-close]', lightbox).forEach(function (btn) {
+      btn.addEventListener('click', function () { lightbox.close(); });
+    });
+    lightbox.addEventListener('click', function (e) {
+      if (e.target === lightbox) lightbox.close();
+    });
+  }
+
   // ── Support page ───────────────────────────────────────────────────────
   // The checkout (support/worker.mjs) looks a payment up and sends people
   // back here with ?state=. Show that state's message, and while a payment is

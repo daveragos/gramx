@@ -1092,6 +1092,39 @@ h1, h2, h3 { margin: 0; }
 
 .guide .faq { margin-top: 12px; }
 
+/* Each step shows the screen it happens on: beside the text when there is
+   room, under it on a phone. Tapping a screen opens it large. */
+.howto li { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 24px; }
+.step-shot { margin: 0; }
+.step-shot a {
+  display: block;
+  width: min(100%, 300px);
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.step-shot img { display: block; width: 100%; height: auto; }
+@media (min-width: 720px) {
+  .guide { max-width: 860px; }
+  .howto li { grid-template-columns: minmax(0, 1fr) 236px; align-items: start; }
+  .step-shot a { width: 100%; }
+}
+@media (min-width: 900px) {
+  .howto li { grid-template-columns: minmax(0, 1fr) 264px; }
+}
+.lightbox {
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+.lightbox::backdrop { background: rgb(0 0 0 / 0.72); }
+.lightbox img { display: block; width: min(92vw, 560px); height: auto; padding: 16px; }
+.lightbox [data-close] { position: absolute; top: 10px; right: 10px; }
+
 /* ── Motion ───────────────────────────────────────────────────────────── */
 /* site.js hides only what starts below the fold, so the page stays
    readable if the script never runs. */
