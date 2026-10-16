@@ -28,6 +28,7 @@ import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_sheets.dart';
 
 class PostCard extends ConsumerWidget {
   final Post post;
@@ -317,6 +318,11 @@ class PostCard extends ConsumerWidget {
                                 ],
                               ),
                             ),
+                            // Trok answers through the reader's account.
+                            if (ref
+                                .watch(readerCapabilitiesProvider)
+                                .canMessage)
+                              TrokPostButton(post: post, color: secondaryColor),
                             _MoreButton(
                               color: secondaryColor,
                               onTap: () =>

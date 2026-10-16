@@ -7,8 +7,10 @@ import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
+import 'package:gramx/features/channels/presentation/channels_list_screen.dart';
 import 'package:gramx/features/chats/presentation/open_saved_messages.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
 
 class AppDrawer extends ConsumerWidget {
   /// Switches to a bottom-bar tab. Passed in by the shell because the drawer
@@ -129,6 +131,17 @@ class AppDrawer extends ConsumerWidget {
                   ),
                   // Tabs switch branches rather than pushing, which would lose
                   // the tab's scroll position. Other entries push routes.
+                  ListTile(
+                    leading: TrokMark(
+                      size: 26,
+                      color: IconTheme.of(context).color,
+                    ),
+                    title: const Text(
+                      AppStrings.trokName,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    onTap: () => _goToTab(context, ShellTab.trok),
+                  ),
                   DrawerNavItem(
                     icon: Icons.notifications_none_rounded,
                     title: AppStrings.drawerActivity,
@@ -161,7 +174,10 @@ class AppDrawer extends ConsumerWidget {
                   DrawerNavItem(
                     icon: Icons.list_alt_rounded,
                     title: AppStrings.drawerChannels,
-                    onTap: () => _goToTab(context, ShellTab.channels),
+                    onTap: () {
+                      Navigator.pop(context);
+                      GoRouter.of(context).push(ChannelsListScreen.route);
+                    },
                   ),
                   DrawerNavItem(
                     icon: Icons.folder_outlined,

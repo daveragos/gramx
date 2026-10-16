@@ -8,7 +8,7 @@ void main() {
       expect(ShellTab.values.map((t) => t.path), [
         '/home',
         '/search',
-        '/channels',
+        '/trok',
         '/activity',
         '/messages',
       ]);
@@ -17,7 +17,7 @@ void main() {
     test('indices match declaration order', () {
       expect(ShellTab.home.index, 0);
       expect(ShellTab.search.index, 1);
-      expect(ShellTab.channels.index, 2);
+      expect(ShellTab.trok.index, 2);
       expect(ShellTab.activity.index, 3);
       expect(ShellTab.messages.index, 4);
     });

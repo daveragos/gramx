@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
-import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/guest/data/guest_channel_store.dart';
@@ -16,11 +15,7 @@ import 'package:gramx/features/guest/presentation/guest_providers.dart';
 /// Where a guest manages their channel list. A channel is resolved before
 /// it is stored, so a typo or private channel fails here with a reason.
 class GuestChannelsScreen extends ConsumerStatefulWidget {
-  /// True when shown as the Channels tab, with the sliding chrome and room
-  /// for the bottom bar, rather than as a pushed route.
-  final bool embedded;
-
-  const GuestChannelsScreen({super.key, this.embedded = false});
+  const GuestChannelsScreen({super.key});
 
   @override
   ConsumerState<GuestChannelsScreen> createState() =>
@@ -109,14 +104,6 @@ class _GuestChannelsScreenState extends ConsumerState<GuestChannelsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (widget.embedded) {
-      return ChromeScaffold(
-        header: const ChromeHeaderRow(title: AppStrings.guestChannelsTitle),
-        body: (context, topPadding, bottomPadding) =>
-            _body(topPadding: topPadding, bottomPadding: bottomPadding),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(

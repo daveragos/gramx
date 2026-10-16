@@ -28,12 +28,21 @@ import 'package:gramx/features/chats/presentation/chats_providers.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
+import 'package:gramx/features/trok/presentation/trok_screen.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
 
 /// The bottom bar tabs. The router declares its branches in this order.
 enum ShellTab {
   home(Icons.home_outlined, Icons.home, 'Home', '/home'),
   search(Icons.search_outlined, Icons.search, 'Search', '/search'),
-  channels(Icons.list_alt_outlined, Icons.list_alt, 'Channels', '/channels'),
+  // Drawn by TrokMark, in the middle of the bar as X puts Grok. The channel
+  // list it replaced opens from the drawer.
+  trok(
+    Icons.visibility_outlined,
+    Icons.visibility,
+    AppStrings.trokName,
+    TrokScreen.route,
+  ),
   activity(
     Icons.notifications_none_rounded,
     Icons.notifications_rounded,
@@ -372,6 +381,12 @@ class _TabIcon extends StatelessWidget {
     final icon = active ? tab.activeIcon : tab.icon;
     return switch (tab) {
       ShellTab.home => _HomeIcon(icon: icon),
+      // The eye is wider than it is tall, so it is drawn a little larger.
+      ShellTab.trok => TrokMark(
+        size: 28,
+        color: IconTheme.of(context).color,
+        filled: active,
+      ),
       ShellTab.activity => Consumer(
         builder: (context, ref, child) => _CountBadge(
           count: ref.watch(activityBadgeProvider),

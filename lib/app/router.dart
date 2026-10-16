@@ -30,11 +30,13 @@ import 'package:gramx/features/settings/presentation/settings_screen.dart';
 import 'package:gramx/features/settings/presentation/profile_screen.dart';
 import 'package:gramx/features/settings/presentation/legal_screen.dart';
 import 'package:gramx/features/activity/presentation/activity_screen.dart';
+import 'package:gramx/features/trok/presentation/trok_chat_screen.dart';
+import 'package:gramx/features/trok/presentation/trok_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _searchNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'search');
-final _channelsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'channels');
+final _trokNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'trok');
 final _activityNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'activity');
 final _messagesNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'messages');
 
@@ -143,11 +145,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _channelsNavigatorKey,
+            navigatorKey: _trokNavigatorKey,
             routes: [
               GoRoute(
-                path: ShellTab.channels.path,
-                builder: (context, state) => const ChannelsListScreen(),
+                path: ShellTab.trok.path,
+                builder: (context, state) => const TrokScreen(),
               ),
             ],
           ),
@@ -247,6 +249,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           );
         },
+      ),
+      GoRoute(
+        path: TrokChatScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        // `extra` is true when the reader will type the question.
+        builder: (context, state) =>
+            TrokChatScreen(focusComposer: state.extra == true),
+      ),
+      // Was a tab until Trok took the middle of the bar.
+      GoRoute(
+        path: ChannelsListScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ChannelsListScreen(),
       ),
       GoRoute(
         path: '/bookmarks',

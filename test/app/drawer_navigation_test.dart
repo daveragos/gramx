@@ -35,6 +35,10 @@ GoRouter testRouter(void Function(ShellTab) onSelectTab) => GoRouter(
       path: '/bookmarks',
       builder: (context, state) => const Scaffold(body: Text('bookmarks')),
     ),
+    GoRoute(
+      path: '/channels',
+      builder: (context, state) => const Scaffold(body: Text('channels')),
+    ),
   ],
 );
 
@@ -65,6 +69,13 @@ Widget host(void Function(ShellTab) onSelectTab) => ProviderScope(
   child: MaterialApp.router(routerConfig: testRouter(onSelectTab)),
 );
 
+/// Scrolls the drawer's list until Channels is clear of its footer, as the
+/// test's screen is too short to show every entry.
+Future<void> revealChannels(WidgetTester tester) async {
+  await tester.drag(find.byType(ListView), const Offset(0, -200));
+  await tester.pumpAndSettle();
+}
+
 Future<void> openDrawer(WidgetTester tester) async {
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
@@ -74,6 +85,17 @@ void main() {
   // The drawer is a sibling of the navigation shell, so
   // `StatefulNavigationShell.of` can't find it; the shell passes the action in.
   group('drawer tab entries', () {
+    testWidgets('trok asks the shell to switch', (tester) async {
+      final chosen = <ShellTab>[];
+      await tester.pumpWidget(host(chosen.add));
+      await openDrawer(tester);
+
+      await tester.tap(find.text(AppStrings.trokName));
+      await tester.pumpAndSettle();
+
+      expect(chosen, [ShellTab.trok]);
+    });
+
     testWidgets('messages asks the shell to switch', (tester) async {
       final chosen = <ShellTab>[];
       await tester.pumpWidget(host(chosen.add));
@@ -100,15 +122,18 @@ void main() {
       expect(find.text('bookmarks'), findsOneWidget);
     });
 
-    testWidgets('subscribed channels asks the shell to switch', (tester) async {
+    // Trok took the Channels tab's place in the bar.
+    testWidgets('subscribed channels pushes its route', (tester) async {
       final chosen = <ShellTab>[];
       await tester.pumpWidget(host(chosen.add));
       await openDrawer(tester);
 
+      await revealChannels(tester);
       await tester.tap(find.text(AppStrings.drawerChannels));
       await tester.pumpAndSettle();
 
-      expect(chosen, [ShellTab.channels]);
+      expect(chosen, isEmpty, reason: 'channels is no longer a tab');
+      expect(find.text('channels'), findsOneWidget);
     });
 
     testWidgets('and the drawer closes behind them', (tester) async {
@@ -116,6 +141,7 @@ void main() {
       await openDrawer(tester);
       expect(find.text(AppStrings.drawerChannels), findsOneWidget);
 
+      await revealChannels(tester);
       await tester.tap(find.text(AppStrings.drawerChannels));
       await tester.pumpAndSettle();
 

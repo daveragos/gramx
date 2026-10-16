@@ -1322,6 +1322,80 @@ abstract class AppStrings {
 
   static String a11yStatChart(String title) => '$title chart';
 
+  // ── Trok ───────────────────────────────────────────────────────────────────
+  static const trokName = 'Trok';
+  static const trokGreeting = 'What do you want to know?';
+  static const trokIntro =
+      'Trok reads along with you. Ask about a post, catch up on your '
+      'channels, or ask anything at all.';
+
+  /// Under the starters, as Telegram's own bots disclose where text goes.
+  static const trokDisclosure =
+      'Trok can make mistakes. Your question and the posts it reads are sent '
+      'to Argus on Telegram.';
+  static const trokComposerHint = 'Ask Trok anything';
+  static const trokComposerHintFollowUp = 'Ask a follow-up';
+  static const trokThink = 'Think';
+  static const trokThinkTooltip = 'Take longer and think it through';
+  static const trokSend = 'Send';
+  static const trokStop = 'Stop answering';
+  static const trokNewChat = 'New chat';
+  static const trokHistory = 'History';
+  static const trokHistoryEmpty = 'Your chats with Trok will show up here.';
+  static const trokThinking = 'Thinking';
+  static const trokCopy = 'Copy';
+  static const trokCopied = 'Copied';
+  static const trokRegenerate = 'Regenerate';
+  static const trokStopped = 'Stopped';
+  static const trokFailed = "Trok couldn't answer that.";
+  static const trokRetry = 'Try again';
+
+  /// How long Trok thought before it started answering; opens the steps.
+  static String trokThoughtFor(int seconds) =>
+      seconds <= 1 ? 'Thought for a second' : 'Thought for $seconds seconds';
+
+  /// The posts an answer drew on.
+  static String trokSourceCount(int count) =>
+      count == 1 ? '1 post' : '$count posts';
+
+  /// A source card for a post with no text.
+  static const trokSourceMediaOnly = 'Photos or media';
+
+  /// The post a question is about, above the question and in the composer.
+  static String trokAboutPost(String channel) => 'Post from $channel';
+  static const trokRemovePost = 'Remove post';
+
+  // Starters on an empty chat. A prompt ending in a space is filled in by the
+  // reader; the others are sent as they are.
+  static const trokStarterCatchUp = 'Catch me up';
+  static const trokStarterCatchUpPrompt = 'What did I miss in my channels?';
+  static const trokStarterToday = "Today's big stories";
+  static const trokStarterTodayPrompt =
+      'What are the biggest stories in my feed today?';
+  static const trokStarterChannels = 'Find channels';
+  static const trokStarterChannelsPrompt = 'Recommend channels about ';
+  static const trokStarterExplain = 'Explain simply';
+  static const trokStarterExplainPrompt = 'Explain this simply: ';
+
+  // Asking about one post.
+  static const trokAskAboutPost = 'Ask Trok';
+  static const trokPostExplain = 'Explain this post';
+  static const trokPostSummarize = 'Summarize';
+  static const trokPostSummarizePrompt = 'Summarize this post';
+  static const trokPostTranslate = 'Translate';
+  static const trokPostTranslatePrompt = 'Translate this post';
+  static const trokPostFactCheck = 'Is this true?';
+  static const trokPostAskOther = 'Ask something else';
+
+  static const trokGuestTitle = 'Sign in to use Trok';
+  static const trokGuestBody =
+      'Trok answers from your own channels, so it needs your Telegram '
+      'account.';
+  static const trokGuestAction = 'Sign in';
+
+  static const a11yTrokThinking = 'Trok is thinking';
+  static const a11yTrokAnswering = 'Trok is answering';
+
   // Spoken delivery states for the message ticks.
   static const chatStateSending = 'Sending';
   static const chatStateSent = 'Sent';

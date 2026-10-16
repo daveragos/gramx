@@ -195,7 +195,7 @@ void main() {
   // A guest has no session, so the signed-out rules must not apply.
   group('guest mode', () {
     test('a guest reaches the shell without a session', () {
-      for (final location in ['/home', '/search', '/channels', '/messages']) {
+      for (final location in ['/home', '/search', '/trok', '/messages']) {
         expect(
           authRedirect(
             step: AuthStep.loginMethodSelection,

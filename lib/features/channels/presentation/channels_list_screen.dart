@@ -48,13 +48,16 @@ final mutedChannelsListProvider = Provider<List<Channel>>((ref) {
 });
 
 class ChannelsListScreen extends ConsumerWidget {
+  /// Opened from the drawer, over the tabs.
+  static const route = '/channels';
+
   const ChannelsListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // A guest's channels are the public ones they added, on their own screen.
     if (ref.watch(isGuestModeProvider)) {
-      return const GuestChannelsScreen(embedded: true);
+      return const GuestChannelsScreen();
     }
 
     final theme = Theme.of(context);
@@ -72,6 +75,7 @@ class ChannelsListScreen extends ConsumerWidget {
     return ChromeScaffold(
       header: ChromeHeaderRow(
         title: AppStrings.channelsTitle,
+        leading: const BackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
