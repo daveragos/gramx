@@ -23,10 +23,21 @@ enum TrokAnswerState {
   bool get isActive => this == thinking || this == streaming;
 }
 
-/// A post an answer drew on. Drawn under the answer; opens the post.
+/// Something an answer drew on, drawn under it.
 @immutable
-class TrokSource {
-  final String postId;
+sealed class TrokSource {
+  const TrokSource();
+
+  factory TrokSource.fromPost(Post post) = TrokPostSource.fromPost;
+}
+
+/// A channel post. Opens the post.
+class TrokPostSource extends TrokSource {
+  /// The post as gramX holds it. Null for a public post only Trok found.
+  final String? postId;
+
+  /// Its t.me link, which opens it when there is no [postId].
+  final String? link;
   final String channelTitle;
   final String? avatarPath;
   final int? avatarFileId;
@@ -34,19 +45,20 @@ class TrokSource {
 
   /// The post's text, untrimmed for length; the card clamps it.
   final String snippet;
-  final DateTime publishedAt;
+  final DateTime? publishedAt;
 
-  const TrokSource({
-    required this.postId,
+  const TrokPostSource({
     required this.channelTitle,
     required this.snippet,
-    required this.publishedAt,
+    this.postId,
+    this.link,
+    this.publishedAt,
     this.avatarPath,
     this.avatarFileId,
     this.avatarColorHex,
   });
 
-  factory TrokSource.fromPost(Post post) => TrokSource(
+  factory TrokPostSource.fromPost(Post post) => TrokPostSource(
     postId: post.id,
     channelTitle: post.channelTitle,
     avatarPath: post.channelAvatarUrl,
@@ -55,6 +67,49 @@ class TrokSource {
     snippet: (post.text ?? '').trim(),
     publishedAt: post.publishedAt,
   );
+}
+
+/// A web page Trok read, as fact-checks do. Opens in the browser.
+class TrokWebSource extends TrokSource {
+  final String url;
+  final String title;
+
+  /// The site's name, such as "reuters.com".
+  final String site;
+
+  const TrokWebSource({
+    required this.url,
+    required this.title,
+    required this.site,
+  });
+}
+
+/// Why Trok couldn't answer, in words the reader is shown as they are.
+@immutable
+class TrokFailure implements Exception {
+  /// Trok's code for it, such as `rate_limited`.
+  final String code;
+  final String message;
+
+  /// How long until asking again may work, when Trok says.
+  final Duration? retryAfter;
+
+  const TrokFailure(this.code, this.message, {this.retryAfter});
+
+  /// Whether asking the same again could get an answer.
+  bool get canRetry => !const {
+    'bad_request',
+    'blocked',
+    'rate_limited',
+    'refused',
+    'too_large',
+  }.contains(code);
+
+  /// The reader may not use Trok at all.
+  bool get isBlocked => code == 'blocked';
+
+  @override
+  String toString() => 'TrokFailure($code: $message)';
 }
 
 /// One message in a conversation with Trok.
@@ -97,6 +152,12 @@ class TrokAnswer extends TrokTurn {
   /// From the question to the first text. Null until text arrives.
   final Duration? thoughtFor;
 
+  /// Trok's id for this answer, once it has one. Regenerating replaces it.
+  final String? remoteId;
+
+  /// Why it failed, when Trok said.
+  final TrokFailure? failure;
+
   const TrokAnswer({
     required String id,
     required this.startedAt,
@@ -107,6 +168,8 @@ class TrokAnswer extends TrokTurn {
     this.sources = const [],
     this.followUps = const [],
     this.thoughtFor,
+    this.remoteId,
+    this.failure,
   }) : super(id);
 
   TrokAnswer copyWith({
@@ -117,6 +180,8 @@ class TrokAnswer extends TrokTurn {
     List<TrokSource>? sources,
     List<String>? followUps,
     Duration? thoughtFor,
+    String? remoteId,
+    TrokFailure? failure,
   }) => TrokAnswer(
     id: id,
     startedAt: startedAt,
@@ -127,10 +192,13 @@ class TrokAnswer extends TrokTurn {
     sources: sources ?? this.sources,
     followUps: followUps ?? this.followUps,
     thoughtFor: thoughtFor ?? this.thoughtFor,
+    remoteId: remoteId ?? this.remoteId,
+    failure: failure ?? this.failure,
   );
 
   /// This answer with [event] applied, at [now].
   TrokAnswer apply(TrokEvent event, DateTime now) => switch (event) {
+    TrokStarted(:final answerId) => copyWith(remoteId: answerId),
     TrokStep(:final label) => copyWith(steps: [...steps, label]),
     TrokText(:final text, :final entities) => copyWith(
       state: TrokAnswerState.streaming,
@@ -152,11 +220,19 @@ class TrokConversation {
   final List<TrokTurn> turns;
   final DateTime updatedAt;
 
+  /// Trok's id for it, once Trok has answered in it. Follow-ups go there.
+  final String? remoteId;
+
+  /// False for one listed in History whose messages haven't been fetched.
+  final bool isLoaded;
+
   const TrokConversation({
     required this.id,
     required this.title,
     required this.updatedAt,
     this.turns = const [],
+    this.remoteId,
+    this.isLoaded = true,
   });
 
   TrokAnswer? get lastAnswer => switch (turns.lastOrNull) {
@@ -166,13 +242,20 @@ class TrokConversation {
 
   bool get isAnswering => lastAnswer?.state.isActive ?? false;
 
-  TrokConversation copyWith({List<TrokTurn>? turns, DateTime? updatedAt}) =>
-      TrokConversation(
-        id: id,
-        title: title,
-        turns: turns ?? this.turns,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+  TrokConversation copyWith({
+    String? title,
+    List<TrokTurn>? turns,
+    DateTime? updatedAt,
+    String? remoteId,
+    bool? isLoaded,
+  }) => TrokConversation(
+    id: id,
+    title: title ?? this.title,
+    turns: turns ?? this.turns,
+    updatedAt: updatedAt ?? this.updatedAt,
+    remoteId: remoteId ?? this.remoteId,
+    isLoaded: isLoaded ?? this.isLoaded,
+  );
 }
 
 /// Everything sent with one question.
@@ -193,6 +276,12 @@ class TrokRequest {
   /// Whether the reader asked Trok to take longer over it.
   final bool think;
 
+  /// Trok's id for the conversation; null starts one.
+  final String? conversationId;
+
+  /// Trok's id for the answer this one replaces, when regenerating.
+  final String? replaceAnswerId;
+
   const TrokRequest({
     required this.prompt,
     this.post,
@@ -200,14 +289,52 @@ class TrokRequest {
     this.feed = const [],
     this.history = const [],
     this.think = false,
+    this.conversationId,
+    this.replaceAnswerId,
   });
 }
 
+/// What the reader may do with Trok today.
+@immutable
+class TrokAllowance {
+  final int questionsPerDay;
+  final int usedToday;
+  final DateTime? resetsAt;
+  final bool think;
+  final bool translate;
+
+  const TrokAllowance({
+    required this.questionsPerDay,
+    required this.usedToday,
+    this.resetsAt,
+    this.think = true,
+    this.translate = true,
+  });
+
+  int get questionsLeft =>
+      (questionsPerDay - usedToday).clamp(0, questionsPerDay);
+}
+
 /// What Trok sends back while answering. The stream ends when the answer is
-/// complete and fails if it can't answer.
+/// complete and fails, with a [TrokFailure] when Trok says why, if it can't
+/// answer.
 @immutable
 sealed class TrokEvent {
   const TrokEvent();
+}
+
+/// Trok has the question: its ids for the conversation and the answer, and
+/// the conversation's title.
+class TrokStarted extends TrokEvent {
+  final String conversationId;
+  final String answerId;
+  final String title;
+
+  const TrokStarted({
+    required this.conversationId,
+    required this.answerId,
+    required this.title,
+  });
 }
 
 /// A step taken before answering, such as "Reading 24 posts".

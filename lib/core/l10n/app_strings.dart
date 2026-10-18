@@ -1332,7 +1332,7 @@ abstract class AppStrings {
   /// Under the starters, as Telegram's own bots disclose where text goes.
   static const trokDisclosure =
       'Trok can make mistakes. Your question and the posts it reads are sent '
-      'to Argus on Telegram.';
+      "to Trok's server.";
   static const trokComposerHint = 'Ask Trok anything';
   static const trokComposerHintFollowUp = 'Ask a follow-up';
   static const trokThink = 'Think';
@@ -1350,13 +1350,32 @@ abstract class AppStrings {
   static const trokFailed = "Trok couldn't answer that.";
   static const trokRetry = 'Try again';
 
+  /// Trok's server is switched off, or this account can't sign in to it.
+  static const trokUnavailable = "Trok isn't available yet. Try again later.";
+  static const trokOffline =
+      "Trok couldn't connect. Check your connection and try again.";
+
+  /// Shown under the composer once few questions are left today.
+  static String trokQuestionsLeft(int count) => switch (count) {
+    0 => 'No questions left today',
+    1 => '1 question left today',
+    _ => '$count questions left today',
+  };
+
+  static const trokDeleteChat = 'Delete this chat';
+  static const trokDeleteChatTitle = 'Delete this chat?';
+  static const trokDeleteChatBody =
+      'It is deleted from Trok, along with the posts sent with it, on every '
+      'phone you use.';
+  static const trokDelete = 'Delete';
+
   /// How long Trok thought before it started answering; opens the steps.
   static String trokThoughtFor(int seconds) =>
       seconds <= 1 ? 'Thought for a second' : 'Thought for $seconds seconds';
 
-  /// The posts an answer drew on.
+  /// The posts and pages an answer drew on.
   static String trokSourceCount(int count) =>
-      count == 1 ? '1 post' : '$count posts';
+      count == 1 ? '1 source' : '$count sources';
 
   /// A source card for a post with no text.
   static const trokSourceMediaOnly = 'Photos or media';

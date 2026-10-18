@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Privacy Policy · gramX</title>
-  <meta name="description" content="gramX has no servers of its own. Signed in or browsing as a guest, it talks to Telegram and to nobody else, and everything it keeps stays on your phone.">
+  <meta name="description" content="gramX has no servers of its own. It talks to Telegram, and to Trok's server only when you use Trok, and everything it keeps stays on your phone.">
   <link rel="canonical" href="https://daveragos.github.io/gramx/privacy.html">
   <meta name="theme-color" content="#000000">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -48,8 +48,8 @@
   <main id="main" class="container doc">
     <a class="back" href="./"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg>gramX home</a>
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated 23 August 2026</p>
-    <p class="summary">gramX has no servers of its own. Signed in or browsing as a guest, it talks to Telegram and to nobody else, and everything it keeps stays on your phone.</p>
+    <p class="updated">Last updated 17 October 2026</p>
+    <p class="summary">gramX has no servers of its own. It talks to Telegram, and to Trok's server only when you use Trok, and everything it keeps stays on your phone.</p>
     <h2>Who this is</h2>
     <p>gramX is an independent reader for Telegram channels, made by one person. It is not made by, affiliated with, or endorsed by Telegram.</p>
     <p>Questions about this policy: <a href="mailto:daveyeinde@gmail.com">daveyeinde@gmail.com</a>.</p>
@@ -59,8 +59,15 @@
     <p>Guest mode is read-only. Nothing is sent on your behalf: no reactions, no comments, no read state, no subscriptions. There is no account for any of that to happen to.</p>
     <p>What is stored is the list of channels you added, and the pictures cached for them. Leaving guest mode deletes both.</p>
     <h2>There is no gramX server</h2>
-    <p>This app has no backend. When you sign in, the app connects straight to Telegram from your phone using TDLib, Telegram's own client library. Nothing you read, write or tap is sent to the developer or to any third party.</p>
+    <p>This app has no backend. When you sign in, the app connects straight to Telegram from your phone using TDLib, Telegram's own client library. Nothing you read, write or tap is sent to the developer or to any third party, apart from what you ask Trok (below).</p>
     <p>That also means Telegram receives what it would receive from any Telegram client — your account activity, the channels you read, the messages you send. That part is covered by Telegram's own privacy policy, not by this one.</p>
+    <h2>Trok</h2>
+    <p>Trok is the assistant in the middle of the tab bar. Its answers come from a server run separately from gramX, at trok.iortr.online, and the AI services it uses. Nothing reaches it until you open Trok, and it is not available in guest mode.</p>
+    <p>To tell Trok who is asking, the app gets sign-in data from Telegram for Trok's bot, @tr0kbot, the way a Telegram app opens a bot's Mini App: your Telegram user id and public profile (name, username, profile photo, language setting), signed by Telegram. It goes with every request to Trok. Telegram may list @tr0kbot among the Mini Apps you have used.</p>
+    <p>With each question the app sends what you asked, and the post you asked about: its text and formatting, which kinds of media it has (never the media itself), its view, comment and reaction counts, and its channel. With the first question of each chat it also sends up to 120 recent posts from your feed, unread first and muted channels left out, described the same way and with whether you have read each one. Opening Trok also asks how many questions you have left today.</p>
+    <p>Trok's server keeps your questions, its answers and the posts sent with them, linked to your Telegram user id, so your chats are the same on every phone you sign in on. A chat is deleted when you delete it from History in the app, or after 90 days without a new message. Answers about public posts that are the same for everyone (Explain, Summarize, Translate and Is this true?) are kept up to 30 days and hold nothing about who asked.</p>
+    <p>To answer, Trok passes your question and those posts to OpenRouter, which routes them to the AI model providers that write the answers; to a web search provider, which receives a post's text when you ask whether it is true; and to Addis AI, for answers and translations in Amharic, Afaan Oromo and Tigrinya. Each handles it under its own terms. Trok's operator can see chats, for support and to stop abuse. None of it is sold or used to train models.</p>
+    <p>If you never open Trok, none of this happens.</p>
     <h2>What is stored on your phone</h2>
     <p>Telegram's local database of your chats, messages and downloaded media. It is encrypted with a 256-bit key held in your device's keystore, and it is what makes the app work offline.</p>
     <p>A record of the signed-in account — your Telegram user id, display name, username, phone number and the path to your avatar — so the app can show whose feed it is showing.</p>
@@ -79,7 +86,7 @@
     <h2>What the app never does</h2>
     <p>No analytics, no advertising, no tracking of any kind. There is no third-party SDK in the app that phones home.</p>
     <p>No crash reporting service. The app keeps its own error log on the device so you can be asked what went wrong, and there is nowhere for it to send that log even if it wanted to.</p>
-    <p>Nothing is sold, shared or transmitted to anyone. There is nobody to transmit it to.</p>
+    <p>Nothing is sold. Apart from Telegram, and Trok when you ask it something, there is nobody it is sent to.</p>
     <p>Media and link previews are fetched through Telegram, never from other hosts — so reading a post does not tell the website behind a link that you looked at it.</p>
     <h2>When you leave the app</h2>
     <p>Tapping a link in a post opens it in your browser. From that point you are on that website, and it can see your visit as any website you open would.</p>
@@ -90,6 +97,7 @@
     <p>Your preferences — theme, autoplay, muted channels — stay on the device until you uninstall the app.</p>
     <p>The error log is deleted with the app's data when you uninstall it.</p>
     <p>Settings → Media storage and cache clears downloaded media without signing you out.</p>
+    <p>Your chats with Trok are kept on Trok's server rather than the phone, so logging out does not delete them. Delete each one from History in Trok; Trok also deletes a chat itself after 90 days without a new message.</p>
     <h2>Age</h2>
     <p>You need a Telegram account to use gramX, so you must be old enough to have one where you live.</p>
     <h2>Changes</h2>

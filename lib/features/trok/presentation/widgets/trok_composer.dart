@@ -8,6 +8,8 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/trok/data/trok_wire.dart';
+import 'package:gramx/features/trok/domain/trok_models.dart';
 import 'package:gramx/features/trok/presentation/trok_controller.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_style.dart';
 
@@ -27,6 +29,9 @@ class TrokComposer extends ConsumerStatefulWidget {
 }
 
 class _TrokComposerState extends ConsumerState<TrokComposer> {
+  /// Questions left today below which the composer says how many.
+  static const _fewQuestions = 5;
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +71,27 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
     final notifier = ref.read(trokControllerProvider.notifier);
     final draftPost = trok.draftPost;
     final hasText = widget.controller.text.trim().isNotEmpty;
+    final allowanceState = ref.watch(trokAllowanceProvider);
+    final allowance = allowanceState.value;
+    final canThink = allowance?.think ?? true;
+    final left = allowance?.questionsLeft;
+
+    final blocked =
+        trok.blocked ??
+        switch (allowanceState.error) {
+          final TrokFailure failure when failure.isBlocked => failure,
+          _ => null,
+        };
+    if (blocked != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          blocked.message,
+          style: AppTypography.body(color: secondary),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(
@@ -109,6 +135,9 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
               focusNode: widget.focusNode,
               minLines: 1,
               maxLines: 6,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(TrokWire.questionLimit),
+              ],
               textCapitalization: TextCapitalization.sentences,
               keyboardType: TextInputType.multiline,
               style: AppTypography.bodyLarge(
@@ -132,14 +161,30 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
           ),
           Row(
             children: [
-              _ThinkChip(
-                selected: trok.think,
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  notifier.setThink(!trok.think);
-                },
-              ),
-              const Spacer(),
+              if (canThink)
+                _ThinkChip(
+                  selected: trok.think,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    notifier.setThink(!trok.think);
+                  },
+                ),
+              if (left != null && left <= _fewQuestions)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                    ),
+                    child: Text(
+                      AppStrings.trokQuestionsLeft(left),
+                      style: AppTypography.actionCount(color: secondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+              else
+                const Spacer(),
               _SendButton(
                 answering: trok.isAnswering,
                 enabled: hasText,

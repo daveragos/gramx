@@ -34,7 +34,7 @@ abstract class LegalTexts {
   /// Contact address for questions about either document.
   static const String contactEmail = 'daveyeinde@gmail.com';
 
-  static const String lastUpdated = '23 August 2026';
+  static const String lastUpdated = '17 October 2026';
 
   static const privacyRoute = '/legal/privacy';
   static const termsRoute = '/legal/terms';
@@ -43,9 +43,9 @@ abstract class LegalTexts {
     title: 'Privacy Policy',
     lastUpdated: lastUpdated,
     summary:
-        'gramX has no servers of its own. Signed in or browsing as a guest, it '
-        'talks to Telegram and to nobody else, and everything it keeps stays '
-        'on your phone.',
+        'gramX has no servers of its own. It talks to Telegram, and to Trok\'s '
+        'server only when you use Trok, and everything it keeps stays on your '
+        'phone.',
     sections: [
       LegalSection('Who this is', [
         'gramX is an independent reader for Telegram channels, made by one '
@@ -75,11 +75,47 @@ abstract class LegalTexts {
         'This app has no backend. When you sign in, the app connects straight '
             'to Telegram from your phone using TDLib, Telegram\'s own client '
             'library. Nothing you read, write or tap is sent to the developer '
-            'or to any third party.',
+            'or to any third party, apart from what you ask Trok (below).',
         'That also means Telegram receives what it would receive from any '
             'Telegram client — your account activity, the channels you read, '
             'the messages you send. That part is covered by Telegram\'s own '
             'privacy policy, not by this one.',
+      ]),
+      LegalSection('Trok', [
+        'Trok is the assistant in the middle of the tab bar. Its answers come '
+            'from a server run separately from gramX, at trok.iortr.online, '
+            'and the AI services it uses. Nothing reaches it until you open '
+            'Trok, and it is not available in guest mode.',
+        'To tell Trok who is asking, the app gets sign-in data from Telegram '
+            'for Trok\'s bot, @tr0kbot, the way a Telegram app opens a bot\'s '
+            'Mini App: your Telegram user id and public profile (name, '
+            'username, profile photo, language setting), signed by Telegram. '
+            'It goes with every request to Trok. Telegram may list @tr0kbot '
+            'among the Mini Apps you have used.',
+        'With each question the app sends what you asked, and the post you '
+            'asked about: its text and formatting, which kinds of media it '
+            'has (never the media itself), its view, comment and reaction '
+            'counts, and its channel. With the first question of each chat it '
+            'also sends up to 120 recent posts from your feed, unread first '
+            'and muted channels left out, described the same way and with '
+            'whether you have read each one. Opening Trok also asks how many '
+            'questions you have left today.',
+        'Trok\'s server keeps your questions, its answers and the posts sent '
+            'with them, linked to your Telegram user id, so your chats are '
+            'the same on every phone you sign in on. A chat is deleted when '
+            'you delete it from History in the app, or after 90 days without '
+            'a new message. Answers about public posts that are the same for '
+            'everyone (Explain, Summarize, Translate and Is this true?) are '
+            'kept up to 30 days and hold nothing about who asked.',
+        'To answer, Trok passes your question and those posts to OpenRouter, '
+            'which routes them to the AI model providers that write the '
+            'answers; to a web search provider, which receives a post\'s text '
+            'when you ask whether it is true; and to Addis AI, for answers '
+            'and translations in Amharic, Afaan Oromo and Tigrinya. Each '
+            'handles it under its own terms. Trok\'s operator can see chats, '
+            'for support and to stop abuse. None of it is sold or used to '
+            'train models.',
+        'If you never open Trok, none of this happens.',
       ]),
       LegalSection('What is stored on your phone', [
         'Telegram\'s local database of your chats, messages and downloaded '
@@ -130,8 +166,8 @@ abstract class LegalTexts {
         'No crash reporting service. The app keeps its own error log on the '
             'device so you can be asked what went wrong, and there is nowhere '
             'for it to send that log even if it wanted to.',
-        'Nothing is sold, shared or transmitted to anyone. There is nobody to '
-            'transmit it to.',
+        'Nothing is sold. Apart from Telegram, and Trok when you ask it '
+            'something, there is nobody it is sent to.',
         'Media and link previews are fetched through Telegram, never from '
             'other hosts — so reading a post does not tell the website behind '
             'a link that you looked at it.',
@@ -155,6 +191,10 @@ abstract class LegalTexts {
         'The error log is deleted with the app\'s data when you uninstall it.',
         'Settings → Media storage and cache clears downloaded media without '
             'signing you out.',
+        'Your chats with Trok are kept on Trok\'s server rather than the '
+            'phone, so logging out does not delete them. Delete each one from '
+            'History in Trok; Trok also deletes a chat itself after 90 days '
+            'without a new message.',
       ]),
       LegalSection('Age', [
         'You need a Telegram account to use gramX, so you must be old enough '
@@ -195,6 +235,8 @@ abstract class LegalTexts {
         'To the extent the law allows, the developer is not liable for any '
             'loss arising from using it — including lost read state, missed '
             'posts, or anything that follows from a fault.',
+        'Trok\'s answers are written by AI models and can be wrong. Check '
+            'anything that matters before you act on it.',
         'Features may change or be removed between versions.',
       ]),
       LegalSection('Your account\'s standing with Telegram', [

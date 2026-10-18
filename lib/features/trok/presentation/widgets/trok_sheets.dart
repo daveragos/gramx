@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
@@ -25,6 +28,10 @@ class TrokPostButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Trok said this reader may not use it.
+    if (ref.watch(trokControllerProvider.select((s) => s.blocked != null))) {
+      return const SizedBox.shrink();
+    }
     return Semantics(
       button: true,
       label: AppStrings.trokAskAboutPost,
@@ -55,6 +62,8 @@ abstract class TrokPostSheet {
     WidgetRef ref,
     Post post,
   ) async {
+    final canTranslate =
+        ref.read(trokAllowanceProvider).value?.translate ?? true;
     final choice = await showAppSheet<_PostChoice>(
       context,
       haptic: false,
@@ -71,11 +80,12 @@ abstract class TrokPostSheet {
           label: AppStrings.trokPostSummarize,
           value: _PostChoice.summarize,
         ),
-        const AppSheetRow(
-          icon: Icons.translate_rounded,
-          label: AppStrings.trokPostTranslate,
-          value: _PostChoice.translate,
-        ),
+        if (canTranslate)
+          const AppSheetRow(
+            icon: Icons.translate_rounded,
+            label: AppStrings.trokPostTranslate,
+            value: _PostChoice.translate,
+          ),
         const AppSheetRow(
           icon: Icons.fact_check_outlined,
           label: AppStrings.trokPostFactCheck,
@@ -177,23 +187,94 @@ class _PostPreview extends StatelessWidget {
   }
 }
 
-/// Earlier chats with Trok, newest first, and a way to start another.
+/// What History offers.
+sealed class _HistoryChoice {
+  const _HistoryChoice();
+}
+
+class _NewChat extends _HistoryChoice {
+  const _NewChat();
+}
+
+class _OpenChat extends _HistoryChoice {
+  final String id;
+
+  const _OpenChat(this.id);
+}
+
+class _DeleteChat extends _HistoryChoice {
+  final String id;
+
+  const _DeleteChat(this.id);
+}
+
+/// Earlier chats with Trok, newest first, and a way to start another. Trok
+/// keeps them, so they are fetched again each time it opens.
 abstract class TrokHistorySheet {
   static Future<void> show(BuildContext context, WidgetRef ref) async {
-    final trok = ref.read(trokControllerProvider);
-    final secondary = TrokStyle.secondary(Theme.of(context));
+    final notifier = ref.read(trokControllerProvider.notifier);
+    unawaited(notifier.refreshHistory());
 
-    final id = await showAppSheet<String>(
+    final choice = await showAppSheet<_HistoryChoice>(
       context,
       title: AppStrings.trokHistory,
-      tall: trok.conversations.length > 6,
-      children: [
-        const AppSheetRow(
+      tall: true,
+      children: const [
+        AppSheetRow<_HistoryChoice>(
           icon: Icons.add_comment_outlined,
           label: AppStrings.trokNewChat,
-          value: '',
+          value: _NewChat(),
         ),
-        if (trok.conversations.isNotEmpty) const AppSheetDivider(),
+        _HistoryRows(),
+      ],
+    );
+    if (!context.mounted) return;
+
+    switch (choice) {
+      case null:
+        return;
+      case _NewChat():
+        notifier.startNew();
+      case _OpenChat(:final id):
+        notifier.open(id);
+      case _DeleteChat(:final id):
+        final confirmed = await showAppDialog<bool>(
+          context,
+          title: AppStrings.trokDeleteChatTitle,
+          body: AppStrings.trokDeleteChatBody,
+          actions: const [
+            AppDialogAction(
+              label: AppStrings.trokDelete,
+              value: true,
+              isPrimary: true,
+              isDestructive: true,
+            ),
+            AppDialogAction.cancel(AppStrings.settingsCancel),
+          ],
+        );
+        if (confirmed ?? false) {
+          HapticFeedback.mediumImpact();
+          notifier.delete(id);
+        }
+    }
+  }
+}
+
+/// The chats in History, kept current while the list arrives.
+class _HistoryRows extends ConsumerWidget {
+  const _HistoryRows();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trok = ref.watch(trokControllerProvider);
+    final secondary = TrokStyle.secondary(Theme.of(context));
+    final active = trok.active;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppSheetDivider(),
         if (trok.conversations.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -206,18 +287,23 @@ abstract class TrokHistorySheet {
             ),
           ),
         for (final c in trok.conversations)
-          AppSheetRow(
+          AppSheetRow<_HistoryChoice>(
             icon: Icons.chat_bubble_outline_rounded,
             label: c.title,
             subtitle: TimeUtils.relativeTime(c.updatedAt),
-            value: c.id,
+            value: _OpenChat(c.id),
             isSelected: c.id == trok.activeId,
           ),
+        if (active != null && !active.isAnswering) ...[
+          const AppSheetDivider(),
+          AppSheetRow<_HistoryChoice>(
+            icon: Icons.delete_outline_rounded,
+            label: AppStrings.trokDeleteChat,
+            value: _DeleteChat(active.id),
+            isDestructive: true,
+          ),
+        ],
       ],
     );
-    if (id == null) return;
-
-    final notifier = ref.read(trokControllerProvider.notifier);
-    id.isEmpty ? notifier.startNew() : notifier.open(id);
   }
 }

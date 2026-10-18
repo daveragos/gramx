@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,8 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
@@ -187,7 +191,12 @@ class TrokAnswerView extends ConsumerWidget {
             _SourceStrip(sources: answer.sources),
           ],
           if (answer.state == TrokAnswerState.failed)
-            _Failed(onRetry: isLast ? () => _regenerate(ref) : null)
+            _Failed(
+              message: answer.failure?.message ?? AppStrings.trokFailed,
+              onRetry: isLast && (answer.failure?.canRetry ?? true)
+                  ? () => _regenerate(ref)
+                  : null,
+            )
           else if (!answer.state.isActive)
             _AnswerActions(
               answer: answer,
@@ -489,7 +498,10 @@ class _SourceStrip extends StatelessWidget {
                     const SizedBox(width: AppSpacing.sm),
                 itemBuilder: (context, index) => SizedBox(
                   width: _width,
-                  child: _SourceCard(source: sources[index]),
+                  child: switch (sources[index]) {
+                    final TrokPostSource post => _PostSourceCard(source: post),
+                    final TrokWebSource web => _WebSourceCard(source: web),
+                  },
                 ),
               ),
             ),
@@ -500,23 +512,99 @@ class _SourceStrip extends StatelessWidget {
   }
 }
 
-class _SourceCard extends StatelessWidget {
-  final TrokSource source;
+class _PostSourceCard extends StatelessWidget {
+  final TrokPostSource source;
 
-  const _SourceCard({required this.source});
+  const _PostSourceCard({required this.source});
+
+  void _open(BuildContext context, WidgetRef ref) {
+    final postId = source.postId;
+    if (postId != null) {
+      context.push('/post/$postId');
+      return;
+    }
+    // A post only Trok found opens as its t.me link would.
+    final link = Uri.tryParse(source.link ?? '');
+    if (link != null) ref.read(pendingDeepLinkProvider.notifier).offer(link);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final secondary = TrokStyle.secondary(theme);
     final snippet = source.snippet.replaceAll(RegExp(r'\s+'), ' ');
+    final publishedAt = source.publishedAt;
+
+    return Consumer(
+      builder: (context, ref, _) => _SourceFrame(
+        onTap: () => _open(context, ref),
+        leading: ChannelAvatar(
+          title: source.channelTitle,
+          avatarPath: source.avatarPath,
+          avatarFileId: source.avatarFileId,
+          avatarColorHex: source.avatarColorHex,
+          radius: 10,
+        ),
+        title: source.channelTitle,
+        trailing: publishedAt == null
+            ? null
+            : Text(
+                TimeUtils.relativeTime(publishedAt),
+                style: AppTypography.actionCount(color: secondary),
+              ),
+        body: snippet.isEmpty ? AppStrings.trokSourceMediaOnly : snippet,
+      ),
+    );
+  }
+}
+
+/// A web page Trok read: the site, and the page's title.
+class _WebSourceCard extends StatelessWidget {
+  final TrokWebSource source;
+
+  const _WebSourceCard({required this.source});
+
+  @override
+  Widget build(BuildContext context) {
+    final secondary = TrokStyle.secondary(Theme.of(context));
+    return _SourceFrame(
+      onTap: () {
+        final uri = Uri.tryParse(source.url);
+        if (uri != null) unawaited(openExternalUrl(uri));
+      },
+      leading: Icon(Icons.public_rounded, size: 20, color: secondary),
+      title: source.site,
+      body: source.title,
+    );
+  }
+}
+
+/// A source card's shape: who or where at the top, then a few lines.
+class _SourceFrame extends StatelessWidget {
+  final VoidCallback onTap;
+  final Widget leading;
+  final String title;
+  final Widget? trailing;
+  final String body;
+
+  const _SourceFrame({
+    required this.onTap,
+    required this.leading,
+    required this.title,
+    required this.body,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
 
     return Material(
       color: TrokStyle.fill(theme),
       borderRadius: BorderRadius.circular(AppSpacing.lg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/post/${source.postId}'),
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
@@ -524,17 +612,11 @@ class _SourceCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  ChannelAvatar(
-                    title: source.channelTitle,
-                    avatarPath: source.avatarPath,
-                    avatarFileId: source.avatarFileId,
-                    avatarColorHex: source.avatarColorHex,
-                    radius: 10,
-                  ),
+                  leading,
                   const SizedBox(width: AppSpacing.xs + 2),
                   Expanded(
                     child: Text(
-                      source.channelTitle,
+                      title,
                       style: AppTypography.actionCount(
                         color: theme.colorScheme.onSurface,
                       ).copyWith(fontWeight: FontWeight.w700),
@@ -542,17 +624,16 @@ class _SourceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    TimeUtils.relativeTime(source.publishedAt),
-                    style: AppTypography.actionCount(color: secondary),
-                  ),
+                  if (trailing case final trailing?) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    trailing,
+                  ],
                 ],
               ),
               const SizedBox(height: AppSpacing.xs + 2),
               Expanded(
                 child: Text(
-                  snippet.isEmpty ? AppStrings.trokSourceMediaOnly : snippet,
+                  body,
                   style: AppTypography.actionCount(
                     color: theme.colorScheme.onSurface,
                   ).copyWith(height: 1.35),
@@ -649,9 +730,11 @@ class _ActionIcon extends StatelessWidget {
 }
 
 class _Failed extends StatelessWidget {
+  /// Trok's own words for what went wrong, when it said.
+  final String message;
   final VoidCallback? onRetry;
 
-  const _Failed({required this.onRetry});
+  const _Failed({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -667,7 +750,7 @@ class _Failed extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              AppStrings.trokFailed,
+              message,
               style: AppTypography.body(color: AppColors.error),
             ),
           ),

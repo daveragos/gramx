@@ -6,6 +6,7 @@ import 'package:gramx/features/trok/domain/trok_models.dart';
 import 'package:gramx/features/trok/presentation/trok_controller.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_composer.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_empty_state.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_turns.dart';
 
 /// The conversation on screen above the composer, or starters when there is
@@ -93,13 +94,25 @@ class _TrokConversationViewState extends ConsumerState<TrokConversationView> {
     );
 
     final hasTurns = conversation != null && conversation.turns.isNotEmpty;
+    final loading = conversation != null && !conversation.isLoaded;
 
     return Column(
       children: [
         Expanded(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
-            child: hasTurns
+            child: loading
+                ? Padding(
+                    key: const ValueKey('loading'),
+                    padding: EdgeInsets.only(top: widget.topPadding),
+                    child: const Center(
+                      child: TrokMark(
+                        size: 48,
+                        motion: TrokMarkMotion.thinking,
+                      ),
+                    ),
+                  )
+                : hasTurns
                 ? _Turns(
                     key: ValueKey(conversation.id),
                     conversation: conversation,

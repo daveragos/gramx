@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
-import 'package:gramx/features/trok/data/preview_trok_client.dart';
 import 'package:gramx/features/trok/data/trok_client.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 import 'package:gramx/features/trok/presentation/trok_controller.dart';
@@ -33,6 +32,9 @@ class _Client implements TrokClient {
   final requests = <TrokRequest>[];
   StreamController<TrokEvent>? answer;
   var cancelled = 0;
+  var listed = <TrokConversation>[];
+  final stored = <String, TrokConversation>{};
+  final deleted = <String>[];
 
   @override
   Stream<TrokEvent> ask(TrokRequest request) {
@@ -41,6 +43,21 @@ class _Client implements TrokClient {
     answer = controller;
     return controller.stream;
   }
+
+  @override
+  Future<List<TrokConversation>> conversations() async => listed;
+
+  @override
+  Future<TrokConversation> conversation(String remoteId) async =>
+      stored[remoteId] ?? (throw const TrokFailure('not_found', 'Gone'));
+
+  @override
+  Future<void> deleteConversation(String remoteId) async =>
+      deleted.add(remoteId);
+
+  @override
+  Future<TrokAllowance> allowance() async =>
+      const TrokAllowance(questionsPerDay: 30, usedToday: 0);
 }
 
 void main() {
@@ -58,6 +75,7 @@ void main() {
         overrides: [
           trokClientProvider.overrideWithValue(client),
           trokFeedProvider.overrideWithValue([post('Nasa', 1)]),
+          trokChannelUsernameProvider.overrideWithValue((_) => null),
         ],
       );
     });
@@ -104,7 +122,7 @@ void main() {
       expect(answer.entities.single.type, TextEntityType.bold);
       expect(answer.state, TrokAnswerState.streaming);
       expect(answer.thoughtFor, isNotNull);
-      expect(answer.sources.single.snippet, 'Moon');
+      expect((answer.sources.single as TrokPostSource).snippet, 'Moon');
       expect(answer.followUps, ['More?']);
 
       await client.answer!.close();
@@ -204,6 +222,23 @@ void main() {
       expect(state().active, isNotNull);
     });
 
+    test('posts go with their channel\'s username', () {
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          trokClientProvider.overrideWithValue(client),
+          trokFeedProvider.overrideWithValue([post('Nasa', 1)]),
+          trokChannelUsernameProvider.overrideWithValue((_) => 'nasa'),
+        ],
+      );
+      trok().askAboutPost(post('Nasa', 2), TrokPostAction.summarize);
+      expect(client.requests.last.post!.channelUsername, 'nasa');
+      expect(client.requests.last.feed.single.channelUsername, 'nasa');
+      // The question still quotes the post as it was.
+      final question = state().active!.turns.first as TrokQuestion;
+      expect(question.post!.channelUsername, isNull);
+    });
+
     test('think goes with the question', () {
       trok().setThink(true);
       trok().ask('Hard one');
@@ -211,97 +246,145 @@ void main() {
     });
   });
 
-  group('PreviewTrokClient', () {
-    const client = PreviewTrokClient(
-      pace: Duration.zero,
-      stepPace: Duration.zero,
-    );
+  group('TrokController with Trok\'s ids', () {
+    late _Client client;
+    late ProviderContainer container;
 
-    Future<List<TrokEvent>> ask(TrokRequest request) =>
-        client.ask(request).toList();
+    TrokController trok() => container.read(trokControllerProvider.notifier);
+    TrokState state() => container.read(trokControllerProvider);
+    TrokAnswer lastAnswer() => state().active!.lastAnswer!;
 
-    test('catching up groups unread posts by the busiest channel', () async {
-      final events = await ask(
-        TrokRequest(
-          prompt: AppStrings.trokStarterCatchUpPrompt,
-          feed: [
-            post('Nasa', 1, text: 'Launch moved to Friday. More soon.'),
-            post('Nasa', 2, text: 'Crew is ready.'),
-            post('BBC', 3, text: 'Markets rise.'),
-            post('Old', 4, text: 'Already read.', read: true),
+    setUp(() {
+      client = _Client();
+      container = ProviderContainer(
+        overrides: [
+          trokClientProvider.overrideWithValue(client),
+          trokFeedProvider.overrideWithValue([post('Nasa', 1)]),
+          trokChannelUsernameProvider.overrideWithValue((_) => null),
+        ],
+      );
+    });
+
+    tearDown(() => container.dispose());
+
+    Future<void> answerWith(String conversationId, String answerId) async {
+      client.answer!.add(
+        TrokStarted(
+          conversationId: conversationId,
+          answerId: answerId,
+          title: 'From Trok',
+        ),
+      );
+      await client.answer!.close();
+      await pumpEventQueue();
+    }
+
+    test('the first event names the conversation for follow-ups', () async {
+      trok().ask('First');
+      expect(client.requests.single.conversationId, isNull);
+      await answerWith('c_1', 'a_1');
+
+      expect(state().active!.remoteId, 'c_1');
+      expect(state().active!.title, 'From Trok');
+      expect(lastAnswer().remoteId, 'a_1');
+
+      trok().ask('Second');
+      expect(client.requests.last.conversationId, 'c_1');
+    });
+
+    test('regenerating names the answer it replaces', () async {
+      trok().ask('Why?');
+      await answerWith('c_1', 'a_1');
+
+      trok().regenerate();
+      expect(client.requests.last.conversationId, 'c_1');
+      expect(client.requests.last.replaceAnswerId, 'a_1');
+    });
+
+    test('Trok\'s reason for failing stays on the answer', () async {
+      trok().ask('Hi');
+      client.answer!.addError(
+        const TrokFailure('rate_limited', 'Back at midnight.'),
+      );
+      await pumpEventQueue();
+      expect(lastAnswer().state, TrokAnswerState.failed);
+      expect(lastAnswer().failure!.message, 'Back at midnight.');
+      expect(lastAnswer().failure!.canRetry, isFalse);
+      expect(state().blocked, isNull);
+    });
+
+    test('a blocked reader is no longer offered Trok', () async {
+      trok().ask('Hi');
+      client.answer!.addError(const TrokFailure('blocked', 'Not for you.'));
+      await pumpEventQueue();
+      expect(state().blocked!.message, 'Not for you.');
+    });
+
+    test('History lists Trok\'s chats and opening one fetches it', () async {
+      client
+        ..listed = [
+          TrokConversation(
+            id: 'c_9',
+            remoteId: 'c_9',
+            title: 'Older',
+            updatedAt: DateTime(2026, 10, 1),
+            isLoaded: false,
+          ),
+        ]
+        ..stored['c_9'] = TrokConversation(
+          id: 'c_9',
+          remoteId: 'c_9',
+          title: 'Older',
+          updatedAt: DateTime(2026, 10, 1),
+          turns: [
+            const TrokQuestion(id: 'q_1', text: 'Old question'),
+            TrokAnswer(
+              id: 'a_9',
+              remoteId: 'a_9',
+              startedAt: DateTime(2026, 10, 1),
+              state: TrokAnswerState.done,
+              text: 'Old answer',
+            ),
           ],
-        ),
-      );
+        );
 
-      final text = events.whereType<TrokText>().last;
-      expect(text.text, contains('Nasa'));
-      expect(text.text, contains('(2 new)'));
-      expect(text.text, contains('BBC'));
-      expect(text.text, isNot(contains('Already read')));
-      expect(text.text.indexOf('Nasa'), lessThan(text.text.indexOf('BBC')));
+      await trok().refreshHistory();
+      expect(state().conversations.single.isLoaded, isFalse);
 
-      final sources = events.whereType<TrokSources>().single.sources;
-      expect(sources.map((s) => s.channelTitle), ['Nasa', 'BBC']);
-      expect(events.whereType<TrokStep>().first.label, contains('3 unread'));
+      trok().open('c_9');
+      expect(state().active!.isLoaded, isFalse);
+      await pumpEventQueue();
+      expect(state().active!.turns, hasLength(2));
+
+      trok().ask('And now?');
+      expect(client.requests.last.conversationId, 'c_9');
     });
 
-    test('streams growing text with entities inside it', () async {
-      final events = await ask(
-        TrokRequest(
-          prompt: 'Explain',
-          post: post('Nasa', 1, text: 'Launch moved to Friday.'),
-          action: TrokPostAction.explain,
+    test('History keeps a chat it already holds, not a copy', () async {
+      trok().ask('Mine');
+      await answerWith('c_1', 'a_1');
+      client.listed = [
+        TrokConversation(
+          id: 'c_1',
+          remoteId: 'c_1',
+          title: 'Mine',
+          updatedAt: DateTime.now(),
+          isLoaded: false,
         ),
-      );
-      final texts = events.whereType<TrokText>().toList();
-      expect(texts.length, greaterThan(3));
-      for (var i = 1; i < texts.length; i++) {
-        expect(texts[i].text.startsWith(texts[i - 1].text), isTrue);
-      }
-      final full = texts.last;
-      for (final e in full.entities) {
-        expect(e.offset + e.length, lessThanOrEqualTo(full.text.length));
-      }
-      expect(full.text, contains('Launch moved to Friday.'));
+      ];
+
+      await trok().refreshHistory();
+      expect(state().conversations, hasLength(1));
+      expect(state().conversations.single.turns, hasLength(2));
     });
 
-    test('a question finds the posts that mention it', () async {
-      final events = await ask(
-        TrokRequest(
-          prompt: 'Any news about the launch?',
-          feed: [
-            post('Nasa', 1, text: 'The launch is on Friday.'),
-            post('BBC', 2, text: 'Weather today.'),
-          ],
-        ),
-      );
-      final sources = events.whereType<TrokSources>().single.sources;
-      expect(sources.single.channelTitle, 'Nasa');
-    });
-
-    test('common short words do not count as a match', () async {
-      final events = await ask(
-        TrokRequest(
-          prompt: AppStrings.trokPostFactCheck,
-          post: post('Shop', 1, text: 'All of your orders are on the way.'),
-          action: TrokPostAction.factCheck,
-          feed: [
-            post('Other', 2, text: 'Are all of your plans for the week set?'),
-          ],
-        ),
-      );
-      expect(events.whereType<TrokSources>(), isEmpty);
-    });
-
-    test('thinking adds a step', () async {
-      final quick = await ask(const TrokRequest(prompt: 'Hello there'));
-      final slow = await ask(
-        const TrokRequest(prompt: 'Hello there', think: true),
-      );
-      expect(
-        slow.whereType<TrokStep>().length,
-        quick.whereType<TrokStep>().length + 1,
-      );
+    test('deleting a chat deletes it on Trok\'s server', () async {
+      trok().ask('Bye');
+      await answerWith('c_1', 'a_1');
+      trok().delete(state().active!.id);
+      await pumpEventQueue();
+      expect(state().conversations, isEmpty);
+      expect(client.deleted, ['c_1']);
     });
   });
 }
