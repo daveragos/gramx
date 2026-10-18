@@ -10,6 +10,7 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/text/text_clamp.dart';
+import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/navigation/mention_navigation.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
@@ -39,6 +40,11 @@ class TextEntityRenderer extends StatelessWidget {
   /// press opens the message actions.
   final bool selectable;
 
+  /// Takes the parent's whole width, so a short line of right-to-left text
+  /// starts at the right edge rather than shrinking to its own width at the
+  /// left. Only under a parent of bounded width, such as a post card.
+  final bool fullWidth;
+
   const TextEntityRenderer({
     super.key,
     required this.text,
@@ -49,26 +55,39 @@ class TextEntityRenderer extends StatelessWidget {
     this.linkColor,
     this.onMentionTap,
     this.selectable = true,
+    this.fullWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Persian or Arabic starts from the right, as in Telegram, and a line in
+    // the other direction keeps its punctuation at its own end.
+    final direction = directionOf(context, text);
+    final body = _text(context, direction);
+    return fullWidth && direction == TextDirection.rtl
+        ? SizedBox(width: double.infinity, child: body)
+        : body;
+  }
+
+  Widget _text(BuildContext context, TextDirection direction) {
     final theme = Theme.of(context);
     final defaultStyle =
         style ?? AppTypography.body(color: theme.colorScheme.onSurface);
+    final marks = directionIsolates(text, direction);
 
-    if (entities.isEmpty) {
+    if (entities.isEmpty && marks.isEmpty) {
       if (maxLines != null) {
         return Text(
           text,
           style: defaultStyle,
+          textDirection: direction,
           maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
         );
       }
       return selectable
-          ? SelectableText(text, style: defaultStyle)
-          : Text(text, style: defaultStyle);
+          ? SelectableText(text, style: defaultStyle, textDirection: direction)
+          : Text(text, style: defaultStyle, textDirection: direction);
     }
 
     final sortedEntities = List<TextEntity>.from(entities)
@@ -86,7 +105,7 @@ class TextEntityRenderer extends StatelessWidget {
       if (entity.offset > currentIndex) {
         spans.add(
           TextSpan(
-            text: text.substring(currentIndex, entity.offset),
+            text: withMarks(text, currentIndex, entity.offset, marks),
             style: defaultStyle,
           ),
         );
@@ -96,14 +115,30 @@ class TextEntityRenderer extends StatelessWidget {
       final safeEnd = entityEnd > text.length ? text.length : entityEnd;
       final entityText = text.substring(entity.offset, safeEnd);
 
-      spans.add(_buildEntitySpan(context, entity, entityText, defaultStyle));
+      // A widget has no text to carry a mark, so one starting its line gets
+      // the mark just before it.
+      final String display;
+      if (_drawnAsWidget.contains(entity.type)) {
+        final mark = marks[entity.offset];
+        if (mark != null) spans.add(TextSpan(text: mark, style: defaultStyle));
+        display = entityText;
+      } else {
+        display = withMarks(text, entity.offset, safeEnd, marks);
+      }
+
+      spans.add(
+        _buildEntitySpan(context, entity, entityText, display, defaultStyle),
+      );
 
       currentIndex = safeEnd;
     }
 
     if (currentIndex < text.length) {
       spans.add(
-        TextSpan(text: text.substring(currentIndex), style: defaultStyle),
+        TextSpan(
+          text: withMarks(text, currentIndex, text.length, marks),
+          style: defaultStyle,
+        ),
       );
     }
 
@@ -112,20 +147,42 @@ class TextEntityRenderer extends StatelessWidget {
     if (maxLines != null) {
       return Text.rich(
         TextSpan(children: spans),
+        textDirection: direction,
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
       );
     }
 
     return selectable
-        ? SelectableText.rich(TextSpan(children: spans))
-        : Text.rich(TextSpan(children: spans));
+        ? SelectableText.rich(
+            TextSpan(children: spans),
+            textDirection: direction,
+          )
+        : Text.rich(TextSpan(children: spans), textDirection: direction);
   }
 
+  /// The direction [text] is laid out in: that of its first letter, or the
+  /// app's when it has none.
+  static TextDirection directionOf(BuildContext context, String text) =>
+      firstStrongDirection(text) ?? Directionality.of(context);
+
+  /// Entities drawn as widgets inside the text rather than as styled text.
+  static const _drawnAsWidget = {
+    TextEntityType.code,
+    TextEntityType.codeBlock,
+    TextEntityType.blockQuote,
+    TextEntityType.expandableBlockQuote,
+    TextEntityType.spoiler,
+    TextEntityType.customEmoji,
+  };
+
+  /// The span for [entity]. [entityText] is what it covers, for links and
+  /// the like; [display] is the same with any direction marks inside it.
   InlineSpan _buildEntitySpan(
     BuildContext context,
     TextEntity entity,
     String entityText,
+    String display,
     TextStyle baseStyle,
   ) {
     final accentStyle = baseStyle.copyWith(
@@ -142,22 +199,22 @@ class TextEntityRenderer extends StatelessWidget {
     switch (entity.type) {
       case TextEntityType.bold:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: baseStyle.copyWith(fontWeight: FontWeight.bold),
         );
       case TextEntityType.italic:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: baseStyle.copyWith(fontStyle: FontStyle.italic),
         );
       case TextEntityType.underline:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: baseStyle.copyWith(decoration: TextDecoration.underline),
         );
       case TextEntityType.strikethrough:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: baseStyle.copyWith(decoration: TextDecoration.lineThrough),
         );
       case TextEntityType.code:
@@ -185,14 +242,14 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.textUrl:
         final tapUrl = entity.url ?? entityText;
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(context, tapUrl),
         );
       case TextEntityType.mention:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleMentionTap(context, entityText),
@@ -200,24 +257,24 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.mentionName:
         final userId = entity.userId;
         if (userId == null) {
-          return TextSpan(text: entityText, style: accentStyle);
+          return TextSpan(text: display, style: accentStyle);
         }
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => openUserProfile(context, userId),
         );
       case TextEntityType.emailAddress:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(context, 'mailto:$entityText'),
         );
       case TextEntityType.phoneNumber:
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleLinkTap(
@@ -230,13 +287,13 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.bankCardNumber:
       case TextEntityType.mediaTimestamp:
         // Nothing acts on these, so they are not styled as links.
-        return TextSpan(text: entityText, style: baseStyle);
+        return TextSpan(text: display, style: baseStyle);
       case TextEntityType.hashtag:
         if (onHashtagTap == null) {
-          return TextSpan(text: entityText, style: baseStyle);
+          return TextSpan(text: display, style: baseStyle);
         }
         return TextSpan(
-          text: entityText,
+          text: display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => onHashtagTap!(entityText),
@@ -249,7 +306,7 @@ class TextEntityRenderer extends StatelessWidget {
       case TextEntityType.customEmoji:
         final emojiId = int.tryParse(entity.customEmojiId ?? '');
         if (emojiId == null) {
-          return TextSpan(text: entityText, style: baseStyle);
+          return TextSpan(text: display, style: baseStyle);
         }
         // The custom emoji once it resolves, the plain character until then.
         return WidgetSpan(
@@ -261,7 +318,7 @@ class TextEntityRenderer extends StatelessWidget {
           ),
         );
       case TextEntityType.unknown:
-        return TextSpan(text: entityText, style: baseStyle);
+        return TextSpan(text: display, style: baseStyle);
     }
   }
 
@@ -365,6 +422,7 @@ class _SpoilerWidgetState extends State<SpoilerWidget> {
             children: [
               Text(
                 widget.text,
+                textDirection: firstStrongDirection(widget.text),
                 style: widget.style.copyWith(
                   color: _revealed ? widget.style.color : Colors.transparent,
                 ),
@@ -555,12 +613,20 @@ class _QuoteBlockState extends State<QuoteBlock> {
     final collapsed = clampable && !_expanded;
     final label = _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
 
-    return Container(
+    // A quote in Persian has its bar on the right.
+    final direction = firstStrongDirection(widget.text);
+    final quote = Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      padding: const EdgeInsets.only(left: AppSpacing.sm, top: 2, bottom: 2),
+      padding: const EdgeInsetsDirectional.only(
+        start: AppSpacing.sm,
+        top: 2,
+        bottom: 2,
+      ),
       decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
+        border: BorderDirectional(
+          start: BorderSide(color: AppColors.accent, width: 3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,5 +659,8 @@ class _QuoteBlockState extends State<QuoteBlock> {
         ],
       ),
     );
+    return direction == null
+        ? quote
+        : Directionality(textDirection: direction, child: quote);
   }
 }

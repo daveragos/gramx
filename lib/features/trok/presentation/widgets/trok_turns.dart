@@ -11,6 +11,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/core/navigation/url_launcher_utils.dart';
+import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
@@ -56,6 +57,7 @@ class TrokQuestionView extends StatelessWidget {
             ),
             child: SelectableText(
               question.text,
+              textDirection: firstStrongDirection(question.text),
               style: AppTypography.bodyLarge(
                 color: theme.colorScheme.onSurface,
               ).copyWith(fontWeight: FontWeight.w400),
@@ -126,6 +128,7 @@ class _PostQuote extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   snippet,
+                  textDirection: firstStrongDirection(snippet),
                   style: AppTypography.actionCount(
                     color: theme.colorScheme.onSurface,
                   ).copyWith(height: 1.35),
@@ -176,6 +179,7 @@ class TrokAnswerView extends ConsumerWidget {
               child: TextEntityRenderer(
                 text: answer.text,
                 entities: answer.entities,
+                fullWidth: true,
                 style: AppTypography.bodyLarge(
                   color: theme.colorScheme.onSurface,
                 ).copyWith(fontWeight: FontWeight.w400, height: 1.45),
@@ -634,6 +638,7 @@ class _SourceFrame extends StatelessWidget {
               Expanded(
                 child: Text(
                   body,
+                  textDirection: firstStrongDirection(body),
                   style: AppTypography.actionCount(
                     color: theme.colorScheme.onSurface,
                   ).copyWith(height: 1.35),
@@ -822,6 +827,7 @@ class TrokFollowUpList extends ConsumerWidget {
                         Flexible(
                           child: Text(
                             followUp,
+                            textDirection: firstStrongDirection(followUp),
                             style: AppTypography.body(
                               color: theme.colorScheme.onSurface,
                             ).copyWith(fontWeight: FontWeight.w400),

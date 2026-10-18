@@ -496,6 +496,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   style: AppTypography.bodyLarge(
                                     color: primaryColor,
                                   ),
+                                  fullWidth: true,
                                 ),
                               ],
                               if (post.linkPreviewUrl != null &&

@@ -6,6 +6,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/trok/data/trok_wire.dart';
@@ -133,6 +134,8 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
             child: TextField(
               controller: widget.controller,
               focusNode: widget.focusNode,
+              // A question typed in Persian or Arabic starts from the right.
+              textDirection: firstStrongDirection(widget.controller.text),
               minLines: 1,
               maxLines: 6,
               inputFormatters: [
@@ -377,6 +380,7 @@ class _DraftPostChip extends StatelessWidget {
                 if (snippet.isNotEmpty)
                   Text(
                     snippet,
+                    textDirection: firstStrongDirection(snippet),
                     style: AppTypography.actionCount(color: secondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

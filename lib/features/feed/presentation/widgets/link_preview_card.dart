@@ -10,6 +10,7 @@ import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/core/text/text_direction.dart';
 
 class LinkPreviewCard extends ConsumerWidget {
   final String url;
@@ -106,6 +107,7 @@ class LinkPreviewCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       title!,
+                      textDirection: firstStrongDirection(title!),
                       style: AppTypography.body(
                         color: primaryColor,
                       ).copyWith(fontWeight: FontWeight.bold),
@@ -117,6 +119,7 @@ class LinkPreviewCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       description!,
+                      textDirection: firstStrongDirection(description!),
                       style: AppTypography.actionCount(color: secondaryColor),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

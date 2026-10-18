@@ -55,6 +55,7 @@ class _ExpandableTextState extends State<ExpandableText> {
       style: widget.style,
       onHashtagTap: widget.onHashtagTap,
       maxLines: collapsed ? widget.maxLines : null,
+      fullWidth: true,
     );
 
     if (!clampable) return body;

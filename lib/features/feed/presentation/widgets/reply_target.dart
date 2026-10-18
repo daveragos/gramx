@@ -16,6 +16,7 @@ import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
 import 'package:gramx/features/settings/data/settings_store.dart';
 import 'package:gramx/infrastructure/telegram/chat_identity.dart';
 import 'package:gramx/core/time/time_utils.dart';
+import 'package:gramx/core/text/text_direction.dart';
 
 /// Where in a post's column a reply shape goes. The "Replying to" line sits
 /// above the body; the quote card sits below it.
@@ -164,6 +165,7 @@ class _ReplyingToLine extends StatelessWidget {
               if (excerpt != null && excerpt!.trim().isNotEmpty)
                 Text(
                   excerpt!.trim(),
+                  textDirection: firstStrongDirection(excerpt!),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.timestamp(color: color),

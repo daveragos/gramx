@@ -10,6 +10,7 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -171,6 +172,7 @@ class _PostPreview extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xxs),
                   Text(
                     snippet,
+                    textDirection: firstStrongDirection(snippet),
                     style: AppTypography.actionCount(
                       color: secondary,
                     ).copyWith(height: 1.35),
