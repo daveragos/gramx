@@ -195,6 +195,44 @@ void main() {
       expect(state.chats[-1]?.unreadCount, 3);
     });
 
+    test('UpdateChatVideoChat starts and ends a live on a known chat', () {
+      state.apply(
+        TdFixtures.newChat(TdFixtures.chat(id: -1, unreadCount: 2)),
+      );
+
+      final started = state.apply(
+        const td.UpdateChatVideoChat(
+          chatId: -1,
+          videoChat: td.VideoChat(groupCallId: 7, hasParticipants: true),
+        ),
+      );
+
+      expect(started, isTrue);
+      expect(state.chats[-1]?.videoChat.groupCallId, 7);
+      expect(state.chats[-1]?.videoChat.hasParticipants, isTrue);
+      expect(state.chats[-1]?.unreadCount, 2);
+
+      state.apply(
+        const td.UpdateChatVideoChat(
+          chatId: -1,
+          videoChat: td.VideoChat(groupCallId: 0, hasParticipants: false),
+        ),
+      );
+      expect(state.chats[-1]?.videoChat.groupCallId, 0);
+    });
+
+    test('UpdateChatVideoChat for an unknown chat changes nothing', () {
+      expect(
+        state.apply(
+          const td.UpdateChatVideoChat(
+            chatId: -9,
+            videoChat: td.VideoChat(groupCallId: 7, hasParticipants: true),
+          ),
+        ),
+        isFalse,
+      );
+    });
+
     test('unrelated updates are ignored', () {
       expect(
         state.apply(

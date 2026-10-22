@@ -1498,6 +1498,25 @@ abstract class AppStrings {
   static const a11yTrokThinking = 'Trok is thinking';
   static const a11yTrokAnswering = 'Trok is answering';
 
+  // Lives: Home's row of live chats and the page that plays one.
+  static const liveBadge = 'LIVE';
+  static const liveRowLabel = 'Live now';
+  static const liveJoining = 'Joining…';
+  static const liveUnsupportedTitle = "This live can't play in gramX yet";
+  static const liveUnsupportedBody =
+      'gramX plays streams sent from streaming apps. Video chats need '
+      "Telegram's calling engine, so watch this one in Telegram.";
+  static const liveOpenInTelegram = 'Open in Telegram';
+  static const liveTelegramMissing = "Telegram isn't installed.";
+  static const liveEndedTitle = 'This live has ended';
+  static const liveFailedTitle = "Couldn't join this live";
+  static const liveRetry = 'Try again';
+  static const liveClose = 'Close';
+  static const liveMute = 'Mute';
+  static const liveUnmute = 'Unmute';
+  static String liveViewers(String formattedCount) => '$formattedCount watching';
+  static String liveTileLabel(String title) => '$title, live';
+
   // Spoken delivery states for the message ticks.
   static const chatStateSending = 'Sending';
   static const chatStateSent = 'Sent';

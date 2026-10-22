@@ -15,6 +15,8 @@ import 'package:gramx/features/feed/presentation/feed_focus_controller.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/pending_posts_provider.dart';
 import 'package:gramx/features/feed/presentation/widgets/thread_card.dart';
+import 'package:gramx/features/live/presentation/live_providers.dart';
+import 'package:gramx/features/live/presentation/live_row.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 
 class FolderFeed extends ConsumerStatefulWidget {
@@ -129,6 +131,13 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
     final channelsKnown = ref.watch(channelsKnownProvider);
     final theme = Theme.of(context);
 
+    // Lives in this tab's chats, shown above the posts.
+    final visible = _visibleChatIds();
+    final lives = [
+      for (final live in ref.watch(liveChatsProvider))
+        if (visible == null || visible.contains(live.chatId)) live,
+    ];
+
     return feedAsync.when(
       loading: () => Padding(
         padding: EdgeInsets.only(top: widget.topPadding),
@@ -167,7 +176,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
           }
           // The feed holds only unread posts, so empty means caught up.
           final caughtUp = _hasLoadedOnce || channelsKnown;
-          return Center(
+          final empty = Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xxl),
               child: Column(
@@ -202,6 +211,16 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
               ),
             ),
           );
+          if (lives.isEmpty) return empty;
+          return Padding(
+            padding: EdgeInsets.only(top: widget.topPadding),
+            child: Column(
+              children: [
+                LiveRow(lives: lives),
+                Expanded(child: empty),
+              ],
+            ),
+          );
         }
 
         return Stack(
@@ -233,8 +252,15 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                       top: widget.topPadding,
                       bottom: widget.bottomPadding,
                     ),
-                    itemCount: entries.length + (_isLoadingMore ? 1 : 0),
+                    itemCount:
+                        (lives.isEmpty ? 0 : 1) +
+                        entries.length +
+                        (_isLoadingMore ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (lives.isNotEmpty) {
+                        if (index == 0) return LiveRow(lives: lives);
+                        index -= 1;
+                      }
                       if (index == entries.length) {
                         return const Padding(
                           padding: EdgeInsets.all(16.0),

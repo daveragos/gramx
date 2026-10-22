@@ -286,6 +286,14 @@ class ChatCacheState {
         ).copyWith(photo: update.photo);
         return true;
 
+      // A video chat or live stream starting, gaining or losing people, or
+      // ending. Home's live row reads it.
+      case td.UpdateChatVideoChat():
+        final existing = chats[update.chatId];
+        if (existing == null) return false;
+        chats[update.chatId] = existing.copyWith(videoChat: update.videoChat);
+        return true;
+
       case td.UpdateSupergroup():
         supergroups[update.supergroup.id] = update.supergroup;
         return true;
