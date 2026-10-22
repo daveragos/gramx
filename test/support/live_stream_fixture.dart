@@ -7,7 +7,9 @@ import 'dart:typed_data';
 /// short.
 ///
 /// Every sample's bytes are filled with its own marker ([videoMarker] or
-/// [audioMarker]), so tests can tell where each one ended up.
+/// [audioMarker]), so tests can tell where each one ended up. As in
+/// Telegram's pieces, the sample descriptions carry the piece's own bitrate,
+/// in a `btrt` box on each track and in the audio's `esds`.
 class LiveStreamFixture {
   static const int videoTrackId = 1;
   static const int audioTrackId = 2;
@@ -45,15 +47,20 @@ class LiveStreamFixture {
 
   LiveStreamFixture._();
 
-  /// The piece, with [header] Telegram's prefix (or none) and [avcLevel]
-  /// written into the video sample description, so pieces can differ in
-  /// codec setup.
+  /// The piece, with [header] Telegram's prefix (or none), and [avcLevel]
+  /// and [bitrate] written into the sample descriptions, so pieces can
+  /// differ in codec setup or only in bitrate.
   static Uint8List piece({
     bool header = true,
     int avcLevel = 31,
+    int bitrate = 2344543,
     int audioFrames = 47,
   }) {
-    final mp4 = movie(avcLevel: avcLevel, audioFrames: audioFrames);
+    final mp4 = movie(
+      avcLevel: avcLevel,
+      bitrate: bitrate,
+      audioFrames: audioFrames,
+    );
     if (!header) return mp4;
     final head = Uint8List(32);
     ByteData.sublistView(head).setUint32(0, 0xA12E810D, Endian.little);
@@ -63,7 +70,11 @@ class LiveStreamFixture {
   }
 
   /// Just the MP4.
-  static Uint8List movie({int avcLevel = 31, int audioFrames = 47}) {
+  static Uint8List movie({
+    int avcLevel = 31,
+    int bitrate = 2344543,
+    int audioFrames = 47,
+  }) {
     final ftyp = _box('ftyp', [_ascii('isom'), _u32(512), _ascii('isom')]);
 
     // Chunks in file order: the first 16 video frames, the first 24 audio
@@ -104,6 +115,7 @@ class LiveStreamFixture {
         _box('avcC', [
           Uint8List.fromList([1, 0x64, 0, avcLevel, 0xff, 0xe0, 0]),
         ]),
+        _btrt(bitrate),
       ]),
       durations: videoDurations,
       compositionOffsets: videoCompositionOffsets,
@@ -118,7 +130,13 @@ class LiveStreamFixture {
       timescale: audioTimescale,
       handler: 'soun',
       mediaHeader: _fullBox('smhd', 0, 0, [Uint8List(4)]),
-      sampleEntry: _box('mp4a', [Uint8List(6), _u16(1), Uint8List(20)]),
+      sampleEntry: _box('mp4a', [
+        Uint8List(6),
+        _u16(1),
+        Uint8List(20),
+        _esds(bitrate ~/ 18),
+        _btrt(bitrate ~/ 18),
+      ]),
       durations: audioDurations(audioFrames),
       sizes: [for (var i = 0; i < audioFrames; i++) audioSize(i)],
       chunkRuns: [(1, 24), (2, audioFrames - 24)],
@@ -230,6 +248,29 @@ class LiveStreamFixture {
           ]),
         ]),
       ]),
+    ]);
+  }
+
+  /// Buffer size, max bitrate and average bitrate.
+  static Uint8List _btrt(int bitrate) =>
+      _box('btrt', [_u32(0), _u32(bitrate), _u32(bitrate)]);
+
+  /// An AAC decoder config as a muxer writes it, each descriptor's size
+  /// taking four bytes: an ES descriptor holding a decoder config with
+  /// [bitrate] and the AudioSpecificConfig, then the sync-layer config.
+  static Uint8List _esds(int bitrate) {
+    List<int> descriptor(int tag, List<int> body) =>
+        [tag, 0x80, 0x80, 0x80, body.length, ...body];
+    final config = descriptor(4, [
+      0x40, // AAC
+      0x15, // audio stream
+      0, 0, 0, // buffer size
+      ..._u32(bitrate),
+      ..._u32(bitrate),
+      ...descriptor(5, [0x11, 0x90]),
+    ]);
+    return _fullBox('esds', 0, 0, [
+      descriptor(3, [0, 2, 0, ...config, ...descriptor(6, [2])]),
     ]);
   }
 

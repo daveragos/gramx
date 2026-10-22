@@ -96,6 +96,11 @@ class Mp4Movie {
 
   /// What an init segment is built from. Pieces that share it can share an
   /// init segment.
+  ///
+  /// The bitrates in the sample descriptions don't count. The muxer works
+  /// them out for each piece, so they differ every time, and a player
+  /// handed a new init segment for every piece restarts its decoders every
+  /// second.
   bool sameLayoutAs(Mp4Movie other) {
     if (tracks.length != other.tracks.length) return false;
     for (var i = 0; i < tracks.length; i++) {
@@ -104,7 +109,10 @@ class Mp4Movie {
       if (a.id != b.id ||
           a.timescale != b.timescale ||
           a.handler != b.handler ||
-          !_sameBytes(a.stsd, b.stsd)) {
+          !_sameBytes(
+            _withoutBitrates(a.stsd, isVideo: a.isVideo),
+            _withoutBitrates(b.stsd, isVideo: b.isVideo),
+          )) {
         return false;
       }
     }
@@ -473,6 +481,59 @@ Uint8List _slice(Uint8List bytes, _Box box) =>
 
 void _require(bool ok) {
   if (!ok) throw const FormatException('Malformed sample table');
+}
+
+/// A copy of [stsd] with the bitrate statistics a muxer writes for each file
+/// zeroed: the fields of every `btrt` box, and the buffer size and bitrates
+/// in an `esds` decoder config. Nothing a decoder reads changes.
+Uint8List _withoutBitrates(Uint8List stsd, {required bool isVideo}) {
+  final copy = Uint8List.fromList(stsd);
+  final view = ByteData.sublistView(copy);
+  // Entries start after the full-box header and the entry count.
+  for (final entry in _children(copy, 16, copy.length)) {
+    // An entry's child boxes follow its own fields: 78 bytes for video, 28
+    // for audio, and more in QuickTime's audio versions 1 and 2.
+    var fields = 78;
+    if (!isVideo) {
+      if (entry.start + 18 > entry.end) continue;
+      final version = view.getUint16(entry.start + 16);
+      fields = 28 + (const {1: 16, 2: 36}[version] ?? 0);
+    }
+    for (final child in _children(copy, entry.body + fields, entry.end)) {
+      if (child.type == 'btrt') copy.fillRange(child.body, child.end, 0);
+      if (child.type == 'esds') _zeroEsdsBitrates(copy, child);
+    }
+  }
+  return copy;
+}
+
+/// Zeroes the buffer size and bitrates of the decoder config in [esds]. Its
+/// descriptors are an ES descriptor (tag 3) holding the decoder config (tag
+/// 4), whose fields run: object type (1), stream type (1), buffer size (3),
+/// max bitrate (4), average bitrate (4).
+void _zeroEsdsBitrates(Uint8List bytes, _Box esds) {
+  final es = _descriptor(bytes, esds.start + 12, esds.end);
+  if (es == null || es.tag != 3 || es.body + 3 > esds.end) return;
+  // The ES id, then flags for optional fields before the decoder config.
+  final flags = bytes[es.body + 2];
+  var offset = es.body + 3;
+  if (flags & 0x80 != 0) offset += 2;
+  if (flags & 0x40 != 0 && offset < esds.end) offset += 1 + bytes[offset];
+  if (flags & 0x20 != 0) offset += 2;
+  final config = _descriptor(bytes, offset, esds.end);
+  if (config == null || config.tag != 4 || config.body + 13 > esds.end) return;
+  bytes.fillRange(config.body + 2, config.body + 13, 0);
+}
+
+/// The MPEG-4 descriptor at [offset]: its tag, and where its body starts
+/// after a size of one to four bytes, seven bits each.
+({int tag, int body})? _descriptor(Uint8List bytes, int offset, int end) {
+  if (offset + 2 > end) return null;
+  var at = offset + 1;
+  for (var i = 0; i < 4 && at < end; i++) {
+    if (bytes[at++] & 0x80 == 0) break;
+  }
+  return (tag: bytes[offset], body: at);
 }
 
 bool _sameBytes(Uint8List a, Uint8List b) {

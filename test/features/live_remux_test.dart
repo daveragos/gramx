@@ -86,6 +86,14 @@ void main() {
         isFalse,
       );
     });
+
+    test('takes pieces that differ only in bitrate as the same setup', () {
+      final other = Mp4Movie.parse(F.movie(bitrate: 1873210));
+      expect(other.tracks.first.stsd, isNot(video.stsd));
+      expect(other.tracks.last.stsd, isNot(audio.stsd));
+
+      expect(movie.sameLayoutAs(other), isTrue);
+    });
   });
 
   group('Mp4Movie.initSegment', () {
@@ -321,6 +329,19 @@ void main() {
       expect(text, contains('#EXT-X-MAP:URI="init1.mp4"'));
       expect(text, contains('#EXT-X-MAP:URI="init2.mp4"'));
       expect('#EXT-X-DISCONTINUITY\n'.allMatches(text), hasLength(1));
+    });
+
+    test('keeps one init segment while only the bitrate changes', () {
+      final w = LiveHlsWindow();
+      final remuxer = LiveRemuxer(w);
+      for (var i = 0; i < 3; i++) {
+        remuxer.add(F.piece(bitrate: 2000000 + i * 1000), t0 + i * 1000);
+      }
+
+      final text = w.playlist(initUri: (_) => 'i', segmentUri: (_) => 's');
+      expect('#EXT-X-MAP'.allMatches(text), hasLength(1));
+      expect(text, isNot(contains('#EXT-X-DISCONTINUITY\n')));
+      expect(bases(w, 2).video, (t0 + 2000) * 16);
     });
 
     test('turns down a piece it can\'t read', () {
