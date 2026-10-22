@@ -26,6 +26,7 @@ import 'package:gramx/features/feed/presentation/widgets/post_media_grid.dart';
 import 'package:gramx/features/feed/presentation/widgets/reply_target.dart';
 import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
+import 'package:gramx/features/feed/presentation/media_seek.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_sheets.dart';
@@ -170,7 +171,7 @@ class PostCard extends ConsumerWidget {
         ? (post.forwardedFromUsername ?? origin?.username)
         : post.channelUsername;
 
-    return InkWell(
+    final card = InkWell(
       onTap: onTap ?? defaultReplyHandler,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -345,12 +346,22 @@ class PostCard extends ConsumerWidget {
                         // Long posts collapse behind "Show more".
                         if (post.text != null && post.text!.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.xs),
-                          ExpandableText(
-                            onHashtagTap: (tag) =>
-                                openHashtagSearch(context, ref, tag),
-                            text: post.text!,
-                            entities: post.entities,
-                            style: AppTypography.body(color: primaryTextColor),
+                          // A context under the card's MediaSeekScope.
+                          Builder(
+                            builder: (context) => ExpandableText(
+                              onHashtagTap: (tag) =>
+                                  openHashtagSearch(context, ref, tag),
+                              onMediaTimestampTap: playFromTimestamp(
+                                context,
+                                post.media,
+                                post: post,
+                              ),
+                              text: post.text!,
+                              entities: post.entities,
+                              style: AppTypography.body(
+                                color: primaryTextColor,
+                              ),
+                            ),
                           ),
                         ],
 
@@ -443,6 +454,9 @@ class PostCard extends ConsumerWidget {
         ),
       ),
     );
+
+    // Timestamps in the caption play this card's track; see MediaSeekScope.
+    return MediaSeekScope(child: card);
   }
 
   /// Whether this post singles out a passage of what it answers.

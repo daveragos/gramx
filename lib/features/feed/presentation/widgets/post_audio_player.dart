@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:video_player/video_player.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/audio/playable_audio.dart';
@@ -9,12 +13,15 @@ import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/presentation/media_seek.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_file_server.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
-/// A voice message or music track. While downloading, the bar shows download
-/// progress from `UpdateFile`; once downloaded, it is a scrubber that starts
-/// the player if needed.
+/// A voice message or music track. Music plays as it downloads, through
+/// [TdlibFileServer]. A voice message downloads first and plays when it
+/// lands; the bar shows download progress from `UpdateFile` until then.
 class PostAudioPlayer extends ConsumerStatefulWidget {
   final MediaItem item;
 
@@ -35,11 +42,79 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
   /// position until the seek lands.
   double? _scrubFraction;
 
+  /// Set by a tap on a track that can't stream, so it plays once its download
+  /// lands rather than waiting for a second tap.
+  bool _playWhenDownloaded = false;
+
+  /// Where to start once that download lands, from a tapped timestamp.
+  Duration? _startAt;
+
+  /// Whether this player started the download behind a stream. It stops it on
+  /// dispose; TDLib keeps the parts for next time.
+  bool _ownsDownload = false;
+
+  /// Read up front: dispose, which stops an owned download, may not use ref.
+  late final TdlibService _tdlib;
+
+  /// Timestamps tapped beside this player; see [MediaSeekScope].
+  ValueListenable<MediaSeekRequest?>? _seekRequests;
+
+  @override
+  void initState() {
+    super.initState();
+    _tdlib = ref.read(tdlibServiceProvider);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final requests = MediaSeekScope.of(context);
+    if (!identical(requests, _seekRequests)) {
+      _seekRequests?.removeListener(_onSeekRequest);
+      _seekRequests = requests?..addListener(_onSeekRequest);
+    }
+  }
+
+  /// Plays this track from a timestamp tapped in its caption or a reply.
+  void _onSeekRequest() {
+    final request = _seekRequests?.value;
+    final fileId = widget.item.fileId;
+    if (request == null || fileId == null || request.fileId != fileId) return;
+    final path =
+        ref.read(fileDownloadStatusProvider(fileId)).value?.localPath ??
+        widget.item.localPath;
+    final onDisk = path != null && path.isNotEmpty && File(path).existsSync();
+    _playFrom(request.position, onDisk ? path : null);
+  }
+
   @override
   void dispose() {
+    _seekRequests?.removeListener(_onSeekRequest);
     _controller?.removeListener(_onControllerUpdate);
     _controller?.dispose();
+    final fileId = widget.item.fileId;
+    if (_ownsDownload && fileId != null) {
+      // Does nothing if the download already finished.
+      unawaited(
+        _tdlib
+            .sendRequest(
+              td.CancelDownloadFile(fileId: fileId, onlyIfPending: false),
+            )
+            .then((_) {}, onError: (_) {}),
+      );
+    }
     super.dispose();
+  }
+
+  /// Whether the track can play before it is downloaded. A voice message is
+  /// small and is fetched whole. On iOS, OGG has to be whole too, to become
+  /// CAF (see `playableAudioPath`).
+  bool get _canStream {
+    final item = widget.item;
+    if (item.type != MediaType.audio) return false;
+    if (item.fileId == null || item.fileId == 0) return false;
+    final mime = item.mimeType?.toLowerCase() ?? '';
+    return !(Platform.isIOS && (mime.contains('ogg') || mime.contains('opus')));
   }
 
   void _onControllerUpdate() {
@@ -51,21 +126,30 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
   }
 
   /// The track's length from the player, or from Telegram's metadata before
-  /// the player is ready.
+  /// the player is ready. Also from the metadata when the player reports
+  /// under a second, as it does for a file it can't index, such as a long
+  /// M4A of fragments; it can't seek in that one either.
   Duration get _duration {
     final decoded = _controller?.value.duration;
-    if (decoded != null && decoded > Duration.zero) return decoded;
+    if (decoded != null && decoded >= const Duration(seconds: 1)) {
+      return decoded;
+    }
     return Duration(seconds: widget.item.duration);
   }
 
-  /// Builds the player if there isn't one yet. Returns whether there is one.
-  Future<bool> _ensureController(String path) async {
+  /// Builds the player if there isn't one yet: music through
+  /// [TdlibFileServer], whether or not it is on disk, and anything else from
+  /// [path]. Returns whether there is one.
+  Future<bool> _ensureController(String? path) async {
     if (_controller != null) return true;
+    if (!_canStream && path == null) return false;
 
     setState(() => _isInitializing = true);
+    VideoPlayerController? controller;
     try {
-      final playable = await playableAudioPath(path);
-      final controller = VideoPlayerController.file(File(playable));
+      controller = _canStream
+          ? await _streamController(widget.item.fileId!)
+          : await _fileController(path!);
       await controller.initialize();
       if (!mounted) {
         await controller.dispose();
@@ -76,14 +160,44 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
       return true;
     } catch (e) {
       debugPrint('[AudioPlayer] Error: $e');
+      await controller?.dispose();
       return false;
     } finally {
       if (mounted) setState(() => _isInitializing = false);
     }
   }
 
-  Future<void> _togglePlay(String path) async {
-    if (!await _ensureController(path)) return;
+  Future<VideoPlayerController> _fileController(String path) async =>
+      VideoPlayerController.file(File(await playableAudioPath(path)));
+
+  /// A player reading the track through [TdlibFileServer], as it downloads or
+  /// once it has. The server gives a track in fragments the index the player
+  /// needs to seek, so a finished download goes through it too.
+  Future<VideoPlayerController> _streamController(int fileId) async {
+    final result = await _tdlib.sendRequest(td.GetFile(fileId: fileId));
+    final local = result is td.File ? result.local : null;
+    // A finished download, or one already running, isn't this player's to
+    // stop: someone else still wants it after this player goes.
+    _ownsDownload =
+        !(local?.isDownloadingCompleted ?? false) &&
+        !(local?.isDownloadingActive ?? false);
+    final url = await ref
+        .read(tdlibFileServerProvider)
+        .urlFor(fileId, mimeType: widget.item.mimeType);
+    return VideoPlayerController.networkUrl(url);
+  }
+
+  /// Plays or pauses. A track not on disk streams if it can; otherwise, or
+  /// if streaming fails, it downloads and plays when the download lands.
+  Future<void> _togglePlay(String? path) async {
+    if (path == null && !_canStream) {
+      _downloadThenPlay();
+      return;
+    }
+    if (!await _ensureController(path)) {
+      if (path == null) _downloadThenPlay();
+      return;
+    }
 
     if (_isPlaying) {
       await _controller!.pause();
@@ -92,8 +206,28 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     }
   }
 
+  /// Plays from [position], for a timestamp tapped in the caption or a reply.
+  /// A track that can't stream starts there once its download lands.
+  Future<void> _playFrom(Duration position, String? path) async {
+    if (path == null && !_canStream) {
+      _startAt = position;
+      _downloadThenPlay();
+      return;
+    }
+    if (!await _ensureController(path)) {
+      if (path == null) {
+        _startAt = position;
+        _downloadThenPlay();
+      }
+      return;
+    }
+    await _controller!.seekTo(position);
+    await _controller!.play();
+    if (mounted) setState(() => _position = position);
+  }
+
   /// Seeks to a fraction of the track, starting the player if needed.
-  Future<void> _seekToFraction(String path, double fraction) async {
+  Future<void> _seekToFraction(String? path, double fraction) async {
     final total = _duration;
     if (total <= Duration.zero) {
       setState(() => _scrubFraction = null);
@@ -116,7 +250,21 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
     });
   }
 
-  void _startDownload(int fileId) {
+  /// Downloads the whole track to keep, playing or not. A download asked for
+  /// is not stopped when the player goes.
+  void _download() {
+    final fileId = widget.item.fileId;
+    if (fileId == null || fileId == 0) return;
+    setState(() => _ownsDownload = false);
+    ref
+        .read(syncServiceProvider)
+        .downloadFileWithPriority(fileId, priority: 32);
+  }
+
+  void _downloadThenPlay() {
+    final fileId = widget.item.fileId;
+    if (fileId == null || fileId == 0) return;
+    setState(() => _playWhenDownloaded = true);
     ref
         .read(syncServiceProvider)
         .downloadFileWithPriority(fileId, priority: 32);
@@ -154,6 +302,24 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
         !downloadState.isCompleted &&
         (progress > 0 || downloadState.downloadedSize > 0);
 
+    // A stream already plays, so the download under it isn't news.
+    final hasPlayer = _controller != null;
+    final showsPosition = isDownloaded || hasPlayer;
+
+    if (isDownloaded && _playWhenDownloaded) {
+      _playWhenDownloaded = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final start = _startAt;
+        _startAt = null;
+        if (start != null) {
+          _playFrom(start, resolvedPath);
+        } else if (!_isPlaying) {
+          _togglePlay(resolvedPath);
+        }
+      });
+    }
+
     final isVoice = widget.item.type == MediaType.voice;
     final title = isVoice
         ? AppStrings.mediaVoice
@@ -182,16 +348,11 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
           _TransportButton(
             isInitializing: _isInitializing,
             isDownloading: isDownloading,
-            isDownloaded: isDownloaded,
+            isPlayable: showsPosition,
+            canStream: _canStream,
             isPlaying: _isPlaying,
             progress: progress,
-            onPressed: () {
-              if (isDownloaded) {
-                _togglePlay(resolvedPath);
-              } else if (fileId != null && fileId != 0) {
-                _startDownload(fileId);
-              }
-            },
+            onPressed: () => _togglePlay(isDownloaded ? resolvedPath : null),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -207,14 +368,16 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                if (isDownloaded)
+                if (showsPosition)
                   _Scrubber(
                     fraction: barFraction,
                     trackColor: trackColor,
                     onChanged: (value) =>
                         setState(() => _scrubFraction = value),
-                    onChangeEnd: (value) =>
-                        _seekToFraction(resolvedPath, value),
+                    onChangeEnd: (value) => _seekToFraction(
+                      isDownloaded ? resolvedPath : null,
+                      value,
+                    ),
                   )
                 else
                   ClipRRect(
@@ -233,14 +396,14 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      isDownloaded
+                      showsPosition
                           ? '${TimeUtils.formatDuration(shownPosition.inSeconds)} / '
                                 '${TimeUtils.formatDuration(total.inSeconds)}'
                           : TimeUtils.formatDuration(widget.item.duration),
                       style: AppTypography.actionCount(color: secondaryColor),
                     ),
                     Text(
-                      isDownloading
+                      isDownloading && !hasPlayer
                           ? AppStrings.downloadPercent((progress * 100).toInt())
                           : (isVoice
                                 ? AppStrings.audioKindVoice
@@ -252,17 +415,76 @@ class _PostAudioPlayerState extends ConsumerState<PostAudioPlayer> {
               ],
             ),
           ),
+          // Streaming took the play button, so music gets its own way to be
+          // saved without playing.
+          if (_canStream && !isDownloaded) ...[
+            const SizedBox(width: AppSpacing.sm),
+            _DownloadButton(
+              progress: isDownloading && !_ownsDownload ? progress : null,
+              color: secondaryColor,
+              onPressed: _download,
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// The round button on the left: download, then play/pause.
+/// Downloads a track that can also stream. Shows the download's progress
+/// once one is under way, unless it is only feeding a stream.
+class _DownloadButton extends StatelessWidget {
+  final double? progress;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _DownloadButton({
+    required this.progress,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = this.progress;
+    return Semantics(
+      button: true,
+      label: AppStrings.audioDownload,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: AppStrings.audioDownload,
+        child: InkResponse(
+          onTap: onPressed,
+          radius: 22,
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: progress == null
+                ? Icon(Icons.download_rounded, color: color, size: 22)
+                : Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: CircularProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      strokeWidth: 2.5,
+                      color: AppColors.accent,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The round button on the left: play/pause, or download for a track that
+/// can't stream.
 class _TransportButton extends StatelessWidget {
   final bool isInitializing;
   final bool isDownloading;
-  final bool isDownloaded;
+
+  /// Whether there is a player, or a file to start one from.
+  final bool isPlayable;
+  final bool canStream;
   final bool isPlaying;
   final double progress;
   final VoidCallback onPressed;
@@ -270,7 +492,8 @@ class _TransportButton extends StatelessWidget {
   const _TransportButton({
     required this.isInitializing,
     required this.isDownloading,
-    required this.isDownloaded,
+    required this.isPlayable,
+    required this.canStream,
     required this.isPlaying,
     required this.progress,
     required this.onPressed,
@@ -278,9 +501,9 @@ class _TransportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = !isDownloaded
-        ? AppStrings.audioDownload
-        : (isPlaying ? AppStrings.audioPause : AppStrings.audioPlay);
+    final label = isPlayable
+        ? (isPlaying ? AppStrings.audioPause : AppStrings.audioPlay)
+        : (canStream ? AppStrings.audioPlay : AppStrings.audioDownload);
 
     return Semantics(
       button: true,
@@ -304,7 +527,9 @@ class _TransportButton extends StatelessWidget {
                       color: Colors.white,
                     ),
                   )
-                : isDownloading
+                // Music can stream at any point, so its button stays Play;
+                // the download button beside it shows the progress.
+                : isDownloading && !isPlayable && !canStream
                 ? Padding(
                     padding: const EdgeInsets.all(8),
                     child: CircularProgressIndicator(
@@ -314,11 +539,11 @@ class _TransportButton extends StatelessWidget {
                     ),
                   )
                 : Icon(
-                    !isDownloaded
-                        ? Icons.download_rounded
-                        : (isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded),
+                    isPlaying
+                        ? Icons.pause_rounded
+                        : (isPlayable || canStream
+                              ? Icons.play_arrow_rounded
+                              : Icons.download_rounded),
                     color: Colors.white,
                     size: 26,
                   ),

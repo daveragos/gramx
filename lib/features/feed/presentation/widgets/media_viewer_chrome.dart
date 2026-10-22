@@ -38,6 +38,10 @@ class MediaViewerChrome extends ConsumerWidget {
   /// it is set.
   final String? localPath;
 
+  /// Seeks the media on screen when a timestamp in the caption is tapped.
+  /// Null leaves timestamps as plain text.
+  final ValueChanged<int>? onMediaTimestampTap;
+
   const MediaViewerChrome({
     super.key,
     required this.child,
@@ -46,6 +50,7 @@ class MediaViewerChrome extends ConsumerWidget {
     this.pageIndicator,
     this.showChrome = true,
     this.localPath,
+    this.onMediaTimestampTap,
   });
 
   @override
@@ -104,6 +109,7 @@ class MediaViewerChrome extends ConsumerWidget {
                   controls: controls,
                   pageIndicator: pageIndicator,
                   localPath: localPath,
+                  onMediaTimestampTap: onMediaTimestampTap,
                 ),
               ),
             )
@@ -142,11 +148,15 @@ class _BottomSheetChrome extends ConsumerWidget {
   /// See [MediaViewerChrome.localPath].
   final String? localPath;
 
+  /// See [MediaViewerChrome.onMediaTimestampTap].
+  final ValueChanged<int>? onMediaTimestampTap;
+
   const _BottomSheetChrome({
     required this.post,
     this.controls,
     this.pageIndicator,
     this.localPath,
+    this.onMediaTimestampTap,
   });
 
   @override
@@ -245,6 +255,7 @@ class _BottomSheetChrome extends ConsumerWidget {
                       style: AppTypography.body(color: Colors.white),
                       maxLines: _captionLines,
                       linkColor: Colors.white,
+                      onMediaTimestampTap: onMediaTimestampTap,
                     ),
                   ),
                 ),

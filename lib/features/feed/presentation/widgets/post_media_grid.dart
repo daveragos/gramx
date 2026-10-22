@@ -259,9 +259,10 @@ class _MediaTile extends ConsumerWidget {
     final heroTag =
         'media_${item.fileId != null && item.fileId != 0 ? item.fileId : item.id}_$index';
 
-    final int? trackFileId = item.type == MediaType.video
-        ? (item.thumbnailFileId ?? item.fileId)
-        : item.fileId;
+    // A video tile draws only its thumbnail. Watching the video's own file
+    // would download all of it because the tile scrolled past.
+    final isVideo = item.type == MediaType.video;
+    final int? trackFileId = isVideo ? item.thumbnailFileId : item.fileId;
 
     // The auto-download setting applies to photos only; video and GIF
     // thumbnails are small and always load.
@@ -281,9 +282,14 @@ class _MediaTile extends ConsumerWidget {
     // Guest media is an https URL that resolveMediaPath caches to disk.
     final String? resolvedPath =
         downloadState?.localPath ??
-        _tryResolvePath(item) ??
+        (isVideo ? null : _tryResolvePath(item)) ??
         (trackFileId == null || trackFileId == 0
-            ? resolveMediaPath(ref, rawPath: item.thumbnailUrl ?? item.url)
+            ? resolveMediaPath(
+                ref,
+                rawPath: isVideo
+                    ? item.thumbnailUrl
+                    : item.thumbnailUrl ?? item.url,
+              )
             : null);
     final isDownloaded =
         resolvedPath != null &&
@@ -502,16 +508,15 @@ class _MediaTile extends ConsumerWidget {
     }
 
     if (item.type == MediaType.video || item.type == MediaType.gif) {
-      String? videoPath;
-      if (item.fileId != null && item.fileId != 0) {
-        final videoFileState = ref.read(fileDownloadProvider(item.fileId!));
-        videoPath = videoFileState.value;
-      }
-      videoPath ??= item.localPath;
-      // A cached guest video, if any; otherwise the viewer fetches remoteUrl.
-      videoPath ??= ref.read(guestMediaPathProvider(item.url ?? '')).value;
+      // Nothing is fetched here: the viewer finds a finished TDLib file itself
+      // and streams the rest. A guest file counts only if a tile cached it.
+      final guestUrl = item.url ?? '';
+      final videoPath =
+          item.localPath ??
+          (ref.exists(guestMediaPathProvider(guestUrl))
+              ? ref.read(guestMediaPathProvider(guestUrl)).value
+              : null);
 
-      // Opens even before the file lands; the viewer shows its own progress.
       FullScreenVideoViewer.show(
         context,
         videoPath: videoPath,
@@ -519,7 +524,6 @@ class _MediaTile extends ConsumerWidget {
         thumbnailPath: item.thumbnailUrl,
         remoteUrl: item.url,
         post: post,
-        supportsStreaming: item.supportsStreaming,
       );
     } else {
       final imageItems = <ViewerImage>[];

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- The video player streams from the app's own loopback server
+         (TdlibFileServer), which speaks plain HTTP. Every other host keeps
+         the default: no cleartext. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

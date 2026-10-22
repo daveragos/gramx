@@ -46,6 +46,7 @@ import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/app/widgets/edit_text_dialog.dart';
+import 'package:gramx/features/feed/presentation/media_seek.dart';
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   final String postId;
@@ -379,7 +380,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             (a, b) => a + b,
           );
 
-          return Column(
+          final screen = Column(
             children: [
               Expanded(
                 child: RefreshIndicator(
@@ -488,15 +489,23 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               ),
                               if (post.text != null &&
                                   post.text!.isNotEmpty) ...[
-                                TextEntityRenderer(
-                                  onHashtagTap: (tag) =>
-                                      openHashtagSearch(context, ref, tag),
-                                  text: post.text!,
-                                  entities: post.entities,
-                                  style: AppTypography.bodyLarge(
-                                    color: primaryColor,
+                                // A context under the MediaSeekScope.
+                                Builder(
+                                  builder: (context) => TextEntityRenderer(
+                                    onHashtagTap: (tag) =>
+                                        openHashtagSearch(context, ref, tag),
+                                    onMediaTimestampTap: playFromTimestamp(
+                                      context,
+                                      post.media,
+                                      post: post,
+                                    ),
+                                    text: post.text!,
+                                    entities: post.entities,
+                                    style: AppTypography.bodyLarge(
+                                      color: primaryColor,
+                                    ),
+                                    fullWidth: true,
                                   ),
-                                  fullWidth: true,
                                 ),
                               ],
                               if (post.linkPreviewUrl != null &&
@@ -764,6 +773,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       commentWidgets.add(
                                         _buildXCommentItem(
                                           context: context,
+                                          rootPost: post,
                                           comment: topComment,
                                           isLast:
                                               isLastTopComment &&
@@ -852,6 +862,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                 ),
                                                 child: _buildXCommentItem(
                                                   context: context,
+                                                  rootPost: post,
                                                   comment: sub,
                                                   replyingTo: replyingToLabel(
                                                     sub,
@@ -957,6 +968,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                 ),
             ],
           );
+
+          // Timestamps in the post or its comments play the post's track.
+          return MediaSeekScope(child: screen);
         },
       ),
     );
@@ -964,6 +978,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
   Widget _buildXCommentItem({
     required BuildContext context,
+
+    /// The post the comments are under.
+    required Post rootPost,
     required Post comment,
     required bool isLast,
     required bool isDark,
@@ -974,6 +991,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     /// Telegram records as replies to the post.
     Post? replyingTo,
   }) {
+    // What a timestamp in the comment plays: its own media, else that of the
+    // comment it answers, else the post's, as in Telegram.
+    final timestampOwner = [comment, ?replyingTo, rootPost].firstWhere(
+      (p) => timestampTarget(p.media) != null,
+      orElse: () => rootPost,
+    );
+
     // A comment posted by a channel has no sender user and opens the channel.
     final senderUserId = comment.senderUserId;
     void openAuthor() {
@@ -1085,12 +1109,20 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
                     if (comment.text != null && comment.text!.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      TextEntityRenderer(
-                        text: comment.text!,
-                        entities: comment.entities,
-                        style: AppTypography.body(
-                          color: primaryColor,
-                        ).copyWith(fontSize: 14, height: 1.3),
+                      // A context under the screen's MediaSeekScope.
+                      Builder(
+                        builder: (context) => TextEntityRenderer(
+                          onMediaTimestampTap: playFromTimestamp(
+                            context,
+                            timestampOwner.media,
+                            post: timestampOwner,
+                          ),
+                          text: comment.text!,
+                          entities: comment.entities,
+                          style: AppTypography.body(
+                            color: primaryColor,
+                          ).copyWith(fontSize: 14, height: 1.3),
+                        ),
                       ),
                     ],
 

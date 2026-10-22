@@ -171,7 +171,6 @@ class _VisualMedia extends ConsumerWidget {
         fileId: item.thumbnailFileId,
         rawPath: item.thumbnailUrl,
       ),
-      supportsStreaming: item.supportsStreaming,
     );
   }
 }

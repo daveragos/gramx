@@ -89,6 +89,19 @@ void main() {
       expect(result.url, 'https://example.com');
     });
 
+    // "1:23" in a caption seeks the media, so the seconds have to survive.
+    test('a media timestamp keeps the second it points at', () {
+      final result = mapped([
+        entity({
+          '@type': 'textEntityTypeMediaTimestamp',
+          'media_timestamp': 83,
+        }),
+      ]).single;
+
+      expect(result.type, TextEntityType.mediaTimestamp);
+      expect(result.mediaTimestamp, 83);
+    });
+
     test('offsets and lengths are carried through unchanged', () {
       final result = mapped([
         entity({'@type': 'textEntityTypeBold'}, offset: 5, length: 9),

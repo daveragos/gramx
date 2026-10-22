@@ -15,6 +15,9 @@ class ExpandableText extends StatefulWidget {
   final List<TextEntity> entities;
   final TextStyle style;
   final ValueChanged<String>? onHashtagTap;
+
+  /// See [TextEntityRenderer.onMediaTimestampTap].
+  final ValueChanged<int>? onMediaTimestampTap;
   final int maxLines;
 
   /// Colour for the toggle. Defaults to the accent.
@@ -26,6 +29,7 @@ class ExpandableText extends StatefulWidget {
     required this.entities,
     required this.style,
     this.onHashtagTap,
+    this.onMediaTimestampTap,
     this.maxLines = kCollapsedPostLines,
     this.linkColor,
   });
@@ -54,6 +58,7 @@ class _ExpandableTextState extends State<ExpandableText> {
       entities: widget.entities,
       style: widget.style,
       onHashtagTap: widget.onHashtagTap,
+      onMediaTimestampTap: widget.onMediaTimestampTap,
       maxLines: collapsed ? widget.maxLines : null,
       fullWidth: true,
     );

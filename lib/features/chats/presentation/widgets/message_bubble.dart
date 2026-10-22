@@ -40,6 +40,10 @@ class MessageBubble extends StatelessWidget {
 
   /// Tap on an `@name` in the body. Resolving it is left to the screen.
   final ValueChanged<String>? onMentionTap;
+
+  /// Tap on a timestamp such as "1:23" in the body, with its second. Null
+  /// leaves timestamps as plain text.
+  final ValueChanged<int>? onMediaTimestampTap;
   final void Function(String emoji)? onReactionTap;
 
   /// Tap on the sender's avatar in a group.
@@ -74,6 +78,7 @@ class MessageBubble extends StatelessWidget {
     this.onLongPress,
     this.onReplyTap,
     this.onMentionTap,
+    this.onMediaTimestampTap,
     this.onReactionTap,
     this.onSenderTap,
     this.onVote,
@@ -166,6 +171,7 @@ class MessageBubble extends StatelessWidget {
                   onLongPress: onLongPress,
                   onReplyTap: onReplyTap,
                   onMentionTap: onMentionTap,
+                  onMediaTimestampTap: onMediaTimestampTap,
                   onVote: onVote,
                   onOpenSecretMedia: onOpenSecretMedia,
                   onOpenPlace: onOpenPlace,
@@ -199,6 +205,7 @@ class _Body extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onReplyTap;
   final ValueChanged<String>? onMentionTap;
+  final ValueChanged<int>? onMediaTimestampTap;
   final Future<void> Function(List<int> optionIds)? onVote;
   final VoidCallback? onOpenSecretMedia;
   final VoidCallback? onOpenPlace;
@@ -214,6 +221,7 @@ class _Body extends StatelessWidget {
     this.onLongPress,
     this.onReplyTap,
     this.onMentionTap,
+    this.onMediaTimestampTap,
     this.onVote,
     this.onOpenSecretMedia,
     this.onOpenPlace,
@@ -337,6 +345,7 @@ class _Body extends StatelessWidget {
             entities: message.entities,
             style: AppTypography.body(color: textColor),
             onMentionTap: onMentionTap,
+            onMediaTimestampTap: onMediaTimestampTap,
             // The long press belongs to the bubble.
             selectable: false,
             // Accent links would vanish on an outgoing bubble.

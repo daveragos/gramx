@@ -47,11 +47,6 @@ abstract class MediaItem with _$MediaItem {
     String? mimeType,
     String? localPath,
 
-    /// Whether Telegram flagged this video as streamable (`faststart`, index at
-    /// the front). Without it the file must be downloaded in full before it
-    /// plays. See `TdlibFileServer`.
-    @Default(false) bool supportsStreaming,
-
     /// Base64 JPEG minithumbnail from Telegram, a preview of about 100 bytes.
     String? minithumbnail,
 

@@ -14,6 +14,7 @@ _TextEntity _$TextEntityFromJson(Map<String, dynamic> json) => _TextEntity(
   customEmojiId: json['customEmojiId'] as String?,
   language: json['language'] as String?,
   userId: (json['userId'] as num?)?.toInt(),
+  mediaTimestamp: (json['mediaTimestamp'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
@@ -25,6 +26,7 @@ Map<String, dynamic> _$TextEntityToJson(_TextEntity instance) =>
       'customEmojiId': instance.customEmojiId,
       'language': instance.language,
       'userId': instance.userId,
+      'mediaTimestamp': instance.mediaTimestamp,
     };
 
 const _$TextEntityTypeEnumMap = {

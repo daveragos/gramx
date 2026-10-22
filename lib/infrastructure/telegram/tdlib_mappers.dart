@@ -635,7 +635,6 @@ class TdlibMappers {
           id: videoPath,
           type: MediaType.video,
           hasSpoiler: content.hasSpoiler,
-          supportsStreaming: video.supportsStreaming,
           url: videoPath,
           thumbnailUrl: thumbPath,
           width: video.width,
@@ -1044,6 +1043,7 @@ class TdlibMappers {
 
         String? language;
         int? userId;
+        int? mediaTimestamp;
 
         // Any entity type not named here renders as plain text.
         if (type is td.TextEntityTypeBold) {
@@ -1089,6 +1089,7 @@ class TdlibMappers {
           typeStr = 'bankCardNumber';
         } else if (type is td.TextEntityTypeMediaTimestamp) {
           typeStr = 'mediaTimestamp';
+          mediaTimestamp = type.mediaTimestamp;
         } else if (type is td.TextEntityTypeSpoiler) {
           typeStr = 'spoiler';
         } else if (type is td.TextEntityTypeCustomEmoji) {
@@ -1104,6 +1105,7 @@ class TdlibMappers {
           'customEmojiId': ?customEmojiId,
           'language': ?language,
           'userId': ?userId,
+          'mediaTimestamp': ?mediaTimestamp,
         };
       }).toList();
       return jsonEncode(list);

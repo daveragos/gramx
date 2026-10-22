@@ -46,6 +46,9 @@ import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
+import 'package:gramx/features/feed/presentation/media_seek.dart';
+import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 
 /// One open conversation. Uses a plain `Scaffold` with a fixed `AppBar`
 /// rather than `ChromeScaffold`, so the header never scrolls away.
@@ -1833,6 +1836,7 @@ class _MessageList extends StatelessWidget {
   final void Function(ChatMessage message) onLongPress;
   final void Function(ChatMessage message) onReplyTap;
   final ValueChanged<String> onMentionTap;
+
   final ValueChanged<int> onSenderTap;
 
   /// Attached to [jumpTargetId]'s bubble while a reply jump is in flight.
@@ -1891,7 +1895,7 @@ class _MessageList extends StatelessWidget {
     // A spinner at the bottom too when opened in the middle.
     final newerRows = state.hasMoreNewer ? 1 : 0;
 
-    return ListView.builder(
+    final list = ListView.builder(
       key: listKey,
       controller: controller,
       reverse: true,
@@ -1916,13 +1920,38 @@ class _MessageList extends StatelessWidget {
         return _TrackedRow(
           key: _keyFor(row),
           registry: registry,
-          child: _buildRow(row),
+          child: _buildRow(context, row),
         );
       },
     );
+
+    // Timestamps in a message play its track, or the one it replies to.
+    return MediaSeekScope(child: list);
   }
 
-  Widget _buildRow(ConversationRow row) => switch (row) {
+  /// What a timestamp in [message] plays: its own media, else that of the
+  /// message it replies to, when that is loaded. Null without a timestamp
+  /// or anything to play.
+  List<MediaItem>? _timestampMedia(ChatMessage message) {
+    if (!message.entities.any((e) => e.type == TextEntityType.mediaTimestamp)) {
+      return null;
+    }
+    if (timestampTarget(message.media) != null) return message.media;
+
+    final replyId = message.replyToMessageId;
+    final replyChat = message.replyToChatId;
+    if (replyId == null || (replyChat != null && replyChat != message.chatId)) {
+      return null;
+    }
+    for (final other in state.messages) {
+      if (other.messageId == replyId) {
+        return timestampTarget(other.media) != null ? other.media : null;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildRow(BuildContext context, ConversationRow row) => switch (row) {
     ConversationDateRow() => ChatDateSeparator(date: row.date),
     ConversationUnreadRow() => ChatUnreadBand(key: unreadBandKey),
     ConversationMessageRow() => MessageBubble(
@@ -1936,6 +1965,10 @@ class _MessageList extends StatelessWidget {
       onLongPress: () => onLongPress(row.message),
       onReplyTap: () => onReplyTap(row.message),
       onMentionTap: onMentionTap,
+      onMediaTimestampTap: playFromTimestamp(
+        context,
+        _timestampMedia(row.message) ?? const [],
+      ),
       onSenderTap: row.message.senderId == null
           ? null
           : () => onSenderTap(row.message.senderId!),

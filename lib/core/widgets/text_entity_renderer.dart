@@ -36,6 +36,10 @@ class TextEntityRenderer extends StatelessWidget {
   /// Called when a hashtag is tapped. Null renders hashtags as plain text.
   final ValueChanged<String>? onHashtagTap;
 
+  /// Called with the second a timestamp such as "1:23" points at, to play the
+  /// media from there. Null renders timestamps as plain text.
+  final ValueChanged<int>? onMediaTimestampTap;
+
   /// Whether a long press selects text. Off in chat bubbles, where a long
   /// press opens the message actions.
   final bool selectable;
@@ -50,6 +54,7 @@ class TextEntityRenderer extends StatelessWidget {
     required this.text,
     required this.entities,
     this.onHashtagTap,
+    this.onMediaTimestampTap,
     this.style,
     this.maxLines,
     this.linkColor,
@@ -282,10 +287,20 @@ class TextEntityRenderer extends StatelessWidget {
               'tel:${entityText.replaceAll(' ', '')}',
             ),
         );
+      case TextEntityType.mediaTimestamp:
+        final seconds = entity.mediaTimestamp;
+        final onTap = onMediaTimestampTap;
+        if (seconds == null || onTap == null) {
+          return TextSpan(text: display, style: baseStyle);
+        }
+        return TextSpan(
+          text: display,
+          style: accentStyle,
+          recognizer: TapGestureRecognizer()..onTap = () => onTap(seconds),
+        );
       case TextEntityType.cashtag:
       case TextEntityType.botCommand:
       case TextEntityType.bankCardNumber:
-      case TextEntityType.mediaTimestamp:
         // Nothing acts on these, so they are not styled as links.
         return TextSpan(text: display, style: baseStyle);
       case TextEntityType.hashtag:

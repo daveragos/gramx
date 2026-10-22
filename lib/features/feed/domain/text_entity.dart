@@ -46,6 +46,7 @@ abstract class TextEntity with _$TextEntity {
     String? customEmojiId, // for customEmoji
     String? language, // for a fenced code block
     int? userId, // for mentionName
+    int? mediaTimestamp, // for mediaTimestamp: seconds into the media
   }) = _TextEntity;
 
   factory TextEntity.fromJson(Map<String, dynamic> json) =>

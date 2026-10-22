@@ -18,7 +18,8 @@ mixin _$TextEntity {
  int get offset; int get length; TextEntityType get type; String? get url;// for textUrl
  String? get customEmojiId;// for customEmoji
  String? get language;// for a fenced code block
- int? get userId;
+ int? get userId;// for mentionName
+ int? get mediaTimestamp;
 /// Create a copy of TextEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +32,16 @@ $TextEntityCopyWith<TextEntity> get copyWith => _$TextEntityCopyWithImpl<TextEnt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TextEntity&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.length, length) || other.length == length)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.customEmojiId, customEmojiId) || other.customEmojiId == customEmojiId)&&(identical(other.language, language) || other.language == language)&&(identical(other.userId, userId) || other.userId == userId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TextEntity&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.length, length) || other.length == length)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.customEmojiId, customEmojiId) || other.customEmojiId == customEmojiId)&&(identical(other.language, language) || other.language == language)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.mediaTimestamp, mediaTimestamp) || other.mediaTimestamp == mediaTimestamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,offset,length,type,url,customEmojiId,language,userId);
+int get hashCode => Object.hash(runtimeType,offset,length,type,url,customEmojiId,language,userId,mediaTimestamp);
 
 @override
 String toString() {
-  return 'TextEntity(offset: $offset, length: $length, type: $type, url: $url, customEmojiId: $customEmojiId, language: $language, userId: $userId)';
+  return 'TextEntity(offset: $offset, length: $length, type: $type, url: $url, customEmojiId: $customEmojiId, language: $language, userId: $userId, mediaTimestamp: $mediaTimestamp)';
 }
 
 
@@ -51,7 +52,7 @@ abstract mixin class $TextEntityCopyWith<$Res>  {
   factory $TextEntityCopyWith(TextEntity value, $Res Function(TextEntity) _then) = _$TextEntityCopyWithImpl;
 @useResult
 $Res call({
- int offset, int length, TextEntityType type, String? url, String? customEmojiId, String? language, int? userId
+ int offset, int length, TextEntityType type, String? url, String? customEmojiId, String? language, int? userId, int? mediaTimestamp
 });
 
 
@@ -68,7 +69,7 @@ class _$TextEntityCopyWithImpl<$Res>
 
 /// Create a copy of TextEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? offset = null,Object? length = null,Object? type = null,Object? url = freezed,Object? customEmojiId = freezed,Object? language = freezed,Object? userId = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? offset = null,Object? length = null,Object? type = null,Object? url = freezed,Object? customEmojiId = freezed,Object? language = freezed,Object? userId = freezed,Object? mediaTimestamp = freezed,}) {
   return _then(_self.copyWith(
 offset: null == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int,length: null == length ? _self.length : length // ignore: cast_nullable_to_non_nullable
@@ -77,6 +78,7 @@ as TextEntityType,url: freezed == url ? _self.url : url // ignore: cast_nullable
 as String?,customEmojiId: freezed == customEmojiId ? _self.customEmojiId : customEmojiId // ignore: cast_nullable_to_non_nullable
 as String?,language: freezed == language ? _self.language : language // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as int?,mediaTimestamp: freezed == mediaTimestamp ? _self.mediaTimestamp : mediaTimestamp // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }
@@ -162,10 +164,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId,  int? mediaTimestamp)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TextEntity() when $default != null:
-return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId);case _:
+return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId,_that.mediaTimestamp);case _:
   return orElse();
 
 }
@@ -183,10 +185,10 @@ return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmoji
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId,  int? mediaTimestamp)  $default,) {final _that = this;
 switch (_that) {
 case _TextEntity():
-return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId);case _:
+return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId,_that.mediaTimestamp);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +205,10 @@ return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmoji
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int offset,  int length,  TextEntityType type,  String? url,  String? customEmojiId,  String? language,  int? userId,  int? mediaTimestamp)?  $default,) {final _that = this;
 switch (_that) {
 case _TextEntity() when $default != null:
-return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId);case _:
+return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmojiId,_that.language,_that.userId,_that.mediaTimestamp);case _:
   return null;
 
 }
@@ -218,7 +220,7 @@ return $default(_that.offset,_that.length,_that.type,_that.url,_that.customEmoji
 @JsonSerializable()
 
 class _TextEntity implements TextEntity {
-  const _TextEntity({required this.offset, required this.length, required this.type, this.url, this.customEmojiId, this.language, this.userId});
+  const _TextEntity({required this.offset, required this.length, required this.type, this.url, this.customEmojiId, this.language, this.userId, this.mediaTimestamp});
   factory _TextEntity.fromJson(Map<String, dynamic> json) => _$TextEntityFromJson(json);
 
 @override final  int offset;
@@ -231,6 +233,8 @@ class _TextEntity implements TextEntity {
 @override final  String? language;
 // for a fenced code block
 @override final  int? userId;
+// for mentionName
+@override final  int? mediaTimestamp;
 
 /// Create a copy of TextEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -245,16 +249,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TextEntity&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.length, length) || other.length == length)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.customEmojiId, customEmojiId) || other.customEmojiId == customEmojiId)&&(identical(other.language, language) || other.language == language)&&(identical(other.userId, userId) || other.userId == userId));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TextEntity&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.length, length) || other.length == length)&&(identical(other.type, type) || other.type == type)&&(identical(other.url, url) || other.url == url)&&(identical(other.customEmojiId, customEmojiId) || other.customEmojiId == customEmojiId)&&(identical(other.language, language) || other.language == language)&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.mediaTimestamp, mediaTimestamp) || other.mediaTimestamp == mediaTimestamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,offset,length,type,url,customEmojiId,language,userId);
+int get hashCode => Object.hash(runtimeType,offset,length,type,url,customEmojiId,language,userId,mediaTimestamp);
 
 @override
 String toString() {
-  return 'TextEntity(offset: $offset, length: $length, type: $type, url: $url, customEmojiId: $customEmojiId, language: $language, userId: $userId)';
+  return 'TextEntity(offset: $offset, length: $length, type: $type, url: $url, customEmojiId: $customEmojiId, language: $language, userId: $userId, mediaTimestamp: $mediaTimestamp)';
 }
 
 
@@ -265,7 +269,7 @@ abstract mixin class _$TextEntityCopyWith<$Res> implements $TextEntityCopyWith<$
   factory _$TextEntityCopyWith(_TextEntity value, $Res Function(_TextEntity) _then) = __$TextEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int offset, int length, TextEntityType type, String? url, String? customEmojiId, String? language, int? userId
+ int offset, int length, TextEntityType type, String? url, String? customEmojiId, String? language, int? userId, int? mediaTimestamp
 });
 
 
@@ -282,7 +286,7 @@ class __$TextEntityCopyWithImpl<$Res>
 
 /// Create a copy of TextEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? offset = null,Object? length = null,Object? type = null,Object? url = freezed,Object? customEmojiId = freezed,Object? language = freezed,Object? userId = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? offset = null,Object? length = null,Object? type = null,Object? url = freezed,Object? customEmojiId = freezed,Object? language = freezed,Object? userId = freezed,Object? mediaTimestamp = freezed,}) {
   return _then(_TextEntity(
 offset: null == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int,length: null == length ? _self.length : length // ignore: cast_nullable_to_non_nullable
@@ -291,6 +295,7 @@ as TextEntityType,url: freezed == url ? _self.url : url // ignore: cast_nullable
 as String?,customEmojiId: freezed == customEmojiId ? _self.customEmojiId : customEmojiId // ignore: cast_nullable_to_non_nullable
 as String?,language: freezed == language ? _self.language : language // ignore: cast_nullable_to_non_nullable
 as String?,userId: freezed == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as int?,mediaTimestamp: freezed == mediaTimestamp ? _self.mediaTimestamp : mediaTimestamp // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,22 @@ import 'package:gramx/features/feed/domain/text_entity.dart';
 Widget wrap(Widget child) => MaterialApp(
   home: Scaffold(body: SingleChildScrollView(child: child)),
 );
+
+/// The drawn span whose text contains [text], to tap it as a reader would.
+TextSpan? spanContaining(WidgetTester tester, String text) {
+  for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+    TextSpan? found;
+    rich.text.visitChildren((span) {
+      if (span is TextSpan && (span.text?.contains(text) ?? false)) {
+        found = span;
+        return false;
+      }
+      return true;
+    });
+    if (found != null) return found;
+  }
+  return null;
+}
 
 void main() {
   testWidgets('a code block renders as a block, with its language and a copy', (
@@ -275,6 +292,54 @@ void main() {
         container.read(pendingDeepLinkProvider),
         Uri.parse('https://t.me/flutter_ethiopia/3'),
       );
+    });
+  });
+
+  group('media timestamps', () {
+    const text = 'Chorus at 1:23';
+    const entities = [
+      TextEntity(
+        offset: 10,
+        length: 4,
+        type: TextEntityType.mediaTimestamp,
+        mediaTimestamp: 83,
+      ),
+    ];
+
+    testWidgets('a timestamp plays the media from its second', (tester) async {
+      final tapped = <int>[];
+      await tester.pumpWidget(
+        wrap(
+          TextEntityRenderer(
+            text: text,
+            entities: entities,
+            selectable: false,
+            onMediaTimestampTap: tapped.add,
+          ),
+        ),
+      );
+
+      final recognizer = spanContaining(tester, '1:23')?.recognizer;
+      expect(recognizer, isA<TapGestureRecognizer>());
+      (recognizer! as TapGestureRecognizer).onTap!();
+      expect(tapped, [83]);
+    });
+
+    // With no media beside the text, a link would lead nowhere.
+    testWidgets('with nothing to play, a timestamp is plain text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          const TextEntityRenderer(
+            text: text,
+            entities: entities,
+            selectable: false,
+          ),
+        ),
+      );
+
+      expect(spanContaining(tester, '1:23')?.recognizer, isNull);
     });
   });
 }
