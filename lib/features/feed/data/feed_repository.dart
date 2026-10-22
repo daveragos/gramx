@@ -1608,6 +1608,51 @@ class FeedRepository {
     }
   }
 
+  /// Who the reader can comment as in a discussion group, and who is chosen:
+  /// themselves, and the channels they run where the group allows it. Null
+  /// when there is no choice to make.
+  Future<CommentSenders?> commentSenders(int discussionChatId) async {
+    try {
+      final available = await _tdlib.sendRequest(
+        td.GetChatAvailableMessageSenders(chatId: discussionChatId),
+      );
+      if (available is! td.ChatMessageSenders || available.senders.length < 2) {
+        return null;
+      }
+      final chat = await _tdlib.sendRequest(
+        td.GetChat(chatId: discussionChatId),
+      );
+      return CommentSenders(
+        chatId: discussionChatId,
+        senders: available.senders,
+        chosen: chat is td.Chat ? chat.messageSenderId : null,
+      );
+    } catch (e) {
+      debugPrint('[FeedRepo] Senders for $discussionChatId failed: $e');
+      return null;
+    }
+  }
+
+  /// Comments in a discussion group come from [sender] from now on. Telegram
+  /// keeps the choice per group, so it holds for all of a channel's posts.
+  Future<bool> setCommentSender(
+    int discussionChatId,
+    td.MessageSender sender,
+  ) async {
+    try {
+      final res = await _tdlib.sendRequest(
+        td.SetChatMessageSender(
+          chatId: discussionChatId,
+          messageSenderId: sender,
+        ),
+      );
+      return res is td.Ok;
+    } catch (e) {
+      debugPrint('[FeedRepo] Could not comment as $sender: $e');
+      return false;
+    }
+  }
+
   /// A downloaded photo's path, or a remote id the loader can resolve later.
   static String? _photoPath(td.File? file) {
     if (file == null) return null;
@@ -1702,6 +1747,23 @@ class FeedRepository {
       rethrow;
     }
   }
+}
+
+/// Who a comment can come from in one discussion group.
+@immutable
+class CommentSenders {
+  /// The discussion group.
+  final int chatId;
+  final List<td.ChatMessageSender> senders;
+
+  /// Who comments come from now. Null leaves it to Telegram: the reader.
+  final td.MessageSender? chosen;
+
+  const CommentSenders({
+    required this.chatId,
+    required this.senders,
+    this.chosen,
+  });
 }
 
 final feedRepositoryProvider = Provider<FeedRepository>((ref) {

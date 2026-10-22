@@ -6,6 +6,7 @@ import 'package:gramx/features/feed/presentation/copy_post_link.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/post_detail/domain/comment_threads.dart';
+import 'package:gramx/features/post_detail/presentation/widgets/comment_sender_button.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/trok/data/trok_mention.dart';
@@ -1303,8 +1304,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     Padding(
                       // Centred on a one-line pill.
                       padding: const EdgeInsets.fromLTRB(7.2, 0, 9.9, 12.2),
-                      // The user's own avatar, not the channel's.
-                      child: _CommenterAvatar(),
+                      // Whoever the comment comes from: the reader, or a
+                      // channel they chose to comment as.
+                      child: CommentSenderButton(postId: widget.postId),
                     ),
                     Expanded(
                       child: TextField(
@@ -1454,20 +1456,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       return;
     }
     context.push('/post/${post.replyToChatId ?? post.chatId}_$messageId');
-  }
-}
-
-/// The user's avatar beside the comment field. A separate widget so the
-/// account lookup rebuilds only this, not the whole input bar.
-class _CommenterAvatar extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final account = ref.watch(activeAccountProvider).value;
-    return ChannelAvatar(
-      title: account?.displayName ?? AppStrings.drawerAccountFallback,
-      avatarPath: account?.avatarPath,
-      radius: 16,
-    );
   }
 }
 

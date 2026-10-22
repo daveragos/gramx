@@ -195,6 +195,11 @@ abstract class AppStrings {
   static const commentsLoginPrompt = 'Log in to Telegram to post comments.';
   static const commentHint = 'Add a comment…';
   static const commentReplyHint = 'Post your reply…';
+  static const commentAs = 'Comment as';
+  static const commentAsAccount = 'Your account';
+  static const commentAsChannel = 'Your channel';
+  static const commentAsNeedsPremium = 'Needs Telegram Premium';
+  static const commentAsFailed = "Couldn't change who you comment as.";
 
   // ── Post statistics ────────────────────────────────────────────────────────
   static const statReposts = 'Reposts';

@@ -67,7 +67,10 @@ Future<T?> showAppSheet<T>(
 /// One row of an [showAppSheet]. Closes the sheet with [value], then calls
 /// [onTap].
 class AppSheetRow<T> extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+
+  /// Drawn in place of [icon], such as a picture of whom the row names.
+  final Widget? leading;
   final String label;
   final String? subtitle;
   final VoidCallback? onTap;
@@ -83,14 +86,15 @@ class AppSheetRow<T> extends StatelessWidget {
 
   const AppSheetRow({
     super.key,
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.label,
     this.subtitle,
     this.onTap,
     this.value,
     this.isDestructive = false,
     this.isSelected = false,
-  });
+  }) : assert(icon != null || leading != null);
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +118,7 @@ class AppSheetRow<T> extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 8, AppSpacing.lg, 8),
           child: Row(
             children: [
-              Icon(icon, color: color, size: 22),
+              leading ?? Icon(icon, color: color, size: 22),
               const SizedBox(width: 17),
               Expanded(
                 child: Column(
