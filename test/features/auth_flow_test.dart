@@ -99,6 +99,19 @@ void main() {
     });
   });
 
+  group('switching from a QR code to a phone number', () {
+    test('the restarted client asking for a number keeps the phone page', () {
+      final transition = resolveAuthState(
+        current: const AuthState(step: AuthStep.waitPhoneNumber),
+        tdState: const td.AuthorizationStateWaitPhoneNumber(),
+        stayAtChooser: false,
+      );
+
+      expect(transition.state, isNull);
+      expect(transition.stayAtChooser, isFalse);
+    });
+  });
+
   group('shouldRequestQrCode', () {
     // TDLib rejects requestQrCodeAuthentication while it holds a code, and
     // refreshes the link itself.

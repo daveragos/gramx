@@ -22,7 +22,11 @@ AuthTransition resolveAuthState({
   required bool stayAtChooser,
 }) {
   if (tdState is td.AuthorizationStateWaitPhoneNumber) {
-    // A fresh attempt is possible, so the hold is released.
+    // A fresh attempt is possible, so the hold is released. The phone page
+    // stays: leaving a QR code restarts the client, which then asks again.
+    if (current.step == AuthStep.waitPhoneNumber) {
+      return const AuthTransition(stayAtChooser: false);
+    }
     return const AuthTransition(
       state: AuthState(step: AuthStep.loginMethodSelection),
       stayAtChooser: false,

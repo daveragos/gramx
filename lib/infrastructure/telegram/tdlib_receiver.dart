@@ -19,11 +19,19 @@ class TdlibReceiver {
   /// How long to wait for the isolate to confirm it opened TDLib.
   static const Duration readyTimeout = Duration(seconds: 2);
 
+  /// The longest [stop] waits: one whole receive, plus room to exit.
+  static final Duration _exitTimeout = Duration(
+    milliseconds: (receiveTimeoutSeconds * 1000).round() + 1000,
+  );
+
   final void Function(Map<String, dynamic> payload) onPayload;
 
   Isolate? _isolate;
   ReceivePort? _port;
   StreamSubscription<dynamic>? _sub;
+
+  /// Completes when the isolate has exited.
+  Future<void>? _exited;
 
   TdlibReceiver({required this.onPayload});
 
@@ -35,6 +43,7 @@ class TdlibReceiver {
     if (_isolate != null) return true;
 
     final port = ReceivePort();
+    final exitPort = ReceivePort();
     final ready = Completer<bool>();
 
     try {
@@ -43,12 +52,15 @@ class TdlibReceiver {
         port.sendPort,
         debugName: 'tdlib-receiver',
         errorsAreFatal: false,
+        onExit: exitPort.sendPort,
       );
     } catch (e) {
       debugPrint('[TdlibReceiver] Could not spawn isolate: $e');
       port.close();
+      exitPort.close();
       return false;
     }
+    _exited = exitPort.first;
 
     _port = port;
     _sub = port.listen((message) {
@@ -78,9 +90,22 @@ class TdlibReceiver {
     return true;
   }
 
+  /// Stops receiving and waits until the isolate has exited. The kill only
+  /// lands between receives, and a new receiver calling `td_receive` while
+  /// this one is still inside it crashes TDLib, as a sign-in restart did.
   Future<void> stop() async {
     _isolate?.kill(priority: Isolate.immediate);
     _isolate = null;
+    final exited = _exited;
+    _exited = null;
+    if (exited != null) {
+      await exited.timeout(
+        _exitTimeout,
+        onTimeout: () {
+          debugPrint('[TdlibReceiver] Isolate did not confirm its exit');
+        },
+      );
+    }
     await _sub?.cancel();
     _sub = null;
     _port?.close();
