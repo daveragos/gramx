@@ -17,6 +17,7 @@ import 'package:gramx/features/settings/data/storage_repository.dart';
 import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
+import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/features/auth/presentation/auth_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -410,6 +411,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .read(settingsProvider.notifier)
                 .toggleAutoDownloadImages(val),
           ),
+          ListTile(
+            leading: Icon(Icons.translate_rounded, color: primaryColor),
+            title: Text(
+              AppStrings.settingsTrokLanguageTitle,
+              style: AppTypography.body(color: primaryColor),
+            ),
+            subtitle: Text(
+              _trokLanguageLabel(settings.trokLanguage),
+              style: AppTypography.actionCount(color: secondaryColor),
+            ),
+            onTap: () => showAppSheet<void>(
+              context,
+              title: AppStrings.settingsTrokLanguageTitle,
+              children: [
+                for (final language in TrokLanguage.values)
+                  AppSheetRow<void>(
+                    icon: Icons.translate_rounded,
+                    label: _trokLanguageLabel(language),
+                    isSelected: language == settings.trokLanguage,
+                    onTap: () => ref
+                        .read(settingsProvider.notifier)
+                        .setTrokLanguage(language),
+                  ),
+              ],
+            ),
+          ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
           _SectionHeader(
@@ -618,6 +645,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // redirect takes them to sign-in on its own.
   }
 }
+
+String _trokLanguageLabel(TrokLanguage language) => switch (language) {
+  TrokLanguage.device => AppStrings.settingsTrokLanguageDevice,
+  TrokLanguage.english => AppStrings.settingsTrokLanguageEnglish,
+  TrokLanguage.amharic => AppStrings.settingsTrokLanguageAmharic,
+  TrokLanguage.oromo => AppStrings.settingsTrokLanguageOromo,
+};
 
 class _SectionHeader extends StatelessWidget {
   final String title;

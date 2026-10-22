@@ -1,5 +1,7 @@
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/config/trok_bots.dart';
+
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// Proof from Telegram of who is asking: Mini App init data for Trok's bot,
@@ -17,7 +19,7 @@ abstract interface class TrokCredentials {
 /// without showing the app.
 class TdlibTrokCredentials implements TrokCredentials {
   /// Trok's bot. Telegram signs init data for it.
-  static const botUsername = 'tr0kbot';
+  static const botUsername = TrokBots.trok;
 
   /// How gramX names itself to Telegram when opening the Mini App.
   static const applicationName = 'gramx';
@@ -67,7 +69,12 @@ class TdlibTrokCredentials implements TrokCredentials {
       const td.SearchPublicChat(username: botUsername),
     );
     if (chat is td.Chat && chat.type is td.ChatTypePrivate) {
-      return (chat.type as td.ChatTypePrivate).userId;
+      final userId = (chat.type as td.ChatTypePrivate).userId;
+      // TDLib knows a bot has a Main Mini App only once it holds the bot's
+      // full profile. Without it, the first getMainWebApp for a bot new to
+      // this phone fails.
+      await _tdlib.sendRequest(td.GetUserFullInfo(userId: userId));
+      return userId;
     }
     throw StateError('@$botUsername is not a bot Telegram knows.');
   }

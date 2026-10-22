@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:gramx/core/telegram/telegram_ids.dart';
+import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 
@@ -47,6 +49,10 @@ class TrokPostSource extends TrokSource {
   final String snippet;
   final DateTime? publishedAt;
 
+  /// The picture the card shows of the post. Null when it has none, or
+  /// gramX doesn't hold the post; the card then looks it up.
+  final TrokSourcePicture? picture;
+
   const TrokPostSource({
     required this.channelTitle,
     required this.snippet,
@@ -56,17 +62,69 @@ class TrokPostSource extends TrokSource {
     this.avatarPath,
     this.avatarFileId,
     this.avatarColorHex,
+    this.picture,
   });
 
   factory TrokPostSource.fromPost(Post post) => TrokPostSource(
     postId: post.id,
+    // As Trok's citations of it read, so they can be matched to it.
+    link: TelegramIds.postLink(
+      chatId: post.chatId,
+      messageId: post.messageId,
+      username: post.channelUsername,
+    ),
     channelTitle: post.channelTitle,
     avatarPath: post.channelAvatarUrl,
     avatarFileId: post.channelAvatarFileId,
     avatarColorHex: post.channelAvatarColor,
     snippet: (post.text ?? '').trim(),
     publishedAt: post.publishedAt,
+    picture: TrokSourcePicture.of(post),
   );
+}
+
+/// A small picture of a source, for its card.
+@immutable
+class TrokSourcePicture {
+  /// TDLib's id for the picture.
+  final int fileId;
+
+  /// TDLib's tiny blurred preview, shown until the picture arrives.
+  final String? minithumbnail;
+
+  /// Whether it is a video's cover, which the card marks.
+  final bool isVideo;
+
+  const TrokSourcePicture({
+    required this.fileId,
+    this.minithumbnail,
+    this.isVideo = false,
+  });
+
+  /// [post]'s first photo, or the cover of its first video, GIF or file,
+  /// or else its link's picture. Null when it has none.
+  static TrokSourcePicture? of(Post post) {
+    for (final media in post.media) {
+      if (media.type == MediaType.audio || media.type == MediaType.voice) {
+        continue;
+      }
+      // Only a photo is its own picture; a video's file is the video.
+      final fileId = media.type == MediaType.photo
+          ? media.thumbnailFileId ?? media.fileId
+          : media.thumbnailFileId;
+      if (fileId == null || fileId <= 0) continue;
+      return TrokSourcePicture(
+        fileId: fileId,
+        minithumbnail: media.minithumbnail,
+        isVideo: media.type == MediaType.video,
+      );
+    }
+    final linkPicture = post.linkPreviewFileId;
+    if (linkPicture != null && linkPicture > 0) {
+      return TrokSourcePicture(fileId: linkPicture);
+    }
+    return null;
+  }
 }
 
 /// A web page Trok read, as fact-checks do. Opens in the browser.
@@ -199,6 +257,8 @@ class TrokAnswer extends TrokTurn {
   /// This answer with [event] applied, at [now].
   TrokAnswer apply(TrokEvent event, DateTime now) => switch (event) {
     TrokStarted(:final answerId) => copyWith(remoteId: answerId),
+    TrokStep(:final label, replacesLast: true) when steps.isNotEmpty =>
+      copyWith(steps: [...steps.sublist(0, steps.length - 1), label]),
     TrokStep(:final label) => copyWith(steps: [...steps, label]),
     TrokText(:final text, :final entities) => copyWith(
       state: TrokAnswerState.streaming,
@@ -341,7 +401,11 @@ class TrokStarted extends TrokEvent {
 class TrokStep extends TrokEvent {
   final String label;
 
-  const TrokStep(this.label);
+  /// Updates the last step in place, as progress does, rather than adding
+  /// another.
+  final bool replacesLast;
+
+  const TrokStep(this.label, {this.replacesLast = false});
 }
 
 /// The whole answer so far, replacing the last. Telegram bots stream by

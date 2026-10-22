@@ -1338,6 +1338,13 @@ abstract class AppStrings {
   static const trokThink = 'Think';
   static const trokThinkTooltip = 'Take longer and think it through';
   static const trokSend = 'Send';
+
+  // Asking by voice, in Trok's composer.
+  static const trokSpeak = 'Ask by voice';
+  static const trokStopListening = 'Stop listening';
+  static const trokListening = 'Listening';
+  static const trokVoiceUnavailable =
+      "Your phone can't listen for a question right now.";
   static const trokStop = 'Stop answering';
   static const trokNewChat = 'New chat';
   static const trokHistory = 'History';
@@ -1384,6 +1391,24 @@ abstract class AppStrings {
   static String trokAboutPost(String channel) => 'Post from $channel';
   static const trokRemovePost = 'Remove post';
 
+  // Which language Trok answers in, in Settings.
+  static const settingsTrokLanguageTitle = 'Trok answers in';
+  static const settingsTrokLanguageDevice = "Your phone's language";
+  static const settingsTrokLanguageEnglish = 'English';
+  static const settingsTrokLanguageAmharic = 'አማርኛ (Amharic)';
+  static const settingsTrokLanguageOromo = 'Afaan Oromoo';
+
+  // Shown while a post's file goes to Trok, before Trok's own steps.
+  static const trokSendingVideo = 'Sending the video';
+  static const trokSendingVoice = 'Sending the voice note';
+
+  /// One of the above, [percent] of the way through.
+  static String trokSendingProgress(String step, int percent) =>
+      '$step · $percent%';
+
+  /// Offered while "@trok" is typed in a comment or a group message.
+  static const trokMentionHint = 'Answers here, for everyone to see';
+
   // Starters on an empty chat. A prompt ending in a space is filled in by the
   // reader; the others are sent as they are.
   static const trokStarterCatchUp = 'Catch me up';
@@ -1403,6 +1428,14 @@ abstract class AppStrings {
   static const trokPostSummarizePrompt = 'Summarize this post';
   static const trokPostTranslate = 'Translate';
   static const trokPostTranslatePrompt = 'Translate this post';
+
+  // Translating a post in place, under it.
+  static const trokTranslatePost = 'Translate post';
+  static const trokShowTranslation = 'Show translation';
+  static const trokHideTranslation = 'Hide';
+  static const trokTranslating = 'Translating';
+  static const trokTranslatedBy = 'Translated by Trok';
+  static const trokTranslateFailed = "Couldn't translate this post.";
   static const trokPostFactCheck = 'Is this true?';
   static const trokPostAskOther = 'Ask something else';
 

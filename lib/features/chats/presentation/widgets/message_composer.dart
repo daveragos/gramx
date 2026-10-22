@@ -23,6 +23,8 @@ import 'package:gramx/features/compose/presentation/widgets/composer_tools.dart'
 import 'package:gramx/features/compose/presentation/widgets/poll_composer_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/self_destruct_sheet.dart';
 import 'package:gramx/features/chats/presentation/widgets/voice_record_bar.dart';
+import 'package:gramx/features/trok/data/trok_mention.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mention_suggestion.dart';
 
 /// The message input bar at the bottom of a conversation. Shares the
 /// attachment model and picker with the post compose screen.
@@ -80,6 +82,10 @@ class MessageComposer extends ConsumerStatefulWidget {
   /// Null hides the button in chats that forbid them.
   final Future<bool> Function(ComposeRemoteMedia media)? onSendRemote;
 
+  /// Offers Trok while "@Trok" is typed, and sends it to the bot that calls
+  /// Trok into the chat. For groups.
+  final bool offersTrok;
+
   const MessageComposer({
     super.key,
     required this.onSend,
@@ -97,6 +103,7 @@ class MessageComposer extends ConsumerStatefulWidget {
     this.onSendLocation,
     this.onSendContact,
     this.onSendRemote,
+    this.offersTrok = false,
     this.onPickSchedule,
   });
 
@@ -434,7 +441,12 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     // So dispose doesn't save the sent text back as a draft.
     widget.onDraftChanged?.call('');
 
-    final sent = await widget.onSend(text, attachments, schedule);
+    final sent = await widget.onSend(
+      // @Trok goes to the bot that calls Trok into the chat.
+      widget.offersTrok ? TrokMention.resolve(text) : text,
+      attachments,
+      schedule,
+    );
     if (!mounted) return;
     setState(() => _isSending = false);
 
@@ -480,6 +492,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                   message: widget.replyTo!,
                   onCancel: widget.onCancelReply,
                 ),
+              if (widget.offersTrok)
+                TrokMentionSuggestion(controller: _controller),
               if (_attachments.isNotEmpty)
                 _AttachmentStrip(
                   attachments: _attachments,

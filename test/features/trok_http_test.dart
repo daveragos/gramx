@@ -1,17 +1,26 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:handy_tdlib/api.dart' as td;
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/trok/data/http_trok_client.dart';
 import 'package:gramx/features/trok/data/sse_decoder.dart';
 import 'package:gramx/features/trok/data/trok_credentials.dart';
 import 'package:gramx/features/trok/data/trok_markdown.dart';
+import 'package:gramx/features/trok/data/trok_pictures.dart';
+import 'package:gramx/features/trok/data/trok_post_files.dart';
 import 'package:gramx/features/trok/data/trok_wire.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 
@@ -48,6 +57,45 @@ class _Credentials implements TrokCredentials {
     invalidated++;
     _held = null;
   }
+}
+
+class _Pictures implements TrokPictures {
+  final Future<List<TrokPicture>> Function(Post post) _of;
+  final asked = <String>[];
+
+  _Pictures(this._of);
+
+  @override
+  Future<List<TrokPicture>> of(Post post) {
+    asked.add(post.id);
+    return _of(post);
+  }
+}
+
+final _jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]);
+
+/// A post with one short video, held in a file the test writes.
+class _PostFiles implements TrokPostFiles {
+  final File file;
+  var asked = 0;
+
+  _PostFiles(this.file);
+
+  @override
+  Future<List<TrokPostFile>> of(Post post) async {
+    asked++;
+    return const [
+      TrokPostFile(
+        fileId: 7,
+        type: TrokFileType.video,
+        mimeType: 'video/mp4',
+        name: 'clip one.mp4',
+      ),
+    ];
+  }
+
+  @override
+  Future<File?> local(TrokPostFile file) async => this.file;
 }
 
 String sse(List<(String, Object?)> events) => [
@@ -112,10 +160,14 @@ void main() {
     HttpTrokClient clientWith(
       List<FutureOr<http.StreamedResponse> Function()> responses, {
       Duration silence = const Duration(seconds: 5),
+      TrokPictures? pictures,
+      TrokPostFiles? postFiles,
     }) {
       var i = 0;
       return HttpTrokClient(
         credentials: credentials,
+        pictures: pictures,
+        postFiles: postFiles,
         base: 'https://trok.test/v1',
         deviceLanguage: () => 'en',
         silence: silence,
@@ -123,7 +175,8 @@ void main() {
         client: MockClient.streaming((request, body) async {
           requests.add(request);
           final text = await body.bytesToString();
-          if (text.isNotEmpty) {
+          // Uploaded files aren't JSON.
+          if (text.isNotEmpty && request.url.path.endsWith('/ask')) {
             bodies.add(jsonDecode(text) as Map<String, dynamic>);
           }
           return responses[i++]();
@@ -236,6 +289,135 @@ void main() {
       expect((body['post'] as Map)['ref'], 'p1');
       expect(body['feed'], isEmpty);
       expect(body['question_id'], isNot(bodies.first['question_id']));
+    });
+
+    test('the post\'s pictures go with the first question only', () async {
+      final pictures = _Pictures(
+        (_) async => [TrokPicture(_jpeg, width: 800, height: 600)],
+      );
+      final client = clientWith([
+        () => streamed(sse(answer())),
+        () => streamed(sse(answer(text: 'More.'))),
+      ], pictures: pictures);
+      await client.ask(factCheck).drain<void>();
+      await client
+          .ask(
+            TrokRequest(prompt: 'Why?', post: subject, conversationId: 'c_1'),
+          )
+          .drain<void>();
+
+      final first = bodies.first['post'] as Map<String, dynamic>;
+      expect(first['images'], [
+        {
+          'mime_type': 'image/jpeg',
+          'width': 800,
+          'height': 600,
+          'data': base64Encode(_jpeg),
+        },
+      ]);
+      // Only the post asked about: the feed's pictures would be too many.
+      expect(pictures.asked, [subject.id, subject.id]);
+      for (final p in bodies.first['feed'] as List) {
+        expect((p as Map).containsKey('images'), isFalse);
+      }
+      expect((bodies.last['post'] as Map).containsKey('images'), isFalse);
+    });
+
+    test('a question goes without pictures that fail', () async {
+      final client = clientWith([
+        () => streamed(sse(answer())),
+      ], pictures: _Pictures((_) => Future.error(StateError('No file'))));
+      final events = await client.ask(factCheck).toList();
+
+      expect(events.whereType<TrokStarted>(), hasLength(1));
+      expect((bodies.single['post'] as Map).containsKey('images'), isFalse);
+    });
+
+    group('a post\'s video', () {
+      late Directory dir;
+      late File clip;
+      final bytes = utf8.encode('not really a video');
+      final hash = sha256.convert(bytes).toString();
+
+      setUp(() async {
+        dir = await Directory.systemTemp.createTemp('trok_files');
+        clip = File('${dir.path}/clip.mp4')..writeAsBytesSync(bytes);
+      });
+      tearDown(() => dir.delete(recursive: true));
+
+      List<String> paths() => [for (final r in requests) r.url.path];
+
+      test('Trok holds already is named, not sent again', () async {
+        final client = clientWith([
+          () => json({'file_id': 'f_held'}, 200),
+          () => streamed(sse(answer())),
+        ], postFiles: _PostFiles(clip));
+        final events = await client.ask(factCheck).toList();
+
+        expect(paths(), ['/v1/files', '/v1/ask']);
+        final check = requests.first;
+        expect(check.headers['X-Trok-File-SHA256'], hash);
+        expect(check.headers['X-Trok-File-Name'], 'clip%20one.mp4');
+        expect(check.headers['Content-Type'], startsWith('video/mp4'));
+        expect(check.headers['Authorization'], startsWith('tma '));
+        expect(bodies.single['post']['files'], [
+          {'file_id': 'f_held', 'type': 'video'},
+        ]);
+        // The reader sees it going before Trok answers.
+        expect(events.first, isA<TrokStep>());
+        expect((events.first as TrokStep).label, AppStrings.trokSendingVideo);
+      });
+
+      test('Trok lacks is uploaded, then named', () async {
+        final client = clientWith([
+          () => json({
+            'error': {'code': 'not_found', 'message': 'No such file'},
+          }, 404),
+          () => json({'file_id': 'f_new', 'size': bytes.length}, 201),
+          () => streamed(sse(answer())),
+        ], postFiles: _PostFiles(clip));
+        final events = await client.ask(factCheck).toList();
+
+        expect(paths(), ['/v1/files', '/v1/files', '/v1/ask']);
+        expect(requests[1].contentLength, bytes.length);
+        // The upload's progress updates the sending step in place.
+        final progress = events.whereType<TrokStep>().where(
+          (s) => s.replacesLast,
+        );
+        expect(
+          progress.last.label,
+          AppStrings.trokSendingProgress(AppStrings.trokSendingVideo, 100),
+        );
+        expect(bodies.single['post']['files'], [
+          {'file_id': 'f_new', 'type': 'video'},
+        ]);
+      });
+
+      test('Trok switched off: the question goes without it', () async {
+        final client = clientWith([
+          () => json(null, 404),
+          () => streamed(sse(answer())),
+        ], postFiles: _PostFiles(clip));
+        await client.ask(factCheck).drain<void>();
+
+        expect(paths(), ['/v1/files', '/v1/ask']);
+        expect((bodies.single['post'] as Map).containsKey('files'), isFalse);
+      });
+
+      test('a follow-up sends no files', () async {
+        final files = _PostFiles(clip);
+        final client = clientWith([
+          () => streamed(sse(answer())),
+        ], postFiles: files);
+        await client
+            .ask(
+              TrokRequest(prompt: 'Why?', post: subject, conversationId: 'c_1'),
+            )
+            .drain<void>();
+
+        expect(files.asked, 0);
+        expect(paths(), ['/v1/ask']);
+      });
     });
 
     test('starters are sent as their actions', () async {
@@ -683,7 +865,317 @@ void main() {
     });
   });
 
+  group('TdlibTrokPostFiles.fileOf', () {
+    td.File file(int id, int bytes) => td.File(
+      id: id,
+      size: bytes,
+      expectedSize: bytes,
+      local: const td.LocalFile(
+        path: '',
+        canBeDownloaded: true,
+        canBeDeleted: true,
+        isDownloadingActive: false,
+        isDownloadingCompleted: false,
+        downloadOffset: 0,
+        downloadedPrefixSize: 0,
+        downloadedSize: 0,
+      ),
+      remote: td.RemoteFile(
+        id: 'r$id',
+        uniqueId: 'u$id',
+        isUploadingActive: false,
+        isUploadingCompleted: true,
+        uploadedSize: bytes,
+      ),
+    );
+
+    td.MessageContent video(
+      int seconds, {
+      int bytes = 4000000,
+      String mime = 'video/mp4',
+      String name = 'clip.mp4',
+    }) => td.MessageVideo(
+      video: td.Video(
+        duration: seconds,
+        width: 1280,
+        height: 720,
+        fileName: name,
+        mimeType: mime,
+        hasStickers: false,
+        supportsStreaming: true,
+        video: file(1, bytes),
+      ),
+      caption: const td.FormattedText(text: '', entities: []),
+      showCaptionAboveMedia: false,
+      hasSpoiler: false,
+      isSecret: false,
+    );
+
+    td.MessageContent voice(int seconds, {String mime = 'audio/ogg'}) =>
+        td.MessageVoiceNote(
+          voiceNote: td.VoiceNote(
+            duration: seconds,
+            waveform: '',
+            mimeType: mime,
+            voice: file(2, 200000),
+          ),
+          caption: const td.FormattedText(text: '', entities: []),
+          isListened: true,
+        );
+
+    test('takes a short video and a voice note, as Trok names them', () {
+      final clip = TdlibTrokPostFiles.fileOf(video(45))!;
+      expect(clip.type.wire, 'video');
+      expect(clip.mimeType, 'video/mp4');
+      expect(clip.name, 'clip.mp4');
+      expect(clip.fileId, 1);
+
+      final note = TdlibTrokPostFiles.fileOf(voice(4 * 60))!;
+      expect(note.type.wire, 'voice');
+      expect(note.name, 'voice.ogg');
+    });
+
+    test('leaves out what Trok doesn\'t take', () {
+      for (final (reason, content) in [
+        ('a video over a minute', video(61)),
+        ('a file over 20 MB', video(30, bytes: 21000000)),
+        ('a type Trok can\'t read', video(30, mime: 'video/x-matroska')),
+        ('a voice note over five minutes', voice(5 * 60 + 1)),
+        (
+          'a picture',
+          const td.MessageText(
+            text: td.FormattedText(text: 'hi', entities: []),
+          ),
+        ),
+      ]) {
+        expect(TdlibTrokPostFiles.fileOf(content), isNull, reason: reason);
+      }
+    });
+  });
+
+  group('TdlibTrokPictures.readableSize', () {
+    td.PhotoSize size(String type, int side, int bytes, {bool held = false}) =>
+        td.PhotoSize(
+          type: type,
+          photo: td.File(
+            id: side,
+            size: bytes,
+            expectedSize: bytes,
+            local: td.LocalFile(
+              path: held ? '/photos/$type.jpg' : '',
+              canBeDownloaded: true,
+              canBeDeleted: true,
+              isDownloadingActive: false,
+              isDownloadingCompleted: held,
+              downloadOffset: 0,
+              downloadedPrefixSize: held ? bytes : 0,
+              downloadedSize: held ? bytes : 0,
+            ),
+            remote: td.RemoteFile(
+              id: 'r$type',
+              uniqueId: 'u$type',
+              isUploadingActive: false,
+              isUploadingCompleted: true,
+              uploadedSize: bytes,
+            ),
+          ),
+          width: side,
+          height: side * 3 ~/ 4,
+          progressiveSizes: const [],
+        );
+
+    test('takes the largest size within the limits', () {
+      final sizes = [
+        size('s', 90, 2000),
+        size('m', 320, 20000),
+        size('x', 800, 90000),
+        size('y', 1280, 200000),
+        size('w', 2560, 600000),
+      ];
+      expect(TdlibTrokPictures.readableSize(sizes)?.type, 'x');
+    });
+
+    test('prefers a readable size already on the phone', () {
+      final sizes = [
+        size('m', 320, 20000, held: true),
+        size('x', 800, 90000, held: true),
+        size('y', 1280, 140000),
+      ];
+      expect(TdlibTrokPictures.readableSize(sizes)?.type, 'x');
+    });
+
+    test('downloads a readable size over a small one on the phone', () {
+      final sizes = [size('m', 320, 20000, held: true), size('x', 800, 90000)];
+      expect(TdlibTrokPictures.readableSize(sizes)?.type, 'x');
+    });
+
+    test('falls back to the largest size already on the phone', () {
+      final sizes = [
+        size('s', 90, 2000, held: true),
+        size('m', 320, 20000, held: true),
+        size('x', 800, 90000),
+        size('w', 2560, 600000, held: true),
+      ];
+      expect(TdlibTrokPictures.readableSize(sizes)?.type, 'x');
+      expect(TdlibTrokPictures.heldSize(sizes)?.type, 'm');
+    });
+
+    test('a photo with no size small enough sends none', () {
+      expect(TdlibTrokPictures.readableSize([size('w', 2560, 600000)]), isNull);
+    });
+  });
+
   group('TrokWire.post', () {
+    test('a post\'s files go by Trok\'s ids', () {
+      final sent = TrokWire.post(
+        post(5),
+        'p1',
+        files: const [
+          (fileId: 'f_1', type: TrokFileType.roundVideo),
+          (fileId: 'f_2', type: TrokFileType.voice),
+        ],
+      );
+      expect(sent['files'], [
+        {'file_id': 'f_1', 'type': 'round_video'},
+        {'file_id': 'f_2', 'type': 'voice'},
+      ]);
+      expect(TrokWire.post(post(5), 'p1').containsKey('files'), isFalse);
+    });
+
+    test('media goes with the names and lengths the reader sees', () {
+      final sent = TrokWire.post(
+        post(5).copyWith(
+          media: const [
+            MediaItem(id: 'a', type: MediaType.photo),
+            MediaItem(
+              id: 'b',
+              type: MediaType.document,
+              fileName: 'Budget 2027.pdf',
+            ),
+            MediaItem(
+              id: 'c',
+              type: MediaType.audio,
+              fileName: 'Teddy Afro - Tikur Sew.mp3',
+              duration: 312,
+            ),
+            MediaItem(
+              id: 'd',
+              type: MediaType.voice,
+              fileName: 'Voice message',
+              duration: 41,
+            ),
+          ],
+        ),
+        'p1',
+      );
+      expect(sent['media'], [
+        {'type': 'photo'},
+        {'type': 'document', 'file_name': 'Budget 2027.pdf'},
+        {
+          'type': 'audio',
+          'file_name': 'Teddy Afro - Tikur Sew.mp3',
+          'duration': 312,
+        },
+        {'type': 'voice', 'duration': 41},
+      ]);
+    });
+
+    test('a poll goes with its question and options', () {
+      const poll = Poll(
+        id: '1',
+        question: 'Which city next?',
+        options: [
+          PollOption(text: 'Adama', voterCount: 0),
+          PollOption(text: 'Hawassa', voterCount: 0),
+        ],
+        totalVoterCount: 57,
+        isAnonymous: true,
+        isClosed: false,
+        isQuiz: false,
+      );
+      final sent = TrokWire.post(post(5).copyWith(poll: poll), 'p1');
+      expect(sent['media'], [
+        {'type': 'poll'},
+      ]);
+      // Telegram hides the split until the reader votes.
+      expect(sent['poll'], {
+        'question': 'Which city next?',
+        'options': [
+          {'text': 'Adama'},
+          {'text': 'Hawassa'},
+        ],
+        'total_voters': 57,
+        'quiz': false,
+        'multiple_answers': false,
+        'closed': false,
+      });
+
+      final closed = TrokWire.post(
+        post(5).copyWith(
+          poll: poll.copyWith(
+            isClosed: true,
+            options: const [
+              PollOption(text: 'Adama', voterCount: 40),
+              PollOption(text: 'Hawassa', voterCount: 17),
+            ],
+          ),
+        ),
+        'p1',
+      );
+      expect((closed['poll'] as Map)['options'], [
+        {'text': 'Adama', 'voters': 40},
+        {'text': 'Hawassa', 'voters': 17},
+      ]);
+    });
+
+    test('a link\'s preview and the post replied to go along', () {
+      final sent = TrokWire.post(
+        post(5).copyWith(
+          linkPreviewUrl: 'https://25dark.itch.io/obs-lite',
+          linkPreviewTitle: 'Obs Lite by 25Dark',
+          linkPreviewDescription: 'Lightweight screen recorder for Windows',
+          replyToText: 'Release day is Friday.',
+          replyToIsQuote: true,
+          replyToAuthorTitle: 'Durov',
+        ),
+        'p1',
+      );
+      expect(sent['link_preview'], {
+        'url': 'https://25dark.itch.io/obs-lite',
+        'title': 'Obs Lite by 25Dark',
+        'description': 'Lightweight screen recorder for Windows',
+      });
+      expect(sent['reply_to'], {
+        'text': 'Release day is Friday.',
+        'quote': true,
+        'author': 'Durov',
+      });
+    });
+
+    test('a plain post has none of them', () {
+      final sent = TrokWire.post(post(5), 'p1');
+      for (final key in ['poll', 'link_preview', 'reply_to', 'images']) {
+        expect(sent.containsKey(key), isFalse, reason: key);
+      }
+    });
+
+    test('a link preview\'s picture says so', () {
+      final sent = TrokWire.post(
+        post(5),
+        'p1',
+        pictures: [
+          TrokPicture(_jpeg, width: 800, height: 420, isLinkPreview: true),
+        ],
+      );
+      expect((sent['images'] as List).single, {
+        'mime_type': 'image/jpeg',
+        'width': 800,
+        'height': 420,
+        'link_preview': true,
+        'data': base64Encode(_jpeg),
+      });
+    });
+
     test('a private channel\'s post has no link', () {
       expect(TrokWire.post(post(5, username: null), 'p1')['link'], isNull);
     });

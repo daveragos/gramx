@@ -1201,6 +1201,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               onRecordVideoNote: _recordVideoNote,
               onSendLocation: _sendLocation,
               onSendContact: _sendContact,
+              offersTrok: summary?.kind == ChatKind.group,
               // Stickers and GIFs share one permission.
               onSendRemote:
                   ref

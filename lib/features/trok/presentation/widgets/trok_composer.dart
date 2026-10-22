@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +11,12 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/trok/data/trok_client.dart';
+import 'package:gramx/features/trok/data/trok_voice.dart';
 import 'package:gramx/features/trok/data/trok_wire.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 import 'package:gramx/features/trok/presentation/trok_controller.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_picture.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_style.dart';
 
 /// Where questions are typed. While Trok answers, send turns into stop.
@@ -51,10 +56,48 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
   @override
   void dispose() {
     widget.controller.removeListener(_onText);
+    if (_listening) unawaited(_voice.stop());
     super.dispose();
   }
 
   void _onText() => setState(() {});
+
+  /// Whether a spoken question is being heard.
+  bool _listening = false;
+  late final TrokVoice _voice = ref.read(trokVoiceProvider);
+
+  /// Starts hearing a question, or stops and keeps what was heard. The words
+  /// fill the box, to read over and send.
+  Future<void> _toggleListening() async {
+    if (_listening) {
+      HapticFeedback.lightImpact();
+      await _voice.stop();
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() => _listening = true);
+    final heard = await _voice.listen(
+      language: ref.read(trokAnswerLanguageProvider),
+      onWords: (words, done) {
+        if (!mounted) return;
+        if (words.isNotEmpty) {
+          widget.controller.value = TextEditingValue(
+            text: words,
+            selection: TextSelection.collapsed(offset: words.length),
+          );
+        }
+        if (done) setState(() => _listening = false);
+      },
+    );
+    if (heard || !mounted) return;
+    setState(() => _listening = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(AppStrings.trokVoiceUnavailable),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   void _send() {
     final text = widget.controller.text.trim();
@@ -147,7 +190,9 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
                 color: theme.colorScheme.onSurface,
               ).copyWith(fontWeight: FontWeight.w400),
               decoration: InputDecoration(
-                hintText: trok.active == null
+                hintText: _listening
+                    ? AppStrings.trokListening
+                    : trok.active == null
                     ? AppStrings.trokComposerHint
                     : AppStrings.trokComposerHintFollowUp,
                 hintStyle: AppTypography.bodyLarge(
@@ -188,15 +233,19 @@ class _TrokComposerState extends ConsumerState<TrokComposer> {
                 )
               else
                 const Spacer(),
-              _SendButton(
-                answering: trok.isAnswering,
-                enabled: hasText,
-                onSend: _send,
-                onStop: () {
-                  HapticFeedback.lightImpact();
-                  notifier.stop();
-                },
-              ),
+              // An empty box offers to speak the question instead.
+              if (!trok.isAnswering && (!hasText || _listening))
+                _MicButton(listening: _listening, onTap: _toggleListening)
+              else
+                _SendButton(
+                  answering: trok.isAnswering,
+                  enabled: hasText,
+                  onSend: _send,
+                  onStop: () {
+                    HapticFeedback.lightImpact();
+                    notifier.stop();
+                  },
+                ),
             ],
           ),
         ],
@@ -268,6 +317,45 @@ class _ThinkChip extends StatelessWidget {
   }
 }
 
+/// Speaks a question to Trok; while it listens, stops listening.
+class _MicButton extends StatelessWidget {
+  final bool listening;
+  final VoidCallback onTap;
+
+  const _MicButton({required this.listening, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
+    return Tooltip(
+      message: listening ? AppStrings.trokStopListening : AppStrings.trokSpeak,
+      child: Semantics(
+        button: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: listening
+                  ? AppColors.accent
+                  : onSurface.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              listening ? Icons.stop_rounded : Icons.mic_none_rounded,
+              size: 21,
+              color: listening ? Colors.white : onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SendButton extends StatelessWidget {
   final bool answering;
   final bool enabled;
@@ -331,17 +419,18 @@ class _SendButton extends StatelessWidget {
 }
 
 /// The post the next question is about, with a way to drop it.
-class _DraftPostChip extends StatelessWidget {
+class _DraftPostChip extends ConsumerWidget {
   final Post post;
   final VoidCallback onRemove;
 
   const _DraftPostChip({required this.post, required this.onRemove});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final secondary = TrokStyle.secondary(theme);
     final snippet = (post.text ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    final picture = trokPictureOf(ref, post);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -357,13 +446,23 @@ class _DraftPostChip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ChannelAvatar(
-            title: post.channelTitle,
-            avatarPath: post.channelAvatarUrl,
-            avatarFileId: post.channelAvatarFileId,
-            avatarColorHex: post.channelAvatarColor,
-            radius: 14,
-          ),
+          // The post's picture says which post it is better than its channel.
+          if (picture != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
+              child: SizedBox.square(
+                dimension: 40,
+                child: TrokPictureView(picture: picture, markSize: 12),
+              ),
+            )
+          else
+            ChannelAvatar(
+              title: post.channelTitle,
+              avatarPath: post.channelAvatarUrl,
+              avatarFileId: post.channelAvatarFileId,
+              avatarColorHex: post.channelAvatarColor,
+              radius: 14,
+            ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(

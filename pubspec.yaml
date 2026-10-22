@@ -43,6 +43,11 @@ dependencies:
 
   # Utilities
   intl: ^0.20.2
+  # Hashes a post's video before sending it to Trok, which may hold it already.
+  crypto: ^3.0.7
+  # A question spoken to Trok, turned into words by the phone's own speech
+  # recognition.
+  speech_to_text: ^7.5.0
   path_provider: ^2.1.5
   path: ^1.9.1
   url_launcher: ^6.3.2

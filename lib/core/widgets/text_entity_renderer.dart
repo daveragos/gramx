@@ -12,6 +12,7 @@ import 'package:gramx/core/navigation/url_launcher_utils.dart';
 import 'package:gramx/core/text/text_clamp.dart';
 import 'package:gramx/core/text/text_direction.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/core/config/trok_bots.dart';
 import 'package:gramx/core/navigation/mention_navigation.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
@@ -254,7 +255,10 @@ class TextEntityRenderer extends StatelessWidget {
         );
       case TextEntityType.mention:
         return TextSpan(
-          text: display,
+          // Trok's bots read as Trok, however the message named them.
+          text: TrokBots.calls(entityText)
+              ? display.replaceFirst(entityText, TrokBots.shown)
+              : display,
           style: accentStyle,
           recognizer: TapGestureRecognizer()
             ..onTap = () => _handleMentionTap(context, entityText),

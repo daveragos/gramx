@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,6 +13,8 @@ import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/trok/data/sse_decoder.dart';
 import 'package:gramx/features/trok/data/trok_client.dart';
 import 'package:gramx/features/trok/data/trok_credentials.dart';
+import 'package:gramx/features/trok/data/trok_pictures.dart';
+import 'package:gramx/features/trok/data/trok_post_files.dart';
 import 'package:gramx/features/trok/data/trok_wire.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 
@@ -25,11 +29,16 @@ const trokApiBase = String.fromEnvironment(
 /// answer streams back on it as server-sent events.
 class HttpTrokClient implements TrokClient {
   final TrokCredentials _credentials;
+  final TrokPictures? _pictures;
+  final TrokPostFiles? _postFiles;
   final http.Client _http;
   final Uri _base;
 
   /// The phone's language, for choosing what to translate into.
   final String Function() _deviceLanguage;
+
+  /// The language the reader wants answers in: `en` or `am`.
+  final String Function() _answerLanguage;
 
   /// Silence after which a connection is taken for dropped. Trok pings
   /// every 15 seconds while it works.
@@ -44,20 +53,33 @@ class HttpTrokClient implements TrokClient {
 
   HttpTrokClient({
     required TrokCredentials credentials,
+    TrokPictures? pictures,
+    TrokPostFiles? postFiles,
     http.Client? client,
     String base = trokApiBase,
     String Function()? deviceLanguage,
+    String Function()? answerLanguage,
     this.silence = const Duration(seconds: 60),
     this.reconnectDelay = const Duration(seconds: 1),
   }) : _credentials = credentials,
+       _pictures = pictures,
+       _postFiles = postFiles,
        _http = client ?? http.Client(),
        _base = Uri.parse(base.endsWith('/') ? base : '$base/'),
        _deviceLanguage =
            deviceLanguage ??
-           (() => PlatformDispatcher.instance.locale.languageCode);
+           (() => PlatformDispatcher.instance.locale.languageCode),
+       _answerLanguage = answerLanguage ?? (() => 'en');
 
   /// How long a plain JSON call may take.
   static const _callTimeout = Duration(seconds: 20);
+
+  /// How long a question waits for its post's pictures before going without.
+  static const _picturesTimeout = Duration(seconds: 8);
+
+  /// How long a question waits for its post's videos and voice notes to
+  /// reach Trok before going without them.
+  static const filesTimeout = Duration(seconds: 120);
 
   void close() => _http.close();
 
@@ -172,6 +194,141 @@ class HttpTrokClient implements TrokClient {
     return TrokFailure('http_$status', AppStrings.trokFailed);
   }
 
+  /// [post]'s pictures, or none if they can't be had in time: the question
+  /// goes either way.
+  Future<List<TrokPicture>> _picturesOf(Post? post) async {
+    final pictures = _pictures;
+    if (post == null || pictures == null) return const [];
+    try {
+      return await pictures.of(post).timeout(_picturesTimeout);
+    } on Object catch (e) {
+      debugPrint('[Trok] pictures of ${post.id} failed: $e');
+      return const [];
+    }
+  }
+
+  /// [post]'s videos and voice notes, sent to Trok ahead of the question.
+  /// [sending] hears of each before it goes. Those that can't be sent before
+  /// [abort] are left out: the question goes either way.
+  Future<List<TrokSentFile>> _filesOf(
+    Post? post, {
+    required void Function(TrokFileType type, int? percent) sending,
+    required Completer<void> abort,
+  }) async {
+    final postFiles = _postFiles;
+    if (post == null || postFiles == null) return const [];
+    final sent = <TrokSentFile>[];
+    try {
+      for (final file in await postFiles.of(post)) {
+        if (abort.isCompleted) break;
+        sending(file.type, null);
+        final id = await _send(
+          file,
+          postFiles,
+          abort,
+          progress: (percent) => sending(file.type, percent),
+        );
+        if (id != null) sent.add((fileId: id, type: file.type));
+      }
+    } on Object catch (e) {
+      debugPrint('[Trok] files of ${post.id} failed: $e');
+    }
+    return sent;
+  }
+
+  /// Trok's id for [file], uploading it unless Trok holds it already.
+  Future<String?> _send(
+    TrokPostFile file,
+    TrokPostFiles postFiles,
+    Completer<void> abort, {
+    void Function(int percent)? progress,
+  }) async {
+    try {
+      final local = await Future.any([
+        postFiles.local(file),
+        abort.future.then((_) => null),
+      ]);
+      if (local == null || abort.isCompleted) return null;
+      final path = local.path;
+      final hash = await _hashOf(path);
+      final url = _base.resolve('files');
+      final headers = {
+        ...await _headers(),
+        'Content-Type': file.mimeType,
+        'X-Trok-File-Name': Uri.encodeComponent(file.name),
+        'X-Trok-File-SHA256': hash,
+      };
+
+      // Asked with no body first: another reader of the post may have
+      // sent the same file already.
+      final check = http.AbortableRequest(
+        'POST',
+        url,
+        abortTrigger: abort.future,
+      )..headers.addAll(headers);
+      final held = await http.Response.fromStream(
+        await _http.send(check).timeout(_callTimeout),
+      );
+      if (held.statusCode == HttpStatus.ok) return _fileIdOf(held.bodyBytes);
+      // An empty 404 is Trok switched off, not a file it lacks.
+      if (held.statusCode != HttpStatus.notFound || held.bodyBytes.isEmpty) {
+        debugPrint('[Trok] ${file.name} not checked: ${held.statusCode}');
+        return null;
+      }
+
+      final size = await local.length();
+      final upload =
+          http.AbortableStreamedRequest('POST', url, abortTrigger: abort.future)
+            ..headers.addAll(headers)
+            ..contentLength = size;
+      var sent = 0;
+      var shown = 0;
+      local.openRead().listen(
+        (chunk) {
+          upload.sink.add(chunk);
+          sent += chunk.length;
+          // Every tenth, so the step doesn't redraw for each chunk.
+          final percent = size == 0 ? 100 : sent * 100 ~/ size;
+          if (percent >= shown + 10 || percent == 100) {
+            shown = percent;
+            progress?.call(percent);
+          }
+        },
+        onError: upload.sink.addError,
+        onDone: upload.sink.close,
+        cancelOnError: true,
+      );
+      final response = await http.Response.fromStream(await _http.send(upload));
+      if (response.statusCode == HttpStatus.created ||
+          response.statusCode == HttpStatus.ok) {
+        return _fileIdOf(response.bodyBytes);
+      }
+      debugPrint('[Trok] ${file.name} not taken: ${response.statusCode}');
+      return null;
+    } on Object catch (e) {
+      debugPrint('[Trok] ${file.name} not sent: $e');
+      return null;
+    }
+  }
+
+  static String? _fileIdOf(List<int> body) {
+    try {
+      final json = jsonDecode(utf8.decode(body));
+      final id = json is Map<String, dynamic> ? json['file_id'] : null;
+      return id is String && id.isNotEmpty ? id : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// [path]'s SHA-256, worked out off the main isolate. Kept apart so the
+  /// isolate's closure holds nothing but the path.
+  static Future<String> _hashOf(String path) =>
+      Isolate.run(() => _sha256Of(path));
+
+  static Future<String> _sha256Of(String path) async =>
+      (await sha256.bind(File(path).openRead()).first).toString();
+
   /// A new question id: Trok answers each id once, so a retry repeats it.
   String _questionId() {
     final bytes = List.generate(16, (_) => _random.nextInt(256));
@@ -214,6 +371,12 @@ class _Answer {
   final _markdown = StringBuffer();
 
   late TrokRefs _refs;
+  List<TrokPicture> _pictures = const [];
+  List<TrokSentFile> _files = const [];
+
+  /// Stops sending the post's files, when the reader stops the answer or
+  /// they take too long.
+  Completer<void>? _filesAbort;
   late String? _conversationId = request.conversationId;
   late String? _replaceAnswerId = request.replaceAnswerId;
 
@@ -228,6 +391,22 @@ class _Answer {
     _refs = conversationId == null
         ? TrokRefs()
         : client._refs.putIfAbsent(conversationId, TrokRefs.rebuilt);
+    _pictures = await client._picturesOf(request.post);
+    if (_cancelled) return;
+    // Like pictures, files go with a conversation's first question only.
+    if (_conversationId == null) {
+      final abort = _filesAbort = Completer<void>();
+      final timer = Timer(HttpTrokClient.filesTimeout, () {
+        if (!abort.isCompleted) abort.complete();
+      });
+      _files = await client._filesOf(
+        request.post,
+        sending: _showSending,
+        abort: abort,
+      );
+      timer.cancel();
+      if (_cancelled) return;
+    }
     var signedInAgain = false;
     var reconnects = 0;
 
@@ -277,9 +456,28 @@ class _Answer {
     if (!_cancelled) await out.close();
   }
 
+  /// Shows that a file is on its way before Trok has said anything, and
+  /// how far its upload has got.
+  void _showSending(TrokFileType type, int? percent) {
+    if (out.isClosed) return;
+    final step = type == TrokFileType.voice
+        ? AppStrings.trokSendingVoice
+        : AppStrings.trokSendingVideo;
+    out.add(
+      percent == null
+          ? TrokStep(step)
+          : TrokStep(
+              AppStrings.trokSendingProgress(step, percent),
+              replacesLast: true,
+            ),
+    );
+  }
+
   /// Closing the connection tells Trok to stop writing.
   Future<void> cancel() async {
     _cancelled = true;
+    final filesAbort = _filesAbort;
+    if (filesAbort != null && !filesAbort.isCompleted) filesAbort.complete();
     _closeConnection();
     _end();
     await _lines?.cancel();
@@ -417,6 +615,17 @@ class _Answer {
   List<int> _body() {
     final post = request.post;
     final firstQuestion = _conversationId == null;
+    // Like the feed, pictures go with the first question only, for Trok to
+    // keep with the conversation. Sending them again would cost the reader
+    // the data on every follow-up.
+    final sentPost = post == null
+        ? null
+        : TrokWire.post(
+            post,
+            _refs.refFor(post),
+            pictures: firstQuestion ? _pictures : const [],
+            files: firstQuestion ? _files : const [],
+          );
     var feed = firstQuestion ? _feed : const <Post>[];
     while (true) {
       final body = utf8.encode(
@@ -426,13 +635,17 @@ class _Answer {
           'text': _cut(request.prompt, TrokWire.questionLimit),
           'action': TrokWire.action(request),
           'think': request.think,
-          'language': 'en',
+          'language': client._answerLanguage(),
           'translate_to':
               request.action == TrokPostAction.translate && post != null
-              ? TrokWire.translateTarget(post, client._deviceLanguage())
+              ? TrokWire.translateTarget(
+                  post,
+                  client._deviceLanguage(),
+                  answerLanguage: client._answerLanguage(),
+                )
               : null,
           'replace_answer_id': _replaceAnswerId,
-          'post': post == null ? null : TrokWire.post(post, _refs.refFor(post)),
+          'post': sentPost,
           'feed': [for (final p in feed) TrokWire.post(p, _refs.refFor(p))],
         }),
       );

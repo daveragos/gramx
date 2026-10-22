@@ -1,10 +1,15 @@
+import 'dart:convert';
+
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/navigation/telegram_link.dart';
 import 'package:gramx/core/telegram/telegram_ids.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
+import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/trok/data/trok_markdown.dart';
+import 'package:gramx/features/trok/data/trok_pictures.dart';
+import 'package:gramx/features/trok/data/trok_post_files.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 
 /// The posts sent in one conversation, by the short ref Trok cites each by
@@ -100,8 +105,13 @@ abstract final class TrokWire {
   /// Post text past this is cut, as Trok would cut it.
   static const postTextLimit = 4096;
 
-  /// A post as Trok reads it.
-  static Map<String, Object?> post(Post post, String ref) {
+  /// A post as Trok reads it, with [pictures] of it when sent.
+  static Map<String, Object?> post(
+    Post post,
+    String ref, {
+    List<TrokPicture> pictures = const [],
+    List<TrokSentFile> files = const [],
+  }) {
     final text = _cut(post.text ?? '', postTextLimit);
     return {
       'ref': ref,
@@ -130,9 +140,43 @@ abstract final class TrokWire {
               },
       ],
       'media': [
-        for (final m in post.media) {'type': _mediaTypes[m.type]},
+        for (final m in post.media)
+          {
+            'type': _mediaTypes[m.type],
+            if (_named.contains(m.type)) 'file_name': ?_string(m.fileName),
+            if (m.duration > 0) 'duration': m.duration,
+          },
         if (post.poll != null) {'type': 'poll'},
       ],
+      if (post.poll case final poll?) 'poll': _poll(poll),
+      if (_string(post.linkPreviewUrl) case final url?)
+        'link_preview': {
+          'url': url,
+          'title': _string(post.linkPreviewTitle),
+          'description': _string(post.linkPreviewDescription),
+        },
+      if (_string(post.replyToText) case final text?)
+        'reply_to': {
+          'text': text,
+          'quote': post.replyToIsQuote,
+          'author': _string(post.replyToAuthorTitle),
+        },
+      if (pictures.isNotEmpty)
+        'images': [
+          for (final picture in pictures)
+            {
+              'mime_type': 'image/jpeg',
+              'width': picture.width,
+              'height': picture.height,
+              if (picture.isLinkPreview) 'link_preview': true,
+              'data': base64Encode(picture.jpeg),
+            },
+        ],
+      if (files.isNotEmpty)
+        'files': [
+          for (final file in files)
+            {'file_id': file.fileId, 'type': file.type.wire},
+        ],
       'views': post.viewCount,
       'comments': post.replyCount,
       'forwards': post.forwardCount,
@@ -148,6 +192,24 @@ abstract final class TrokWire {
               },
             },
       'unread': !post.isRead,
+    };
+  }
+
+  /// A poll as anyone can see it, without the reader's own vote. Telegram
+  /// gives each option's votes only once the poll is closed or the reader
+  /// has voted, so they are left out before that.
+  static Map<String, Object?> _poll(Poll poll) {
+    final counted = poll.isClosed || poll.chosenOptionIds.isNotEmpty;
+    return {
+      'question': poll.question,
+      'options': [
+        for (final option in poll.options)
+          {'text': option.text, if (counted) 'voters': option.voterCount},
+      ],
+      'total_voters': poll.totalVoterCount,
+      'quiz': poll.isQuiz,
+      'multiple_answers': poll.allowsMultipleAnswers,
+      'closed': poll.isClosed,
     };
   }
 
@@ -173,16 +235,53 @@ abstract final class TrokWire {
     },
   };
 
-  /// The language to translate [post] into. A reader of an English post
-  /// gets their phone's language when Trok translates into it, or Amharic;
-  /// any other post, Amharic included, is translated into English.
-  static String translateTarget(Post post, String deviceLanguage) {
+  /// The language to translate [post] into. A reader who wants Amharic
+  /// answers gets any post not already in Ethiopic script in Amharic, and
+  /// one that is in English. A reader who wants Afaan Oromo gets any post
+  /// in Afaan Oromo; Trok returns one already in it unchanged. Otherwise a
+  /// reader of an English post gets their phone's language when Trok
+  /// translates into it, or Amharic; any other post, Amharic included, is
+  /// translated into English.
+  static String translateTarget(
+    Post post,
+    String deviceLanguage, {
+    String answerLanguage = 'en',
+  }) {
     final text = post.text ?? '';
+    if (answerLanguage == 'am') return _isMostlyEthiopic(text) ? 'en' : 'am';
+    if (answerLanguage == 'om') return 'om';
     if (_isMostlyEthiopic(text) || !_looksEnglish(text)) return 'en';
     return const {'am', 'om', 'ti'}.contains(deviceLanguage)
         ? deviceLanguage
         : 'am';
   }
+
+  /// Whether [text] is worth offering to translate for a reader who reads
+  /// [answerLanguage]: enough words, in another language.
+  static bool needsTranslation(String text, String answerLanguage) {
+    final letters = _letter.allMatches(text).length;
+    if (letters < _translatableLetters) return false;
+    if (answerLanguage == 'am') return !_isMostlyEthiopic(text);
+    // Another script is plainly neither English nor Afaan Oromo.
+    if (_latinLetter.allMatches(text).length * 2 < letters) return true;
+    // In Latin letters, a short post can't be told apart, and is taken for
+    // the reader's language. A longer one is English by its commonest words.
+    final words = _latinWord
+        .allMatches(text)
+        .map((m) => m[0]!.toLowerCase())
+        .toList();
+    if (words.length < _telltaleWords) return false;
+    final common = words.where(_englishWords.contains).length;
+    final english = common * 12 >= words.length;
+    // Other Latin-script posts could be in Afaan Oromo itself.
+    return answerLanguage == 'om' ? english : !english;
+  }
+
+  /// Fewer letters than this are a word or two, read at a glance.
+  static const _translatableLetters = 12;
+
+  /// Fewer Latin words than this don't say which language they are.
+  static const _telltaleWords = 8;
 
   /// [markdown] formatted, with citations opening the posts they name.
   static TrokText text(String markdown, TrokRefs refs, {bool partial = false}) {
@@ -511,6 +610,9 @@ abstract final class TrokWire {
     TextEntityType.spoiler: 'spoiler',
     TextEntityType.customEmoji: 'custom_emoji',
   };
+
+  /// Media sent with the name the reader sees on it.
+  static const _named = {MediaType.document, MediaType.audio};
 
   static const _mediaTypes = {
     MediaType.photo: 'photo',

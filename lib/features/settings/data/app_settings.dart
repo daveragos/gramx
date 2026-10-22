@@ -46,6 +46,31 @@ enum AppThemeMode {
   );
 }
 
+/// The language Trok answers in. Trok writes in English and has Amharic
+/// and Afaan Oromo answers translated.
+enum TrokLanguage {
+  /// Amharic or Afaan Oromo when the phone is set to one, else English. The
+  /// default.
+  device,
+  english,
+  amharic,
+  oromo;
+
+  /// The code Trok's server takes, for a phone set to [deviceLanguage].
+  String code(String deviceLanguage) => switch (this) {
+    TrokLanguage.english => 'en',
+    TrokLanguage.amharic => 'am',
+    TrokLanguage.oromo => 'om',
+    TrokLanguage.device =>
+      const {'am', 'om'}.contains(deviceLanguage) ? deviceLanguage : 'en',
+  };
+
+  static TrokLanguage fromName(String? name) => TrokLanguage.values.firstWhere(
+    (v) => v.name == name,
+    orElse: () => TrokLanguage.device,
+  );
+}
+
 /// Everything the settings screen can change, in one immutable value, so
 /// persistence is a single read and write.
 class AppSettings {
@@ -61,12 +86,15 @@ class AppSettings {
   /// permission is only requested when the user turns it on.
   final bool notificationsEnabled;
 
+  final TrokLanguage trokLanguage;
+
   const AppSettings({
     this.themeMode = AppThemeMode.dark,
     this.autoPlay = AutoPlayPolicy.always,
     this.autoDownloadImages = AutoDownloadPolicy.always,
     this.guestMode = false,
     this.notificationsEnabled = false,
+    this.trokLanguage = TrokLanguage.device,
   });
 
   bool get autoPlayEnabled => autoPlay == AutoPlayPolicy.always;
@@ -80,6 +108,7 @@ class AppSettings {
     AutoDownloadPolicy? autoDownloadImages,
     bool? guestMode,
     bool? notificationsEnabled,
+    TrokLanguage? trokLanguage,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -87,6 +116,7 @@ class AppSettings {
       autoDownloadImages: autoDownloadImages ?? this.autoDownloadImages,
       guestMode: guestMode ?? this.guestMode,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      trokLanguage: trokLanguage ?? this.trokLanguage,
     );
   }
 
@@ -96,6 +126,7 @@ class AppSettings {
     'autoDownloadImages': autoDownloadImages.name,
     'guestMode': guestMode,
     'notificationsEnabled': notificationsEnabled,
+    'trokLanguage': trokLanguage.name,
   };
 
   /// Missing fields and unknown names fall back to defaults, so a file from
@@ -109,6 +140,7 @@ class AppSettings {
       ),
       guestMode: json['guestMode'] as bool? ?? false,
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? false,
+      trokLanguage: TrokLanguage.fromName(json['trokLanguage'] as String?),
     );
   }
 
@@ -127,7 +159,8 @@ class AppSettings {
       other.autoPlay == autoPlay &&
       other.autoDownloadImages == autoDownloadImages &&
       other.guestMode == guestMode &&
-      other.notificationsEnabled == notificationsEnabled;
+      other.notificationsEnabled == notificationsEnabled &&
+      other.trokLanguage == trokLanguage;
 
   @override
   int get hashCode => Object.hash(
@@ -136,6 +169,7 @@ class AppSettings {
     autoDownloadImages,
     guestMode,
     notificationsEnabled,
+    trokLanguage,
   );
 
   @override

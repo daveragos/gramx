@@ -54,7 +54,9 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>gramX needs access to your photos so you can attach one to a post.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>gramX needs the microphone to record a voice message.</string>
+	<string>gramX needs the microphone to record a voice message, or to hear a question you ask Trok.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>gramX turns a question you speak to Trok into words with your iPhone's speech recognition.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>gramX needs the camera to record a video message.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

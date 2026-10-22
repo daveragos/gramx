@@ -29,6 +29,7 @@ import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/media_seek.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
+import 'package:gramx/features/trok/presentation/trok_inline_translation.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_sheets.dart';
 
 class PostCard extends ConsumerWidget {
@@ -362,6 +363,10 @@ class PostCard extends ConsumerWidget {
                                 color: primaryTextColor,
                               ),
                             ),
+                          ),
+                          TrokInlineTranslation(
+                            post: post,
+                            style: AppTypography.body(color: primaryTextColor),
                           ),
                         ],
 

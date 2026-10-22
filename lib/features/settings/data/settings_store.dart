@@ -89,6 +89,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setGuestMode(bool enabled) =>
       _update(state.copyWith(guestMode: enabled));
+
+  void setTrokLanguage(TrokLanguage language) =>
+      _update(state.copyWith(trokLanguage: language));
 }
 
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(

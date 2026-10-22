@@ -130,5 +130,10 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:mimeType="*/*"/>
         </intent>
+        <!-- Lets a question to Trok be spoken: the phone's own speech
+             recognition turns it into words. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
     </queries>
 </manifest>

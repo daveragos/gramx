@@ -34,7 +34,7 @@ abstract class LegalTexts {
   /// Contact address for questions about either document.
   static const String contactEmail = 'daveyeinde@gmail.com';
 
-  static const String lastUpdated = '17 October 2026';
+  static const String lastUpdated = '21 October 2026';
 
   static const privacyRoute = '/legal/privacy';
   static const termsRoute = '/legal/terms';
@@ -84,38 +84,72 @@ abstract class LegalTexts {
       LegalSection('Trok', [
         'Trok is the assistant in the middle of the tab bar. Its answers come '
             'from a server run separately from gramX, at trok.iortr.online, '
-            'and the AI services it uses. Nothing reaches it until you open '
-            'Trok, and it is not available in guest mode.',
+            'and the AI services it uses. Nothing reaches it until you use '
+            'Trok: open it, tap Translate post under a post, or mention it. '
+            'It is not available in guest mode.',
         'To tell Trok who is asking, the app gets sign-in data from Telegram '
-            'for Trok\'s bot, @tr0kbot, the way a Telegram app opens a bot\'s '
+            'for Trok\'s bot, @trokkai, the way a Telegram app opens a bot\'s '
             'Mini App: your Telegram user id and public profile (name, '
             'username, profile photo, language setting), signed by Telegram. '
-            'It goes with every request to Trok. Telegram may list @tr0kbot '
+            'It goes with every request to Trok. Telegram may list @trokkai '
             'among the Mini Apps you have used.',
         'With each question the app sends what you asked, and the post you '
             'asked about: its text and formatting, which kinds of media it '
-            'has (never the media itself), its view, comment and reaction '
-            'counts, and its channel. With the first question of each chat it '
-            'also sends up to 120 recent posts from your feed, unread first '
-            'and muted channels left out, described the same way and with '
+            'has with the names and lengths shown on them, its poll\'s '
+            'question and options (never your vote), the title and '
+            'description of a link\'s preview, the words of the post it '
+            'replies to, its view, comment and reaction counts, and its '
+            'channel. With the first question of each chat it also sends that '
+            'post\'s pictures, so Trok can see what they show: up to four of '
+            'its photos and the covers of its videos, or the picture of its '
+            'link\'s preview, at the smaller sizes Telegram keeps. It also '
+            'sends up to two of the post\'s videos, GIFs, round videos up to '
+            'a minute long and voice notes up to five minutes long, each up '
+            'to 20 MB, so Trok can hear and watch them; the app may download '
+            'one first if it isn\'t on your phone yet. Longer videos go only '
+            'as their cover, and other audio and files are never sent. '
+            'With that first question it also sends up to 120 recent posts '
+            'from your feed, unread first and muted channels left out, '
+            'described the same way but without pictures or files, and with '
             'whether you have read each one. Opening Trok also asks how many '
             'questions you have left today.',
-        'Trok\'s server keeps your questions, its answers and the posts sent '
-            'with them, linked to your Telegram user id, so your chats are '
-            'the same on every phone you sign in on. A chat is deleted when '
-            'you delete it from History in the app, or after 90 days without '
-            'a new message. Answers about public posts that are the same for '
+        'Trok\'s server keeps your questions, its answers and the posts and '
+            'pictures sent with them, linked to your Telegram user id, so '
+            'your chats are the same on every phone you sign in on. A video '
+            'or voice note is deleted once Trok has read it; what Trok read '
+            'from it is kept with the chat. A chat is deleted when you delete '
+            'it from History in the app, or after 90 days without a new '
+            'message. Answers about public posts that are the same for '
             'everyone (Explain, Summarize, Translate and Is this true?) are '
             'kept up to 30 days and hold nothing about who asked.',
-        'To answer, Trok passes your question and those posts to OpenRouter, '
-            'which routes them to the AI model providers that write the '
-            'answers; to a web search provider, which receives a post\'s text '
-            'when you ask whether it is true; and to Addis AI, for answers '
-            'and translations in Amharic, Afaan Oromo and Tigrinya. Each '
-            'handles it under its own terms. Trok\'s operator can see chats, '
-            'for support and to stop abuse. None of it is sold or used to '
-            'train models.',
-        'If you never open Trok, none of this happens.',
+        'To answer, Trok passes your question and those posts, pictures, '
+            'videos and voice notes to OpenRouter, which routes them to the AI '
+            'model providers that write the answers; to Google, which '
+            'transcribes videos and voice notes; to a web search provider, '
+            'which receives a post\'s text when you ask whether it is true; '
+            'and to Addis AI, for transcribing Amharic and for answers and '
+            'translations in Amharic, Afaan Oromo and Tigrinya. Each handles '
+            'it under its own terms. Trok\'s operator can see chats, for '
+            'support and to stop abuse. None of it is sold or used to train '
+            'models.',
+        'Translate post, under a post in another language than the one you '
+            'chose for Trok, sends Trok that post as the Translate button '
+            'does. The chat it makes is deleted from Trok\'s server as soon as '
+            'the translation arrives, and the translation is kept on your '
+            'phone only until you close the app.',
+        'Asking Trok by voice uses your phone\'s own speech recognition: '
+            'Google\'s on most Android phones, Apple\'s on iPhone. It may send '
+            'what you say to them, under their own terms. gramX keeps no '
+            'recording, and only the words reach Trok, once you send them.',
+        'Writing @Trok in a comment or a group message calls Trok into '
+            'that chat. gramX sends it to Telegram as a mention of @trokkai, '
+            'Trok\'s bot. Telegram gives the bot that message and the one it '
+            'replies to, and Trok answers there, where everyone in the chat '
+            'can see it. The bot doesn\'t join the chat and sees nothing else '
+            'in it. Trok keeps the question, the message it replied to and '
+            'its answer, linked to your Telegram user id for the daily limit, '
+            'for 90 days.',
+        'If you never use Trok, none of this happens.',
       ]),
       LegalSection('What is stored on your phone', [
         'Telegram\'s local database of your chats, messages and downloaded '

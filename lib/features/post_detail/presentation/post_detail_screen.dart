@@ -8,6 +8,9 @@ import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/features/post_detail/domain/comment_threads.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/trok/data/trok_mention.dart';
+import 'package:gramx/features/trok/presentation/trok_inline_translation.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mention_suggestion.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -213,7 +216,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
           .sendComment(
             chatId,
             messageId,
-            text,
+            // @Trok goes to the bot that calls Trok to answer under the post.
+            TrokMention.resolve(text),
             replyToMessageId: targetReply?.messageId,
             attachments: attachments,
             remote: remote,
@@ -505,6 +509,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       color: primaryColor,
                                     ),
                                     fullWidth: true,
+                                  ),
+                                ),
+                                TrokInlineTranslation(
+                                  post: post,
+                                  style: AppTypography.bodyLarge(
+                                    color: primaryColor,
                                   ),
                                 ),
                               ],
@@ -1278,6 +1288,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   ],
                 ),
               ),
+            TrokMentionSuggestion(controller: _commentController),
             if (_attachments.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),

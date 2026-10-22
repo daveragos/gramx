@@ -16,9 +16,13 @@ import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/post.dart';
+import 'package:gramx/features/feed/presentation/feed_providers.dart';
+import 'package:gramx/features/trok/data/trok_source_previews.dart';
+import 'package:gramx/features/trok/data/trok_citations.dart';
 import 'package:gramx/features/trok/domain/trok_models.dart';
 import 'package:gramx/features/trok/presentation/trok_controller.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_picture.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_style.dart';
 
 /// The reader's question, on the right, under the post it is about.
@@ -70,16 +74,19 @@ class TrokQuestionView extends StatelessWidget {
 }
 
 /// A post a question is about, quoted small. Opens the post.
-class _PostQuote extends StatelessWidget {
+class _PostQuote extends ConsumerWidget {
   final Post post;
 
   const _PostQuote({required this.post});
 
+  static const double _pictureSize = 64;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final secondary = TrokStyle.secondary(theme);
     final snippet = (post.text ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+    final picture = trokPictureOf(ref, post);
 
     return Material(
       color: Colors.transparent,
@@ -92,48 +99,66 @@ class _PostQuote extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppSpacing.lg),
             border: Border.all(color: TrokStyle.border(theme)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ChannelAvatar(
-                    title: post.channelTitle,
-                    avatarPath: post.channelAvatarUrl,
-                    avatarFileId: post.channelAvatarFileId,
-                    avatarColorHex: post.channelAvatarColor,
-                    radius: 9,
-                  ),
-                  const SizedBox(width: AppSpacing.xs + 2),
-                  Flexible(
-                    child: Text(
-                      post.channelTitle,
-                      style: AppTypography.actionCount(
-                        color: theme.colorScheme.onSurface,
-                      ).copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ChannelAvatar(
+                          title: post.channelTitle,
+                          avatarPath: post.channelAvatarUrl,
+                          avatarFileId: post.channelAvatarFileId,
+                          avatarColorHex: post.channelAvatarColor,
+                          radius: 9,
+                        ),
+                        const SizedBox(width: AppSpacing.xs + 2),
+                        Flexible(
+                          child: Text(
+                            post.channelTitle,
+                            style: AppTypography.actionCount(
+                              color: theme.colorScheme.onSurface,
+                            ).copyWith(fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '${AppStrings.inlineSeparator}'
+                          '${TimeUtils.relativeTime(post.publishedAt)}',
+                          style: AppTypography.actionCount(color: secondary),
+                        ),
+                      ],
                     ),
-                  ),
-                  Text(
-                    '${AppStrings.inlineSeparator}'
-                    '${TimeUtils.relativeTime(post.publishedAt)}',
-                    style: AppTypography.actionCount(color: secondary),
-                  ),
-                ],
+                    if (snippet.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        snippet,
+                        textDirection: firstStrongDirection(snippet),
+                        style: AppTypography.actionCount(
+                          color: theme.colorScheme.onSurface,
+                        ).copyWith(height: 1.35),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              if (snippet.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  snippet,
-                  textDirection: firstStrongDirection(snippet),
-                  style: AppTypography.actionCount(
-                    color: theme.colorScheme.onSurface,
-                  ).copyWith(height: 1.35),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+              if (picture != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.sm),
+                  child: SizedBox.square(
+                    dimension: _pictureSize,
+                    child: TrokPictureView(picture: picture, markSize: 16),
+                  ),
                 ),
               ],
             ],
@@ -158,6 +183,11 @@ class TrokAnswerView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final hasText = answer.text.isNotEmpty;
+    final cited = TrokCitations.number(
+      answer.text,
+      answer.entities,
+      answer.sources,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -177,8 +207,8 @@ class TrokAnswerView extends ConsumerWidget {
             Semantics(
               liveRegion: answer.state == TrokAnswerState.streaming,
               child: TextEntityRenderer(
-                text: answer.text,
-                entities: answer.entities,
+                text: cited.text,
+                entities: cited.entities,
                 fullWidth: true,
                 style: AppTypography.bodyLarge(
                   color: theme.colorScheme.onSurface,
@@ -455,18 +485,29 @@ class _StreamingDotState extends State<_StreamingDot>
   }
 }
 
-/// The posts an answer drew on, side by side.
-class _SourceStrip extends StatelessWidget {
+/// The posts and pages an answer drew on, side by side, each a peek of
+/// what it shows.
+class _SourceStrip extends ConsumerWidget {
   final List<TrokSource> sources;
 
   const _SourceStrip({required this.sources});
 
-  static const double _height = 104;
-  static const double _width = 228;
+  static const double _height = 200;
+
+  /// For a strip with no pictures, which would leave space under the words.
+  static const double _compactHeight = 116;
+  static const double _width = 232;
+
+  static bool _hasPicture(WidgetRef ref, TrokSource source) => switch (source) {
+    TrokPostSource() => _PostSourceCard.pictureOf(ref, source) != null,
+    TrokWebSource(:final url) =>
+      ref.watch(trokLinkPreviewProvider(url)).value?.imageFileId != null,
+  };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final secondary = TrokStyle.secondary(Theme.of(context));
+    final compact = !sources.any((s) => _hasPicture(ref, s));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +526,7 @@ class _SourceStrip extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         SizedBox(
-          height: _height,
+          height: compact ? _compactHeight : _height,
           // Bleeds to the screen edges, so cards scroll off them.
           child: OverflowBox(
             maxWidth: MediaQuery.sizeOf(context).width,
@@ -503,8 +544,16 @@ class _SourceStrip extends StatelessWidget {
                 itemBuilder: (context, index) => SizedBox(
                   width: _width,
                   child: switch (sources[index]) {
-                    final TrokPostSource post => _PostSourceCard(source: post),
-                    final TrokWebSource web => _WebSourceCard(source: web),
+                    final TrokPostSource post => _PostSourceCard(
+                      source: post,
+                      number: index + 1,
+                      compact: compact,
+                    ),
+                    final TrokWebSource web => _WebSourceCard(
+                      source: web,
+                      number: index + 1,
+                      compact: compact,
+                    ),
                   },
                 ),
               ),
@@ -516,10 +565,19 @@ class _SourceStrip extends StatelessWidget {
   }
 }
 
-class _PostSourceCard extends StatelessWidget {
+/// A post: its picture, channel and text, as the post shows them.
+class _PostSourceCard extends ConsumerWidget {
   final TrokPostSource source;
 
-  const _PostSourceCard({required this.source});
+  /// Its number, as the answer's citations of it show.
+  final int number;
+  final bool compact;
+
+  const _PostSourceCard({
+    required this.source,
+    required this.number,
+    required this.compact,
+  });
 
   void _open(BuildContext context, WidgetRef ref) {
     final postId = source.postId;
@@ -532,76 +590,149 @@ class _PostSourceCard extends StatelessWidget {
     if (link != null) ref.read(pendingDeepLinkProvider.notifier).offer(link);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final secondary = TrokStyle.secondary(theme);
-    final snippet = source.snippet.replaceAll(RegExp(r'\s+'), ' ');
-    final publishedAt = source.publishedAt;
+  /// The post itself, for one Trok sent without its picture: a post only
+  /// Trok found, or one History rebuilt.
+  static Post? _lookUp(WidgetRef ref, TrokPostSource source) {
+    final id =
+        source.postId ??
+        switch (source.link) {
+          final link? => ref.watch(trokLinkedPostIdProvider(link)).value,
+          null => null,
+        };
+    return id == null ? null : ref.watch(postDetailProvider(id)).value;
+  }
 
-    return Consumer(
-      builder: (context, ref, _) => _SourceFrame(
-        onTap: () => _open(context, ref),
-        leading: ChannelAvatar(
-          title: source.channelTitle,
-          avatarPath: source.avatarPath,
-          avatarFileId: source.avatarFileId,
-          avatarColorHex: source.avatarColorHex,
-          radius: 10,
-        ),
-        title: source.channelTitle,
-        trailing: publishedAt == null
-            ? null
-            : Text(
-                TimeUtils.relativeTime(publishedAt),
-                style: AppTypography.actionCount(color: secondary),
-              ),
-        body: snippet.isEmpty ? AppStrings.trokSourceMediaOnly : snippet,
+  /// [source]'s picture, looked up when Trok sent none.
+  static TrokSourcePicture? pictureOf(WidgetRef ref, TrokPostSource source) {
+    if (source.picture case final picture?) return picture;
+    final post = _lookUp(ref, source);
+    return post == null ? null : TrokSourcePicture.of(post);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final secondary = TrokStyle.secondary(Theme.of(context));
+    final post = source.picture == null ? _lookUp(ref, source) : null;
+    final picture =
+        source.picture ?? (post == null ? null : TrokSourcePicture.of(post));
+    final title = switch (post?.channelTitle) {
+      final title? when title.isNotEmpty => title,
+      _ => source.channelTitle,
+    };
+    final text = source.snippet.isNotEmpty
+        ? source.snippet
+        : (post?.text ?? '').trim();
+    final publishedAt = source.publishedAt ?? post?.publishedAt;
+
+    return _SourceFrame(
+      onTap: () => _open(context, ref),
+      number: number,
+      compact: compact,
+      picture: picture,
+      leading: ChannelAvatar(
+        title: title,
+        avatarPath: post?.channelAvatarUrl ?? source.avatarPath,
+        avatarFileId: post?.channelAvatarFileId ?? source.avatarFileId,
+        avatarColorHex: post?.channelAvatarColor ?? source.avatarColorHex,
+        radius: 10,
       ),
+      title: title,
+      trailing: publishedAt == null
+          ? null
+          : Text(
+              TimeUtils.relativeTime(publishedAt),
+              style: AppTypography.actionCount(color: secondary),
+            ),
+      // A picture says enough on its own.
+      body: text.isNotEmpty || picture != null
+          ? text.replaceAll(RegExp(r'\s+'), ' ')
+          : AppStrings.trokSourceMediaOnly,
     );
   }
 }
 
-/// A web page Trok read: the site, and the page's title.
-class _WebSourceCard extends StatelessWidget {
+/// A web page Trok read: its picture, site and title, as Telegram previews
+/// the link.
+class _WebSourceCard extends ConsumerWidget {
   final TrokWebSource source;
+  final int number;
+  final bool compact;
 
-  const _WebSourceCard({required this.source});
+  const _WebSourceCard({
+    required this.source,
+    required this.number,
+    required this.compact,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final secondary = TrokStyle.secondary(Theme.of(context));
+    final preview = ref.watch(trokLinkPreviewProvider(source.url)).value;
+    final pictureId = preview?.imageFileId;
+    final picture = pictureId == null
+        ? null
+        : TrokSourcePicture(fileId: pictureId);
+    final description = preview?.description.trim() ?? '';
+
     return _SourceFrame(
       onTap: () {
         final uri = Uri.tryParse(source.url);
         if (uri != null) unawaited(openExternalUrl(uri));
       },
+      number: number,
+      compact: compact,
+      picture: picture,
       leading: Icon(Icons.public_rounded, size: 20, color: secondary),
       title: source.site,
       body: source.title,
+      // Room for the page's own words when it has no picture.
+      more: picture == null && description.isNotEmpty ? description : null,
     );
   }
 }
 
-/// A source card's shape: who or where at the top, then a few lines.
+/// A source card's shape: a picture across the top when it has one, who or
+/// where under it, then a few lines. Without a picture the lines take its
+/// place.
 class _SourceFrame extends StatelessWidget {
   final VoidCallback onTap;
+
+  /// Shown before the title, matching the answer's citations.
+  final int number;
+
+  /// In a strip with no pictures, which holds three lines of words.
+  final bool compact;
+  final TrokSourcePicture? picture;
   final Widget leading;
   final String title;
   final Widget? trailing;
   final String body;
 
+  /// Lighter lines under [body].
+  final String? more;
+
   const _SourceFrame({
     required this.onTap,
+    required this.number,
+    required this.compact,
     required this.leading,
     required this.title,
     required this.body,
+    this.picture,
     this.trailing,
+    this.more,
   });
+
+  static const double _pictureHeight = 112;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final picture = this.picture;
+    final more = this.more;
+    final style = AppTypography.actionCount(
+      color: theme.colorScheme.onSurface,
+    ).copyWith(height: 1.35);
 
     return Material(
       color: TrokStyle.fill(theme),
@@ -609,46 +740,103 @@ class _SourceFrame extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  leading,
-                  const SizedBox(width: AppSpacing.xs + 2),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: AppTypography.actionCount(
-                        color: theme.colorScheme.onSurface,
-                      ).copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (trailing case final trailing?) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    trailing,
-                  ],
-                ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (picture != null)
+              SizedBox(
+                height: _pictureHeight,
+                child: TrokPictureView(picture: picture),
               ),
-              const SizedBox(height: AppSpacing.xs + 2),
-              Expanded(
-                child: Text(
-                  body,
-                  textDirection: firstStrongDirection(body),
-                  style: AppTypography.actionCount(
-                    color: theme.colorScheme.onSurface,
-                  ).copyWith(height: 1.35),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _SourceNumber(number: number),
+                        const SizedBox(width: AppSpacing.xs + 2),
+                        leading,
+                        const SizedBox(width: AppSpacing.xs + 2),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: AppTypography.actionCount(
+                              color: theme.colorScheme.onSurface,
+                            ).copyWith(fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (trailing case final trailing?) ...[
+                          const SizedBox(width: AppSpacing.xs),
+                          trailing,
+                        ],
+                      ],
+                    ),
+                    if (body.isNotEmpty || more != null) ...[
+                      const SizedBox(height: AppSpacing.xs + 2),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: body),
+                              if (more != null)
+                                TextSpan(
+                                  text: '\n$more',
+                                  style: style.copyWith(
+                                    color: TrokStyle.secondary(theme),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          textDirection: firstStrongDirection(body),
+                          style: style,
+                          maxLines: picture != null
+                              ? 2
+                              : compact
+                              ? 3
+                              : 8,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// A source card's number, in a small circle.
+class _SourceNumber extends StatelessWidget {
+  final int number;
+
+  const _SourceNumber({required this.number});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: TrokStyle.border(theme),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        '$number',
+        style: AppTypography.actionCount(
+          color: theme.colorScheme.onSurface,
+        ).copyWith(fontSize: 11, fontWeight: FontWeight.w700, height: 1),
       ),
     );
   }
