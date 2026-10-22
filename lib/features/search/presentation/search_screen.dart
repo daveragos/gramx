@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -592,7 +591,7 @@ class _SearchResults extends ConsumerWidget {
                       ),
                     ),
                     ...channels.map(
-                      (channel) => _ChannelResultTile(
+                      (channel) => ChannelResultTile(
                         channel: channel,
                         primaryColor: primaryColor,
                         secondaryColor: secondaryColor,
@@ -682,7 +681,8 @@ class _SearchResults extends ConsumerWidget {
   }
 }
 
-class _ChannelResultTile extends StatelessWidget {
+/// A channel in the search results or the suggestions to follow.
+class ChannelResultTile extends StatelessWidget {
   final Channel channel;
   final Color primaryColor;
   final Color secondaryColor;
@@ -690,17 +690,13 @@ class _ChannelResultTile extends StatelessWidget {
   /// Called as the channel opens, to record the search that found it.
   final VoidCallback? onOpen;
 
-  const _ChannelResultTile({
+  const ChannelResultTile({
+    super.key,
     required this.channel,
     required this.primaryColor,
     required this.secondaryColor,
     this.onOpen,
   });
-
-  Color _parseColor(String hex) {
-    final hexCode = hex.replaceAll('#', '');
-    return Color(int.parse('FF$hexCode', radix: 16));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -716,29 +712,12 @@ class _ChannelResultTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            () {
-              if (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty) {
-                final file = File(channel.avatarUrl!);
-                if (file.existsSync()) {
-                  return CircleAvatar(
-                    radius: AppSpacing.avatarSize / 2,
-                    backgroundImage: FileImage(file),
-                  );
-                }
-              }
-              return CircleAvatar(
-                radius: AppSpacing.avatarSize / 2,
-                backgroundColor: channel.avatarColor != null
-                    ? _parseColor(channel.avatarColor!)
-                    : AppColors.accent,
-                child: Text(
-                  channel.title.isNotEmpty
-                      ? channel.title[0].toUpperCase()
-                      : '?',
-                  style: AppTypography.displayName(color: Colors.white),
-                ),
-              );
-            }(),
+            ChannelAvatar(
+              title: channel.title,
+              avatarPath: channel.avatarUrl,
+              avatarFileId: channel.avatarFileId,
+              avatarColorHex: channel.avatarColor,
+            ),
             const SizedBox(width: AppSpacing.avatarGap),
             Expanded(
               child: Column(
@@ -839,7 +818,7 @@ class _WhoToFollow extends ConsumerWidget {
         ),
         SliverList(
           delegate: SliverChildBuilderDelegate(
-            (context, index) => _ChannelResultTile(
+            (context, index) => ChannelResultTile(
               channel: shown[index],
               primaryColor: primaryColor,
               secondaryColor: secondaryColor,
