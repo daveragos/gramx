@@ -47,18 +47,36 @@ class ActivityScreen extends ConsumerWidget {
       child: ChromeScaffold(
         // The tabs swipe sideways, so the header stays put.
         observeScroll: false,
-        header: const ChromeHeaderRow(
+        header: ChromeHeaderRow(
           title: AppStrings.activityTitle,
           centerTitle: true,
-          leading: DrawerAvatarButton(),
+          leading: const DrawerAvatarButton(),
+          // Settings, where notifications are turned on and off.
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 4.4),
+              child: IconButton(
+                tooltip: AppStrings.drawerSettings,
+                onPressed: () => context.push('/settings'),
+                icon: Icon(Icons.settings_outlined, color: primary, size: 24),
+              ),
+            ),
+          ],
         ),
-        headerBottomHeight: kTextTabBarHeight,
+        // As the feed's folder tabs: 44 tall, the labels lifted a little.
+        headerBottomHeight: 44,
         headerBottom: TabBar(
-          labelColor: primary,
-          unselectedLabelColor: secondary,
-          dividerColor: borderColor,
-          dividerHeight: 0.5,
-          tabs: [for (final tab in _ActivityTab.values) Tab(text: tab.label)],
+          dividerColor: Colors.transparent,
+          labelPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            1.4,
+          ),
+          tabs: [
+            for (final tab in _ActivityTab.values)
+              Tab(height: 42, text: tab.label),
+          ],
         ),
         body: (context, topPadding, bottomPadding) => TabBarView(
           children: [

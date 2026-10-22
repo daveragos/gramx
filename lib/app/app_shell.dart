@@ -9,6 +9,7 @@ import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/activity/presentation/activity_screen.dart';
 import 'package:gramx/features/activity/presentation/activity_providers.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/app/widgets/chat_bubble_icon.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -306,6 +307,8 @@ class _AppShellState extends ConsumerState<AppShell>
         resizeToAvoidBottomInset: false,
         // A sibling of the navigation shell, so tab switching is passed in.
         drawer: AppDrawer(onSelectTab: (tab) => _onTap(tab.index)),
+        // A lighter shade over the page than Material's.
+        drawerScrimColor: Colors.black.withValues(alpha: 0.32),
         // The bar overlays the content so hiding it does not relayout.
         body: Stack(
           children: [
@@ -334,34 +337,103 @@ class _AppShellState extends ConsumerState<AppShell>
                   ),
                   // viewPadding, as BottomNavigationBar pads by it: padding
                   // drops to zero under the keyboard and squeezes the bar.
-                  child: SizedBox(
-                    height:
-                        ShellChrome.bottomBarHeight +
-                        MediaQuery.viewPaddingOf(context).bottom,
-                    child: BottomNavigationBar(
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      // The labels are hidden but still laid out; at full
-                      // size their line pushes the icons past the bar.
-                      selectedFontSize: 0,
-                      unselectedFontSize: 0,
-                      currentIndex: navigationShell.currentIndex,
-                      onTap: _onTap,
-                      items: [
-                        for (final tab in ShellTab.values)
-                          BottomNavigationBarItem(
-                            icon: _TabIcon(tab: tab, active: false),
-                            activeIcon: _TabIcon(tab: tab, active: true),
-                            label: tab.label,
-                            tooltip: tab.label,
-                          ),
-                      ],
-                    ),
+                  child: ShellTabBar(
+                    currentIndex: navigationShell.currentIndex,
+                    onTap: _onTap,
                   ),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The bottom bar's tabs: icons spread from edge to edge, the same colour
+/// whether selected or not, and solid when selected.
+class ShellTabBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const ShellTabBar({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  /// From each end of the bar to the nearest icon's box.
+  static const double _sideInset = 25.7;
+  static const double _iconSize = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.onSurface;
+    // viewPadding, as the padding drops to zero under the keyboard and would
+    // squeeze the bar.
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+
+    return SizedBox(
+      height: ShellChrome.bottomBarHeight + bottom,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottom),
+        child: IconTheme.merge(
+          data: IconThemeData(color: color, size: _iconSize),
+          child: Stack(
+            children: [
+              // The icons, spaced evenly from the first to the last.
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: _sideInset),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final tab in ShellTab.values)
+                        SizedBox.square(
+                          dimension: _iconSize,
+                          child: OverflowBox(
+                            maxWidth: double.infinity,
+                            maxHeight: double.infinity,
+                            child: _TabIcon(
+                              tab: tab,
+                              active: tab.index == currentIndex,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // Equal shares of the bar to tap, over the icons.
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    for (final tab in ShellTab.values)
+                      Expanded(
+                        // The ink's tap and focus join this node.
+                        child: Semantics(
+                          container: true,
+                          button: true,
+                          selected: tab.index == currentIndex,
+                          label: tab.label,
+                          child: Tooltip(
+                            message: tab.label,
+                            excludeFromSemantics: true,
+                            child: InkResponse(
+                              onTap: () => onTap(tab.index),
+                              containedInkWell: false,
+                              radius: 28,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -378,9 +450,9 @@ class _TabIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = active ? tab.activeIcon : tab.icon;
     return switch (tab) {
-      ShellTab.home => _HomeIcon(icon: icon),
+      ShellTab.home => _HomeIcon(icon: Glyph(AppGlyphs.home, filled: active)),
+      ShellTab.search => Glyph(AppGlyphs.search, filled: active),
       // The eye is wider than it is tall, so it is drawn a little larger.
       ShellTab.trok => TrokMark(
         size: 28,
@@ -393,7 +465,7 @@ class _TabIcon extends StatelessWidget {
           semanticsLabel: AppStrings.a11yActivity,
           child: child!,
         ),
-        child: Icon(icon),
+        child: Glyph(AppGlyphs.bell, filled: active),
       ),
       ShellTab.messages => Consumer(
         builder: (context, ref, child) => _CountBadge(
@@ -403,7 +475,6 @@ class _TabIcon extends StatelessWidget {
         ),
         child: ChatBubbleIcon(filled: active),
       ),
-      _ => Icon(icon),
     };
   }
 }
@@ -436,7 +507,7 @@ class _CountBadge extends StatelessWidget {
 
 /// The Home icon, with a dot when new posts are waiting.
 class _HomeIcon extends StatelessWidget {
-  final IconData icon;
+  final Widget icon;
 
   const _HomeIcon({required this.icon});
 
@@ -476,7 +547,7 @@ class _HomeIcon extends StatelessWidget {
           ),
         );
       },
-      child: Icon(icon),
+      child: icon,
     );
   }
 }

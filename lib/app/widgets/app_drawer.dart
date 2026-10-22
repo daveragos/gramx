@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/app/widgets/drawer_nav_item.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
@@ -46,80 +47,75 @@ class AppDrawer extends ConsumerWidget {
     final int channelsCount = channelsAsync.value?.length ?? 0;
     final int foldersCount = foldersAsync.value?.length ?? 0;
 
+    final nameStyle = AppTypography.displayName(
+      color: primaryColor,
+    ).copyWith(fontSize: 23.5);
+    final handleStyle = AppTypography.username(
+      color: secondaryColor,
+    ).copyWith(fontSize: 16.5);
+    final countStyle = AppTypography.displayName(color: primaryColor);
+    final countLabelStyle = AppTypography.username(color: secondaryColor);
+
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
+      // Most of the screen, with square corners.
+      width: MediaQuery.sizeOf(context).width * 0.88,
+      shape: const RoundedRectangleBorder(),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 17),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ChannelAvatar(
                     title: displayName,
                     avatarPath: accountAsync.value?.avatarPath,
-                    radius: 24,
+                    radius: 20,
                     onTap: () {
                       Navigator.pop(context);
                       GoRouter.of(context).push('/profile');
                     },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16.5),
                   Text(
                     displayName,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: primaryColor,
-                    ),
+                    style: nameStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    username,
-                    style: TextStyle(fontSize: 14, color: secondaryColor),
-                  ),
-                  const SizedBox(height: 16),
+                  if (username.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(username, style: handleStyle),
+                  ],
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      Text(
-                        channelsCount.toString(),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
+                      Text(channelsCount.toString(), style: countStyle),
                       const SizedBox(width: 4),
                       Text(
                         AppStrings.drawerChannelsCount,
-                        style: TextStyle(fontSize: 14, color: secondaryColor),
+                        style: countLabelStyle,
                       ),
-                      const SizedBox(width: 16),
-                      Text(
-                        foldersCount.toString(),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
+                      const SizedBox(width: 12),
+                      Text(foldersCount.toString(), style: countStyle),
                       const SizedBox(width: 4),
                       Text(
                         AppStrings.drawerFoldersCount,
-                        style: TextStyle(fontSize: 14, color: secondaryColor),
+                        style: countLabelStyle,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const Divider(),
+            const Divider(height: 0.5),
             // Scrolls so the items fit on short screens.
             Expanded(
               child: ListView(
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.only(top: 8),
                 children: [
                   DrawerNavItem(
                     icon: Icons.person_outline_rounded,
@@ -131,15 +127,9 @@ class AppDrawer extends ConsumerWidget {
                   ),
                   // Tabs switch branches rather than pushing, which would lose
                   // the tab's scroll position. Other entries push routes.
-                  ListTile(
-                    leading: TrokMark(
-                      size: 26,
-                      color: IconTheme.of(context).color,
-                    ),
-                    title: const Text(
-                      AppStrings.trokName,
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                  DrawerNavItem(
+                    leading: TrokMark(size: 26, color: primaryColor),
+                    title: AppStrings.trokName,
                     onTap: () => _goToTab(context, ShellTab.trok),
                   ),
                   DrawerNavItem(
@@ -187,26 +177,26 @@ class AppDrawer extends ConsumerWidget {
                       GoRouter.of(context).push('/folders');
                     },
                   ),
-                  DrawerNavItem(
-                    icon: Icons.settings_outlined,
-                    title: AppStrings.drawerSettings,
-                    onTap: () {
-                      Navigator.pop(context);
-                      GoRouter.of(context).push('/settings');
-                    },
-                  ),
                 ],
               ),
             ),
-            const Divider(),
+            const Divider(height: 0.5),
+            const SizedBox(height: 16),
+            // The quieter entries at the foot, as on the settings side.
+            DrawerNavItem(
+              icon: Icons.settings_outlined,
+              title: AppStrings.drawerSettings,
+              compact: true,
+              onTap: () {
+                Navigator.pop(context);
+                GoRouter.of(context).push('/settings');
+              },
+            ),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Text(
                 AppStrings.appVersionLabel(),
-                style: TextStyle(color: secondaryColor, fontSize: 12),
+                style: AppTypography.actionCount(color: secondaryColor),
               ),
             ),
           ],

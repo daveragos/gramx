@@ -113,7 +113,17 @@ class _ForwardMessageSheetState extends ConsumerState<ForwardMessageSheet> {
                   contentPadding: const EdgeInsets.symmetric(
                     vertical: AppSpacing.md,
                   ),
+                  // Also for the enabled and focused states, which the theme would
+                  // otherwise draw as an outlined box.
                   border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),

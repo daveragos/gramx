@@ -11,6 +11,7 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
 import 'package:gramx/core/widgets/channel_avatar.dart';
 import 'package:gramx/core/time/time_utils.dart';
@@ -327,55 +328,51 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     final account = ref.watch(activeAccountProvider).value;
 
+    final canFilter = ref.watch(readerCapabilitiesProvider).canSearchServerSide;
+
     return ChromeScaffold(
-      header: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        child: Row(
-          children: [
-            if (!_isActive) ...[
-              Semantics(
-                button: true,
-                label: AppStrings.a11yOpenMenu,
-                child: ChannelAvatar(
-                  title:
-                      account?.displayName ?? AppStrings.drawerAccountFallback,
-                  avatarPath: account?.avatarPath,
-                  radius: AppSpacing.avatarSizeSmall / 2,
-                  onTap: openAppDrawer,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-            ],
-            // Keyed: the avatar leaving on focus shifts the field, which
-            // would otherwise be rebuilt and drop the keyboard's input.
-            Expanded(
-              key: const ValueKey('search-field'),
-              child: _searchField(context),
-            ),
-            if (_isActive) ...[
-              // Filters need Telegram's search, which a guest doesn't have.
-              if (ref.watch(readerCapabilitiesProvider).canSearchServerSide)
-                _FiltersButton(color: secondaryColor),
-              TextButton(
+      header: Row(
+        children: [
+          if (_isActive)
+            // Leaves search, as Cancel did.
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 onPressed: _clearSearch,
-                style: TextButton.styleFrom(
-                  foregroundColor: primaryColor,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                  ),
-                  minimumSize: const Size(0, 40),
-                ),
-                child: Text(
-                  AppStrings.searchCancel,
-                  style: AppTypography.bodyLarge(color: primaryColor),
-                ),
+                icon: Icon(Icons.arrow_back, color: primaryColor),
               ),
-            ],
+            )
+          else ...[
+            const SizedBox(width: 16.75),
+            Semantics(
+              button: true,
+              label: AppStrings.a11yOpenMenu,
+              child: ChannelAvatar(
+                title: account?.displayName ?? AppStrings.drawerAccountFallback,
+                avatarPath: account?.avatarPath,
+                radius: AppSpacing.avatarSizeSmall / 2,
+                onTap: openAppDrawer,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.lg),
           ],
-        ),
+          // Keyed: the avatar leaving on focus shifts the field, which
+          // would otherwise be rebuilt and drop the keyboard's input.
+          Expanded(
+            key: const ValueKey('search-field'),
+            child: _searchField(context),
+          ),
+          // Filters need Telegram's search, which a guest doesn't have. They
+          // step aside while the recent searches show.
+          if (canFilter && (_isSearching || !_isActive)) ...[
+            if (!_isActive) const SizedBox(width: 8.3),
+            _FiltersButton(color: _isActive ? secondaryColor : primaryColor),
+          ] else
+            const SizedBox(width: AppSpacing.lg),
+          if (canFilter && (_isSearching || !_isActive))
+            SizedBox(width: _isActive ? 4 : 8.4),
+        ],
       ),
       body: (context, topPadding, bottomPadding) => _isSearching
           ? _SearchResults(
@@ -400,63 +397,90 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  /// The rounded search field.
+  /// The search field: a pill with its words centred until it is focused,
+  /// then a plain field after the back arrow.
   Widget _searchField(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isBlack = theme.scaffoldBackgroundColor == AppColors.darkBackground;
     final secondaryColor = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final surfaceColor = isDark
-        ? AppColors.darkSurfaceVariant
-        : AppColors.lightSurfaceVariant;
+    final fill = isBlack
+        ? AppColors.darkSearchFill
+        : (isDark ? AppColors.dimSurface : AppColors.lightSurfaceVariant);
+    final idleColor = isBlack ? AppColors.darkSearchHint : secondaryColor;
     final primaryColor = theme.colorScheme.onSurface;
+    final idle = !_isActive;
 
-    // A borderless pill, as on X.
+    final field = TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      onChanged: _onQueryChanged,
+      textInputAction: TextInputAction.search,
+      onSubmitted: (query) => rememberSearch(ref, query: query),
+      style: AppTypography.body(color: primaryColor),
+      decoration: InputDecoration(
+        // Idle, the pill draws its own words in the middle.
+        hintText: idle ? null : AppStrings.searchHint,
+        hintStyle: AppTypography.body(color: secondaryColor),
+        // The pill is the field; the app theme's outline and fill would draw
+        // a second box inside it.
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+    );
+
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: surfaceColor,
+        color: idle ? fill : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          const SizedBox(width: AppSpacing.md),
-          Icon(Icons.search, color: secondaryColor, size: 20),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              onChanged: _onQueryChanged,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (query) => rememberSearch(ref, query: query),
-              style: AppTypography.body(color: primaryColor),
-              decoration: InputDecoration(
-                hintText: AppStrings.searchHint,
-                hintStyle: AppTypography.body(color: secondaryColor),
-                // The pill is the field; the app theme's outline and fill
-                // would draw a second box inside it.
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-          if (_isSearching)
-            Semantics(
-              button: true,
-              label: AppStrings.searchClear,
-              child: GestureDetector(
-                onTap: _clearSearch,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
+          Row(
+            children: [
+              if (!idle) ...[
+                const SizedBox(width: 16.2),
+                Glyph(AppGlyphs.search, size: 24, color: secondaryColor),
+                const SizedBox(width: 12.8),
+              ] else
+                const SizedBox(width: AppSpacing.lg),
+              Expanded(child: field),
+              if (_isSearching)
+                Semantics(
+                  button: true,
+                  label: AppStrings.searchClear,
+                  child: GestureDetector(
+                    onTap: _clearSearch,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      child: Icon(Icons.close, color: secondaryColor, size: 18),
+                    ),
                   ),
-                  child: Icon(Icons.close, color: secondaryColor, size: 18),
+                ),
+            ],
+          ),
+          if (idle)
+            IgnorePointer(
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Glyph(AppGlyphs.search, size: 24, color: idleColor),
+                    const SizedBox(width: 8.7),
+                    Text(
+                      AppStrings.searchHint,
+                      style: AppTypography.username(color: idleColor),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -475,18 +499,23 @@ class _FiltersButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = !ref.watch(searchFiltersProvider).isDefault;
-    return IconButton(
-      tooltip: active
-          ? AppStrings.a11ySearchFiltersOn
-          : AppStrings.a11ySearchFilters,
-      onPressed: () => showSearchFilters(context),
-      icon: Badge(
-        isLabelVisible: active,
-        backgroundColor: AppColors.accent,
-        smallSize: 8,
-        child: Icon(
-          Icons.tune_rounded,
-          color: active ? AppColors.accent : color,
+    return SizedBox.square(
+      dimension: 40,
+      child: IconButton(
+        tooltip: active
+            ? AppStrings.a11ySearchFiltersOn
+            : AppStrings.a11ySearchFilters,
+        onPressed: () => showSearchFilters(context),
+        padding: EdgeInsets.zero,
+        icon: Badge(
+          isLabelVisible: active,
+          backgroundColor: AppColors.accent,
+          smallSize: 8,
+          child: Icon(
+            Icons.settings_outlined,
+            size: 24,
+            color: active ? AppColors.accent : color,
+          ),
         ),
       ),
     );

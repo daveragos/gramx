@@ -328,9 +328,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(
-                                AppSpacing.postPadding,
-                                AppSpacing.sm,
-                                AppSpacing.postPadding,
+                                PostLayout.insetStart,
+                                0,
+                                PostLayout.insetEnd,
                                 0,
                               ),
                               child: Row(
@@ -340,7 +340,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                     title: account?.displayName ?? 'User',
                                     avatarPath: account?.avatarPath,
                                   ),
-                                  const SizedBox(width: AppSpacing.avatarGap),
+                                  const SizedBox(width: PostLayout.avatarGap),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -428,23 +428,26 @@ class _ComposeHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xs,
         AppSpacing.sm,
-        AppSpacing.lg,
+        12.6,
         AppSpacing.sm,
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: const Icon(Icons.close_rounded, size: 26),
             color: primary,
             tooltip: AppStrings.composeClose,
             onPressed: onClose,
           ),
           const Spacer(),
-          PillButton(
-            label: AppStrings.composePost,
-            compact: true,
-            isBusy: isSending,
-            onPressed: canPost ? onPost : null,
+          SizedBox(
+            height: 36,
+            child: PillButton(
+              label: AppStrings.composePost,
+              compact: true,
+              isBusy: isSending,
+              onPressed: canPost ? onPost : null,
+            ),
           ),
         ],
       ),
@@ -470,9 +473,10 @@ class _TargetPill extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppSpacing.xl),
           child: Container(
+            // 24 tall, as X's audience pill.
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
+              vertical: 3,
             ),
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.accent),
@@ -491,7 +495,7 @@ class _TargetPill extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xxs),
                 const Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  size: 18,
+                  size: 16,
                   color: AppColors.accent,
                 ),
               ],
@@ -504,6 +508,15 @@ class _TargetPill extends StatelessWidget {
 }
 
 class _ComposeField extends StatelessWidget {
+  /// The words being written, a size above post text.
+  static TextStyle _style(Color color) =>
+      AppTypography.bodyLarge(color: color).copyWith(
+        fontSize: 18.5,
+        fontWeight: FontWeight.w400,
+        height: 1.3,
+        letterSpacing: 0.25,
+      );
+
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
@@ -529,15 +542,15 @@ class _ComposeField extends StatelessWidget {
       // No maxLength, so the counter can show how far over the limit it is.
       keyboardType: TextInputType.multiline,
       textCapitalization: TextCapitalization.sentences,
-      style: AppTypography.bodyLarge(color: primary),
+      style: _style(primary),
       decoration: InputDecoration(
         hintText: AppStrings.composeHint,
-        hintStyle: AppTypography.bodyLarge(color: secondary),
+        hintStyle: _style(secondary),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        contentPadding: const EdgeInsets.only(top: 19, bottom: AppSpacing.md),
       ),
     );
   }

@@ -205,12 +205,11 @@ abstract class AppStrings {
 
   // ── Search ─────────────────────────────────────────────────────────────────
   static const searchHint = 'Search';
-  static const searchCancel = 'Cancel';
   static const a11ySearchFilters = 'Search filters';
   static const a11ySearchFiltersOn = 'Search filters, some on';
   static const searchEmptyPrompt =
       'Try searching for channels, posts or #hashtags.';
-  static const searchRecentTitle = 'Recent searches';
+  static const searchRecentTitle = 'Recent';
   static const searchRecentClear = 'Clear recent searches';
   static const searchRecentClearConfirm = 'Clear all recent searches?';
   static const searchRecentClearAction = 'Clear';
@@ -471,10 +470,10 @@ abstract class AppStrings {
   static String settingsAccountError(Object error) =>
       'Error loading account: $error';
   static const settingsTitle = 'Settings and privacy';
-  static const settingsSectionDisplay = 'DISPLAY AND SOUND';
-  static const settingsSectionPreferences = 'PREFERENCES';
-  static const settingsSectionData = 'DATA AND STORAGE';
-  static const settingsSectionAbout = 'ABOUT & SUPPORT';
+  static const settingsSectionDisplay = 'Display and sound';
+  static const settingsSectionPreferences = 'Preferences';
+  static const settingsSectionData = 'Data and storage';
+  static const settingsSectionAbout = 'About and support';
 
   static const settingsDarkModeLabel = 'Dark mode appearance';
   static const settingsThemeLight = 'Light';
@@ -628,6 +627,9 @@ abstract class AppStrings {
 
   static String linkCouldNotOpen(String url) => 'Could not open link: $url';
 
+  /// Under a link's picture, naming its site.
+  static String linkFrom(String domain) => 'from $domain';
+
   // ── Threads ────────────────────────────────────────────────────────────────
   static const threadHide = 'Hide earlier posts';
 
@@ -644,6 +646,11 @@ abstract class AppStrings {
   static const videoPlay = 'Play';
   static const videoPause = 'Pause';
   static const videoMute = 'Mute';
+
+  /// The playback speed button, as "1x" or "1.5x".
+  static String videoSpeed(double speed) =>
+      '${speed == speed.roundToDouble() ? speed.toInt() : speed}x';
+  static const videoSpeedTooltip = 'Playback speed';
   static const videoUnmute = 'Unmute';
 
   // ── Spoilers ───────────────────────────────────────────────────────────────
@@ -710,6 +717,15 @@ abstract class AppStrings {
   static const composeAddVideoNote = 'Record a video message';
   static const composeAddLocation = 'Send my location';
   static const composeAddContact = 'Share a contact';
+
+  /// The attach menu's rows, short as on X.
+  static const attachPhotos = 'Photos';
+  static const attachVideos = 'Videos';
+  static const attachFiles = 'Files';
+  static const attachVideoMessage = 'Video message';
+  static const attachPoll = 'Poll';
+  static const attachLocation = 'Location';
+  static const attachContact = 'Contact';
   static const composeAddSticker = 'Add sticker';
   static const composeAddGif = 'Add GIF';
 
@@ -1115,7 +1131,16 @@ abstract class AppStrings {
   static const chatHistoryFailed = "Couldn't load this conversation.";
   static const chatSendFailed = "Couldn't send that. Tap to try again.";
   static const chatRetry = 'Retry';
-  static const chatEdited = 'edited';
+  static const chatEdited = 'Edited';
+
+  /// The time line between messages: "Thu, Jul 9 at 11:29 AM".
+  static String chatTimeLine(String day, String time) => '$day at $time';
+
+  /// Under the newest message the user sent.
+  static const chatStatusSending = 'Sending…';
+  static const chatStatusSent = 'Sent';
+  static const chatStatusSeen = 'Seen';
+  static const chatStatusFailed = 'Not sent. Tap to try again.';
   static const chatReplyingTo = 'Replying to';
 
   /// One line above a reply naming who is being answered.

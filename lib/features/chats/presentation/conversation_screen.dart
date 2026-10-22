@@ -586,12 +586,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   /// A plain tap on a bubble: toggles selection while selecting, and resends
   /// a failed message.
+  /// The message whose time shows under it, after a tap.
+  int? _timeShownFor;
+
   Future<void> _handleTap(ChatMessage message) async {
     if (_isSelecting) {
       await _toggleSelected(message);
       return;
     }
-    if (message.sendState != MessageSendState.failed) return;
+    if (message.sendState != MessageSendState.failed) {
+      // A tap shows the message's time under it, and a second hides it.
+      setState(() {
+        _timeShownFor = _timeShownFor == message.messageId
+            ? null
+            : message.messageId;
+      });
+      return;
+    }
     HapticFeedback.lightImpact();
 
     final ok = await ref
@@ -1143,6 +1154,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                             .vote(message.messageId, optionIds),
                         onOpenSecretMedia: _openSecretMedia,
                         onOpenPlace: _openPlace,
+                        timeShownFor: _timeShownFor,
                       ),
                       if (_showJumpButton || state.hasMoreNewer)
                         Positioned(
@@ -1673,10 +1685,13 @@ class _ConversationAppBar extends StatelessWidget
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
 
-    // Typing replaces the presence line.
+    // Typing replaces the presence line, which shows only while the person
+    // is online.
     final subtitle = typing != null
         ? AppStrings.chatTyping(typing!.action, name: typing!.name)
-        : _presenceLabel(summary);
+        : (summary?.presence == ChatPresence.online
+              ? AppStrings.chatOnline
+              : null);
     final isLive = typing != null || summary?.presence == ChatPresence.online;
 
     // Only people and bots have a profile to open.
@@ -1687,6 +1702,8 @@ class _ConversationAppBar extends StatelessWidget
 
     return AppBar(
       titleSpacing: 0,
+      // The back arrow a little further out than on other pages.
+      leadingWidth: 56.4,
       backgroundColor: theme.scaffoldBackgroundColor,
       actions: [
         if (onSearch != null)
@@ -1700,10 +1717,13 @@ class _ConversationAppBar extends StatelessWidget
             onCloseSecretChat != null ||
             onRemove != null ||
             onToggleBlock != null)
-          IconButton(
-            icon: const Icon(Icons.more_horiz_rounded),
-            tooltip: AppStrings.chatMoreTooltip,
-            onPressed: () => _showMore(context),
+          Padding(
+            padding: const EdgeInsets.only(right: 4.2),
+            child: IconButton(
+              icon: const Icon(Icons.more_horiz_rounded),
+              tooltip: AppStrings.chatMoreTooltip,
+              onPressed: () => _showMore(context),
+            ),
           ),
       ],
       title: _MaybeTappable(
@@ -1720,7 +1740,7 @@ class _ConversationAppBar extends StatelessWidget
                 avatarColorHex: summary!.avatarColorHex,
                 radius: AppSpacing.avatarSizeSmall / 2,
               ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: 13.7),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1744,17 +1764,19 @@ class _ConversationAppBar extends StatelessWidget
                       Flexible(
                         child: Text(
                           summary?.title ?? '',
-                          style: AppTypography.displayName(color: primary),
+                          // The size of a page's title.
+                          style: AppTypography.pageTitle(color: primary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (summary?.isVerified ?? false) ...[
                         const SizedBox(width: AppSpacing.xs),
-                        const Icon(
+                        Icon(
                           Icons.verified,
                           color: AppColors.verified,
-                          size: 14,
+                          // Grows with the name beside it.
+                          size: MediaQuery.textScalerOf(context).scale(17.5),
                         ),
                       ],
                       if (summary case final person?
@@ -1790,17 +1812,6 @@ class _ConversationAppBar extends StatelessWidget
       ),
     );
   }
-
-  /// The presence line, or null for groups, bots and hidden last-seen.
-  static String? _presenceLabel(ChatSummary? summary) =>
-      switch (summary?.presence) {
-        ChatPresence.online => AppStrings.chatOnline,
-        ChatPresence.offline => AppStrings.chatLastSeenOffline,
-        ChatPresence.recently => AppStrings.chatLastSeenRecently,
-        ChatPresence.lastWeek => AppStrings.chatLastSeenWeek,
-        ChatPresence.lastMonth => AppStrings.chatLastSeenMonth,
-        _ => null,
-      };
 }
 
 /// Makes its child tappable, or leaves it as is. A `GestureDetector` with a
@@ -1851,6 +1862,9 @@ class _MessageList extends StatelessWidget {
   /// The ticked message ids, or null when selection mode is off.
   final Set<int>? selected;
 
+  /// The message whose time was asked for with a tap.
+  final int? timeShownFor;
+
   const _MessageList({
     required this.listKey,
     required this.registry,
@@ -1869,6 +1883,7 @@ class _MessageList extends StatelessWidget {
     required this.onOpenSecretMedia,
     required this.onOpenPlace,
     required this.selected,
+    this.timeShownFor,
   });
 
   /// A stable key per row, so a bubble's state (such as a playing voice
@@ -1961,6 +1976,8 @@ class _MessageList extends StatelessWidget {
       isGroup: state.isGroup,
       isFirstInGroup: row.isFirstInGroup,
       isLastInGroup: row.isLastInGroup,
+      isNewest: row.isNewest,
+      showsTime: row.message.messageId == timeShownFor,
       isHighlighted: row.message.messageId == jumpTargetId,
       onTap: () => onTap(row.message),
       onLongPress: () => onLongPress(row.message),

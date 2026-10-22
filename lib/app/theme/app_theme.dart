@@ -16,6 +16,8 @@ class _Palette {
   final Color border;
   final Color textPrimary;
   final Color textSecondary;
+  final Color tabSelected;
+  final Color tabUnselected;
 
   const _Palette({
     required this.brightness,
@@ -25,6 +27,8 @@ class _Palette {
     required this.border,
     required this.textPrimary,
     required this.textSecondary,
+    required this.tabSelected,
+    required this.tabUnselected,
   });
 
   static const light = _Palette(
@@ -35,6 +39,8 @@ class _Palette {
     border: AppColors.lightBorder,
     textPrimary: AppColors.lightTextPrimary,
     textSecondary: AppColors.lightTextSecondary,
+    tabSelected: AppColors.lightTextPrimary,
+    tabUnselected: AppColors.lightTextSecondary,
   );
 
   static const dim = _Palette(
@@ -45,6 +51,8 @@ class _Palette {
     border: AppColors.dimBorder,
     textPrimary: AppColors.dimTextPrimary,
     textSecondary: AppColors.dimTextSecondary,
+    tabSelected: AppColors.dimTextPrimary,
+    tabUnselected: AppColors.dimTextSecondary,
   );
 
   static const dark = _Palette(
@@ -55,6 +63,8 @@ class _Palette {
     border: AppColors.darkBorder,
     textPrimary: AppColors.darkTextPrimary,
     textSecondary: AppColors.darkTextSecondary,
+    tabSelected: AppColors.darkTabSelected,
+    tabUnselected: AppColors.darkTabUnselected,
   );
 }
 
@@ -133,13 +143,18 @@ class AppTheme {
         },
       ),
       splashFactory: InkSparkle.splashFactory,
+      // Pushed pages: a taller bar, the back arrow further in and the title
+      // close after it. Every such bar has a back button.
       appBarTheme: AppBarTheme(
         backgroundColor: p.background,
         foregroundColor: p.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: AppTypography.heading(color: p.textPrimary),
+        toolbarHeight: 64,
+        leadingWidth: 62,
+        titleSpacing: 0,
+        titleTextStyle: AppTypography.pageTitle(color: p.textPrimary),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: p.background,
@@ -213,20 +228,18 @@ class AppTheme {
         titleTextStyle: AppTypography.body(color: p.textPrimary),
         subtitleTextStyle: AppTypography.actionCount(color: p.textSecondary),
       ),
-      // As X draws its tabs: bold labels, the unselected ones a step lighter
-      // in gray, under a rounded bar in the text color.
+      // Bold labels in two greys, the selected one over a thin bar as wide
+      // as its tab.
       tabBarTheme: TabBarThemeData(
-        labelColor: p.textPrimary,
-        unselectedLabelColor: p.textSecondary,
-        labelStyle: AppTypography.button(),
-        unselectedLabelStyle: AppTypography.button().copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        labelColor: p.tabSelected,
+        unselectedLabelColor: p.tabUnselected,
+        labelStyle: AppTypography.tabLabel(),
+        unselectedLabelStyle: AppTypography.tabLabel(),
+        labelPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         indicator: UnderlineTabIndicator(
-          borderSide: BorderSide(width: 3, color: p.textPrimary),
-          borderRadius: BorderRadius.circular(3),
+          borderSide: BorderSide(width: 1.9, color: p.tabSelected),
         ),
-        indicatorSize: TabBarIndicatorSize.label,
+        indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
         overlayColor: WidgetStateProperty.all(Colors.transparent),
       ),

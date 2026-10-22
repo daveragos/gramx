@@ -13,6 +13,9 @@ import 'package:gramx/features/chats/presentation/widgets/message_send_state_ico
 /// One conversation in the chat list: avatar on the left, name and preview on
 /// the right, time at the top right, with a hairline between rows.
 class ChatListTile extends StatelessWidget {
+  /// The picture's size, larger than in other lists.
+  static const double avatarSize = 56;
+
   final ChatSummary chat;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
@@ -41,7 +44,6 @@ class ChatListTile extends StatelessWidget {
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final isUnread = chat.unreadCount > 0 || chat.isMarkedAsUnread;
 
@@ -54,41 +56,36 @@ class ChatListTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: border, width: 0.5)),
+        // No rule between rows; the picture is centred on the text.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: 12.2,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Avatar(chat: chat, onPeek: onPeek),
-                const SizedBox(width: AppSpacing.avatarGap),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TitleRow(
-                        chat: chat,
-                        primary: primary,
-                        secondary: secondary,
-                        onAffiliatedChannelTap: onAffiliatedChannelTap,
-                      ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      _PreviewRow(
-                        chat: chat,
-                        secondary: secondary,
-                        isUnread: isUnread,
-                      ),
-                    ],
-                  ),
+          child: Row(
+            children: [
+              _Avatar(chat: chat, onPeek: onPeek),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _TitleRow(
+                      chat: chat,
+                      primary: primary,
+                      secondary: secondary,
+                      onAffiliatedChannelTap: onAffiliatedChannelTap,
+                    ),
+                    const SizedBox(height: 3.4),
+                    _PreviewRow(
+                      chat: chat,
+                      secondary: secondary,
+                      isUnread: isUnread,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -123,7 +120,7 @@ class _Avatar extends StatelessWidget {
     // Saved Messages gets a bookmark instead of the user's own photo.
     final avatar = chat.kind == ChatKind.savedMessages
         ? const CircleAvatar(
-            radius: AppSpacing.avatarSizeLarge / 2,
+            radius: ChatListTile.avatarSize / 2,
             backgroundColor: AppColors.accent,
             child: Icon(Icons.bookmark_rounded, color: Colors.white, size: 22),
           )
@@ -132,7 +129,7 @@ class _Avatar extends StatelessWidget {
             avatarPath: chat.avatarPath,
             avatarFileId: chat.avatarFileId,
             avatarColorHex: chat.avatarColorHex,
-            radius: AppSpacing.avatarSizeLarge / 2,
+            radius: ChatListTile.avatarSize / 2,
           );
 
     if (chat.presence != ChatPresence.online) return avatar;
@@ -183,8 +180,11 @@ class _TitleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // The name side is Expanded so the timestamp stays at the right edge. A
-    // Flexible plus Spacer would split the free space and centre it.
+    // Flexible plus Spacer would split the free space and centre it. The
+    // smaller time shares the name's baseline.
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
         Expanded(
           child: Row(
@@ -192,7 +192,10 @@ class _TitleRow extends StatelessWidget {
               Flexible(
                 child: Text(
                   chat.title,
-                  style: AppTypography.displayName(color: primary),
+                  // A step lighter than a post's author.
+                  style: AppTypography.displayName(
+                    color: primary,
+                  ).copyWith(fontWeight: FontWeight.w600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -218,7 +221,12 @@ class _TitleRow extends StatelessWidget {
               ],
               if (chat.isVerified) ...[
                 const SizedBox(width: AppSpacing.xs),
-                const Icon(Icons.verified, color: AppColors.verified, size: 15),
+                Icon(
+                  Icons.verified,
+                  color: AppColors.verified,
+                  // Grows with the name beside it.
+                  size: MediaQuery.textScalerOf(context).scale(16.3),
+                ),
               ],
               // The plain check rather than the emoji status, to keep the list
               // scannable. Verified names already have a check.
@@ -253,7 +261,9 @@ class _TitleRow extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Text(
             TimeUtils.relativeTime(chat.lastMessageAt!),
-            style: AppTypography.timestamp(color: secondary),
+            style: AppTypography.timestamp(
+              color: secondary,
+            ).copyWith(fontSize: 14),
           ),
         ],
         // Explains why an older chat sits above newer ones.
@@ -305,10 +315,12 @@ class _PreviewRow extends StatelessWidget {
           ),
         ],
         Expanded(
-          child: RichText(
-            maxLines: 2,
+          // Text.rich rather than RichText, which ignores the reader's text
+          // size.
+          child: Text.rich(
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            text: TextSpan(
+            TextSpan(
               children: [
                 if (chat.previewIsDraft)
                   TextSpan(

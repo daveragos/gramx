@@ -71,10 +71,8 @@ class ChatFilterMenu extends ConsumerWidget {
         onTap: () => _open(context, ref),
         borderRadius: BorderRadius.circular(AppSpacing.pillRadius),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
-          ),
+          height: 32,
+          padding: const EdgeInsets.fromLTRB(12, 0, 10, 0),
           decoration: BoxDecoration(
             border: Border.all(color: border),
             borderRadius: BorderRadius.circular(AppSpacing.pillRadius),
@@ -82,9 +80,9 @@ class ChatFilterMenu extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(active.label, style: AppTypography.button(color: primary)),
-              const SizedBox(width: AppSpacing.xxs),
-              Icon(Icons.keyboard_arrow_down_rounded, color: primary, size: 18),
+              Text(active.label, style: AppTypography.body(color: primary)),
+              const SizedBox(width: 3.4),
+              Icon(Icons.keyboard_arrow_down_rounded, color: primary, size: 20),
             ],
           ),
         ),

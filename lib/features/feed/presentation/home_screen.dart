@@ -27,7 +27,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// The folder tabs under the app bar. The feed reserves this much extra at
   /// its top so the header can slide away without reflowing the list.
-  static const double _tabBarHeight = 46;
+  static const double _tabBarHeight = 44;
 
   @override
   Widget build(BuildContext context) {
@@ -79,10 +79,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Shared by both branches so the header stays put on a cold start.
     final header = ChromeHeaderRow(
-      titleWidget: const BrandGlyph(),
+      titleWidget: const BrandGlyph(height: 20),
       centerTitle: true,
       leading: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
+        padding: const EdgeInsetsDirectional.only(start: 16.75, end: 8),
         child: Semantics(
           button: true,
           label: AppStrings.a11yOpenMenu,
@@ -273,23 +273,29 @@ class _FolderTabBar extends StatelessWidget {
 
   const _FolderTabBar({required this.titles, required this.onTabTap});
 
+  /// The tab above its bar. Its label is lifted a little off the middle.
+  static const double _tabHeight = 42;
+  static const EdgeInsets _labelPadding = EdgeInsets.fromLTRB(
+    AppSpacing.lg,
+    0,
+    AppSpacing.lg,
+    1.4,
+  );
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = theme.colorScheme.onSurface;
-    final secondary = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
-
-    return TabBar(
-      isScrollable: true,
-      tabAlignment: TabAlignment.start,
-      labelColor: primary,
-      unselectedLabelColor: secondary,
-      dividerColor: Colors.transparent,
-      onTap: onTabTap,
-      tabs: [for (final title in titles) Tab(text: title)],
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: TabBar(
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        padding: const EdgeInsetsDirectional.only(start: AppSpacing.lg),
+        labelPadding: _labelPadding,
+        onTap: onTabTap,
+        tabs: [
+          for (final title in titles) Tab(height: _tabHeight, text: title),
+        ],
+      ),
     );
   }
 }

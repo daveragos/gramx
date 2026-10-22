@@ -18,23 +18,26 @@ class PostSkeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: baseColor,
       highlightColor: highlightColor,
+      // Laid out like a post card.
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.postPadding,
-          vertical: AppSpacing.md,
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          PostLayout.insetStart,
+          PostLayout.insetTop,
+          PostLayout.insetEnd,
+          AppSpacing.md,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: AppSpacing.avatarSize,
-              height: AppSpacing.avatarSize,
+              width: PostLayout.avatarSize,
+              height: PostLayout.avatarSize,
               decoration: const BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: AppSpacing.avatarGap),
+            const SizedBox(width: PostLayout.avatarGap),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +100,7 @@ class PostSkeleton extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(
-                        AppSpacing.mediaRadius,
+                        AppSpacing.postMediaRadius,
                       ),
                     ),
                   ),

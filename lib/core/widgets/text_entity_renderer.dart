@@ -50,6 +50,10 @@ class TextEntityRenderer extends StatelessWidget {
   /// left. Only under a parent of bounded width, such as a post card.
   final bool fullWidth;
 
+  /// Drawn after the text, in the same paragraph, such as a collapsed post's
+  /// "Show more".
+  final List<InlineSpan> trailing;
+
   const TextEntityRenderer({
     super.key,
     required this.text,
@@ -62,6 +66,7 @@ class TextEntityRenderer extends StatelessWidget {
     this.onMentionTap,
     this.selectable = true,
     this.fullWidth = false,
+    this.trailing = const [],
   });
 
   @override
@@ -81,7 +86,7 @@ class TextEntityRenderer extends StatelessWidget {
         style ?? AppTypography.body(color: theme.colorScheme.onSurface);
     final marks = directionIsolates(text, direction);
 
-    if (entities.isEmpty && marks.isEmpty) {
+    if (entities.isEmpty && marks.isEmpty && trailing.isEmpty) {
       if (maxLines != null) {
         return Text(
           text,
@@ -147,6 +152,7 @@ class TextEntityRenderer extends StatelessWidget {
         ),
       );
     }
+    spans.addAll(trailing);
 
     // Clamped text uses Text, not SelectableText: a selectable field with a
     // line limit scrolls internally and clips instead of ellipsizing.

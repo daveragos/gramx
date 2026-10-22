@@ -48,7 +48,7 @@ void main() {
       expect(find.byKey(const Key('media')), findsOneWidget);
     });
 
-    // "Open with" lives in the bottom action bar.
+    // "Open with" is a round button in the top row, beside the menu.
     group('the open-with control', () {
       testWidgets('is absent while the file is still arriving', (tester) async {
         await tester.pumpWidget(
@@ -58,9 +58,7 @@ void main() {
         expect(find.byIcon(Icons.open_in_new_rounded), findsNothing);
       });
 
-      // Without a post there is no action bar, so it sits in the top row as a
-      // bare icon.
-      testWidgets('rides in the top row only when there is no post', (
+      testWidgets('shows once the file is here, as the back button does', (
         tester,
       ) async {
         await tester.pumpWidget(
@@ -74,8 +72,11 @@ void main() {
 
         final icon = find.byIcon(Icons.open_in_new_rounded);
         expect(icon, findsOneWidget);
-        // Same size as the action bar's icons.
-        expect(tester.widget<Icon>(icon).size, 18);
+        // The same size as the back arrow beside it.
+        expect(
+          tester.widget<Icon>(icon).size,
+          tester.widget<Icon>(find.byIcon(Icons.arrow_back)).size,
+        );
       });
     });
   });

@@ -16,6 +16,7 @@ import 'package:gramx/core/widgets/expandable_text.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_action_bar.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 
 /// The frame around full-screen media: the post's author, caption and the
 /// same actions the feed card offers.
@@ -25,7 +26,8 @@ class MediaViewerChrome extends ConsumerWidget {
 
   final Widget child;
 
-  /// Extra controls pinned above the action bar, such as the video scrubber.
+  /// Extra controls at the foot, under the actions, such as the video
+  /// scrubber. With them the actions are drawn as pills, as over a video.
   final Widget? controls;
 
   /// Page indicator dots for an album.
@@ -84,11 +86,13 @@ class MediaViewerChrome extends ConsumerWidget {
                         onTap: () => Navigator.of(context).pop(),
                       ),
                       const Spacer(),
-                      // Only without a post; otherwise it is in the action bar.
-                      if (localPath != null && currentPost == null)
-                        _OpenWithButton(
-                          path: localPath!,
-                          color: Colors.white70,
+                      if (localPath != null) _OpenWithButton(path: localPath!),
+                      // The post's menu, as on its card.
+                      if (currentPost case final post?)
+                        _CircleButton(
+                          icon: Icons.more_vert,
+                          tooltip: AppStrings.postMenuTooltip,
+                          onTap: () => PostMenuSheet.show(context, ref, post),
                         ),
                     ],
                   ),
@@ -177,130 +181,147 @@ class _BottomSheetChrome extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          // No bottom padding: the action bar's tap areas reach into it.
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.postPadding,
-            AppSpacing.xl,
-            AppSpacing.postPadding,
-            0,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (pageIndicator != null) ...[
-                pageIndicator!,
-                const SizedBox(height: AppSpacing.md),
-              ],
-              Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              // No bottom padding: the action bar's tap areas reach into it.
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.postPadding,
+                AppSpacing.xl,
+                AppSpacing.postPadding,
+                0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ChannelAvatar(
-                    title: post.channelTitle,
-                    avatarPath: post.channelAvatarUrl,
-                    avatarFileId: post.channelAvatarFileId,
-                    avatarColorHex: post.channelAvatarColor,
-                    radius: AppSpacing.avatarSizeSmall / 2,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  if (pageIndicator != null) ...[
+                    pageIndicator!,
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+                  Row(
+                    children: [
+                      ChannelAvatar(
+                        title: post.channelTitle,
+                        avatarPath: post.channelAvatarUrl,
+                        avatarFileId: post.channelAvatarFileId,
+                        avatarColorHex: post.channelAvatarColor,
+                        radius: 20,
+                      ),
+                      const SizedBox(width: 8.4),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Flexible(
-                              child: Text(
-                                post.channelTitle,
-                                style: AppTypography.displayName(
-                                  color: Colors.white,
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    post.channelTitle,
+                                    style: AppTypography.displayName(
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (post.isChannelVerified) ...[
+                                  const SizedBox(width: 2.5),
+                                  Icon(
+                                    Icons.verified,
+                                    color: AppColors.verified,
+                                    size: MediaQuery.textScalerOf(
+                                      context,
+                                    ).scale(16.3),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (post.channelUsername != null)
+                              Text(
+                                '@${post.channelUsername}',
+                                style: AppTypography.username(
+                                  color: Colors.white70,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            if (post.isChannelVerified) ...[
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.verified,
-                                color: AppColors.verified,
-                                size: 14,
-                              ),
-                            ],
                           ],
                         ),
-                        if (post.channelUsername != null)
-                          Text(
-                            '@${post.channelUsername}',
-                            style: AppTypography.username(
-                              color: Colors.white70,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  if (post.text != null && post.text!.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    // Capped so a long caption can't cover the picture.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.4,
+                      ),
+                      child: SingleChildScrollView(
+                        child: ExpandableText(
+                          text: post.text!,
+                          entities: post.entities,
+                          style: AppTypography.body(color: Colors.white),
+                          maxLines: _captionLines,
+                          linkColor: Colors.white,
+                          onMediaTimestampTap: onMediaTimestampTap,
+                        ),
+                      ),
                     ),
+                  ],
+                  SizedBox(
+                    height: controls != null
+                        ? 10.7
+                        : AppSpacing.md - PostActionBar.touchSlop,
+                  ),
+                  PostActionBar(
+                    post: post,
+                    secondaryColor: controls != null
+                        ? Colors.white
+                        : Colors.white70,
+                    // Over a video the actions sit in pills, as on X; over a
+                    // photo they spread across the foot.
+                    spread: controls == null,
+                    pills: controls != null,
+                    onBookmarkTap: () => ref
+                        .read(bookmarkControllerProvider.notifier)
+                        .toggle(post),
+                    onSelectReaction: (emoji) async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final sent = await ref
+                          .read(reactionControllerProvider.notifier)
+                          .react(post, emoji);
+                      if (!sent && isSendableReaction(emoji)) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(AppStrings.reactionFailed),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                    // Comments are on the post screen.
+                    onReplyTap: () {
+                      final router = GoRouter.of(context);
+                      final atPost =
+                          router.state.uri.path == '/post/${post.id}';
+                      Navigator.of(context).pop();
+                      if (!atPost) {
+                        router.push('/post/${post.id}?focusReply=true');
+                      }
+                    },
+                    // Copies the link, as share does on the post; it used to
+                    // just close the viewer.
+                    onShareTap: () =>
+                        copyPostLink(ref, ScaffoldMessenger.of(context), post),
                   ),
                 ],
               ),
-              if (post.text != null && post.text!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                // Capped so a long caption can't cover the picture.
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.4,
-                  ),
-                  child: SingleChildScrollView(
-                    child: ExpandableText(
-                      text: post.text!,
-                      entities: post.entities,
-                      style: AppTypography.body(color: Colors.white),
-                      maxLines: _captionLines,
-                      linkColor: Colors.white,
-                      onMediaTimestampTap: onMediaTimestampTap,
-                    ),
-                  ),
-                ),
-              ],
-              if (controls != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                controls!,
-              ],
-              const SizedBox(height: AppSpacing.md - PostActionBar.touchSlop),
-              PostActionBar(
-                post: post,
-                secondaryColor: Colors.white70,
-                trailing: localPath == null
-                    ? null
-                    : _OpenWithButton(path: localPath!, color: Colors.white70),
-                onBookmarkTap: () =>
-                    ref.read(bookmarkControllerProvider.notifier).toggle(post),
-                onSelectReaction: (emoji) async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final sent = await ref
-                      .read(reactionControllerProvider.notifier)
-                      .react(post, emoji);
-                  if (!sent && isSendableReaction(emoji)) {
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(AppStrings.reactionFailed),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                },
-                // Comments are on the post screen.
-                onReplyTap: () {
-                  final router = GoRouter.of(context);
-                  final atPost = router.state.uri.path == '/post/${post.id}';
-                  Navigator.of(context).pop();
-                  if (!atPost) router.push('/post/${post.id}?focusReply=true');
-                },
-                // Copies the link, as share does on the post; it used to
-                // just close the viewer.
-                onShareTap: () =>
-                    copyPostLink(ref, ScaffoldMessenger.of(context), post),
-              ),
-            ],
-          ),
+            ),
+            // The scrubber and its controls, across the whole width.
+            if (controls != null) ...[const SizedBox(height: 19.4), controls!],
+          ],
         ),
       ),
     );
@@ -462,22 +483,16 @@ class _Fade extends StatelessWidget {
 /// Opens the file on screen in another app.
 class _OpenWithButton extends StatelessWidget {
   final String path;
-  final Color color;
 
-  const _OpenWithButton({required this.path, required this.color});
+  const _OpenWithButton({required this.path});
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: AppStrings.openWith,
-      child: Tooltip(
-        message: AppStrings.openWith,
-        child: GestureDetector(
-          onTap: () => openWithSystemApp(context, path),
-          child: Icon(Icons.open_in_new_rounded, color: color, size: 18),
-        ),
-      ),
+    // A disc like the back button's.
+    return _CircleButton(
+      icon: Icons.open_in_new_rounded,
+      tooltip: AppStrings.openWith,
+      onTap: () => openWithSystemApp(context, path),
     );
   }
 }
@@ -498,10 +513,11 @@ class _CircleButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onTap,
+      // A dark disc that still shows against black.
       icon: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(9),
         decoration: const BoxDecoration(
-          color: Colors.black54,
+          color: Color(0xCC0F1419),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: Colors.white, size: 22),

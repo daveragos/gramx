@@ -11,7 +11,6 @@ import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/chats/presentation/widgets/bubble_media.dart';
 import 'package:gramx/features/chats/presentation/widgets/message_reactions_row.dart';
 import 'package:gramx/features/chats/presentation/widgets/place_bubble.dart';
-import 'package:gramx/features/chats/presentation/widgets/message_send_state_icon.dart';
 import 'package:gramx/features/chats/presentation/widgets/secret_media_bubble.dart';
 import 'package:gramx/features/feed/presentation/widgets/poll_card.dart';
 
@@ -26,8 +25,15 @@ class MessageBubble extends StatelessWidget {
   /// First of a run from the same sender: carries the name.
   final bool isFirstInGroup;
 
-  /// Last of a run: carries the avatar and the timestamp.
+  /// Last of a run: carries the avatar.
   final bool isLastInGroup;
+
+  /// The newest message in the chat: an outgoing one says under it whether it
+  /// was seen.
+  final bool isNewest;
+
+  /// Shows the time under the bubble, as after a tap.
+  final bool showsTime;
 
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -73,6 +79,8 @@ class MessageBubble extends StatelessWidget {
     required this.isGroup,
     required this.isFirstInGroup,
     required this.isLastInGroup,
+    this.isNewest = false,
+    this.showsTime = false,
     this.isHighlighted = false,
     this.onTap,
     this.onLongPress,
@@ -90,7 +98,28 @@ class MessageBubble extends StatelessWidget {
   });
 
   /// The widest a bubble may be, as a fraction of the screen width.
-  static const double maxWidthFraction = 0.78;
+  static const double maxWidthFraction = 0.75;
+
+  /// How far the reactions ride up over the bubble.
+  static const double _reactionOverlap = 4.6;
+
+  /// The grey line under the bubble: whether it was edited, its time when
+  /// asked for, and how the newest outgoing message stands.
+  String? _footnote(BuildContext context) {
+    final parts = <String>[
+      if (message.editedAt != null) AppStrings.chatEdited,
+      if (showsTime) TimeOfDay.fromDateTime(message.sentAt).format(context),
+      if (message.isOutgoing)
+        ?switch (message.sendState) {
+          MessageSendState.failed => AppStrings.chatStatusFailed,
+          MessageSendState.sending => AppStrings.chatStatusSending,
+          MessageSendState.sent when isNewest => AppStrings.chatStatusSent,
+          MessageSendState.read when isNewest => AppStrings.chatStatusSeen,
+          _ => null,
+        },
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,10 +137,11 @@ class MessageBubble extends StatelessWidget {
           : (isHighlighted
                 ? AppColors.accent.withValues(alpha: 0.12)
                 : Colors.transparent),
+      // Runs of one sender sit close, with a wider gap between senders.
       padding: EdgeInsets.only(
-        left: AppSpacing.md,
-        right: AppSpacing.md,
-        top: isFirstInGroup ? AppSpacing.sm : AppSpacing.xxs,
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: isFirstInGroup ? 14.7 : AppSpacing.xs,
         bottom: isLastInGroup ? AppSpacing.xs : 0,
       ),
       child: Row(
@@ -177,13 +207,36 @@ class MessageBubble extends StatelessWidget {
                   onOpenPlace: onOpenPlace,
                   onOpenContact: onOpenContact,
                 ),
+                // Over the bubble's lower corner, inset from its edge.
                 if (message.reactions.isNotEmpty)
+                  Transform.translate(
+                    offset: const Offset(0, -_reactionOverlap),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      child: MessageReactionsRow(
+                        reactions: message.reactions,
+                        chosen: message.chosenReactions,
+                        onTap: onReactionTap,
+                      ),
+                    ),
+                  ),
+                if (_footnote(context) case final note?)
                   Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                    child: MessageReactionsRow(
-                      reactions: message.reactions,
-                      chosen: message.chosenReactions,
-                      onTap: onReactionTap,
+                    padding: EdgeInsets.fromLTRB(
+                      _Body._padX,
+                      message.reactions.isNotEmpty ? 0 : 3,
+                      _Body._padX,
+                      0,
+                    ),
+                    child: Text(
+                      note,
+                      style: AppTypography.username(
+                        color: message.sendState == MessageSendState.failed
+                            ? AppColors.error
+                            : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary),
+                      ).copyWith(fontSize: 13),
                     ),
                   ),
               ],
@@ -236,7 +289,11 @@ class _Body extends StatelessWidget {
 
     final bubbleColor = isOutgoing
         ? AppColors.accent
-        : (isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant);
+        : (Theme.of(context).scaffoldBackgroundColor == AppColors.darkBackground
+              ? AppColors.darkIncomingBubble
+              : (isDark
+                    ? AppColors.darkSurface
+                    : AppColors.lightSurfaceVariant));
     final textColor = isOutgoing ? Colors.white : theme.colorScheme.onSurface;
     final metaColor = isOutgoing
         ? Colors.white.withValues(alpha: 0.75)
@@ -293,7 +350,7 @@ class _Body extends StatelessWidget {
             ),
             child: SecretMediaCover(
               message: message,
-              maxWidth: maxWidth - AppSpacing.md * 2,
+              maxWidth: maxWidth - _padX * 2,
               foregroundColor: textColor,
               mutedColor: metaColor,
               onOpen: message.isOutgoing ? null : onOpenSecretMedia,
@@ -307,14 +364,14 @@ class _Body extends StatelessWidget {
               ),
               child: BubbleMedia(
                 item: item,
-                maxWidth: maxWidth - AppSpacing.md * 2,
+                maxWidth: maxWidth - _padX * 2,
                 isAlone: message.isMediaOnly,
               ),
             ),
         if (message.place case final place?)
           PlaceBubble(
             place: place,
-            maxWidth: maxWidth - AppSpacing.md * 2,
+            maxWidth: maxWidth - _padX * 2,
             foregroundColor: textColor,
             mutedColor: metaColor,
             onOpen: onOpenPlace,
@@ -322,7 +379,7 @@ class _Body extends StatelessWidget {
         if (message.contact case final contact?)
           ContactBubble(
             contact: contact,
-            maxWidth: maxWidth - AppSpacing.md * 2,
+            maxWidth: maxWidth - _padX * 2,
             foregroundColor: textColor,
             mutedColor: metaColor,
             onOpen: contact.hasTelegramAccount && onOpenContact != null
@@ -343,7 +400,10 @@ class _Body extends StatelessWidget {
           TextEntityRenderer(
             text: message.text!,
             entities: message.entities,
-            style: AppTypography.body(color: textColor),
+            // Regular, and lines closer than in a post, as in a chat.
+            style: AppTypography.body(
+              color: textColor,
+            ).copyWith(height: 1.2, fontWeight: FontWeight.w400),
             onMentionTap: onMentionTap,
             onMediaTimestampTap: onMediaTimestampTap,
             // The long press belongs to the bubble.
@@ -358,8 +418,6 @@ class _Body extends StatelessWidget {
               color: metaColor,
             ).copyWith(fontStyle: FontStyle.italic),
           ),
-        const SizedBox(height: AppSpacing.xxs),
-        _MetaRow(message: message, color: metaColor),
       ],
     );
 
@@ -372,12 +430,12 @@ class _Body extends StatelessWidget {
             ? content
             : Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
+                  horizontal: _padX,
+                  vertical: 9.8,
                 ),
                 decoration: BoxDecoration(
                   color: bubbleColor,
-                  borderRadius: _radius(isOutgoing),
+                  borderRadius: BorderRadius.circular(_radius),
                 ),
                 child: content,
               ),
@@ -385,18 +443,11 @@ class _Body extends StatelessWidget {
     );
   }
 
-  /// Rounded corners, except on the sender's side: the top corner after the
-  /// first message of a run, and the bottom corner on the last.
-  BorderRadius _radius(bool isOutgoing) {
-    const round = Radius.circular(18);
-    const tail = Radius.circular(4);
-    return BorderRadius.only(
-      topLeft: !isOutgoing && !isFirstInGroup ? tail : round,
-      topRight: isOutgoing && !isFirstInGroup ? tail : round,
-      bottomLeft: !isOutgoing && isLastInGroup ? tail : round,
-      bottomRight: isOutgoing && isLastInGroup ? tail : round,
-    );
-  }
+  /// Every corner alike, so a one-line message is a pill.
+  static const double _radius = 20;
+
+  /// The space either side of the words.
+  static const double _padX = 15;
 }
 
 /// The "Replying to" line and quoted text above a reply.
@@ -462,38 +513,6 @@ class _ReplyQuote extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  final ChatMessage message;
-  final Color color;
-
-  const _MetaRow({required this.message, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final time = TimeOfDay.fromDateTime(message.sentAt);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (message.editedAt != null) ...[
-          Text(
-            AppStrings.chatEdited,
-            style: AppTypography.timestamp(color: color),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-        Text(
-          time.format(context),
-          style: AppTypography.timestamp(color: color),
-        ),
-        if (message.isOutgoing) ...[
-          const SizedBox(width: AppSpacing.xs),
-          MessageSendStateIcon(state: message.sendState, color: color),
-        ],
-      ],
     );
   }
 }

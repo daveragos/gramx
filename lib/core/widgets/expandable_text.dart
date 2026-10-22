@@ -52,6 +52,41 @@ class _ExpandableTextState extends State<ExpandableText> {
   Widget build(BuildContext context) {
     final clampable = shouldClampText(widget.text, maxLines: widget.maxLines);
     final collapsed = clampable && !_expanded;
+    final linkStyle = AppTypography.body(
+      color: widget.linkColor ?? AppColors.accent,
+    );
+
+    if (collapsed) {
+      // Cut short, with "Show more" straight after the last word, as X shows
+      // a long post.
+      final shown = widget.text
+          .substring(0, collapsedLength(widget.text, maxLines: widget.maxLines))
+          .trimRight();
+      return TextEntityRenderer(
+        text: shown,
+        entities: [
+          for (final entity in widget.entities)
+            if (entity.offset < shown.length) entity,
+        ],
+        style: widget.style,
+        onHashtagTap: widget.onHashtagTap,
+        onMediaTimestampTap: widget.onMediaTimestampTap,
+        maxLines: widget.maxLines,
+        fullWidth: true,
+        trailing: [
+          TextSpan(text: ' ', style: widget.style),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: _Toggle(
+              label: AppStrings.postShowMore,
+              style: linkStyle,
+              onTap: () => setState(() => _expanded = true),
+            ),
+          ),
+        ],
+      );
+    }
 
     final body = TextEntityRenderer(
       text: widget.text,
@@ -59,36 +94,50 @@ class _ExpandableTextState extends State<ExpandableText> {
       style: widget.style,
       onHashtagTap: widget.onHashtagTap,
       onMediaTimestampTap: widget.onMediaTimestampTap,
-      maxLines: collapsed ? widget.maxLines : null,
       fullWidth: true,
     );
-
     if (!clampable) return body;
-
-    final label = _expanded ? AppStrings.postShowLess : AppStrings.postShowMore;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         body,
-        Semantics(
-          button: true,
-          label: label,
-          excludeSemantics: true,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                label,
-                style: AppTypography.body(
-                  color: widget.linkColor ?? AppColors.accent,
-                ).copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: _Toggle(
+            label: AppStrings.postShowLess,
+            style: linkStyle,
+            onTap: () => setState(() => _expanded = false),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// "Show more" or "Show less", in the link colour.
+class _Toggle extends StatelessWidget {
+  final String label;
+  final TextStyle style;
+  final VoidCallback onTap;
+
+  const _Toggle({
+    required this.label,
+    required this.style,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Text(label, style: style),
+      ),
     );
   }
 }

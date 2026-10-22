@@ -5,12 +5,25 @@ abstract class AppColors {
   // secondary text are not on the sheet.
 
   // Dark theme (default).
-  static const Color darkBackground = Color(0xFF000000);
+  static const Color darkBackground = Color(0xFF030303);
   static const Color darkSurface = Color(0xFF16181C);
   static const Color darkSurfaceVariant = Color(0xFF1D1F23);
   static const Color darkBorder = Color(0xFF2F3336);
-  static const Color darkTextPrimary = Color(0xFFE7E9EA);
-  static const Color darkTextSecondary = Color(0xFF71767B);
+  static const Color darkTextPrimary = Color(0xFFD9D9D9);
+  static const Color darkTextSecondary = Color(0xFF7C838A);
+
+  /// A selected tab's label and bar, a step brighter than the text, and the
+  /// unselected labels, a step brighter than secondary text.
+  static const Color darkTabSelected = Color(0xFFFFFFFF);
+  static const Color darkTabUnselected = Color(0xFF9A9A9A);
+
+  /// The search pill and the words in it before it is focused.
+  static const Color darkSearchFill = Color(0xFF101010);
+  static const Color darkSearchHint = Color(0xFF9F9F9F);
+
+  /// A received message, and the message field and its round button.
+  static const Color darkIncomingBubble = Color(0xFF141414);
+  static const Color darkComposerFill = Color(0xFF191B1D);
 
   // Light theme, using the sheet's off-white and near-black.
   static const Color lightBackground = Color(0xFFF9F9F9);
@@ -28,8 +41,8 @@ abstract class AppColors {
   static const Color dimTextPrimary = Color(0xFFF7F9F9);
   static const Color dimTextSecondary = Color(0xFF8B98A5);
 
-  // The brand blue and its gradient ends.
-  static const Color accent = Color(0xFF3CB8FF);
+  // The interface blue, and the brand mark's gradient ends.
+  static const Color accent = Color(0xFF1D9BF0);
   static const Color accentDark = Color(0xFF167FBB);
   static const Color accentLight = Color(0xFFB5E4FF);
 

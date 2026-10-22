@@ -223,7 +223,7 @@ double chromeBottomInset(BuildContext context) =>
 /// receives the space the header and bottom bar cover.
 class ChromeScaffold extends StatelessWidget {
   /// Height of the header row itself, above the status bar inset.
-  static const double headerHeight = 56;
+  static const double headerHeight = 64;
 
   final Widget header;
 
@@ -243,6 +243,10 @@ class ChromeScaffold extends StatelessWidget {
   /// itself, as with the feed's tabs.
   final bool observeScroll;
 
+  /// Whether to rule off the chrome's lower edge. Off where [headerBottom]
+  /// draws its own rule, as the chat list does above its search.
+  final bool showBorder;
+
   const ChromeScaffold({
     super.key,
     required this.header,
@@ -250,6 +254,7 @@ class ChromeScaffold extends StatelessWidget {
     this.headerBottom,
     this.headerBottomHeight = 0,
     this.observeScroll = true,
+    this.showBorder = true,
   });
 
   @override
@@ -278,9 +283,15 @@ class ChromeScaffold extends StatelessWidget {
             child: ChromeSlide(
               fromTop: true,
               child: BlurredChrome(
-                border: Border(
-                  bottom: BorderSide(color: borderColor, width: 0.5),
-                ),
+                // One device pixel, faint, as X rules off its headers.
+                border: showBorder
+                    ? Border(
+                        bottom: BorderSide(
+                          color: borderColor.withValues(alpha: 0.35),
+                          width: 0,
+                        ),
+                      )
+                    : null,
                 child: SizedBox(
                   height: totalHeight,
                   // Overlaid on the header's bottom edge so it never shifts the
@@ -354,7 +365,7 @@ class ChromeHeaderRow extends StatelessWidget {
         titleWidget ??
         Text(
           title!,
-          style: AppTypography.heading(color: primary),
+          style: AppTypography.pageTitle(color: primary),
           overflow: TextOverflow.ellipsis,
         );
 

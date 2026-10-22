@@ -84,44 +84,50 @@ class RecentSearchesView extends ConsumerWidget {
       padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.sm,
-          ),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.sm, 2.3, 0, 0),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   AppStrings.searchRecentTitle,
-                  style: AppTypography.heading(color: primary),
+                  style: AppTypography.heading(
+                    color: primary,
+                  ).copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
+              // A small solid disc, in a larger tap area.
               IconButton(
                 tooltip: AppStrings.searchRecentClear,
                 onPressed: () => _confirmClear(context, ref),
                 style: IconButton.styleFrom(
-                  backgroundColor: isDark
-                      ? AppColors.darkSurfaceVariant
-                      : AppColors.lightSurfaceVariant,
-                  minimumSize: const Size.square(32),
-                  fixedSize: const Size.square(32),
+                  minimumSize: const Size.square(40),
+                  fixedSize: const Size.square(40),
                   padding: EdgeInsets.zero,
                 ),
-                icon: Icon(Icons.close_rounded, size: 18, color: primary),
+                icon: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: primary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: theme.scaffoldBackgroundColor,
+                  ),
+                ),
               ),
             ],
           ),
         ),
         if (chats.isNotEmpty)
           SizedBox(
-            height: 128,
-            child: ListView.separated(
+            height: _RecentChatTile.heightFor(context),
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              padding: const EdgeInsets.only(left: 12.3, right: AppSpacing.sm),
               itemCount: chats.length,
-              separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
               itemBuilder: (context, index) => _RecentChatTile(
                 chat: chats[index],
                 primary: primary,
@@ -143,6 +149,17 @@ class RecentSearchesView extends ConsumerWidget {
 
 /// A chat opened from search: its picture, name and handle.
 class _RecentChatTile extends ConsumerWidget {
+  /// The name and handle, a size under post text.
+  static const double _textSize = 14;
+
+  /// The gap above the picture, the picture, and two lines of text at the
+  /// reader's text size.
+  static double heightFor(BuildContext context) =>
+      5.7 +
+      40 +
+      2 * MediaQuery.textScalerOf(context).scale(_textSize) * 1.2 +
+      4;
+
   final RecentChat chat;
   final Color primary;
   final Color secondary;
@@ -169,7 +186,7 @@ class _RecentChatTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final username = chat.username;
     return SizedBox(
-      width: 84,
+      width: 76,
       child: Semantics(
         button: true,
         label: chat.title,
@@ -179,28 +196,29 @@ class _RecentChatTile extends ConsumerWidget {
           onTap: () => _open(context, ref),
           child: Column(
             children: [
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: 5.7),
               ChannelAvatar(
                 title: chat.title,
                 avatarPath: chat.avatarPath,
                 avatarFileId: chat.avatarFileId,
-                radius: 32,
+                radius: 20,
               ),
-              const SizedBox(height: AppSpacing.sm),
               Text(
                 chat.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.timestamp(
                   color: primary,
-                ).copyWith(fontWeight: FontWeight.w600),
+                ).copyWith(fontSize: _textSize),
               ),
               if (username != null)
                 Text(
                   '@$username',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography.timestamp(color: secondary),
+                  style: AppTypography.timestamp(
+                    color: secondary,
+                  ).copyWith(fontSize: _textSize),
                 ),
             ],
           ),
@@ -230,7 +248,7 @@ class _RecentQueryRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.only(left: AppSpacing.lg),
+        padding: const EdgeInsets.only(left: AppSpacing.md),
         child: Row(
           children: [
             Expanded(
@@ -238,7 +256,9 @@ class _RecentQueryRow extends StatelessWidget {
                 query,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodyLarge(color: color),
+                style: AppTypography.displayName(
+                  color: color,
+                ).copyWith(fontSize: 16),
               ),
             ),
             IconButton(

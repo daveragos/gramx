@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gramx/app/app_shell.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/presentation/widgets/new_chat_sheet.dart';
@@ -14,11 +15,12 @@ import 'package:gramx/features/compose/presentation/compose_screen.dart';
 /// What the shell's button does on a tab.
 enum ShellFabAction {
   compose(Icons.add_rounded, 28, AppStrings.a11yCompose),
-  newChat(Icons.maps_ugc_outlined, 24, AppStrings.messagesNewChat);
+  newChat(null, 24, AppStrings.messagesNewChat);
 
   const ShellFabAction(this.icon, this.iconSize, this.tooltip);
 
-  final IconData icon;
+  /// Null where the icon is drawn instead: a bubble with a plus.
+  final IconData? icon;
   final double iconSize;
   final String tooltip;
 
@@ -85,6 +87,11 @@ class _Button extends StatelessWidget {
       heroTag: null,
       backgroundColor: AppColors.accent,
       foregroundColor: Colors.white,
+      // Flat, with no shadow under it.
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 0,
       tooltip: action.tooltip,
       shape: const CircleBorder(),
       onPressed: () => action.run(context),
@@ -104,7 +111,14 @@ class _Button extends StatelessWidget {
             child: FadeTransition(opacity: animation, child: child),
           );
         },
-        child: Icon(action.icon, key: ValueKey(action), size: action.iconSize),
+        child: action.icon == null
+            ? Glyph(
+                AppGlyphs.newChat,
+                key: ValueKey(action),
+                size: action.iconSize,
+                color: Colors.white,
+              )
+            : Icon(action.icon, key: ValueKey(action), size: action.iconSize),
       ),
     );
   }

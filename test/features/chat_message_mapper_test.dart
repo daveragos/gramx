@@ -392,6 +392,29 @@ void main() {
       expect(rows.whereType<ConversationDateRow>(), hasLength(2));
     });
 
+    // As X marks time: a line after a long pause, not over every message.
+    test('a long pause gets a time line, a short one does not', () {
+      final rows = ConversationRows.build([
+        at(1, DateTime(2026, 8, 28, 10, 0)),
+        at(2, DateTime(2026, 8, 28, 10, 30)),
+        at(3, DateTime(2026, 8, 28, 12, 0)),
+      ]);
+      final lines = rows.whereType<ConversationDateRow>().toList();
+      expect(lines.map((r) => r.date), [
+        DateTime(2026, 8, 28, 10, 0),
+        DateTime(2026, 8, 28, 12, 0),
+      ]);
+    });
+
+    test('only the newest message is marked newest', () {
+      final rows = ConversationRows.build([
+        at(1, DateTime(2026, 8, 28, 10, 0)),
+        at(2, DateTime(2026, 8, 28, 10, 1), sender: _me),
+      ]).whereType<ConversationMessageRow>().toList();
+
+      expect(rows.map((r) => r.isNewest), [false, true]);
+    });
+
     test('a run from one sender is one group', () {
       final rows = ConversationRows.build([
         at(1, DateTime(2026, 8, 28, 10, 0)),
@@ -533,11 +556,21 @@ void main() {
   group('date labels', () {
     final now = DateTime(2026, 8, 28, 12);
 
-    test('today and yesterday get their names', () {
-      expect(ChatDateSeparator.label(DateTime(2026, 8, 28), now: now), 'Today');
+    test('today and yesterday get their names, with the time', () {
       expect(
-        ChatDateSeparator.label(DateTime(2026, 8, 27), now: now),
-        'Yesterday',
+        ChatDateSeparator.label(DateTime(2026, 8, 28, 19, 39), now: now),
+        'Today at 7:39 PM',
+      );
+      expect(
+        ChatDateSeparator.label(DateTime(2026, 8, 27, 9, 5), now: now),
+        'Yesterday at 9:05 AM',
+      );
+    });
+
+    test('an older day is named and dated', () {
+      expect(
+        ChatDateSeparator.label(DateTime(2026, 7, 9, 11, 29), now: now),
+        'Thu, Jul 9 at 11:29 AM',
       );
     });
 

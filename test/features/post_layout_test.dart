@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/core/navigation/deep_link_handler.dart';
@@ -180,14 +181,16 @@ void main() {
       ),
     );
 
-    // The icons are 18 points; a tap needed to land on one.
+    // The icons are under 19 points; a tap needed to land on one.
     testWidgets('an action answers anywhere in its cell, not just its icon', (
       tester,
     ) async {
       var replies = 0;
       await tester.pumpWidget(host(onReplyTap: () => replies++));
 
-      final icon = tester.getCenter(find.byIcon(Icons.chat_bubble_outline));
+      final icon = tester.getCenter(
+        find.byWidgetPredicate((w) => w is Glyph && w.glyph == AppGlyphs.reply),
+      );
       // Well to the right of the icon and its count, and below it.
       await tester.tapAt(icon + const Offset(40, 9));
 
@@ -199,7 +202,9 @@ void main() {
 
       expect(
         tester.getSize(find.byType(PostActionBar)).height,
-        greaterThanOrEqualTo(18 + 2 * PostActionBar.touchSlop),
+        greaterThanOrEqualTo(
+          PostActionBar.iconSize + 2 * PostActionBar.touchSlop,
+        ),
       );
     });
   });

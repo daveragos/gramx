@@ -6,6 +6,7 @@ import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/text/emoji_presentation.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/core/time/time_utils.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
@@ -108,7 +109,7 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
         ? post.chosenReactions.first
         : (post.reactions.keys.isNotEmpty ? post.reactions.keys.first : null);
 
-    final countStyle = AppTypography.actionCount(
+    final countStyle = AppTypography.actionBarCount(
       color: hasOwnReaction ? AppColors.like : widget.color,
     ).copyWith(fontSize: widget.countFontSize);
 
@@ -144,8 +145,9 @@ class _ReactionControlState extends ConsumerState<ReactionControl> {
                     )
                   else
                     // Filled only when the user has reacted.
-                    Icon(
-                      hasOwnReaction ? Icons.favorite : Icons.favorite_border,
+                    Glyph(
+                      AppGlyphs.like,
+                      filled: hasOwnReaction,
                       color: hasOwnReaction ? AppColors.like : widget.color,
                       size: widget.iconSize,
                     ),

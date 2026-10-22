@@ -295,10 +295,15 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
       !_isSending &&
       (_controller.text.trim().isNotEmpty || _attachments.isNotEmpty);
 
+  /// The + button, which the attach choices open above.
+  final GlobalKey _attachKey = GlobalKey();
+
   Future<void> _attach() async {
     final picker = ref.read(composeMediaPickerProvider);
+    final box = _attachKey.currentContext?.findRenderObject() as RenderBox?;
     final choice = await ComposeMediaKindSheet.show(
       context,
+      anchor: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
       includePoll: widget.onSendPoll != null,
       includeDocument: widget.allowsDocuments,
       includeVideoNote:
@@ -471,17 +476,17 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final fill = isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant;
+    final fill = theme.scaffoldBackgroundColor == AppColors.darkBackground
+        ? AppColors.darkComposerFill
+        : (isDark ? AppColors.darkSurface : AppColors.lightSurfaceVariant);
 
     return Listener(
       onPointerUp: (event) => _releaseHeldRecording(event.position),
       onPointerCancel: (event) =>
           _releaseHeldRecording(event.position, cancelled: true),
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          border: Border(top: BorderSide(color: border, width: 0.5)),
-        ),
+        // No rule above it; the field stands on its own.
+        decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
         child: SafeArea(
           top: false,
           child: Column(
@@ -512,11 +517,13 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                 )
               else
                 Padding(
+                  // A round button, then the field with the microphone in
+                  // it, as X lays out its message bar.
                   padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
                     AppSpacing.sm,
-                    AppSpacing.sm,
-                    AppSpacing.sm,
-                    AppSpacing.sm,
+                    16.4,
+                    21.7,
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -526,104 +533,216 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                         collapsed: composerToolsFolded(
                           hasText: _controller.text.isNotEmpty,
                           expandedByHand: _toolsExpanded,
-                          toolCount: widget.onSendRemote == null ? 1 : 2,
+                          toolCount: 1,
                         ),
                         onExpand: () => setState(() => _toolsExpanded = true),
                         tools: [
-                          IconButton(
+                          _RoundButton(
+                            key: _attachKey,
                             tooltip: AppStrings.chatAttach,
-                            icon: const Icon(
-                              Icons.add_circle_outline_rounded,
-                              color: AppColors.accent,
-                            ),
+                            fill: fill,
+                            border: border,
                             onPressed: _attach,
-                          ),
-                          if (widget.onSendRemote != null)
-                            IconButton(
-                              tooltip: AppStrings.chatStickers,
-                              icon: const Icon(
-                                Icons.emoji_emotions_outlined,
-                                color: AppColors.accent,
-                              ),
-                              onPressed: _isSending ? null : _pickRemote,
+                            child: Icon(
+                              Icons.add_rounded,
+                              color: primary,
+                              size: 27,
                             ),
+                          ),
                         ],
                       ),
+                      const SizedBox(width: 8.4),
                       Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focus,
-                          maxLines: 5,
-                          minLines: 1,
-                          textCapitalization: TextCapitalization.sentences,
-                          keyboardType: TextInputType.multiline,
-                          style: AppTypography.body(color: primary),
-                          onChanged: (value) {
-                            widget.onChanged?.call(value);
-                            // Unfolds the tools again once the field is empty.
-                            setState(() {
-                              if (value.isEmpty) _toolsExpanded = false;
-                            });
-                          },
-                          decoration: InputDecoration(
-                            hintText: AppStrings.chatComposerHint,
-                            hintStyle: AppTypography.body(color: secondary),
-                            filled: true,
-                            fillColor: fill,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                              vertical: AppSpacing.md,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minHeight: _RoundButton.size,
+                          ),
+                          decoration: BoxDecoration(
+                            color: fill,
+                            borderRadius: BorderRadius.circular(
+                              _RoundButton.size / 2,
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide.none,
+                          ),
+                          // Drawn over the field so it doesn't pad it.
+                          foregroundDecoration: BoxDecoration(
+                            border: Border.all(color: border),
+                            borderRadius: BorderRadius.circular(
+                              _RoundButton.size / 2,
                             ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _focus,
+                                  maxLines: 5,
+                                  minLines: 1,
+                                  textCapitalization:
+                                      TextCapitalization.sentences,
+                                  keyboardType: TextInputType.multiline,
+                                  style: _fieldStyle(primary),
+                                  onChanged: (value) {
+                                    widget.onChanged?.call(value);
+                                    // Unfolds the tools again once the field
+                                    // is empty.
+                                    setState(() {
+                                      if (value.isEmpty) {
+                                        _toolsExpanded = false;
+                                      }
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                    hintText: AppStrings.chatComposerHint,
+                                    // Regular, a step lighter than the words
+                                    // typed.
+                                    hintStyle: _fieldStyle(
+                                      secondary,
+                                    ).copyWith(fontWeight: FontWeight.w400),
+                                    // The pill is the field; the theme's
+                                    // outlines would box it.
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    filled: false,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.fromLTRB(
+                                      12.9,
+                                      14.5,
+                                      0,
+                                      14.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (widget.onSendRemote != null)
+                                _FieldIcon(
+                                  tooltip: AppStrings.chatStickers,
+                                  onPressed: _isSending ? null : _pickRemote,
+                                  child: Icon(
+                                    Icons.emoji_emotions_outlined,
+                                    color: primary,
+                                    size: 22,
+                                  ),
+                                ),
+                              if (_showMicrophone)
+                                // Tap to record with the bar's buttons, or
+                                // hold and release to send. No tooltip, since
+                                // a tooltip would take the long press.
+                                Semantics(
+                                  button: true,
+                                  label: AppStrings.voiceRecord,
+                                  onTap: _startRecording,
+                                  excludeSemantics: true,
+                                  child: GestureDetector(
+                                    onLongPressStart: _startHeldRecording,
+                                    child: _FieldIcon(
+                                      onPressed: _startRecording,
+                                      child: Icon(
+                                        Icons.mic_none_rounded,
+                                        color: primary,
+                                        size: 25.5,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                _SendButton(
+                                  isEnabled: _canSend,
+                                  isSending: _isSending,
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    _send();
+                                  },
+                                  onLongPress: widget.onPickSchedule == null
+                                      ? null
+                                      : () {
+                                          HapticFeedback.mediumImpact();
+                                          _sendLater();
+                                        },
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.xs),
-                      if (_showMicrophone)
-                        // Tap to record with the bar's buttons, or hold and
-                        // release to send. No tooltip, since a tooltip would
-                        // take the long press.
-                        Semantics(
-                          button: true,
-                          label: AppStrings.voiceRecord,
-                          onTap: _startRecording,
-                          excludeSemantics: true,
-                          child: GestureDetector(
-                            onLongPressStart: _startHeldRecording,
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.mic_none_rounded,
-                                color: AppColors.accent,
-                              ),
-                              onPressed: _startRecording,
-                            ),
-                          ),
-                        )
-                      else
-                        _SendButton(
-                          isEnabled: _canSend,
-                          isSending: _isSending,
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            _send();
-                          },
-                          onLongPress: widget.onPickSchedule == null
-                              ? null
-                              : () {
-                                  HapticFeedback.mediumImpact();
-                                  _sendLater();
-                                },
-                        ),
                     ],
                   ),
                 ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// The words in the field, set as in a message bubble.
+  static TextStyle _fieldStyle(Color color) => AppTypography.body(
+    color: color,
+  ).copyWith(height: 1.2, fontWeight: FontWeight.w400);
+}
+
+/// The round, outlined button before the message field.
+class _RoundButton extends StatelessWidget {
+  static const double size = 44;
+
+  final String tooltip;
+  final Color fill;
+  final Color border;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  const _RoundButton({
+    super.key,
+    required this.tooltip,
+    required this.fill,
+    required this.border,
+    required this.onPressed,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: fill,
+        shape: CircleBorder(side: BorderSide(color: border)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox.square(
+            dimension: size,
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An icon inside the message field, the field's height.
+class _FieldIcon extends StatelessWidget {
+  final String? tooltip;
+  final VoidCallback? onPressed;
+  final Widget child;
+
+  const _FieldIcon({
+    this.tooltip,
+    required this.onPressed,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44,
+      height: _RoundButton.size,
+      child: IconButton(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        onPressed: onPressed,
+        icon: child,
       ),
     );
   }
@@ -655,6 +774,9 @@ class _SendButton extends StatelessWidget {
       // IconButton has no long press of its own.
       onLongPress: isEnabled ? onLongPress : null,
       child: IconButton(
+        // The field's height, so the field doesn't grow when it appears.
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        padding: EdgeInsets.zero,
         tooltip: onLongPress == null
             ? AppStrings.chatSend
             : AppStrings.chatSendOrSchedule,

@@ -5,6 +5,7 @@ import 'package:handy_tdlib/api.dart' as td;
 import 'package:video_player/video_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gramx/app/theme/app_colors.dart';
+import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/features/guest/data/guest_media_cache.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_file_server.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
@@ -272,14 +273,17 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     return state.progress;
   }
 
+  /// "2:32", or "1:02:32" past an hour.
   String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     if (duration.inHours > 0) {
-      final hours = duration.inHours.toString();
-      return '$hours:$minutes:$seconds';
+      final minutes = duration.inMinutes
+          .remainder(60)
+          .toString()
+          .padLeft(2, '0');
+      return '${duration.inHours}:$minutes:$seconds';
     }
-    return '$minutes:$seconds';
+    return '${duration.inMinutes}:$seconds';
   }
 
   @override
@@ -354,66 +358,95 @@ class _FullScreenVideoViewerState extends ConsumerState<FullScreenVideoViewer> {
     );
   }
 
-  /// Scrubber, play/pause, elapsed time and mute.
+  /// The speeds the speed button steps through, starting at normal.
+  static const List<double> _speeds = [1, 1.5, 2, 0.5];
+  double _speed = 1;
+
+  void _nextSpeed(VideoPlayerController controller) {
+    final next = _speeds[(_speeds.indexOf(_speed) + 1) % _speeds.length];
+    controller.setPlaybackSpeed(next);
+    setState(() => _speed = next);
+  }
+
+  /// A thin bar across the whole width, then play/pause, the time left, the
+  /// speed and mute, as X's player draws them.
   Widget _buildScrubber(VideoPlayerController controller) {
+    final value = controller.value;
+    final left = value.duration - value.position;
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Three points to see, with room above and below to grab.
         VideoProgressIndicator(
           controller,
           allowScrubbing: true,
+          padding: const EdgeInsets.symmetric(vertical: 8),
           colors: const VideoProgressColors(
-            playedColor: AppColors.accent,
-            bufferedColor: Colors.white30,
-            backgroundColor: Colors.white12,
+            playedColor: Colors.white,
+            bufferedColor: Colors.white38,
+            backgroundColor: Colors.white24,
           ),
         ),
-        Row(
-          children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: Icon(
-                controller.value.isPlaying
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 28,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  value.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+                tooltip: value.isPlaying
+                    ? AppStrings.videoPause
+                    : AppStrings.videoPlay,
+                onPressed: () => setState(() {
+                  value.isPlaying ? controller.pause() : controller.play();
+                }),
               ),
-              tooltip: controller.value.isPlaying
-                  ? AppStrings.videoPause
-                  : AppStrings.videoPlay,
-              onPressed: () => setState(() {
-                controller.value.isPlaying
-                    ? controller.pause()
-                    : controller.play();
-              }),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '${_formatDuration(controller.value.position)}'
-              ' / ${_formatDuration(controller.value.duration)}',
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
-            const Spacer(),
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: Icon(
-                controller.value.volume == 0
-                    ? Icons.volume_off_rounded
-                    : Icons.volume_up_rounded,
-                color: Colors.white,
-                size: 22,
+              Text(
+                '-${_formatDuration(left.isNegative ? Duration.zero : left)}',
+                style: AppTypography.username(
+                  color: Colors.white70,
+                ).copyWith(fontSize: 13.5),
               ),
-              tooltip: controller.value.volume == 0
-                  ? AppStrings.videoUnmute
-                  : AppStrings.videoMute,
-              onPressed: () => setState(() {
-                controller.setVolume(controller.value.volume == 0 ? 1.0 : 0.0);
-              }),
-            ),
-          ],
+              const Spacer(),
+              TextButton(
+                onPressed: () => _nextSpeed(controller),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(48, 48),
+                ),
+                child: Tooltip(
+                  message: AppStrings.videoSpeedTooltip,
+                  child: Text(
+                    AppStrings.videoSpeed(_speed),
+                    style: AppTypography.username(
+                      color: Colors.white,
+                    ).copyWith(fontSize: 17),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  value.volume == 0
+                      ? Icons.volume_off_outlined
+                      : Icons.volume_up_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                tooltip: value.volume == 0
+                    ? AppStrings.videoUnmute
+                    : AppStrings.videoMute,
+                onPressed: () => setState(() {
+                  controller.setVolume(value.volume == 0 ? 1.0 : 0.0);
+                }),
+              ),
+            ],
+          ),
         ),
       ],
     );

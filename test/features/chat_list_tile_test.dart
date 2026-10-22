@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,6 +73,29 @@ void main() {
 
       expect(find.byType(PremiumCheck), findsNothing);
     });
+  });
+
+  // The preview was drawn with RichText, which ignores the reader's text
+  // size, so it stayed large under a small setting and small under a large
+  // one, unlike the name above it.
+  testWidgets('the preview follows the reader\'s text size', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(1.5)),
+            child: Scaffold(
+              body: ChatListTile(chat: row(), onTap: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final preview = tester.renderObject<RenderParagraph>(
+      find.text('on my way', findRichText: true),
+    );
+    expect(preview.textScaler, const TextScaler.linear(1.5));
   });
 
   group('the Premium mark on a detail view', () {

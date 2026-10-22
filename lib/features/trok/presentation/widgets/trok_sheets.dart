@@ -39,15 +39,8 @@ class TrokPostButton extends ConsumerWidget {
       child: InkWell(
         onTap: () => TrokPostSheet.show(context, ref, post),
         customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.sm,
-            0,
-            AppSpacing.xxs,
-            AppSpacing.xs,
-          ),
-          child: TrokMark(size: 18, color: color),
-        ),
+        // Centred in the space the card gives it.
+        child: Center(child: TrokMark(size: 18, color: color)),
       ),
     );
   }

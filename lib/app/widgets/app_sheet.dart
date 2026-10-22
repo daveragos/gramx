@@ -102,25 +102,45 @@ class AppSheetRow<T> extends StatelessWidget {
         : AppColors.lightTextSecondary;
     final color = isDestructive ? AppColors.error : primary;
 
-    return ListTile(
-      leading: Icon(icon, color: color, size: 22),
-      title: Text(
-        label,
-        style: AppTypography.body(
-          color: color,
-        ).copyWith(fontWeight: FontWeight.w600),
-      ),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle!, style: AppTypography.actionCount(color: secondary)),
-      trailing: isSelected
-          ? Icon(Icons.check_rounded, color: primary, size: 20)
-          : null,
-      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+    // An icon and a label at X's sizes, in a 56-point row.
+    return InkWell(
       onTap: () {
         Navigator.of(context).pop(value);
         onTap?.call();
       },
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, AppSpacing.lg, 8),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 17),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: AppTypography.username(
+                        color: color,
+                      ).copyWith(fontSize: 18),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: AppTypography.actionCount(color: secondary),
+                      ),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check_rounded, color: primary, size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -130,8 +150,17 @@ class AppSheetDivider extends StatelessWidget {
   const AppSheetDivider({super.key});
 
   @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-    child: Divider(),
-  );
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    // One device pixel, faint, and inset from both edges.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Divider(
+        height: 1,
+        thickness: 0,
+        color: border.withValues(alpha: 0.55),
+      ),
+    );
+  }
 }

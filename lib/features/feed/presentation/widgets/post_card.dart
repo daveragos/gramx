@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +33,7 @@ import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 import 'package:gramx/features/trok/presentation/trok_inline_translation.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_sheets.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 
 class PostCard extends ConsumerWidget {
   final Post post;
@@ -44,6 +47,11 @@ class PostCard extends ConsumerWidget {
   final VoidCallback? onBookmarkTap;
   final ValueChanged<String>? onLikeEmojiTap;
   final VoidCallback? onShareTap;
+
+  /// Between the name, its badge and the handle, and either side of the dot
+  /// before the time: the width of a space.
+  static const double _nameGap = 2.5;
+  static const double _dotGap = 2;
 
   const PostCard({
     super.key,
@@ -172,6 +180,14 @@ class PostCard extends ConsumerWidget {
         ? (post.forwardedFromUsername ?? origin?.username)
         : post.channelUsername;
 
+    final showsTrok = ref.watch(readerCapabilitiesProvider).canMessage;
+    // Where the picture's top falls in the avatar row. Under a passage it
+    // is at the very top, to keep the connector continuous.
+    final double avatarTop = showsQuotedPassage
+        ? 0
+        : (isRepost ? AppSpacing.xs : PostLayout.insetTop);
+    final rowTop = math.max(0.0, avatarTop - PostLayout.nameRise);
+
     final card = InkWell(
       onTap: onTap ?? defaultReplyHandler,
       child: AnimatedContainer(
@@ -203,251 +219,285 @@ class PostCard extends ConsumerWidget {
                 ),
                 child: _quotedPassage(context),
               ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.postPadding,
-                // No top padding under a passage, to keep the connector
-                // continuous.
-                showsQuotedPassage
-                    ? 0
-                    : (isRepost ? AppSpacing.xs : AppSpacing.postPadding),
-                AppSpacing.postPadding,
-                // The action bar's tap areas reach into this.
-                AppSpacing.postPadding - PostActionBar.touchSlop,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ChannelAvatar(
-                    title: authorTitle,
-                    avatarPath: isRepost
-                        ? origin?.avatarPath
-                        : post.channelAvatarUrl,
-                    avatarFileId: isRepost
-                        ? origin?.avatarFileId
-                        : post.channelAvatarFileId,
-                    avatarColorHex: isRepost ? null : post.channelAvatarColor,
-                    onTap: openAuthor,
+            Stack(
+              children: [
+                Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    PostLayout.insetStart,
+                    rowTop,
+                    PostLayout.insetEnd,
+                    // The action bar's tap areas reach the divider.
+                    0,
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title, username and time, with "…" at the far edge.
-                        Row(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        // The name line starts a little above the picture,
+                        // so the letters' tops line up with it.
+                        padding: EdgeInsets.only(top: avatarTop - rowTop),
+                        child: ChannelAvatar(
+                          title: authorTitle,
+                          avatarPath: isRepost
+                              ? origin?.avatarPath
+                              : post.channelAvatarUrl,
+                          avatarFileId: isRepost
+                              ? origin?.avatarFileId
+                              : post.channelAvatarFileId,
+                          avatarColorHex: isRepost
+                              ? null
+                              : post.channelAvatarColor,
+                          radius: PostLayout.avatarSize / 2,
+                          onTap: openAuthor,
+                        ),
+                      ),
+                      const SizedBox(width: PostLayout.avatarGap),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: GestureDetector(
-                                      onTap: openAuthor,
-                                      child: Text(
-                                        authorTitle,
-                                        style: AppTypography.displayName(
-                                          color: primaryTextColor,
+                            // Title, username and time, leaving room for the
+                            // buttons drawn over the end of the line.
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: GestureDetector(
+                                          onTap: openAuthor,
+                                          child: Text(
+                                            authorTitle,
+                                            style: AppTypography.displayName(
+                                              color: primaryTextColor,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ),
-                                  if (isAuthorVerified) ...[
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.verified,
-                                      color: AppColors.verified,
-                                      size: 16,
-                                    ),
-                                  ],
-                                  const SizedBox(width: 4),
-                                  if (authorUsername != null) ...[
-                                    Flexible(
-                                      child: Text(
-                                        '@$authorUsername',
+                                      if (isAuthorVerified) ...[
+                                        const SizedBox(width: _nameGap),
+                                        Icon(
+                                          Icons.verified,
+                                          color: AppColors.verified,
+                                          // Grows with the name beside it.
+                                          size: MediaQuery.textScalerOf(
+                                            context,
+                                          ).scale(16.3),
+                                        ),
+                                      ],
+                                      const SizedBox(width: _nameGap),
+                                      if (authorUsername != null) ...[
+                                        Flexible(
+                                          child: Text(
+                                            '@$authorUsername',
+                                            style: AppTypography.username(
+                                              color: secondaryColor,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: _dotGap),
+                                      ],
+                                      if (!isRepost &&
+                                          post.authorSignature != null &&
+                                          post.authorSignature!.isNotEmpty) ...[
+                                        Text(
+                                          // Shown as a handle, not "~ name".
+                                          '@${post.authorSignature}',
+                                          style:
+                                              AppTypography.actionCount(
+                                                color: AppColors.accent,
+                                              ).copyWith(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        const SizedBox(width: _dotGap),
+                                      ],
+                                      Text(
+                                        '·',
                                         style: AppTypography.username(
                                           color: secondaryColor,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  if (!isRepost &&
-                                      post.authorSignature != null &&
-                                      post.authorSignature!.isNotEmpty) ...[
-                                    Text(
-                                      // Shown as a handle, not "~ name".
-                                      '@${post.authorSignature}',
-                                      style:
-                                          AppTypography.actionCount(
-                                            color: AppColors.accent,
-                                          ).copyWith(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  Text(
-                                    '·',
-                                    style: AppTypography.username(
-                                      color: secondaryColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    TimeUtils.relativeTime(post.publishedAt),
-                                    style: AppTypography.timestamp(
-                                      color: secondaryColor,
-                                    ),
-                                  ),
-                                  if (!post.isRead) ...[
-                                    const SizedBox(width: 6),
-                                    // The dot is colour only, so label it.
-                                    Semantics(
-                                      label: AppStrings.a11yUnread,
-                                      child: Container(
-                                        width: 7,
-                                        height: 7,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.accent,
-                                          shape: BoxShape.circle,
+                                      const SizedBox(width: _dotGap),
+                                      Text(
+                                        TimeUtils.relativeTime(
+                                          post.publishedAt,
+                                        ),
+                                        style: AppTypography.timestamp(
+                                          color: secondaryColor,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ],
+                                      if (!post.isRead) ...[
+                                        const SizedBox(width: 6),
+                                        // The dot is colour only, so label it.
+                                        Semantics(
+                                          label: AppStrings.a11yUnread,
+                                          child: Container(
+                                            width: 7,
+                                            height: 7,
+                                            decoration: const BoxDecoration(
+                                              color: AppColors.accent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: showsTrok
+                                      ? PostLayout.trailingRoomWithTrok
+                                      : PostLayout.trailingRoom,
+                                ),
+                              ],
+                            ),
+
+                            // The "Replying to" line goes above the body; the
+                            // quote card goes below it (see ReplySlot).
+                            ReplyTarget(
+                              post: post,
+                              onOpenPost: () => _openReplyTarget(context),
+                              onOpenAuthor: () => NavigationUtils.openChannel(
+                                context,
+                                post.channelId,
                               ),
                             ),
-                            // Trok answers through the reader's account.
-                            if (ref
-                                .watch(readerCapabilitiesProvider)
-                                .canMessage)
-                              TrokPostButton(post: post, color: secondaryColor),
-                            _MoreButton(
-                              color: secondaryColor,
-                              onTap: () =>
-                                  PostMenuSheet.show(context, ref, post),
+
+                            // Long posts collapse behind "Show more".
+                            if (post.text != null && post.text!.isNotEmpty) ...[
+                              const SizedBox(height: PostLayout.bodyGap),
+                              // A context under the card's MediaSeekScope.
+                              Builder(
+                                builder: (context) => ExpandableText(
+                                  onHashtagTap: (tag) =>
+                                      openHashtagSearch(context, ref, tag),
+                                  onMediaTimestampTap: playFromTimestamp(
+                                    context,
+                                    post.media,
+                                    post: post,
+                                  ),
+                                  text: post.text!,
+                                  entities: post.entities,
+                                  style: AppTypography.body(
+                                    color: primaryTextColor,
+                                  ),
+                                ),
+                              ),
+                              TrokInlineTranslation(
+                                post: post,
+                                style: AppTypography.body(
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                            ],
+
+                            // Content the app can't draw, with a way to open it in
+                            // Telegram.
+                            if (post.unsupportedKind != null) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              _OpenInTelegramButton(post: post),
+                            ],
+
+                            if (post.linkPreviewUrl != null &&
+                                post.linkPreviewUrl!.isNotEmpty) ...[
+                              const SizedBox(height: PostLayout.blockGap),
+                              LinkPreviewCard(
+                                url: post.linkPreviewUrl!,
+                                title: post.linkPreviewTitle,
+                                description: post.linkPreviewDescription,
+                                imageUrl: post.linkPreviewImageUrl,
+                                imageFileId: post.linkPreviewFileId,
+                              ),
+                            ],
+
+                            if (post.poll != null) ...[
+                              const SizedBox(height: PostLayout.blockGap),
+                              FeedPollCard(
+                                poll: post.poll!,
+                                channelId: post.channelId,
+                                messageId: post.messageId,
+                              ),
+                            ],
+
+                            if (post.media.isNotEmpty) ...[
+                              const SizedBox(height: PostLayout.blockGap),
+                              PostMediaGrid(
+                                media: post.media,
+                                post: post,
+                                bleed: AppSpacing.postPadding,
+                              ),
+                            ],
+
+                            // The quoted post being answered, below the answer.
+                            ReplyTarget(
+                              post: post,
+                              slot: ReplySlot.belowBody,
+                              onOpenPost: () => _openReplyTarget(context),
+                              onOpenAuthor: () => NavigationUtils.openChannel(
+                                context,
+                                post.channelId,
+                              ),
+                            ),
+
+                            if (post.reactions.isNotEmpty) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              ReactionChipsRow(
+                                reactions: post.reactions,
+                                chosen: post.chosenReactions,
+                                onTap: defaultReactionHandler,
+                                enabled: ref
+                                    .watch(readerCapabilitiesProvider)
+                                    .canReact,
+                                compact: true,
+                              ),
+                            ],
+
+                            PostActionBar(
+                              post: post,
+                              secondaryColor: secondaryColor,
+                              onBookmarkTap: defaultBookmarkHandler,
+                              onSelectReaction: defaultReactionHandler,
+                              onReplyTap: defaultReplyHandler,
+                              onShareTap: defaultShareHandler,
                             ),
                           ],
                         ),
-
-                        // The "Replying to" line goes above the body; the
-                        // quote card goes below it (see ReplySlot).
-                        ReplyTarget(
-                          post: post,
-                          onOpenPost: () => _openReplyTarget(context),
-                          onOpenAuthor: () => NavigationUtils.openChannel(
-                            context,
-                            post.channelId,
-                          ),
-                        ),
-
-                        // Long posts collapse behind "Show more".
-                        if (post.text != null && post.text!.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.xs),
-                          // A context under the card's MediaSeekScope.
-                          Builder(
-                            builder: (context) => ExpandableText(
-                              onHashtagTap: (tag) =>
-                                  openHashtagSearch(context, ref, tag),
-                              onMediaTimestampTap: playFromTimestamp(
-                                context,
-                                post.media,
-                                post: post,
-                              ),
-                              text: post.text!,
-                              entities: post.entities,
-                              style: AppTypography.body(
-                                color: primaryTextColor,
-                              ),
-                            ),
-                          ),
-                          TrokInlineTranslation(
-                            post: post,
-                            style: AppTypography.body(color: primaryTextColor),
-                          ),
-                        ],
-
-                        // Content the app can't draw, with a way to open it in
-                        // Telegram.
-                        if (post.unsupportedKind != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          _OpenInTelegramButton(post: post),
-                        ],
-
-                        if (post.linkPreviewUrl != null &&
-                            post.linkPreviewUrl!.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          LinkPreviewCard(
-                            url: post.linkPreviewUrl!,
-                            title: post.linkPreviewTitle,
-                            description: post.linkPreviewDescription,
-                            imageUrl: post.linkPreviewImageUrl,
-                            imageFileId: post.linkPreviewFileId,
-                          ),
-                        ],
-
-                        if (post.poll != null) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          FeedPollCard(
-                            poll: post.poll!,
-                            channelId: post.channelId,
-                            messageId: post.messageId,
-                          ),
-                        ],
-
-                        if (post.media.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          PostMediaGrid(
-                            media: post.media,
-                            post: post,
-                            bleed: AppSpacing.postPadding,
-                          ),
-                        ],
-
-                        // The quoted post being answered, below the answer.
-                        ReplyTarget(
-                          post: post,
-                          slot: ReplySlot.belowBody,
-                          onOpenPost: () => _openReplyTarget(context),
-                          onOpenAuthor: () => NavigationUtils.openChannel(
-                            context,
-                            post.channelId,
-                          ),
-                        ),
-
-                        if (post.reactions.isNotEmpty) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          ReactionChipsRow(
-                            reactions: post.reactions,
-                            chosen: post.chosenReactions,
-                            onTap: defaultReactionHandler,
-                            enabled: ref
-                                .watch(readerCapabilitiesProvider)
-                                .canReact,
-                            compact: true,
-                          ),
-                        ],
-
-                        const SizedBox(
-                          height: AppSpacing.md - PostActionBar.touchSlop,
-                        ),
-
-                        PostActionBar(
-                          post: post,
-                          secondaryColor: secondaryColor,
-                          onBookmarkTap: defaultBookmarkHandler,
-                          onSelectReaction: defaultReactionHandler,
-                          onReplyTap: defaultReplyHandler,
-                          onShareTap: defaultShareHandler,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                // Over the end of the name line, centred on its letters.
+                PositionedDirectional(
+                  top: 0,
+                  end: PostLayout.trailingEnd,
+                  height: 2 * (avatarTop + PostLayout.trailingCenter),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Trok answers through the reader's account.
+                      if (showsTrok)
+                        SizedBox(
+                          width: PostLayout.trokWidth,
+                          child: TrokPostButton(
+                            post: post,
+                            color: secondaryColor,
+                          ),
+                        ),
+                      SizedBox(
+                        width: PostLayout.moreWidth,
+                        child: PostMoreButton(
+                          color: secondaryColor,
+                          onTap: () => PostMenuSheet.show(context, ref, post),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             if (showDivider)
               Divider(
@@ -546,13 +596,13 @@ class _OpenInTelegramButton extends ConsumerWidget {
   }
 }
 
-/// The small "…" at the top right of every card, with a hit target the full
-/// height of the row.
-class _MoreButton extends StatelessWidget {
+/// The small "⋮" at the top right of every card, in a hit target larger than
+/// it.
+class PostMoreButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _MoreButton({required this.color, required this.onTap});
+  const PostMoreButton({super.key, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -562,14 +612,13 @@ class _MoreButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.sm,
-            0,
-            0,
-            AppSpacing.xs,
+        child: Center(
+          // Quieter than the other greys on the card.
+          child: Glyph(
+            AppGlyphs.more,
+            size: 19,
+            color: color.withValues(alpha: 0.5),
           ),
-          child: Icon(Icons.more_horiz_rounded, size: 18, color: color),
         ),
       ),
     );
@@ -592,10 +641,10 @@ class _RepostedBy extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.postPadding,
-        AppSpacing.postPadding,
-        AppSpacing.postPadding,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        PostLayout.insetStart,
+        PostLayout.insetTop,
+        PostLayout.insetEnd,
         0,
       ),
       child: Semantics(
@@ -608,13 +657,13 @@ class _RepostedBy extends StatelessWidget {
           child: Row(
             children: [
               SizedBox(
-                width: AppSpacing.avatarSize,
+                width: PostLayout.avatarSize,
                 child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Icon(Icons.repeat_rounded, size: 16, color: color),
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Glyph(AppGlyphs.repost, size: 16, color: color),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: PostLayout.avatarGap),
               Flexible(
                 child: Text(
                   AppStrings.feedReposted(channelTitle),

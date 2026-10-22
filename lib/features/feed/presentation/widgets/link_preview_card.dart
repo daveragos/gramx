@@ -67,72 +67,154 @@ class LinkPreviewCard extends ConsumerWidget {
     final hasImage =
         (imageUrl != null && imageUrl!.isNotEmpty) ||
         (imageFileId != null && imageFileId! > 0);
+    final hasTitle = title != null && title!.isNotEmpty;
 
-    return InkWell(
-      onTap: () => _openUrl(context),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 0.5),
-        ),
-        clipBehavior: Clip.antiAlias,
+    // With a picture, as X draws a link: the picture alone with its title
+    // over a corner, and the site named under it.
+    if (hasImage) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _openUrl(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (hasImage) _buildPreviewImage(ref, isDark),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Container(
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_radius),
+                border: Border.all(
+                  color: borderColor,
+                  width: AppSpacing.mediaBorderWidth,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_radius),
+                child: AspectRatio(
+                  aspectRatio: 1.91,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Icon(Icons.link, size: 14, color: secondaryColor),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          _domain,
-                          style: AppTypography.actionCount(
+                      // A page mark until the picture loads, if it does.
+                      ColoredBox(
+                        color: surfaceColor,
+                        child: Center(
+                          child: Icon(
+                            Icons.article_outlined,
+                            size: 40,
                             color: secondaryColor,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      _buildPreviewImage(ref, isDark),
+                      if (hasTitle)
+                        Positioned(
+                          left: AppSpacing.sm,
+                          right: AppSpacing.sm,
+                          bottom: 5.7,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.pillRadius,
+                                ),
+                              ),
+                              child: Text(
+                                title!,
+                                textDirection: firstStrongDirection(title!),
+                                style: AppTypography.username(
+                                  color: Colors.white,
+                                ).copyWith(fontSize: 13.5),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  if (title != null && title!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      title!,
-                      textDirection: firstStrongDirection(title!),
-                      style: AppTypography.body(
-                        color: primaryColor,
-                      ).copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (description != null && description!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      description!,
-                      textDirection: firstStrongDirection(description!),
-                      style: AppTypography.actionCount(color: secondaryColor),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
+            const SizedBox(height: 4.6),
+            Text(
+              AppStrings.linkFrom(_domain),
+              style: AppTypography.username(
+                color: secondaryColor,
+              ).copyWith(fontSize: 14.5),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => _openUrl(context),
+      borderRadius: BorderRadius.circular(_radius),
+      child: Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(_radius),
+          border: Border.all(color: borderColor, width: 0.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.link, size: 14, color: secondaryColor),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _domain,
+                      style: AppTypography.actionCount(color: secondaryColor),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              if (hasTitle) ...[
+                const SizedBox(height: 4),
+                Text(
+                  title!,
+                  textDirection: firstStrongDirection(title!),
+                  style: AppTypography.body(
+                    color: primaryColor,
+                  ).copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              if (description != null && description!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  description!,
+                  textDirection: firstStrongDirection(description!),
+                  style: AppTypography.actionCount(color: secondaryColor),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  /// The card's corners, rounder than a photo's.
+  static const double _radius = 12;
 
   Widget _buildPreviewImage(WidgetRef ref, bool isDark) {
     // A TDLib file when signed in; in guest mode an https URL that the guest
@@ -145,8 +227,8 @@ class LinkPreviewCard extends ConsumerWidget {
       if (exists) {
         return Image.file(
           File(path),
-          height: 150,
           width: double.infinity,
+          height: double.infinity,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
         );
@@ -168,8 +250,8 @@ class LinkPreviewCard extends ConsumerWidget {
         }
         return Image.file(
           File(downloaded),
-          height: 150,
           width: double.infinity,
+          height: double.infinity,
           fit: BoxFit.cover,
           gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
@@ -179,7 +261,6 @@ class LinkPreviewCard extends ConsumerWidget {
       // Holds the image's height until it arrives, rather than collapsing
       // and growing again on each progress update.
       final loading = Container(
-        height: 150,
         color: isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade200,
         child: const Center(
           child: SizedBox(
@@ -201,8 +282,8 @@ class LinkPreviewCard extends ConsumerWidget {
           if (localPath == null || localPath.isEmpty) return loading;
           return Image.file(
             File(localPath),
-            height: 150,
             width: double.infinity,
+            height: double.infinity,
             fit: BoxFit.cover,
             gaplessPlayback: true,
             frameBuilder: fadeInFrame,

@@ -208,10 +208,10 @@ class PostMediaGrid extends StatelessWidget {
           color: borderColor,
           width: AppSpacing.mediaBorderWidth,
         ),
-        borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+        borderRadius: BorderRadius.circular(AppSpacing.postMediaRadius),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
+        borderRadius: BorderRadius.circular(AppSpacing.postMediaRadius),
         child: child,
       ),
     );
@@ -384,20 +384,7 @@ class _MediaTile extends ConsumerWidget {
           fit: StackFit.expand,
           children: [
             contentWidget,
-            Center(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(10),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-            ),
+            const Center(child: VideoPlayBadge()),
           ],
         );
       }
@@ -419,20 +406,7 @@ class _MediaTile extends ConsumerWidget {
         children: [
           placeholderWidget,
           if (item.type == MediaType.video || item.type == MediaType.gif)
-            Center(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(10),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.white70,
-                  size: 30,
-                ),
-              ),
-            )
+            const Center(child: VideoPlayBadge())
           else if (waitsForTap) ...[
             Container(color: Colors.black.withValues(alpha: 0.15)),
             const Center(child: TapToLoadBadge()),
@@ -734,6 +708,28 @@ class TapToLoadBadge extends StatelessWidget {
             ).copyWith(fontWeight: FontWeight.w600),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The round play mark over a video that isn't playing.
+class VideoPlayBadge extends StatelessWidget {
+  const VideoPlayBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 40,
       ),
     );
   }

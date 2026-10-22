@@ -32,4 +32,27 @@ void main() {
       expect(shouldClampText('a\nb\nc\nd', maxLines: 3), isTrue);
     });
   });
+
+  // A collapsed post ends at a word, with "Show more" straight after it.
+  group('collapsedLength', () {
+    test('cuts a long paragraph at the last word before the limit', () {
+      final text = List.filled(100, 'word').join(' ');
+      final end = collapsedLength(text);
+      expect(end, lessThanOrEqualTo(kCollapsedPostChars));
+      expect(text[end], ' ');
+      expect(text.substring(0, end).endsWith('word'), isTrue);
+    });
+
+    test('stops at the line limit before the length limit', () {
+      final text = List.filled(20, 'a').join('\n');
+      final shown = text.substring(0, collapsedLength(text, maxLines: 3));
+      expect('\n'.allMatches(shown).length, 2);
+    });
+
+    test('never splits an emoji', () {
+      final text = '${'x' * (kCollapsedPostChars - 1)}😀 and more';
+      final shown = text.substring(0, collapsedLength(text));
+      expect(shown.endsWith('\uD83D'), isFalse);
+    });
+  });
 }

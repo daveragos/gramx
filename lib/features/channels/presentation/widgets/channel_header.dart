@@ -17,6 +17,7 @@ import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/channels/domain/channel.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/infrastructure/telegram/file_download_provider.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/app/widgets/pill_button.dart';
 
 /// The measurements of a channel profile's top, laid out as on X: a cover
@@ -29,16 +30,19 @@ class ChannelProfileGeometry {
   const ChannelProfileGeometry(this.topInset);
 
   /// The bar's height below the status bar.
-  static const double barHeight = 48;
+  static const double barHeight = 64;
 
   /// The cover's height below the status bar.
-  static const double coverBodyHeight = 104;
+  static const double coverBodyHeight = 108.5;
 
-  static const double avatarRadius = 40;
-  static const double avatarBorder = 4;
+  static const double avatarRadius = 36.5;
+  static const double avatarBorder = 4.2;
 
   /// How much of the avatar lies over the cover.
-  static const double avatarOverlap = 34;
+  static const double avatarOverlap = 16.5;
+
+  /// Between the avatar's foot and the name.
+  static const double avatarToName = 26.2;
 
   /// The smallest the avatar gets as it scrolls under the bar.
   static const double avatarMinScale = 0.6;
@@ -55,7 +59,7 @@ class ChannelProfileGeometry {
   static double get avatarDiameter => 2 * (avatarRadius + avatarBorder);
 
   /// The row under the cover holding the avatar's overhang and the actions.
-  static double get bandHeight => avatarDiameter - avatarOverlap + 8;
+  static double get bandHeight => avatarDiameter - avatarOverlap + avatarToName;
 
   /// The height of [ChannelCover], in the page.
   double get coverBlockHeight => coverBelowBar + bandHeight;
@@ -176,8 +180,8 @@ class ChannelCover extends StatelessWidget {
           children: [
             _OutlinedCircleButton(
               icon: isMuted
-                  ? Icons.notifications_off_outlined
-                  : Icons.notifications_none_rounded,
+                  ? const Icon(Icons.notifications_off_outlined, size: 20)
+                  : const Glyph(AppGlyphs.bell, size: 20),
               color: isMuted ? AppColors.error : null,
               tooltip: muteTooltip,
               onPressed: onMutePressed,
@@ -185,7 +189,7 @@ class ChannelCover extends StatelessWidget {
             if (onSharePressed != null) ...[
               const SizedBox(width: AppSpacing.sm),
               _OutlinedCircleButton(
-                icon: Icons.ios_share,
+                icon: const Glyph(AppGlyphs.share, size: 20),
                 tooltip: AppStrings.a11yCopyChannelLink,
                 onPressed: onSharePressed!,
               ),
@@ -232,7 +236,7 @@ class ChannelProfileBar extends StatelessWidget {
 
     final buttons = Row(
       children: [
-        const SizedBox(width: AppSpacing.postPadding),
+        const SizedBox(width: AppSpacing.lg),
         _ScrimCircleButton(
           icon: Icons.arrow_back,
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
@@ -250,7 +254,7 @@ class ChannelProfileBar extends StatelessWidget {
             onPressed: onAnalyticsPressed!,
           ),
         ],
-        const SizedBox(width: AppSpacing.postPadding),
+        const SizedBox(width: AppSpacing.lg),
       ],
     );
 
@@ -477,15 +481,18 @@ class _Figure extends StatelessWidget {
     final text = Text.rich(
       TextSpan(
         children: [
+          // A size under the description, as X sets its follower counts.
           TextSpan(
             text: TimeUtils.formatCount(count),
-            style: AppTypography.body(
+            style: AppTypography.displayName(
               color: primary,
-            ).copyWith(fontWeight: FontWeight.w700),
+            ).copyWith(fontSize: 14),
           ),
           TextSpan(
             text: ' $label',
-            style: AppTypography.body(color: secondary),
+            style: AppTypography.username(
+              color: secondary,
+            ).copyWith(fontSize: 14),
           ),
         ],
       ),
@@ -600,7 +607,7 @@ class _ScrimCircleButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           child: SizedBox.square(
-            dimension: 36,
+            dimension: 40,
             child: Icon(icon, color: Colors.white, size: 20),
           ),
         ),
@@ -611,7 +618,7 @@ class _ScrimCircleButton extends StatelessWidget {
 
 /// A round outlined button beside the avatar, like X's bell and share.
 class _OutlinedCircleButton extends StatelessWidget {
-  final IconData icon;
+  final Widget icon;
   final String tooltip;
   final VoidCallback onPressed;
 
@@ -642,11 +649,13 @@ class _OutlinedCircleButton extends StatelessWidget {
         child: InkWell(
           onTap: onPressed,
           child: SizedBox.square(
-            dimension: 36,
-            child: Icon(
-              icon,
-              color: color ?? theme.colorScheme.onSurface,
-              size: 20,
+            dimension: 40,
+            child: IconTheme(
+              data: IconThemeData(
+                color: color ?? theme.colorScheme.onSurface,
+                size: 20,
+              ),
+              child: Center(child: icon),
             ),
           ),
         ),

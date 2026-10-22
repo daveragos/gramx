@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 import 'package:gramx/app/widgets/drawer_avatar_button.dart';
 import 'package:gramx/app/widgets/sliding_chrome.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
@@ -39,7 +40,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   /// Height the search row reserves inside the header: a 48 dense field plus
   /// 8 padding above and below. The scaffold needs it up front to know how far
   /// the chrome travels.
-  static const double _searchFieldHeight = 64;
+  /// The rule under the header, the gaps, and the 40-point search pill.
+  static const double _searchFieldHeight = 0.5 + 8 + 40 + 9;
 
   final TextEditingController _search = TextEditingController();
   final ScrollController _scroll = ScrollController();
@@ -95,9 +97,16 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         title: AppStrings.messagesTitle,
         centerTitle: true,
         leading: const DrawerAvatarButton(),
-        actions: [ChatFilterMenu(onAction: _handleMenu)],
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.6),
+            child: ChatFilterMenu(onAction: _handleMenu),
+          ),
+        ],
       ),
       // Part of the header so it scrolls away with the rest of the chrome.
+      // The rule goes above the search instead of below it.
+      showBorder: false,
       headerBottomHeight: _searchFieldHeight,
       headerBottom: _SearchField(controller: _search),
       body: (context, topPadding, bottomPadding) => chats.isEmpty
@@ -138,58 +147,139 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   }
 }
 
-/// Filters the loaded chats. No request, so no debounce.
-class _SearchField extends ConsumerWidget {
+/// Filters the loaded chats. No request, so no debounce. A pill with its
+/// words centred until it is focused or typed in.
+class _SearchField extends ConsumerStatefulWidget {
   final TextEditingController controller;
   const _SearchField({required this.controller});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends ConsumerState<_SearchField> {
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_refresh);
+    widget.controller.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_refresh);
+    widget.controller.removeListener(_refresh);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final fill = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final isBlack = theme.scaffoldBackgroundColor == AppColors.darkBackground;
+    final fill = isBlack
+        ? AppColors.darkSearchFill
+        : (isDark ? AppColors.dimSurface : AppColors.lightSurfaceVariant);
+    final idleColor = isBlack ? AppColors.darkSearchHint : secondary;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final controller = widget.controller;
+    final idle = !_focus.hasFocus && controller.text.isEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.lg,
-        AppSpacing.sm,
+    final field = TextField(
+      controller: controller,
+      focusNode: _focus,
+      onChanged: ref.read(chatSearchQueryProvider.notifier).set,
+      style: AppTypography.body(color: theme.colorScheme.onSurface),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: idle ? null : AppStrings.messagesSearchHint,
+        hintStyle: AppTypography.body(color: secondary),
+        // The pill is the field; the theme's outlines would box it.
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
       ),
-      child: TextField(
-        controller: controller,
-        onChanged: ref.read(chatSearchQueryProvider.notifier).set,
-        style: AppTypography.body(color: theme.colorScheme.onSurface),
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: AppStrings.messagesSearchHint,
-          hintStyle: AppTypography.body(color: secondary),
-          prefixIcon: Icon(Icons.search_rounded, color: secondary, size: 22),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: MaterialLocalizations.of(
-                    context,
-                  ).modalBarrierDismissLabel,
-                  icon: Icon(Icons.close_rounded, color: secondary, size: 18),
-                  onPressed: () {
-                    controller.clear();
-                    ref.read(chatSearchQueryProvider.notifier).clear();
-                  },
+    );
+
+    return Column(
+      children: [
+        Divider(height: 0.5, thickness: 0.5, color: border),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            9,
+          ),
+          child: Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: fill,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Stack(
+              children: [
+                Row(
+                  children: [
+                    if (idle)
+                      const SizedBox(width: AppSpacing.lg)
+                    else ...[
+                      const SizedBox(width: 12),
+                      Glyph(AppGlyphs.search, color: secondary, size: 24),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(child: field),
+                    if (controller.text.isNotEmpty)
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).modalBarrierDismissLabel,
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: secondary,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          controller.clear();
+                          ref.read(chatSearchQueryProvider.notifier).clear();
+                        },
+                      ),
+                  ],
                 ),
-          filled: true,
-          fillColor: fill,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
+                if (idle)
+                  IgnorePointer(
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Glyph(AppGlyphs.search, size: 24, color: idleColor),
+                          const SizedBox(width: 8.7),
+                          Text(
+                            AppStrings.searchHint,
+                            style: AppTypography.username(color: idleColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

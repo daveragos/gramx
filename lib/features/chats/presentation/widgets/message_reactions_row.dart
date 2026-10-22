@@ -29,8 +29,11 @@ class MessageReactionsRow extends StatelessWidget {
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
     final surface = isDark
-        ? AppColors.darkSurface
+        ? AppColors.darkComposerFill
         : AppColors.lightSurfaceVariant;
+    // Ringed in the page's colour, so a chip over a bubble's edge stands
+    // apart from it.
+    final ring = theme.scaffoldBackgroundColor;
 
     return Wrap(
       spacing: AppSpacing.xs,
@@ -42,6 +45,7 @@ class MessageReactionsRow extends StatelessWidget {
             count: entry.value,
             isChosen: chosen.contains(entry.key),
             surface: surface,
+            ring: ring,
             textColor: secondary,
             // Paid and custom emoji reactions can't be sent as emoji.
             onTap: onTap == null || !isSendableReaction(entry.key)
@@ -61,6 +65,7 @@ class _Chip extends StatelessWidget {
   final int count;
   final bool isChosen;
   final Color surface;
+  final Color ring;
   final Color textColor;
   final VoidCallback? onTap;
 
@@ -69,6 +74,7 @@ class _Chip extends StatelessWidget {
     required this.count,
     required this.isChosen,
     required this.surface,
+    required this.ring,
     required this.textColor,
     this.onTap,
   });
@@ -82,14 +88,11 @@ class _Chip extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
           decoration: BoxDecoration(
-            color: isChosen ? AppColors.accent.withValues(alpha: 0.2) : surface,
-            border: Border.all(
-              color: isChosen ? AppColors.accent : Colors.transparent,
-              width: 0.5,
-            ),
-            borderRadius: BorderRadius.circular(12),
+            color: surface,
+            border: Border.all(color: ring, width: 2),
+            borderRadius: BorderRadius.circular(AppSpacing.pillRadius),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

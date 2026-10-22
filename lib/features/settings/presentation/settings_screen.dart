@@ -274,10 +274,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
 
-          _SectionHeader(
-            title: AppStrings.settingsSectionNotifications,
-            secondaryColor: secondaryColor,
-          ),
+          _SectionHeader(title: AppStrings.settingsSectionNotifications),
           SwitchListTile(
             value: settings.notificationsEnabled,
             title: Text(
@@ -292,10 +289,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(
-            title: AppStrings.settingsSectionDisplay,
-            secondaryColor: secondaryColor,
-          ),
+          _SectionHeader(title: AppStrings.settingsSectionDisplay),
           Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
@@ -376,10 +370,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: AppSpacing.md),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(
-            title: AppStrings.settingsSectionPreferences,
-            secondaryColor: secondaryColor,
-          ),
+          _SectionHeader(title: AppStrings.settingsSectionPreferences),
           SwitchListTile(
             secondary: Icon(Icons.play_circle_outline, color: primaryColor),
             title: Text(
@@ -439,10 +430,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(
-            title: AppStrings.settingsSectionData,
-            secondaryColor: secondaryColor,
-          ),
+          _SectionHeader(title: AppStrings.settingsSectionData),
           ListTile(
             leading: Icon(Icons.storage_outlined, color: primaryColor),
             title: Text(
@@ -482,10 +470,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Divider(height: 1, thickness: 0.5, color: borderColor),
 
-          _SectionHeader(
-            title: AppStrings.settingsSectionAbout,
-            secondaryColor: secondaryColor,
-          ),
+          _SectionHeader(title: AppStrings.settingsSectionAbout),
           _LinkTile(
             icon: Icons.volunteer_activism_rounded,
             title: AppStrings.settingsSupport,
@@ -655,9 +640,8 @@ String _trokLanguageLabel(TrokLanguage language) => switch (language) {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final Color secondaryColor;
 
-  const _SectionHeader({required this.title, required this.secondaryColor});
+  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -668,13 +652,11 @@ class _SectionHeader extends StatelessWidget {
         top: AppSpacing.lg,
         bottom: AppSpacing.sm,
       ),
+      // Bold, in the text colour, like the headings of X's settings pages.
       child: Text(
         title,
-        style: TextStyle(
-          color: secondaryColor,
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.6,
+        style: AppTypography.pageTitle(
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );

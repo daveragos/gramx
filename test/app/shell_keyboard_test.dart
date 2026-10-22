@@ -76,13 +76,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(host());
-    final before = tester.getRect(find.byType(BottomNavigationBar));
+    final before = tester.getRect(find.byType(ShellTabBar));
 
     // A keyboard, as far as the framework is concerned.
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
 
-    expect(tester.getRect(find.byType(BottomNavigationBar)), before);
+    expect(tester.getRect(find.byType(ShellTabBar)), before);
   });
 
   testWidgets('and a branch keeps its own scaffold, which still resizes', (

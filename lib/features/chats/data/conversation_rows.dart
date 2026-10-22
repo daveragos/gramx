@@ -1,12 +1,13 @@
 import 'package:gramx/features/chats/domain/chat_message.dart';
 
-/// One row of a rendered conversation: either a message, or the date band
-/// above the first message of a day.
+/// One row of a rendered conversation: either a message, or the time line
+/// above the first message of a day or of a stretch after a long pause.
 sealed class ConversationRow {
   const ConversationRow();
 }
 
-/// The centred "Today" / "Fri, May 01" band between two days.
+/// The centred "Thu, Jul 9 at 11:29 AM" line. [date] is the time of the
+/// message below it.
 class ConversationDateRow extends ConversationRow {
   final DateTime date;
   const ConversationDateRow(this.date);
@@ -26,13 +27,18 @@ class ConversationMessageRow extends ConversationRow {
   /// First of a run from the same sender. Carries the name and the top corner.
   final bool isFirstInGroup;
 
-  /// Last of a run. Carries the avatar, the timestamp and the bubble's tail.
+  /// Last of a run. Carries the avatar.
   final bool isLastInGroup;
+
+  /// The newest message in the conversation, under which an outgoing one
+  /// says whether it was seen.
+  final bool isNewest;
 
   const ConversationMessageRow(
     this.message, {
     required this.isFirstInGroup,
     required this.isLastInGroup,
+    this.isNewest = false,
   });
 }
 
@@ -41,6 +47,9 @@ abstract class ConversationRows {
   /// How far apart two messages from the same sender can be and still be drawn
   /// as one run.
   static const Duration groupWindow = Duration(minutes: 5);
+
+  /// A pause this long between two messages puts a time line between them.
+  static const Duration timeLineGap = Duration(hours: 1);
 
   /// The unread band's index counted from the newest row, or null. The
   /// reversed list builds lazily, so the screen finds the band by index.
@@ -69,9 +78,14 @@ abstract class ConversationRows {
     for (var i = 0; i < messages.length; i++) {
       final message = messages[i];
       final day = dayOf(message.sentAt);
+      final before = i == 0 ? null : messages[i - 1];
 
-      if (currentDay == null || day != currentDay) {
-        rows.add(ConversationDateRow(day));
+      // On a new day, or after a long pause, the time goes above the message.
+      if (currentDay == null ||
+          day != currentDay ||
+          (before != null &&
+              message.sentAt.difference(before.sentAt) > timeLineGap)) {
+        rows.add(ConversationDateRow(message.sentAt));
         currentDay = day;
       }
 
@@ -96,6 +110,7 @@ abstract class ConversationRows {
               next == null ||
               dayOf(next.sentAt) != day ||
               !_sameRun(message, next),
+          isNewest: next == null,
         ),
       );
     }

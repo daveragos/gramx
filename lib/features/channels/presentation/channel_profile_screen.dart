@@ -625,11 +625,7 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final secondary = isDark
-        ? AppColors.darkTextSecondary
-        : AppColors.lightTextSecondary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       height: _height,
@@ -642,10 +638,6 @@ class _TabBarHeader extends SliverPersistentHeaderDelegate {
               controller: controller,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.label,
-              labelColor: theme.colorScheme.onSurface,
-              unselectedLabelColor: secondary,
               dividerColor: Colors.transparent,
               tabs: [for (final tab in tabs) Tab(text: _labelFor(tab))],
             ),

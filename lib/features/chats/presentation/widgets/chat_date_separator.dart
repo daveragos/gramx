@@ -7,54 +7,51 @@ import 'package:gramx/app/theme/app_typography.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/conversation_rows.dart';
 
-/// The centred date band between two days of messages.
+/// The centred time above a day's first message, or the first after a long
+/// pause: plain grey words, as X marks time in a conversation.
 class ChatDateSeparator extends StatelessWidget {
   final DateTime date;
   const ChatDateSeparator({super.key, required this.date});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final secondary = isDark
         ? AppColors.darkTextSecondary
         : AppColors.lightTextSecondary;
-    final surface = isDark
-        ? AppColors.darkSurface
-        : AppColors.lightSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: surface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            label(date),
-            style: AppTypography.timestamp(color: secondary),
-          ),
-        ),
+      // With the message rows' own gaps, about 19 points either side.
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 14.7, AppSpacing.lg, 4),
+      child: Text(
+        label(date),
+        textAlign: TextAlign.center,
+        style: AppTypography.username(
+          color: secondary,
+        ).copyWith(fontSize: 14, letterSpacing: 0.2),
       ),
     );
   }
 
-  /// "Today", "Yesterday", or a date that omits the year when it is the
-  /// current one.
+  /// "Today at 7:39 PM", "Yesterday at …", or the day and time, with the year
+  /// only when it isn't the current one.
   static String label(DateTime date, {DateTime? now}) {
     final today = ConversationRows.dayOf(now ?? DateTime.now());
     final day = ConversationRows.dayOf(date);
     final difference = today.difference(day).inDays;
+    final time = DateFormat('h:mm a').format(date);
 
-    if (difference == 0) return AppStrings.chatToday;
-    if (difference == 1) return AppStrings.chatYesterday;
-    if (day.year == today.year) return DateFormat('EEE, MMM d').format(day);
-    return DateFormat('MMM d, y').format(day);
+    final String dayLabel;
+    if (difference == 0) {
+      dayLabel = AppStrings.chatToday;
+    } else if (difference == 1) {
+      dayLabel = AppStrings.chatYesterday;
+    } else if (day.year == today.year) {
+      dayLabel = DateFormat('EEE, MMM d').format(day);
+    } else {
+      dayLabel = DateFormat('MMM d, y').format(day);
+    }
+    return AppStrings.chatTimeLine(dayLabel, time);
   }
 }
 

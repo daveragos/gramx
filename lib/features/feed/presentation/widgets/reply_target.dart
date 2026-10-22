@@ -454,9 +454,13 @@ class QuotedPostCard extends ConsumerWidget {
           child: Container(
             // Clips the picture to the card's radius.
             clipBehavior: Clip.antiAlias,
+            // A one-pixel edge, fainter than the dividers.
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppSpacing.mediaRadius),
-              border: Border.all(color: border),
+              borderRadius: BorderRadius.circular(AppSpacing.quoteRadius),
+              border: Border.all(
+                color: border.withValues(alpha: 0.55),
+                width: 0,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,9 +477,9 @@ class QuotedPostCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _byline(author, primary, secondary),
+                      _byline(context, author, primary, secondary),
                       if (body != null && body.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: 7.5),
                         Text(
                           body,
                           maxLines: 5,
@@ -483,28 +487,17 @@ class QuotedPostCard extends ConsumerWidget {
                           style: AppTypography.body(color: primary),
                         ),
                       ],
-                      const SizedBox(height: AppSpacing.md),
+                      SizedBox(height: _hasThumbnail ? 8.8 : AppSpacing.md),
                     ],
                   ),
                 ),
-                // Inset with its own corners, as on X.
+                // From edge to edge, the card's corners rounding its foot.
                 if (_hasThumbnail)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      0,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppSpacing.md),
-                      child: _QuotedMedia(
-                        path: thumbnailPath,
-                        fileId: thumbnailFileId,
-                        aspectRatio: _mediaAspectRatio,
-                        isDark: isDark,
-                      ),
-                    ),
+                  _QuotedMedia(
+                    path: thumbnailPath,
+                    fileId: thumbnailFileId,
+                    aspectRatio: _mediaAspectRatio,
+                    isDark: isDark,
                   ),
               ],
             ),
@@ -524,7 +517,12 @@ class QuotedPostCard extends ConsumerWidget {
   }
 
   /// Avatar, name, badge, handle and time on one line, as on X.
-  Widget _byline(ChatIdentity author, Color primary, Color secondary) {
+  Widget _byline(
+    BuildContext context,
+    ChatIdentity author,
+    Color primary,
+    Color secondary,
+  ) {
     final username = author.username;
     return Row(
       children: [
@@ -533,7 +531,7 @@ class QuotedPostCard extends ConsumerWidget {
           avatarPath: author.avatarPath,
           avatarFileId: author.avatarFileId,
           avatarColorHex: avatarColorHex,
-          radius: 12,
+          radius: 10,
           onTap: onAuthorTap,
         ),
         const SizedBox(width: AppSpacing.xs),
@@ -547,7 +545,11 @@ class QuotedPostCard extends ConsumerWidget {
         ),
         if (author.isVerified) ...[
           const SizedBox(width: AppSpacing.xs),
-          const Icon(Icons.verified, color: AppColors.verified, size: 14),
+          Icon(
+            Icons.verified,
+            color: AppColors.verified,
+            size: MediaQuery.textScalerOf(context).scale(16.3),
+          ),
         ],
         if (username != null && username.isNotEmpty) ...[
           const SizedBox(width: AppSpacing.xs),

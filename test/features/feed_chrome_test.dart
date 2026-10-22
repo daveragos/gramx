@@ -62,12 +62,21 @@ void main() {
 
       // The same button, with both icons on it mid-turn.
       expect(tester.element(find.byType(FloatingActionButton)), button);
-      expect(find.byIcon(ShellFabAction.compose.icon), findsOneWidget);
-      expect(find.byIcon(ShellFabAction.newChat.icon), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey(ShellFabAction.compose)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey(ShellFabAction.newChat)),
+        findsOneWidget,
+      );
 
       await tester.pumpAndSettle();
-      expect(find.byIcon(ShellFabAction.compose.icon), findsNothing);
-      expect(find.byIcon(ShellFabAction.newChat.icon), findsOneWidget);
+      expect(find.byKey(const ValueKey(ShellFabAction.compose)), findsNothing);
+      expect(
+        find.byKey(const ValueKey(ShellFabAction.newChat)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shrinks away on a tab without an action', (tester) async {

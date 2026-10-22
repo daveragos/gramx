@@ -10,7 +10,9 @@ import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 import 'package:gramx/features/trok/data/trok_mention.dart';
 import 'package:gramx/features/trok/presentation/trok_inline_translation.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_mention_suggestion.dart';
+import 'package:gramx/features/trok/presentation/widgets/trok_sheets.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -28,7 +30,6 @@ import 'package:gramx/features/compose/presentation/compose_providers.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_attachment_strip.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_media_kind_sheet.dart';
 import 'package:gramx/features/compose/presentation/widgets/compose_sticker_sheet.dart';
-import 'package:gramx/features/compose/presentation/widgets/composer_tools.dart';
 import 'package:gramx/features/feed/data/feed_repository.dart';
 import 'package:gramx/features/feed/presentation/feed_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -47,6 +48,7 @@ import 'package:gramx/features/bookmarks/presentation/bookmark_providers.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/features/feed/presentation/widgets/reaction_chips_row.dart';
 import 'package:gramx/features/feed/presentation/widgets/post_menu_sheet.dart';
+import 'package:gramx/features/feed/presentation/widgets/post_card.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/app/widgets/edit_text_dialog.dart';
 import 'package:gramx/features/feed/presentation/media_seek.dart';
@@ -66,6 +68,14 @@ class PostDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
+  /// The page's side margins, and the space above media, a link preview or
+  /// a poll.
+  static const double _inset = 8;
+  static const double _blockGap = 16;
+
+  /// The reply bar's pill.
+  static const double _replyBarHeight = 56.4;
+
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
   Post? _replyTargetPost;
@@ -75,9 +85,6 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   final List<ComposeAttachment> _attachments = [];
 
   bool _isSending = false;
-
-  /// Whether the attach and sticker buttons are unfolded while typing.
-  bool _commentToolsExpanded = false;
 
   StreamSubscription<LivePostUpdate>? _liveSub;
   Timer? _refreshDebounce;
@@ -362,10 +369,21 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          AppStrings.postTitle,
-          style: AppTypography.heading(color: primaryColor),
-        ),
+        title: const Text(AppStrings.postTitle),
+        actions: [
+          // Trok on this post, where X puts Grok. It answers through the
+          // reader's account.
+          if (postAsync.value case final post?
+              when ref.watch(readerCapabilitiesProvider).canMessage)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.4),
+              child: IconButton(
+                tooltip: AppStrings.trokAskAboutPost,
+                onPressed: () => TrokPostSheet.show(context, ref, post),
+                icon: TrokMark(size: 24, color: primaryColor),
+              ),
+            ),
+        ],
       ),
       body: postAsync.when(
         loading: () => const Center(
@@ -379,10 +397,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             return _UnreachablePost(postId: widget.postId);
           }
 
-          final totalReactions = post.reactions.values.fold<int>(
-            0,
-            (a, b) => a + b,
-          );
+          final canViewStats =
+              ref
+                  .watch(
+                    canViewPostStatsProvider((
+                      chatId: post.chatId,
+                      messageId: post.messageId,
+                    )),
+                  )
+                  .value ==
+              true;
 
           final screen = Column(
             children: [
@@ -409,7 +433,12 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.all(AppSpacing.postPadding),
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            _inset,
+                            PostLayout.insetTop,
+                            _inset,
+                            0,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -429,7 +458,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       avatarColorHex: post.channelAvatarColor,
                                       radius: AppSpacing.avatarSizeLarge / 2,
                                     ),
-                                    const SizedBox(width: AppSpacing.avatarGap),
+                                    const SizedBox(width: PostLayout.avatarGap),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -445,11 +474,13 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                                     ),
                                               ),
                                               if (post.isChannelVerified) ...[
-                                                const SizedBox(width: 4),
-                                                const Icon(
+                                                const SizedBox(width: 2.5),
+                                                Icon(
                                                   Icons.verified,
                                                   color: AppColors.verified,
-                                                  size: 18,
+                                                  size: MediaQuery.textScalerOf(
+                                                    context,
+                                                  ).scale(16.3),
                                                 ),
                                               ],
                                             ],
@@ -464,24 +495,27 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                         ],
                                       ),
                                     ),
-                                    // The same "…" menu as the feed card.
-                                    IconButton(
-                                      tooltip: AppStrings.postMenuTooltip,
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () => PostMenuSheet.show(
-                                        context,
-                                        ref,
-                                        post,
-                                      ),
-                                      icon: Icon(
-                                        Icons.more_horiz_rounded,
-                                        color: secondaryColor,
+                                    // The same "⋮" menu as the feed card,
+                                    // reaching into the page's margin.
+                                    Transform.translate(
+                                      offset: const Offset(_inset - 4.4, 0),
+                                      child: SizedBox(
+                                        width: PostLayout.moreWidth,
+                                        height: 40,
+                                        child: PostMoreButton(
+                                          color: secondaryColor,
+                                          onTap: () => PostMenuSheet.show(
+                                            context,
+                                            ref,
+                                            post,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.lg),
+                              const SizedBox(height: 7.8),
                               // The "Replying to" line, above the body. The
                               // card form sits below it; see ReplySlot.
                               ReplyTarget(
@@ -505,7 +539,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                     ),
                                     text: post.text!,
                                     entities: post.entities,
-                                    style: AppTypography.bodyLarge(
+                                    style: AppTypography.detailBody(
                                       color: primaryColor,
                                     ),
                                     fullWidth: true,
@@ -513,14 +547,14 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                                 TrokInlineTranslation(
                                   post: post,
-                                  style: AppTypography.bodyLarge(
+                                  style: AppTypography.detailBody(
                                     color: primaryColor,
                                   ),
                                 ),
                               ],
                               if (post.linkPreviewUrl != null &&
                                   post.linkPreviewUrl!.isNotEmpty) ...[
-                                const SizedBox(height: AppSpacing.md),
+                                const SizedBox(height: _blockGap),
                                 LinkPreviewCard(
                                   url: post.linkPreviewUrl!,
                                   title: post.linkPreviewTitle,
@@ -530,7 +564,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ],
                               if (post.poll != null) ...[
-                                const SizedBox(height: AppSpacing.md),
+                                const SizedBox(height: _blockGap),
                                 FeedPollCard(
                                   poll: post.poll!,
                                   channelId: post.channelId,
@@ -538,11 +572,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                 ),
                               ],
                               if (post.media.isNotEmpty) ...[
-                                const SizedBox(height: AppSpacing.md),
+                                const SizedBox(height: _blockGap),
                                 PostMediaGrid(
                                   media: post.media,
                                   post: post,
-                                  bleed: AppSpacing.postPadding,
+                                  bleed: _inset,
                                 ),
                               ],
                               // The post being answered, under the answer.
@@ -566,103 +600,62 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                       .canReact,
                                 ),
                               ],
-                              const SizedBox(height: AppSpacing.lg),
-                              Text(
-                                TimeUtils.fullDateTime(post.publishedAt),
-                                style: AppTypography.timestamp(
-                                  color: secondaryColor,
+                              const SizedBox(height: 12.7),
+                              // The time, then the views, which open the
+                              // post's stats where Telegram has them.
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: canViewStats
+                                    ? () => context.push(
+                                        PostStatsScreen.routeFor(
+                                          post.chatId,
+                                          post.messageId,
+                                        ),
+                                      )
+                                    : null,
+                                child: Text.rich(
+                                  TextSpan(
+                                    text: TimeUtils.fullDateTime(
+                                      post.publishedAt,
+                                    ),
+                                    children: [
+                                      if (post.viewCount > 0) ...[
+                                        const TextSpan(text: ' · '),
+                                        TextSpan(
+                                          text: TimeUtils.formatCount(
+                                            post.viewCount,
+                                          ),
+                                          style: AppTypography.displayName(
+                                            color: primaryColor,
+                                          ),
+                                        ),
+                                        const TextSpan(
+                                          text: ' ${AppStrings.statViews}',
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  style: AppTypography.timestamp(
+                                    color: secondaryColor,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const Divider(height: 1),
-                        // Stats row
+                        // The feed card's actions, spread across the page.
+                        // Their tap areas make its vertical padding.
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.postPadding,
-                            vertical: AppSpacing.sm,
-                          ),
-                          child: Row(
-                            children: [
-                              if (post.forwardCount > 0) ...[
-                                Text(
-                                  TimeUtils.formatCount(post.forwardCount),
-                                  style: AppTypography.displayName(
-                                    color: primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  AppStrings.statReposts,
-                                  style: AppTypography.body(
-                                    color: secondaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.lg),
-                              ],
-                              if (totalReactions > 0) ...[
-                                Text(
-                                  TimeUtils.formatCount(totalReactions),
-                                  style: AppTypography.displayName(
-                                    color: primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  AppStrings.statLikes,
-                                  style: AppTypography.body(
-                                    color: secondaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.lg),
-                              ],
-                              if (post.viewCount > 0) ...[
-                                Text(
-                                  TimeUtils.formatCount(post.viewCount),
-                                  style: AppTypography.displayName(
-                                    color: primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  AppStrings.statViews,
-                                  style: AppTypography.body(
-                                    color: secondaryColor,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const Divider(height: 1),
-                        // The same action bar as the feed card, whose tap
-                        // areas make its vertical padding.
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.postPadding,
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            13.2,
+                            2.6,
+                            12.3,
+                            0,
                           ),
                           child: PostActionBar(
                             post: post,
                             secondaryColor: secondaryColor,
-                            // Opens the post's stats, if Telegram has any.
-                            onViewsTap:
-                                ref
-                                        .watch(
-                                          canViewPostStatsProvider((
-                                            chatId: post.chatId,
-                                            messageId: post.messageId,
-                                          )),
-                                        )
-                                        .value ==
-                                    true
-                                ? () => context.push(
-                                    PostStatsScreen.routeFor(
-                                      post.chatId,
-                                      post.messageId,
-                                    ),
-                                  )
-                                : null,
+                            spread: true,
                             onBookmarkTap: () => ref
                                 .read(bookmarkControllerProvider.notifier)
                                 .toggle(post),
@@ -1239,24 +1232,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     required Color primaryColor,
     required Color secondaryColor,
   }) {
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final fill =
+        Theme.of(context).scaffoldBackgroundColor == AppColors.darkBackground
+        ? AppColors.darkIncomingBubble
+        : (isDark ? AppColors.darkSurfaceVariant : Colors.grey.shade100);
+    final hasText = _commentController.text.isNotEmpty;
+
     return SafeArea(
       child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, -2),
-            ),
-          ],
-          border: Border(
-            top: BorderSide(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              width: 0.5,
-            ),
-          ),
-        ),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1298,118 +1283,133 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       setState(() => _attachments.removeAt(index)),
                 ),
               ),
+            // One floating pill, the user's picture at its start and the
+            // tools at its end, as X's reply bar.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // The user's own avatar, not the channel's.
-                  _CommenterAvatar(),
-                  const SizedBox(width: 6),
-                  // Attach and stickers fold into one chevron while the field
-                  // has text, so the field keeps its width.
-                  CollapsibleComposerTools(
-                    collapsed: composerToolsFolded(
-                      hasText: _commentController.text.isNotEmpty,
-                      expandedByHand: _commentToolsExpanded,
-                      toolCount: 2,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8.4),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: _replyBarHeight),
+                decoration: BoxDecoration(
+                  color: fill,
+                  borderRadius: BorderRadius.circular(_replyBarHeight / 2),
+                ),
+                foregroundDecoration: BoxDecoration(
+                  border: Border.all(color: border),
+                  borderRadius: BorderRadius.circular(_replyBarHeight / 2),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Padding(
+                      // Centred on a one-line pill.
+                      padding: const EdgeInsets.fromLTRB(7.2, 0, 9.9, 12.2),
+                      // The user's own avatar, not the channel's.
+                      child: _CommenterAvatar(),
                     ),
-                    onExpand: () =>
-                        setState(() => _commentToolsExpanded = true),
-                    tools: [
-                      IconButton(
-                        tooltip: AppStrings.chatAttach,
-                        visualDensity: VisualDensity.compact,
-                        onPressed: _isSending ? null : _attachToComment,
-                        icon: const Icon(
-                          Icons.add_circle_outline_rounded,
-                          color: AppColors.accent,
-                          size: 22,
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: AppStrings.chatStickers,
-                        visualDensity: VisualDensity.compact,
-                        onPressed: _isSending
-                            ? null
-                            : () => _sendStickerComment(
-                                post.chatId,
-                                post.messageId,
-                              ),
-                        icon: const Icon(
-                          Icons.emoji_emotions_outlined,
-                          color: AppColors.accent,
-                          size: 22,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      focusNode: _commentFocusNode,
-                      onTapOutside: (_) => _commentFocusNode.unfocus(),
-                      maxLines: 4,
-                      minLines: 1,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: AppTypography.body(color: primaryColor),
-                      // Updates the send button's enabled state. An emptied
-                      // field unfolds the tools again.
-                      onChanged: (value) => setState(() {
-                        if (value.isEmpty) _commentToolsExpanded = false;
-                      }),
-                      decoration: InputDecoration(
-                        hintText: _replyTargetPost != null
-                            ? AppStrings.commentReplyHint
-                            : AppStrings.commentHint,
-                        hintStyle: AppTypography.body(color: secondaryColor),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        filled: true,
-                        fillColor: isDark
-                            ? AppColors.darkSurfaceVariant
-                            : Colors.grey.shade100,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: AppStrings.chatSend,
-                    // Disabled rather than hidden, so the layout stays put.
-                    onPressed: _canSendComment
-                        ? () => _sendComment(post.chatId, post.messageId)
-                        : null,
-                    icon: _isSending
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.accent,
-                            ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _canSendComment
-                                  ? AppColors.accent
-                                  : secondaryColor.withValues(alpha: 0.4),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_upward_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
+                    Expanded(
+                      child: TextField(
+                        controller: _commentController,
+                        focusNode: _commentFocusNode,
+                        onTapOutside: (_) => _commentFocusNode.unfocus(),
+                        maxLines: 4,
+                        minLines: 1,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: AppTypography.body(
+                          color: primaryColor,
+                        ).copyWith(height: 1.2),
+                        // Updates the send button.
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: _replyTargetPost != null
+                              ? AppStrings.commentReplyHint
+                              : AppStrings.commentHint,
+                          hintStyle: AppTypography.username(
+                            color: secondaryColor,
                           ),
-                  ),
-                ],
+                          // The pill is the field; the theme's outlines
+                          // would box it.
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 20.7,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Centred on a one-line pill, like the picture.
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4.2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!hasText) ...[
+                            IconButton(
+                              tooltip: AppStrings.chatAttach,
+                              onPressed: _isSending ? null : _attachToComment,
+                              icon: Icon(
+                                Icons.image_outlined,
+                                color: primaryColor,
+                                size: 24,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: AppStrings.chatStickers,
+                              onPressed: _isSending
+                                  ? null
+                                  : () => _sendStickerComment(
+                                      post.chatId,
+                                      post.messageId,
+                                    ),
+                              icon: Icon(
+                                Icons.gif_box_outlined,
+                                color: primaryColor,
+                                size: 24,
+                              ),
+                            ),
+                          ] else
+                            IconButton(
+                              tooltip: AppStrings.chatSend,
+                              onPressed: _canSendComment
+                                  ? () => _sendComment(
+                                      post.chatId,
+                                      post.messageId,
+                                    )
+                                  : null,
+                              icon: _isSending
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.accent,
+                                      ),
+                                    )
+                                  : Container(
+                                      padding: const EdgeInsets.all(7),
+                                      decoration: BoxDecoration(
+                                        color: _canSendComment
+                                            ? AppColors.accent
+                                            : secondaryColor.withValues(
+                                                alpha: 0.4,
+                                              ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.arrow_upward_rounded,
+                                        color: Colors.white,
+                                        size: 18,
+                                      ),
+                                    ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 7.6),
+                  ],
+                ),
               ),
             ),
           ],

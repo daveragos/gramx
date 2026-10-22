@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramx/app/widgets/app_glyphs.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/feed/domain/post.dart';
@@ -37,6 +38,11 @@ StatGraph _graph({List<double> values = const [1, 2, 3]}) => StatGraph(
   ],
 );
 
+/// The view count's icon.
+final _views = find.byWidgetPredicate(
+  (w) => w is Glyph && w.glyph == AppGlyphs.views,
+);
+
 void main() {
   Widget host(Widget child) => ProviderScope(
     overrides: [
@@ -62,16 +68,10 @@ void main() {
     ) async {
       await tester.pumpWidget(host(actionBar()));
 
-      final views = find.ancestor(
-        of: find.byIcon(Icons.bar_chart),
-        matching: find.byType(PostStat),
-      );
+      final views = find.ancestor(of: _views, matching: find.byType(PostStat));
       expect(views, findsOneWidget);
       expect(
-        find.ancestor(
-          of: find.byIcon(Icons.bar_chart),
-          matching: find.byType(PostActionButton),
-        ),
+        find.ancestor(of: _views, matching: find.byType(PostActionButton)),
         findsNothing,
       );
     });
@@ -80,7 +80,7 @@ void main() {
       var opened = 0;
       await tester.pumpWidget(host(actionBar(onViewsTap: () => opened++)));
 
-      await tester.tap(find.byIcon(Icons.bar_chart));
+      await tester.tap(_views);
       expect(opened, 1);
     });
 

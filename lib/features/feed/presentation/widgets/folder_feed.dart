@@ -272,7 +272,7 @@ class _FolderFeedState extends ConsumerState<FolderFeed> {
                   final opacity = chromeTiedOpacity(hidden);
                   if (opacity <= 0) return const SizedBox.shrink();
                   return Positioned(
-                    top: widget.topPadding * (1 - hidden) + AppSpacing.md,
+                    top: widget.topPadding * (1 - hidden) + AppSpacing.sm,
                     left: 0,
                     right: 0,
                     child: Opacity(opacity: opacity, child: child),
@@ -316,45 +316,44 @@ class _NewPostsPill extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
+      excludeSemantics: true,
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.accent,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: EdgeInsets.fromLTRB(faces.isEmpty ? 16 : 5, 5, 16, 5),
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+          // An arrow and the faces of who posted, as X draws it. The count is
+          // for screen readers, or shown when there are no faces.
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12.9,
+              3.9,
+              faces.isEmpty ? 16 : 17.2,
+              3.9,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (faces.isEmpty)
-                  const Icon(
+                const SizedBox(
+                  height: _AvatarStack.outer,
+                  child: Icon(
                     Icons.arrow_upward_rounded,
                     color: Colors.white,
-                    size: 16,
-                  )
-                else
-                  // The pill's label already covers these.
-                  ExcludeSemantics(child: _AvatarStack(posts: faces)),
-                const SizedBox(width: 7),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    size: 14.5,
                   ),
                 ),
+                const SizedBox(width: 1.2),
+                if (faces.isEmpty) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    label,
+                    style: AppTypography.button(
+                      color: Colors.white,
+                    ).copyWith(fontSize: 13),
+                  ),
+                ] else
+                  _AvatarStack(posts: faces),
               ],
             ),
           ),
@@ -367,12 +366,15 @@ class _NewPostsPill extends StatelessWidget {
 /// Overlapping channel avatars, first one on top, each ringed in the pill's
 /// colour so overlapping dark avatars stay distinct.
 class _AvatarStack extends StatelessWidget {
-  static const double _diameter = 24;
+  static const double _diameter = 27;
 
   /// Horizontal offset between avatars.
-  static const double _step = 16;
+  static const double _step = 17.5;
 
-  static const double _ring = 1.5;
+  static const double _ring = 1.1;
+
+  /// One avatar with its ring.
+  static const double outer = _diameter + _ring * 2;
 
   final List<Post> posts;
 
@@ -380,8 +382,6 @@ class _AvatarStack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final outer = _diameter + _ring * 2;
-
     return SizedBox(
       height: outer,
       width: outer + _step * (posts.length - 1),
