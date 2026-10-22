@@ -766,6 +766,7 @@ abstract class TdFixtures {
     bool isVerified = false,
     bool isChannel = true,
     String? username,
+    List<String> moreUsernames = const [],
     Map<String, dynamic>? status,
   }) => td.UpdateSupergroup(
     supergroup: td.Supergroup.fromJson(<String, dynamic>{
@@ -775,7 +776,7 @@ abstract class TdFixtures {
           ? null
           : {
               '@type': 'usernames',
-              'active_usernames': [username],
+              'active_usernames': [username, ...moreUsernames],
               'disabled_usernames': <String>[],
               'editable_username': username,
             },
@@ -949,6 +950,9 @@ abstract class TdFixtures {
     String firstName = 'Ada',
     String lastName = '',
     String? username,
+
+    /// Usernames after [username], as collectible ones are.
+    List<String> moreUsernames = const [],
     bool isBot = false,
     bool isDeleted = false,
     bool isVerified = false,
@@ -975,7 +979,7 @@ abstract class TdFixtures {
         ? null
         : {
             '@type': 'usernames',
-            'active_usernames': [username],
+            'active_usernames': [username, ...moreUsernames],
             'disabled_usernames': <String>[],
             'editable_username': username,
           },

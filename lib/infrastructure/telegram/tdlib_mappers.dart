@@ -109,9 +109,9 @@ class TdlibMappers {
       id: chat.id.toString(),
       chatId: chat.id,
       title: chat.title,
-      username: supergroup?.usernames?.activeUsernames.isNotEmpty == true
-          ? supergroup!.usernames!.activeUsernames.first
-          : null,
+      username: supergroup?.usernames?.activeUsernames.firstOrNull,
+      otherUsernames:
+          supergroup?.usernames?.activeUsernames.skip(1).toList() ?? const [],
       description: _parseFormattedText(fullInfo?.description),
       avatarUrl: chat.photo != null
           ? (chat.photo!.small.local.path.isNotEmpty == true

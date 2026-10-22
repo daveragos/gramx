@@ -311,8 +311,13 @@ class _Body extends ConsumerWidget {
 
         if (profile.username case final username?)
           _CopyableRow(
-            heading: AppStrings.profileUsernameHeading,
-            value: '@$username',
+            heading: profile.otherUsernames.isEmpty
+                ? AppStrings.profileUsernameHeading
+                : AppStrings.profileUsernamesHeading,
+            values: [
+              '@$username',
+              for (final other in profile.otherUsernames) '@$other',
+            ],
             primary: primary,
             secondary: secondary,
           ),
@@ -320,7 +325,7 @@ class _Body extends ConsumerWidget {
         if (profile.phoneNumber case final phone?)
           _CopyableRow(
             heading: AppStrings.profilePhoneHeading,
-            value: phone,
+            values: [phone],
             primary: primary,
             secondary: secondary,
           ),
@@ -472,15 +477,16 @@ class _Section extends StatelessWidget {
 }
 
 /// A profile detail that long-press copies to the clipboard.
+/// A heading over one or more values, each copied on a long press.
 class _CopyableRow extends StatelessWidget {
   final String heading;
-  final String value;
+  final List<String> values;
   final Color primary;
   final Color secondary;
 
   const _CopyableRow({
     required this.heading,
-    required this.value,
+    required this.values,
     required this.primary,
     required this.secondary,
   });
@@ -490,22 +496,28 @@ class _CopyableRow extends StatelessWidget {
     return _Section(
       heading: heading,
       secondary: secondary,
-      child: InkWell(
-        onLongPress: () {
-          Clipboard.setData(ClipboardData(text: value));
-          HapticFeedback.lightImpact();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(AppStrings.profileCopied),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final value in values)
+            InkWell(
+              onLongPress: () {
+                Clipboard.setData(ClipboardData(text: value));
+                HapticFeedback.lightImpact();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text(AppStrings.profileCopied),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Text(value, style: AppTypography.body(color: primary)),
+              ),
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Text(value, style: AppTypography.body(color: primary)),
-        ),
+        ],
       ),
     );
   }

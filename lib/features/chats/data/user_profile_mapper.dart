@@ -17,13 +17,15 @@ abstract class UserProfileMapper {
   }) {
     final photo = user.profilePhoto;
     final personalChatId = fullInfo?.personalChatId ?? 0;
+    final usernames = user.usernames?.activeUsernames ?? const <String>[];
 
     return UserProfile(
       userId: user.id,
       // TDLib uses the user id as the private chat's id.
       chatId: user.id,
       displayName: TdlibMappers.userDisplayName(user),
-      username: user.usernames?.activeUsernames.firstOrNull,
+      username: usernames.firstOrNull,
+      otherUsernames: usernames.skip(1).toList(),
       avatarPath: photoPath(photo),
       avatarFileId: photo?.small.id,
       avatarColorHex: TdlibMappers.avatarColorFor(user.id),

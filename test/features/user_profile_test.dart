@@ -5,6 +5,7 @@ import 'package:gramx/core/navigation/deep_link_handler.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
 import 'package:gramx/features/chats/data/user_profile_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_summary.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 
 import '../support/td_fixtures.dart';
 
@@ -74,6 +75,19 @@ void main() {
       // Absent until the full info arrives, so the screen can draw early.
       expect(profile.bio, isNull);
       expect(profile.groupsInCommon, 0);
+    });
+
+    test('keeps every username, the first one first', () {
+      final profile = UserProfileMapper.from(
+        TdFixtures.user(
+          id: 42,
+          username: 'ada',
+          moreUsernames: ['lovelace', 'countess'],
+        ),
+      );
+
+      expect(profile.username, 'ada');
+      expect(profile.otherUsernames, ['lovelace', 'countess']);
     });
 
     test('a hidden phone number is absent, not an empty row', () {
@@ -175,6 +189,32 @@ void main() {
 
       expect(profile.personalChannelId, isNull);
       expect(profile.personalChannelTitle, isNull);
+    });
+  });
+
+  group('a channel with several usernames', () {
+    test('keeps them all, the first one first', () {
+      final channel = TdlibMappers.mapChatToChannel(
+        TdFixtures.chat(id: -1007),
+        supergroup: TdFixtures.supergroup(
+          id: 7,
+          username: 'durov',
+          moreUsernames: ['tondurov'],
+        ).supergroup,
+      );
+
+      expect(channel.username, 'durov');
+      expect(channel.otherUsernames, ['tondurov']);
+    });
+
+    test('one without any has none to add', () {
+      final channel = TdlibMappers.mapChatToChannel(
+        TdFixtures.chat(id: -1007),
+        supergroup: TdFixtures.supergroup(id: 7).supergroup,
+      );
+
+      expect(channel.username, isNull);
+      expect(channel.otherUsernames, isEmpty);
     });
   });
 }

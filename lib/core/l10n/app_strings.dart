@@ -1275,6 +1275,11 @@ abstract class AppStrings {
   static const profileBioHeading = 'Bio';
   static const profilePhoneHeading = 'Phone';
   static const profileUsernameHeading = 'Username';
+  static const profileUsernamesHeading = 'Usernames';
+
+  /// The usernames a profile also has, after the one shown first.
+  static String profileAlsoUsernames(List<String> usernames) =>
+      'also ${usernames.map((u) => '@$u').join(', ')}';
   static const profileChannelHeading = 'Runs';
   static const profileOpenChannel = 'Open channel';
   static const profileChannelUnnamed = 'A channel';

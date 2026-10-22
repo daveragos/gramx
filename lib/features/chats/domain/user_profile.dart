@@ -16,7 +16,12 @@ class UserProfile {
   final int chatId;
 
   final String displayName;
+
+  /// The first of the usernames they use, as Telegram lists them.
   final String? username;
+
+  /// Usernames they also use, after [username]. An account can have several.
+  final List<String> otherUsernames;
 
   /// Local path or remote id of the profile photo. Null when they have none.
   final String? avatarPath;
@@ -58,6 +63,7 @@ class UserProfile {
     required this.chatId,
     required this.displayName,
     this.username,
+    this.otherUsernames = const [],
     this.avatarPath,
     this.avatarFileId,
     this.avatarColorHex,
@@ -82,6 +88,7 @@ class UserProfile {
       other.chatId == chatId &&
       other.displayName == displayName &&
       other.username == username &&
+      listEquals(other.otherUsernames, otherUsernames) &&
       other.avatarPath == avatarPath &&
       other.avatarFileId == avatarFileId &&
       other.avatarColorHex == avatarColorHex &&
@@ -104,6 +111,7 @@ class UserProfile {
     chatId,
     displayName,
     username,
+    Object.hashAll(otherUsernames),
     avatarPath,
     avatarFileId,
     avatarColorHex,

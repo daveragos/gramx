@@ -11,6 +11,11 @@ _Channel _$ChannelFromJson(Map<String, dynamic> json) => _Channel(
   chatId: (json['chatId'] as num).toInt(),
   title: json['title'] as String,
   username: json['username'] as String?,
+  otherUsernames:
+      (json['otherUsernames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const [],
   description: json['description'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   avatarFileId: (json['avatarFileId'] as num?)?.toInt(),
@@ -32,6 +37,7 @@ Map<String, dynamic> _$ChannelToJson(_Channel instance) => <String, dynamic>{
   'chatId': instance.chatId,
   'title': instance.title,
   'username': instance.username,
+  'otherUsernames': instance.otherUsernames,
   'description': instance.description,
   'avatarUrl': instance.avatarUrl,
   'avatarFileId': instance.avatarFileId,

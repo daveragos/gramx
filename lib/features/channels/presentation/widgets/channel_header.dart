@@ -419,6 +419,11 @@ class ChannelIdentity extends ConsumerWidget {
               '@${channel.username}',
               style: AppTypography.username(color: secondary),
             ),
+            if (channel.otherUsernames.isNotEmpty)
+              Text(
+                AppStrings.profileAlsoUsernames(channel.otherUsernames),
+                style: AppTypography.username(color: secondary),
+              ),
           ],
           if (channel.description != null &&
               channel.description!.isNotEmpty) ...[

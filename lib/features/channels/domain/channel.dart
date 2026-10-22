@@ -9,7 +9,12 @@ abstract class Channel with _$Channel {
     required String id,
     required int chatId,
     required String title,
+
+    /// The first of the channel's usernames, as Telegram lists them.
     String? username,
+
+    /// Usernames it also uses, after [username].
+    @Default([]) List<String> otherUsernames,
     String? description,
     String? avatarUrl,
     int? avatarFileId,
