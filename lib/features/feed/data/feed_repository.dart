@@ -773,7 +773,7 @@ class FeedRepository {
     return _buildPosts(messagesByChatId, chats);
   }
 
-  /// Forwards a post into another Telegram chat.
+  /// Forwards a post into another Telegram chat, all of its album included.
   Future<bool> forwardPost({required Post post, required int toChatId}) async {
     try {
       final res = await _tdlib.sendRequest(
@@ -781,7 +781,7 @@ class FeedRepository {
           chatId: toChatId,
           messageThreadId: 0,
           fromChatId: post.chatId,
-          messageIds: [post.messageId],
+          messageIds: await _messageIdsOf(post),
           options: const td.MessageSendOptions(
             disableNotification: false,
             fromBackground: false,
@@ -800,6 +800,25 @@ class FeedRepository {
     } catch (e) {
       debugPrint('[FeedRepo] Forward failed: $e');
       return false;
+    }
+  }
+
+  /// The messages that make up [post], oldest first. A post shows its whole
+  /// album but holds only the first message's id, and forwarding that alone
+  /// sent the first picture and the caption without the rest.
+  Future<List<int>> _messageIdsOf(Post post) async {
+    if (post.mediaAlbumId == 0) return [post.messageId];
+    try {
+      final res = await _tdlib.sendRequest(
+        td.GetMessage(chatId: post.chatId, messageId: post.messageId),
+      );
+      if (res is! td.Message) return [post.messageId];
+      return [
+        for (final m in await _withAlbum([res])) m.id,
+      ]..sort();
+    } catch (e) {
+      debugPrint('[FeedRepo] Album of ${post.messageId} failed: $e');
+      return [post.messageId];
     }
   }
 

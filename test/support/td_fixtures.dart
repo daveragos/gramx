@@ -314,8 +314,10 @@ abstract class TdFixtures {
     required int chatId,
     required List<int> fileIds,
     String caption = '',
+    int albumId = 0,
   }) {
     final json = textMessageJson(id: id, chatId: chatId);
+    json['media_album_id'] = '$albumId';
     json['content'] = {
       '@type': 'messagePhoto',
       'photo': {
