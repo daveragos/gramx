@@ -161,6 +161,16 @@ class TdlibService {
     return function is td.GetMessageLocally;
   }
 
+  /// True for live-stream segment requests. Telegram rate-limits these per
+  /// stream and asks clients to retry after 100 ms whatever the wait says,
+  /// so they neither wait at the flood gate nor close it for other requests.
+  @visibleForTesting
+  static bool isStreamRequest(td.TdFunction function) =>
+      _isStreamRequest(function);
+
+  static bool _isStreamRequest(td.TdFunction function) =>
+      function is td.GetGroupCallStreamSegment;
+
   /// Waits until the flood-wait deadline lifts. Loops so a deadline extended
   /// during the wait is honoured.
   Future<void> _awaitFloodGate(td.TdFunction function) async {
@@ -368,6 +378,10 @@ class TdlibService {
 
   final Map<String, Completer<td.TdObject>> _pendingRequests = {};
 
+  /// Extras of pending [_isStreamRequest] requests, whose rate limits are
+  /// not recorded.
+  final Set<String> _ungatedRequests = {};
+
   /// Drains pending updates from the native queue, decoding each payload once.
   void _drainUpdates() {
     var drained = 0;
@@ -398,8 +412,9 @@ class TdlibService {
     if (isRequestReply(map)) {
       final extra = map['@extra']?.toString();
       final completer = extra != null ? _pendingRequests.remove(extra) : null;
+      final ungated = extra != null && _ungatedRequests.remove(extra);
       if (completer != null) {
-        _completeRequest(completer, map);
+        _completeRequest(completer, map, noteFloodWait: !ungated);
       } else {
         _invokesController.add(map);
       }
@@ -412,8 +427,9 @@ class TdlibService {
 
   void _completeRequest(
     Completer<td.TdObject> completer,
-    Map<String, dynamic> map,
-  ) {
+    Map<String, dynamic> map, {
+    bool noteFloodWait = true,
+  }) {
     final object = convertMapToObject(withoutMissingMessages(map));
     if (object == null) {
       completer.completeError(
@@ -422,7 +438,7 @@ class TdlibService {
       return;
     }
     if (object is td.TdError) {
-      _noteError(object.code, object.message);
+      if (noteFloodWait) _noteError(object.code, object.message);
       completer.completeError(
         TdlibRequestException(object.code, object.message),
       );
@@ -467,7 +483,7 @@ class TdlibService {
       } catch (e) {
         debugPrint('[TDLib] Gate wait note: $e');
       }
-      if (!_isLocalOnlyRequest(function)) {
+      if (!_isLocalOnlyRequest(function) && !_isStreamRequest(function)) {
         await _awaitFloodGate(function);
       }
     }
@@ -475,6 +491,7 @@ class TdlibService {
     final completer = Completer<td.TdObject>();
     final extra = extraId ?? DateTime.now().microsecondsSinceEpoch.toString();
     _pendingRequests[extra] = completer;
+    if (_isStreamRequest(function)) _ungatedRequests.add(extra);
 
     final map = function.toJson();
     map['@extra'] = extra;
@@ -486,6 +503,7 @@ class TdlibService {
       timeout,
       onTimeout: () {
         _pendingRequests.remove(extra);
+        _ungatedRequests.remove(extra);
         throw TimeoutException(
           'TDLib request ${function.runtimeType} timed out.',
         );

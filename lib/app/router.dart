@@ -24,6 +24,7 @@ import 'package:gramx/features/chats/presentation/user_profile_screen.dart';
 import 'package:gramx/features/compose/presentation/compose_screen.dart';
 import 'package:gramx/features/feed/presentation/home_screen.dart';
 import 'package:gramx/features/folders/presentation/folders_screen.dart';
+import 'package:gramx/features/live/presentation/live_screen.dart';
 import 'package:gramx/features/post_detail/presentation/post_detail_screen.dart';
 import 'package:gramx/features/search/presentation/search_screen.dart';
 import 'package:gramx/features/settings/presentation/settings_screen.dart';
@@ -233,6 +234,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/auth',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AuthScreen(),
+      ),
+      GoRoute(
+        path: LiveScreen.route,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final chatId = int.tryParse(state.pathParameters['chatId'] ?? '');
+          if (chatId == null) return const ChatsScreen();
+          return LiveScreen(chatId: chatId);
+        },
       ),
       GoRoute(
         path: '/chat/:chatId',
