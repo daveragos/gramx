@@ -428,7 +428,10 @@ abstract final class TrokWire {
     return TrokConversation(
       id: id,
       remoteId: id,
-      title: _string(json['title']) ?? '',
+      title: TrokConversation.titleFor(
+        question: _string(json['title']) ?? '',
+        post: subject,
+      ),
       updatedAt: _date(json['updated_at']) ?? DateTime.now(),
       turns: turns,
     );

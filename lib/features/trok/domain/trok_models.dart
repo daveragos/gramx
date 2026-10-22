@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:gramx/core/telegram/telegram_ids.dart';
+import 'package:gramx/core/text/text_clamp.dart';
 import 'package:gramx/features/feed/domain/media_item.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
@@ -275,7 +276,7 @@ class TrokAnswer extends TrokTurn {
 class TrokConversation {
   final String id;
 
-  /// From the first question; shown in History.
+  /// Shown in History; see [titleFor].
   final String title;
   final List<TrokTurn> turns;
   final DateTime updatedAt;
@@ -294,6 +295,21 @@ class TrokConversation {
     this.remoteId,
     this.isLoaded = true,
   });
+
+  /// The longest title, in characters, before it is cut at a word.
+  static const int titleLength = 60;
+
+  /// What History calls a conversation: the opening line of the post it is
+  /// about, else the [question]. Trok names each one after its first question
+  /// and channel, so chats about posts all read "Summarize this post · …".
+  static String titleFor({required String question, Post? post}) {
+    if (post == null) return question;
+    final opening = (post.text ?? '').trim().split('\n').first.trim();
+    if (opening.isEmpty) return post.channelTitle;
+    if (opening.length <= titleLength) return opening;
+    final end = collapsedLength(opening, maxLines: 1, maxChars: titleLength);
+    return '${opening.substring(0, end).trimRight()}…';
+  }
 
   TrokAnswer? get lastAnswer => switch (turns.lastOrNull) {
     final TrokAnswer answer => answer,

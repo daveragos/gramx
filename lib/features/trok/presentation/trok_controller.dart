@@ -120,9 +120,7 @@ class TrokController extends Notifier<TrokState> {
         state.active ??
         TrokConversation(
           id: _nextId(),
-          title: post == null
-              ? text
-              : '$text${AppStrings.inlineSeparator}${post.channelTitle}',
+          title: TrokConversation.titleFor(question: text, post: post),
           updatedAt: now,
         );
     final question = TrokQuestion(
@@ -275,9 +273,8 @@ class TrokController extends Notifier<TrokState> {
     final held = {for (final c in state.conversations) ?c.remoteId: c};
     final listedIds = {for (final c in listed) c.remoteId};
     final conversations = [
-      for (final c in listed)
-        held[c.remoteId]?.copyWith(title: c.title.isEmpty ? null : c.title) ??
-            c,
+      // A held one keeps its own title, which can name its post.
+      for (final c in listed) held[c.remoteId] ?? c,
       // Ones Trok hasn't listed: not answered yet, or past the first page.
       for (final c in state.conversations)
         if (!listedIds.contains(c.remoteId)) c,
@@ -321,10 +318,9 @@ class TrokController extends Notifier<TrokState> {
             if (event is TrokStarted) {
               _updateConversation(
                 conversationId,
-                (c) => c.copyWith(
-                  remoteId: event.conversationId,
-                  title: event.title.isEmpty ? null : event.title,
-                ),
+                // Trok's title only echoes the question and channel, so the
+                // conversation keeps its own.
+                (c) => c.copyWith(remoteId: event.conversationId),
               );
             }
             _updateAnswer(

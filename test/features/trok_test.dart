@@ -61,6 +61,43 @@ class _Client implements TrokClient {
 }
 
 void main() {
+  group('TrokConversation.titleFor', () {
+    test('a chat about a post is named by the post, not the question', () {
+      final summarize = TrokConversation.titleFor(
+        question: AppStrings.trokPostSummarizePrompt,
+        post: post('Addis Standard', 7, text: 'Rain tomorrow.\nMore below.'),
+      );
+      final explain = TrokConversation.titleFor(
+        question: AppStrings.trokPostSummarizePrompt,
+        post: post('Addis Standard', 8, text: 'Fuel prices go up on Monday.'),
+      );
+
+      expect(summarize, 'Rain tomorrow.');
+      expect(explain, 'Fuel prices go up on Monday.');
+    });
+
+    test('a long opening is cut at a word', () {
+      final title = TrokConversation.titleFor(
+        question: 'Explain this post',
+        post: post('Nasa', 1, text: 'word ' * 30),
+      );
+
+      expect(title.length, lessThanOrEqualTo(TrokConversation.titleLength + 1));
+      expect(title, endsWith('word…'));
+    });
+
+    test('a post with no text is named by its channel', () {
+      expect(
+        TrokConversation.titleFor(question: 'Explain', post: post('Nasa', 1)),
+        'Nasa',
+      );
+    });
+
+    test('a question about no post is its own title', () {
+      expect(TrokConversation.titleFor(question: 'Who won?'), 'Who won?');
+    });
+  });
+
   group('TrokController', () {
     late _Client client;
     late ProviderContainer container;
@@ -190,7 +227,7 @@ void main() {
       final question = state().active!.turns.first as TrokQuestion;
       expect(question.text, AppStrings.trokPostFactCheck);
       expect(question.post, subject);
-      expect(state().active!.title, contains('Addis Standard'));
+      expect(state().active!.title, 'Rain tomorrow.');
       expect(client.requests.last.post, subject);
       expect(client.requests.last.action, TrokPostAction.factCheck);
       expect(state().draftPost, isNull);
@@ -285,7 +322,8 @@ void main() {
       await answerWith('c_1', 'a_1');
 
       expect(state().active!.remoteId, 'c_1');
-      expect(state().active!.title, 'From Trok');
+      // Trok's title echoes the question; the conversation keeps its own.
+      expect(state().active!.title, 'First');
       expect(lastAnswer().remoteId, 'a_1');
 
       trok().ask('Second');
