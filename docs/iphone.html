@@ -71,7 +71,7 @@
     <div class="callout">
       <svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>
       <div>
-        <p><b>gramX needs a refresh once a week.</b> Apple lets apps installed this way run for 7 days at a time. Refreshing takes a few seconds, and the steps below show how. If the week runs out, gramX won't open until you refresh it, but nothing is lost and you stay signed in.</p>
+        <p><b>gramX needs a refresh once a week.</b> Apple lets apps installed this way run for 7 days at a time. Refreshing takes a few seconds, and the steps below show how. With SideStore, a shortcut can do it for you. If the week runs out, gramX won't open until you refresh it, but nothing is lost and you stay signed in.</p>
         <p><b>Three apps at most.</b> A free Apple Account can have three apps installed this way at once. SideStore and AltStore count as one of them.</p>
       </div>
     </div>
@@ -86,7 +86,7 @@
       </a>
       <a class="pick" role="tab" id="tab-sidestore" href="#sidestore" aria-controls="sidestore" aria-selected="false">
         <b>SideStore</b>
-        <span>After setup, you refresh on the iPhone itself, so you rarely need the computer.</span>
+        <span>After setup, you refresh on the iPhone itself, and a shortcut can do it for you.</span>
       </a>
       <a class="pick" role="tab" id="tab-altstore" href="#altstore" aria-controls="altstore" aria-selected="false">
         <b>AltStore</b>
@@ -222,11 +222,18 @@
           <div class="step"><p><b>Open gramX.</b> Sign in with your Telegram phone number, or browse public channels as a guest.</p></div>
           <figure class="step-shot"><a href="assets/guide/open-gramx.svg" data-zoom><img src="assets/guide/open-gramx.svg" width="320" height="400" loading="lazy" alt="The gramX welcome screen: continue with a phone number, log in via QR code, or browse without an account."></a></figure>
         </li>
+        <li id="refresh-shortcut">
+          <div class="step">
+          <p><b>Let a shortcut refresh gramX for you.</b> Tap the button below and then Add Shortcut. Every 6 days it connects LocalDevVPN and opens SideStore, which refreshes gramX before its 7 days run out. You add it once, and there's nothing to remember.</p>
+          <a class="btn btn-primary" href="https://www.icloud.com/shortcuts/9a47a079d9704cb4905bb3e8c73ba66d"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-repeat"/></svg>Get the refresh shortcut</a>
+          </div>
+          <figure class="step-shot"><a href="assets/guide/add-shortcut.svg" data-zoom><img src="assets/guide/add-shortcut.svg" width="320" height="372" loading="lazy" alt="The Add Shortcut screen for the Every 6 Days Setup shortcut, with its Add Shortcut button."></a></figure>
+        </li>
       </ol>
 
       <div class="weekly">
         <h3>Every week</h3>
-        <p>Open LocalDevVPN and tap Connect. Then open SideStore, go to My Apps and tap Refresh All. That refreshes SideStore and gramX together. If SideStore itself runs out, it won't open either: plug into the computer and install it with iloader again, as above.</p>
+        <p>If you added the <a href="https://www.icloud.com/shortcuts/9a47a079d9704cb4905bb3e8c73ba66d">refresh shortcut</a>, it does this for you. To refresh by hand, open LocalDevVPN and tap Connect. Then open SideStore, go to My Apps and tap Refresh All. That refreshes SideStore and gramX together. If SideStore itself runs out, it won't open either: plug into the computer and install it with iloader again, as above.</p>
       </div>
     </section>
 

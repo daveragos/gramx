@@ -54,6 +54,7 @@ void main() {
     'iloader-install': _iloaderInstall(),
     'sidestore-refresh': _sidestoreRefresh(),
     'sidestore-add': _storeAdd(_sideStore),
+    'add-shortcut': _addShortcut(),
     // AltStore.
     'altstore-site': _altstoreSite(),
     'wifi-sync': _wifiSync(),
@@ -1520,6 +1521,59 @@ _Figure _sidestoreRefresh() {
     w,
     h,
     'SideStore’s My Apps tab, with the 7 DAYS button next to SideStore.',
+    phone(w, h, screen),
+  );
+}
+
+/// The sheet Shortcuts shows when the weekly refresh shortcut's link opens.
+_Figure _addShortcut() {
+  const w = 320, h = 372;
+  const tx = 60, ty = 96, gx = tx + 30, gy = ty + 30;
+  const tile =
+      '<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">'
+      '<stop offset="0" stop-color="#48484a"/><stop offset="1" stop-color="#1c1c1e"/></linearGradient></defs>';
+  final screen =
+      tile +
+      rect(8, 8, w - 16, 2000, fill: '#000', op: 0.3) +
+      rect(8, 58, w - 16, 2000, r: 14, fill: '#f2f2f7') +
+      rect(w / 2 - 18, 66, 36, 5, r: 2.5, fill: '#c7c7cc') +
+      rect(tx, ty, 200, 124, r: 20, fill: 'url(#tile)') +
+      circle(gx, gy, 16, fill: '#fff', op: 0.16) +
+      // Two arrows chasing each other round: a refresh.
+      path(
+        'M${gx - 8} ${gy - 1} A8 8 0 0 1 ${gx + 8} ${gy - 1} '
+        'M${gx + 4.5} ${gy - 4} L${gx + 8} $gy L${gx + 11.5} ${gy - 4} '
+        'M${gx + 8} ${gy + 3} A8 8 0 0 1 ${gx - 8} ${gy + 3} '
+        'M${gx - 11.5} ${gy + 6} L${gx - 8} ${gy + 2} L${gx - 4.5} ${gy + 6}',
+        stroke: '#fff',
+        sw: 2.2,
+      ) +
+      text(
+        tx + 16,
+        ty + 106,
+        'Every 6 Days Setup',
+        size: 16,
+        weight: 700,
+        fill: '#fff',
+      ) +
+      btn(
+        24,
+        252,
+        w - 48,
+        50,
+        'Add Shortcut',
+        fill: _blue,
+        color: '#fff',
+        size: 17,
+        weight: 600,
+        r: 14,
+      ) +
+      ring(24, 252, w - 48, 50, r: 18) +
+      text(w / 2, 334, 'Don’t Add', size: 17, fill: _blue, anchor: 'middle');
+  return _Figure(
+    w,
+    h,
+    'The Add Shortcut screen for the Every 6 Days Setup shortcut, with its Add Shortcut button.',
     phone(w, h, screen),
   );
 }
