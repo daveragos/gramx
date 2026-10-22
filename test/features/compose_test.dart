@@ -10,6 +10,7 @@ import 'package:gramx/features/compose/domain/compose_draft.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/compose/presentation/compose_providers.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/guest/domain/reader_capabilities.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
 
@@ -449,6 +450,46 @@ void main() {
   });
 
   group('ComposeMessages.build', () {
+    test('the formatting goes with the text', () {
+      final contents = ComposeMessages.build(
+        text: 'big news',
+        entities: const [
+          TextEntity(offset: 4, length: 4, type: TextEntityType.bold),
+          // Telegram finds links itself, so this one isn't sent.
+          TextEntity(offset: 0, length: 3, type: TextEntityType.url),
+        ],
+        attachments: const [],
+      );
+
+      final entity =
+          (contents.single as td.InputMessageText).text.entities.single;
+      expect((entity.offset, entity.length), (4, 4));
+      expect(entity.type, isA<td.TextEntityTypeBold>());
+    });
+
+    test('a caption keeps its formatting on the first picture', () {
+      final contents = ComposeMessages.build(
+        text: 'look here',
+        entities: const [
+          TextEntity(
+            offset: 5,
+            length: 4,
+            type: TextEntityType.textUrl,
+            url: 'https://example.com',
+          ),
+        ],
+        attachments: [
+          _photo(),
+          _photo(path: '/tmp/b.jpg'),
+        ],
+      );
+
+      final caption = (contents.first as td.InputMessagePhoto).caption!;
+      final link = caption.entities.single.type as td.TextEntityTypeTextUrl;
+      expect(link.url, 'https://example.com');
+      expect((contents.last as td.InputMessagePhoto).caption, isNull);
+    });
+
     test('no attachments makes one text message', () {
       final contents = ComposeMessages.build(
         text: 'hello',

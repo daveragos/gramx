@@ -310,6 +310,7 @@ Future<void> _edit(
   final updated = await EditTextDialog.show(
     context,
     initialText: message.text ?? '',
+    initialEntities: message.entities,
     // A caption may be emptied; a text message may not.
     allowsEmpty: message.media.isNotEmpty,
   );

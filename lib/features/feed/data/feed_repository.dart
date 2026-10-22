@@ -12,12 +12,14 @@ import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/standard_reactions.dart';
 import 'package:gramx/features/feed/domain/post_sender.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/domain/seen_posts.dart';
 import 'package:gramx/infrastructure/database/database.dart';
 import 'package:gramx/infrastructure/database/database_provider.dart';
 import 'package:gramx/infrastructure/sync/sync_service.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
 import 'package:gramx/infrastructure/telegram/message_content_support.dart';
+import 'package:gramx/infrastructure/telegram/outgoing_text.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
@@ -1677,6 +1679,7 @@ class FeedRepository {
     int chatId,
     int messageId,
     String text, {
+    List<TextEntity> entities = const [],
     int? replyToMessageId,
     List<ComposeAttachment> attachments = const [],
     ComposeRemoteMedia? remote,
@@ -1706,7 +1709,7 @@ class FeedRepository {
             replyTo: replyTo,
             options: _commentSendOptions,
             inputMessageContent: td.InputMessageText(
-              text: td.FormattedText(text: text, entities: []),
+              text: OutgoingText.of(text, entities),
               clearDraft: false,
             ),
           ),
@@ -1716,6 +1719,7 @@ class FeedRepository {
 
       final contents = ComposeMessages.build(
         text: text,
+        entities: entities,
         attachments: attachments,
         remote: remote,
       );

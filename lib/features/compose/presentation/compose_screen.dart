@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/widgets/formatting_controller.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -39,7 +40,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
 }
 
 class _ComposeScreenState extends ConsumerState<ComposeScreen> {
-  final TextEditingController _controller = TextEditingController();
+  final FormattingController _controller = FormattingController();
   final FocusNode _focusNode = FocusNode();
 
   /// The user's pick, or null for the default, which is resolved on each
@@ -226,11 +227,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final label = composeTargetLabel(target);
 
     setState(() => _isSending = true);
+    final composed = _controller.composed.trimmed();
     final result = await ref
         .read(composeRepositoryProvider)
         .send(
           chatId: target.chatId,
-          text: draft.trimmedText,
+          text: composed.text,
+          entities: composed.entities,
           attachments: draft.attachments,
           remote: draft.remote,
         );
@@ -517,7 +520,7 @@ class _ComposeField extends StatelessWidget {
         letterSpacing: 0.25,
       );
 
-  final TextEditingController controller;
+  final FormattingController controller;
   final FocusNode focusNode;
   final bool enabled;
   final Color primary;
@@ -535,6 +538,7 @@ class _ComposeField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      contextMenuBuilder: controller.contextMenuBuilder,
       focusNode: focusNode,
       enabled: enabled,
       autofocus: true,

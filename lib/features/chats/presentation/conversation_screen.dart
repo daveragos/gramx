@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:gramx/core/text/composed_text.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
@@ -397,14 +398,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   }
 
   Future<bool> _send(
-    String text,
+    ComposedText text,
     List<ComposeAttachment> attachments,
     MessageSchedule schedule,
   ) async {
     final sent = await ref
         .read(conversationProvider(widget.chatId).notifier)
         .send(
-          text: text,
+          text: text.text,
+          entities: text.entities,
           attachments: attachments,
           replyToMessageId: _replyTo?.messageId,
           schedule: schedule,
@@ -1182,11 +1184,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
           else
             MessageComposer(
               // The draft is TDLib's, so it syncs across devices.
-              initialText: ref
+              initialDraft: ref
                   .read(chatsRepositoryProvider)
-                  .draftText(widget.chatId),
-              onDraftChanged: (text) =>
-                  _repository.saveDraft(widget.chatId, text),
+                  .draft(widget.chatId),
+              onDraftChanged: (draft) => _repository.saveDraft(
+                widget.chatId,
+                draft.text,
+                entities: draft.entities,
+              ),
               replyTo: _replyTo,
               onCancelReply: () => setState(() => _replyTo = null),
               onSend: _send,

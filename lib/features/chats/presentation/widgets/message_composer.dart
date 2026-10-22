@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:gramx/core/text/composed_text.dart';
+import 'package:gramx/core/widgets/formatting_controller.dart';
 import 'package:gramx/app/theme/app_colors.dart';
 import 'package:gramx/app/theme/app_spacing.dart';
 import 'package:gramx/app/theme/app_typography.dart';
@@ -33,9 +35,9 @@ class MessageComposer extends ConsumerStatefulWidget {
   final ChatMessage? replyTo;
   final VoidCallback? onCancelReply;
 
-  /// Sends the message. Returns whether it succeeded.
+  /// Sends the message and its formatting. Returns whether it succeeded.
   final Future<bool> Function(
-    String text,
+    ComposedText text,
     List<ComposeAttachment> attachments,
     MessageSchedule schedule,
   )
@@ -49,10 +51,10 @@ class MessageComposer extends ConsumerStatefulWidget {
   final ValueChanged<String>? onChanged;
 
   /// The chat's TDLib draft, restored into the field.
-  final String? initialText;
+  final ComposedText? initialDraft;
 
   /// Called with the unsent text on dispose, to save it as the chat's draft.
-  final ValueChanged<String>? onDraftChanged;
+  final ValueChanged<ComposedText>? onDraftChanged;
 
   /// Sends a poll. Null where Telegram doesn't allow polls, hiding the option.
   final Future<bool> Function(PollDraft draft)? onSendPoll;
@@ -92,7 +94,7 @@ class MessageComposer extends ConsumerStatefulWidget {
     this.replyTo,
     this.onCancelReply,
     this.onChanged,
-    this.initialText,
+    this.initialDraft,
     this.onDraftChanged,
     this.onSendPoll,
     this.allowsSelfDestruct = false,
@@ -112,7 +114,7 @@ class MessageComposer extends ConsumerStatefulWidget {
 }
 
 class _MessageComposerState extends ConsumerState<MessageComposer> {
-  final TextEditingController _controller = TextEditingController();
+  final FormattingController _controller = FormattingController();
   final FocusNode _focus = FocusNode();
   final List<ComposeAttachment> _attachments = [];
   bool _isSending = false;
@@ -138,14 +140,14 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   @override
   void initState() {
     super.initState();
-    final draft = widget.initialText;
-    if (draft != null && draft.isNotEmpty) _controller.text = draft;
+    final draft = widget.initialDraft;
+    if (draft != null && !draft.isEmpty) _controller.composed = draft;
   }
 
   @override
   void dispose() {
     // Saved once on dispose since `SetChatDraftMessage` is a network request.
-    widget.onDraftChanged?.call(_controller.text);
+    widget.onDraftChanged?.call(_controller.composed);
     _recordTicker?.cancel();
     // Leaving mid-recording discards the recording.
     unawaited(_recorder?.cancel().then((_) => _recorder?.dispose()));
@@ -269,7 +271,11 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
   /// Sends one thing immediately, keeping whatever is typed where it is.
   Future<void> _sendNow(List<ComposeAttachment> attachments) async {
     setState(() => _isSending = true);
-    final sent = await widget.onSend('', attachments, MessageSchedule.now);
+    final sent = await widget.onSend(
+      const ComposedText(''),
+      attachments,
+      MessageSchedule.now,
+    );
     if (!mounted) return;
     setState(() => _isSending = false);
 
@@ -436,7 +442,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
 
   Future<void> _send({MessageSchedule schedule = MessageSchedule.now}) async {
     if (!_canSend) return;
-    final text = _controller.text.trim();
+    final text = _controller.composed.trimmed();
     final attachments = List<ComposeAttachment>.from(_attachments);
 
     setState(() => _isSending = true);
@@ -444,11 +450,11 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     _controller.clear();
     _attachments.clear();
     // So dispose doesn't save the sent text back as a draft.
-    widget.onDraftChanged?.call('');
+    widget.onDraftChanged?.call(const ComposedText(''));
 
     final sent = await widget.onSend(
       // @Trok goes to the bot that calls Trok into the chat.
-      widget.offersTrok ? TrokMention.resolve(text) : text,
+      widget.offersTrok ? TrokMention.resolveComposed(text) : text,
       attachments,
       schedule,
     );
@@ -456,7 +462,7 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
     setState(() => _isSending = false);
 
     if (!sent) {
-      _controller.text = text;
+      _controller.composed = text;
       _attachments.addAll(attachments);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -576,6 +582,8 @@ class _MessageComposerState extends ConsumerState<MessageComposer> {
                               Expanded(
                                 child: TextField(
                                   controller: _controller,
+                                  contextMenuBuilder:
+                                      _controller.contextMenuBuilder,
                                   focusNode: _focus,
                                   maxLines: 5,
                                   minLines: 1,

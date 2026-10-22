@@ -11,6 +11,7 @@ import 'package:gramx/features/feed/domain/feed_thread.dart';
 import 'package:gramx/features/feed/domain/poll.dart';
 import 'package:gramx/features/feed/domain/post.dart';
 import 'package:gramx/features/feed/domain/reaction_choice.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/presentation/mute_registry.dart';
 import 'package:gramx/features/feed/presentation/read_receipt_queue.dart';
 import 'package:gramx/features/feed/presentation/seen_posts_provider.dart';
@@ -495,12 +496,16 @@ class FeedNotifier extends AsyncNotifier<List<Post>> {
 
   /// Shows a saved edit without refetching. Entities are dropped, since the
   /// edit box saves plain text.
-  void updateTextLive(String postId, String text) {
+  void updateTextLive(
+    String postId,
+    String text, {
+    List<TextEntity> entities = const [],
+  }) {
     final current = state.value;
     if (current == null) return;
     final updated = current.map((p) {
       if (p.id == postId) {
-        return p.copyWith(text: text.isEmpty ? null : text, entities: const []);
+        return p.copyWith(text: text.isEmpty ? null : text, entities: entities);
       }
       return p;
     }).toList();
@@ -1002,11 +1007,15 @@ class OptimisticPostUpdatesNotifier
   }
 
   /// Records an edit the user made, so it shows without refetching.
-  void setText(String postId, String text) {
+  void setText(
+    String postId,
+    String text, {
+    List<TextEntity> entities = const [],
+  }) {
     final currentData = state[postId] ?? {};
     state = {
       ...state,
-      postId: {...currentData, 'text': text},
+      postId: {...currentData, 'text': text, 'entities': entities},
     };
   }
 }
@@ -1026,8 +1035,12 @@ Post applyPostOverrides(
   final text = data['text'] as String?;
   final edited = text == null
       ? post
-      // The old entities would point at the wrong characters in the new text.
-      : post.copyWith(text: text.isEmpty ? null : text, entities: const []);
+      // The edit's own formatting: the old would point at the wrong
+      // characters in the new text.
+      : post.copyWith(
+          text: text.isEmpty ? null : text,
+          entities: data['entities'] as List<TextEntity>? ?? const [],
+        );
   return edited.copyWith(
     poll: data['poll'] as Poll? ?? post.poll,
     reactions: data['reactions'] as Map<String, int>? ?? post.reactions,

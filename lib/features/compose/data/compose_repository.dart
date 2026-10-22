@@ -8,7 +8,9 @@ import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/compose_target.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
 import 'package:gramx/features/compose/domain/voice_waveform.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/outgoing_text.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// Builds the list of chats a post can go to, with the user's channels first
@@ -109,27 +111,23 @@ abstract class ComposeMessages {
     };
   }
 
-  /// Builds one content object per message to send. Length is checked
-  /// earlier, by [ComposeDraft.canPost].
+  /// Builds one content object per message to send, the text formatted with
+  /// [entities] and any Markdown typed into it. Length is checked earlier, by
+  /// [ComposeDraft.canPost].
   static List<td.InputMessageContent> build({
     required String text,
+    List<TextEntity> entities = const [],
     required List<ComposeAttachment> attachments,
     ComposeRemoteMedia? remote,
   }) {
-    final caption = text.isEmpty
-        ? null
-        : td.FormattedText(text: text, entities: const []);
+    final formatted = OutgoingText.of(text, entities);
+    final caption = text.isEmpty ? null : formatted;
 
     // A sticker or GIF replaces all other media (see ComposeDraft.withRemote).
     if (remote != null) return [_remoteContent(remote, caption: caption)];
 
     if (attachments.isEmpty) {
-      return [
-        td.InputMessageText(
-          text: td.FormattedText(text: text, entities: const []),
-          clearDraft: true,
-        ),
-      ];
+      return [td.InputMessageText(text: formatted, clearDraft: true)];
     }
 
     return [
@@ -373,11 +371,13 @@ class ComposeRepository {
   Future<ComposeSendResult> send({
     required int chatId,
     required String text,
+    List<TextEntity> entities = const [],
     List<ComposeAttachment> attachments = const [],
     ComposeRemoteMedia? remote,
   }) async {
     final contents = ComposeMessages.build(
       text: text,
+      entities: entities,
       attachments: attachments,
       remote: remote,
     );

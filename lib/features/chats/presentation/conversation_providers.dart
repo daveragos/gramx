@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/text/composed_text.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/features/chats/data/chat_events.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
@@ -252,6 +254,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   /// If Telegram refuses it outright, the bubble is removed.
   Future<bool> send({
     required String text,
+    List<TextEntity> entities = const [],
     List<ComposeAttachment> attachments = const [],
     int? replyToMessageId,
     MessageSchedule schedule = MessageSchedule.now,
@@ -268,7 +271,11 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     // No optimistic bubble for a scheduled message: it doesn't appear in the
     // chat until Telegram sends it.
     final placeholder = schedule.isImmediate
-        ? _optimisticMessage(text: text, replyTo: replyToMessageId)
+        ? _optimisticMessage(
+            text: text,
+            entities: entities,
+            replyTo: replyToMessageId,
+          )
         : null;
     if (placeholder != null) {
       state = AsyncData(current.withOptimistic(placeholder));
@@ -277,6 +284,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
     final sent = await repository.send(
       chatId: chatId,
       text: text,
+      entities: entities,
       attachments: attachments,
       replyToMessageId: replyToMessageId,
       schedule: schedule,
@@ -452,7 +460,11 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
   /// A bubble for a message that has not left the device yet. Its negative id
   /// can't collide with TDLib's positive ids, and
   /// [ConversationState.compareOrder] sorts it to the bottom.
-  ChatMessage _optimisticMessage({required String text, int? replyTo}) {
+  ChatMessage _optimisticMessage({
+    required String text,
+    List<TextEntity> entities = const [],
+    int? replyTo,
+  }) {
     final current = state.value;
     final replyTarget = replyTo == null
         ? null
@@ -468,6 +480,7 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       messageId: id,
       isOutgoing: true,
       text: text.isEmpty ? null : text,
+      entities: entities,
       sentAt: DateTime.now(),
       sendState: MessageSendState.sending,
       replyToMessageId: replyTo,
@@ -598,21 +611,23 @@ class ConversationNotifier extends AsyncNotifier<ConversationState> {
       ref.read(chatsRepositoryProvider).resend(chatId, [messageId]);
 
   /// Edits a message's text, or a media message's caption.
-  Future<bool> edit(int messageId, String text) async {
+  Future<bool> edit(int messageId, ComposedText text) async {
     final message = state.value?.messages
         .where((m) => m.messageId == messageId)
         .firstOrNull;
     final isCaption = message?.media.isNotEmpty ?? false;
     // A caption may be emptied; a text message may not.
-    if (!isCaption && text.trim().isEmpty) return false;
-    return ref
+    if (!isCaption && text.text.trim().isEmpty) return false;
+    final sent = await ref
         .read(chatsRepositoryProvider)
         .editText(
           chatId: chatId,
           messageId: messageId,
-          text: text,
+          text: text.text,
+          entities: text.entities,
           isCaption: isCaption,
         );
+    return sent != null;
   }
 
   /// Reloads from scratch, for the error state's retry.

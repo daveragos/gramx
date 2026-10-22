@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 
 import 'package:gramx/core/config/trok_bots.dart';
+import 'package:gramx/core/text/composed_text.dart';
 
 /// "@Trok" in a comment or a group message. It goes to Telegram as a mention
 /// of [TrokBots.trok], which Telegram's guest mode lets answer in any chat
@@ -20,6 +21,10 @@ abstract final class TrokMention {
 
   /// [text] with each @Trok naming the bot that calls Trok, as it is sent.
   static String resolve(String text) =>
+      text.replaceAll(_typed, '@${TrokBots.trok}');
+
+  /// [resolve] for formatted text, its marks moved to match.
+  static ComposedText resolveComposed(ComposedText text) =>
       text.replaceAll(_typed, '@${TrokBots.trok}');
 
   /// The "@" word being typed in [value] while it could still become @Trok:

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
 import 'package:gramx/core/navigation/deep_link_handler.dart';
+import 'package:gramx/core/text/composed_text.dart';
 import 'package:gramx/features/chats/data/chat_list_builder.dart';
 import 'package:gramx/features/chats/data/chat_message_mapper.dart';
 import 'package:gramx/features/chats/domain/chat_message.dart';
@@ -14,7 +15,10 @@ import 'package:gramx/features/compose/data/compose_repository.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
+import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/infrastructure/telegram/chat_cache.dart';
+import 'package:gramx/infrastructure/telegram/outgoing_text.dart';
+import 'package:gramx/infrastructure/telegram/tdlib_mappers.dart';
 import 'package:gramx/infrastructure/telegram/tdlib_service.dart';
 
 /// What the long-press menu may offer for one message.
@@ -503,6 +507,9 @@ class ChatsRepository {
   Future<td.Message?> send({
     required int chatId,
     required String text,
+
+    /// The formatting on [text].
+    List<TextEntity> entities = const [],
     List<ComposeAttachment> attachments = const [],
 
     /// A sticker or GIF already on Telegram's servers, so nothing is uploaded.
@@ -512,6 +519,7 @@ class ChatsRepository {
   }) async {
     final contents = ComposeMessages.build(
       text: text,
+      entities: entities,
       attachments: attachments,
       remote: remote,
     );
@@ -813,17 +821,23 @@ class ChatsRepository {
     onlyPreview: false,
   );
 
-  /// Rewrites a message this account sent. Returns whether Telegram took it.
-  Future<bool> editText({
+  /// Rewrites a message this account sent. [entities] is the formatting the
+  /// writer left on [text]; without it, the message's own formatting is kept
+  /// where the text is unchanged. Returns the text as sent, Markdown made
+  /// into formatting, or null if Telegram refused it.
+  Future<ComposedText?> editText({
     required int chatId,
     required int messageId,
     required String text,
+    List<TextEntity>? entities,
     bool isCaption = false,
   }) async {
-    final formatted = td.FormattedText(
-      text: text,
-      entities: keptEntities(await _currentText(chatId, messageId), text),
-    );
+    final formatted = entities != null
+        ? OutgoingText.of(text, entities)
+        : td.FormattedText(
+            text: text,
+            entities: keptEntities(await _currentText(chatId, messageId), text),
+          );
     try {
       // Media messages need `EditMessageCaption`; Telegram rejects
       // `EditMessageText` for them.
@@ -844,10 +858,14 @@ class ChatsRepository {
                 ),
               ),
       );
-      return res is td.Message;
+      if (res is! td.Message) return null;
+      return ComposedText(
+        formatted.text,
+        TdlibMappers.mapEntities(formatted.entities),
+      );
     } catch (e) {
       debugPrint('[ChatsRepo] edit $chatId/$messageId failed: $e');
-      return false;
+      return null;
     }
   }
 
@@ -1139,6 +1157,7 @@ class ChatsRepository {
   Future<void> saveDraft(
     int chatId,
     String text, {
+    List<TextEntity> entities = const [],
     int? replyToMessageId,
   }) async {
     try {
@@ -1155,8 +1174,15 @@ class ChatsRepository {
                           messageId: replyToMessageId,
                         ),
                   date: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                  // Markdown stays as typed until it is sent.
                   inputMessageText: td.InputMessageText(
-                    text: td.FormattedText(text: text, entities: const []),
+                    text: td.FormattedText(
+                      text: text,
+                      entities: [
+                        for (final entity in entities)
+                          ?OutgoingText.toTd(entity),
+                      ],
+                    ),
                     clearDraft: false,
                   ),
                   effectId: 0,
@@ -1168,12 +1194,18 @@ class ChatsRepository {
     }
   }
 
-  /// The text of the draft TDLib holds for this chat, if it is a text one.
-  String? draftText(int chatId) {
+  /// The draft TDLib holds for this chat with its formatting, if it is a
+  /// text one.
+  ComposedText? draft(int chatId) {
     final draft = _chatCache.chat(chatId)?.draftMessage;
     final content = draft?.inputMessageText;
     if (content is! td.InputMessageText) return null;
-    return content.text.text.isEmpty ? null : content.text.text;
+    final text = content.text;
+    if (text.text.isEmpty) return null;
+    return ComposedText.editable(
+      text.text,
+      TdlibMappers.mapEntities(text.entities),
+    );
   }
 
   /// The Saved Messages chat id, which is [selfUserId]. Creates the chat if a

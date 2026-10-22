@@ -122,26 +122,31 @@ abstract class PostMenuSheet {
     final updated = await EditTextDialog.show(
       context,
       initialText: post.text ?? '',
+      initialEntities: post.entities,
       title: AppStrings.postEditTitle,
       allowsEmpty: isCaption,
     );
     if (updated == null || !context.mounted) return;
 
-    final ok = await ref
+    final sent = await ref
         .read(chatsRepositoryProvider)
         .editText(
           chatId: post.chatId,
           messageId: post.messageId,
-          text: updated,
+          text: updated.text,
+          entities: updated.entities,
           isCaption: isCaption,
         );
     if (!context.mounted) return;
 
-    if (ok) {
+    final ok = sent != null;
+    if (sent != null) {
       ref
           .read(optimisticPostUpdatesProvider.notifier)
-          .setText(post.id, updated);
-      ref.read(feedPostsProvider.notifier).updateTextLive(post.id, updated);
+          .setText(post.id, sent.text, entities: sent.entities);
+      ref
+          .read(feedPostsProvider.notifier)
+          .updateTextLive(post.id, sent.text, entities: sent.entities);
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

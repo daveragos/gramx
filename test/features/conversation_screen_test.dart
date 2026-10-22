@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:handy_tdlib/api.dart' as td;
 
+import 'package:gramx/core/text/composed_text.dart';
 import 'package:gramx/features/channels/presentation/channel_providers.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/chats/data/chats_repository.dart';
@@ -38,8 +39,8 @@ class _FixedConversation extends ConversationNotifier {
   final List<(List<int>, bool)> deletes = [];
 
   @override
-  Future<bool> edit(int messageId, String text) async {
-    edits.add((messageId, text));
+  Future<bool> edit(int messageId, ComposedText text) async {
+    edits.add((messageId, text.text));
     return true;
   }
 

@@ -1013,6 +1013,10 @@ class TdlibMappers {
     return null;
   }
 
+  /// TDLib's entities as the app's own.
+  static List<TextEntity> mapEntities(List<td.TextEntity> entities) =>
+      _parseEntities(entities) ?? const [];
+
   static List<TextEntity>? _parseEntities(List<td.TextEntity>? entities) {
     final serialized = serializeEntities(entities);
     if (serialized == null) return null;

@@ -1195,6 +1195,21 @@ abstract class AppStrings {
   static const postEditTitle = 'Edit post';
   static const postMenuEdit = 'Edit post';
   static const chatSave = 'Save';
+
+  // ── Text formatting ────────────────────────────────────────────────────────
+  static const formatMenu = 'Format';
+  static const formatBold = 'Bold';
+  static const formatItalic = 'Italic';
+  static const formatUnderline = 'Underline';
+  static const formatStrikethrough = 'Strikethrough';
+  static const formatSpoiler = 'Spoiler';
+  static const formatCode = 'Monospace';
+  static const formatLink = 'Link';
+  static const formatRemoveLink = 'Remove link';
+  static const formatPlain = 'Regular';
+  static const formatLinkTitle = 'Add a link';
+  static const formatLinkHint = 'https://';
+  static const formatLinkAdd = 'Add';
   static const chatEditFailed = "Telegram wouldn't take that edit.";
   static const chatEditSaved = 'Saved.';
 

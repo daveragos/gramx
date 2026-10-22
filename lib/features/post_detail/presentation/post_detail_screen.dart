@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gramx/core/text/composed_text.dart';
+import 'package:gramx/core/widgets/formatting_controller.dart';
 import 'package:gramx/features/feed/presentation/copy_post_link.dart';
 import 'package:gramx/features/feed/presentation/reaction_controller.dart';
 import 'package:gramx/core/navigation/navigation_utils.dart';
@@ -77,7 +79,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   /// The reply bar's pill.
   static const double _replyBarHeight = 56.4;
 
-  final TextEditingController _commentController = TextEditingController();
+  final FormattingController _commentController = FormattingController();
   final FocusNode _commentFocusNode = FocusNode();
   Post? _replyTargetPost;
   final Set<String> _expandedCommentIds = {};
@@ -201,7 +203,9 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     int messageId, {
     ComposeRemoteMedia? remote,
   }) async {
-    final text = remote != null ? '' : _commentController.text.trim();
+    final text = remote != null
+        ? const ComposedText('')
+        : _commentController.composed.trimmed();
     final attachments = remote != null
         ? const <ComposeAttachment>[]
         : List<ComposeAttachment>.from(_attachments);
@@ -218,14 +222,16 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
       _replyTargetPost = null;
     });
 
+    // @Trok goes to the bot that calls Trok to answer under the post.
+    final resolved = TrokMention.resolveComposed(text);
     try {
       await ref
           .read(feedRepositoryProvider)
           .sendComment(
             chatId,
             messageId,
-            // @Trok goes to the bot that calls Trok to answer under the post.
-            TrokMention.resolve(text),
+            resolved.text,
+            entities: resolved.entities,
             replyToMessageId: targetReply?.messageId,
             attachments: attachments,
             remote: remote,
@@ -244,7 +250,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         // Restore the typed text so a failed send does not lose it.
         setState(() {
           if (remote == null) {
-            _commentController.text = text;
+            _commentController.composed = text;
             _attachments.addAll(attachments);
           }
           _replyTargetPost = targetReply;
@@ -317,25 +323,28 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     final updated = await EditTextDialog.show(
       context,
       initialText: comment.text ?? '',
+      initialEntities: comment.entities,
       title: AppStrings.commentEditTitle,
       allowsEmpty: isCaption,
     );
     if (updated == null || !mounted) return;
 
-    final ok = await ref
+    final sent = await ref
         .read(chatsRepositoryProvider)
         .editText(
           chatId: comment.chatId,
           messageId: comment.messageId,
-          text: updated,
+          text: updated.text,
+          entities: updated.entities,
           isCaption: isCaption,
         );
     if (!mounted) return;
 
-    if (ok) {
+    final ok = sent != null;
+    if (sent != null) {
       ref
           .read(optimisticPostUpdatesProvider.notifier)
-          .setText(comment.id, updated);
+          .setText(comment.id, sent.text, entities: sent.entities);
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1311,6 +1320,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     Expanded(
                       child: TextField(
                         controller: _commentController,
+                        contextMenuBuilder:
+                            _commentController.contextMenuBuilder,
                         focusNode: _commentFocusNode,
                         onTapOutside: (_) => _commentFocusNode.unfocus(),
                         maxLines: 4,

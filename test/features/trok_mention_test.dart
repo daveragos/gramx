@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gramx/core/l10n/app_strings.dart';
+import 'package:gramx/core/text/composed_text.dart';
 import 'package:gramx/core/widgets/text_entity_renderer.dart';
 import 'package:gramx/features/feed/domain/text_entity.dart';
 import 'package:gramx/features/trok/data/trok_client.dart';
@@ -57,6 +58,21 @@ void main() {
         expect(TrokMention.resolve(text), text);
       }
     });
+  });
+
+  test('a formatted @Trok keeps its formatting', () {
+    final resolved = TrokMention.resolveComposed(
+      const ComposedText('@Trok is this true?', [
+        TextEntity(offset: 0, length: 19, type: TextEntityType.bold),
+        TextEntity(offset: 6, length: 7, type: TextEntityType.italic),
+      ]),
+    );
+
+    expect(resolved.text, '@trokkai is this true?');
+    expect(resolved.entities.map((e) => (e.offset, e.length)), [
+      (0, 22),
+      (9, 7),
+    ]);
   });
 
   group('TrokMention.typing', () {
