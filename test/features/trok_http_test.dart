@@ -198,6 +198,24 @@ void main() {
       feed: [subject, post(43), post(44, read: true)],
     );
 
+    /// The conversation after [factCheck], once Trok's answer to it came
+    /// through, or once it failed.
+    List<TrokTurn> askedOnce(TrokAnswerState state) => [
+      TrokQuestion(
+        id: 'q',
+        text: factCheck.prompt,
+        post: subject,
+        action: factCheck.action,
+      ),
+      TrokAnswer(
+        id: 'a',
+        startedAt: DateTime.utc(2026, 10, 21),
+        state: state,
+        remoteId: 'a_1',
+      ),
+    ];
+    final answered = askedOnce(TrokAnswerState.done);
+
     test('streams an answer and ends with the cleaned text', () async {
       final client = clientWith([() => streamed(sse(answer()))]);
       final events = await client.ask(factCheck).toList();
@@ -278,6 +296,7 @@ void main() {
               prompt: 'Why?',
               post: subject,
               feed: factCheck.feed,
+              history: answered,
               conversationId: 'c_1',
             ),
           )
@@ -291,7 +310,7 @@ void main() {
       expect(body['question_id'], isNot(bodies.first['question_id']));
     });
 
-    test('the post\'s pictures go with the first question only', () async {
+    test('the post\'s pictures go until Trok has answered', () async {
       final pictures = _Pictures(
         (_) async => [TrokPicture(_jpeg, width: 800, height: 600)],
       );
@@ -302,7 +321,12 @@ void main() {
       await client.ask(factCheck).drain<void>();
       await client
           .ask(
-            TrokRequest(prompt: 'Why?', post: subject, conversationId: 'c_1'),
+            TrokRequest(
+              prompt: 'Why?',
+              post: subject,
+              history: answered,
+              conversationId: 'c_1',
+            ),
           )
           .drain<void>();
 
@@ -331,6 +355,50 @@ void main() {
 
       expect(events.whereType<TrokStarted>(), hasLength(1));
       expect((bodies.single['post'] as Map).containsKey('images'), isFalse);
+    });
+
+    test('trying again after a failed answer sends the pictures and feed '
+        'again', () async {
+      // Trok names the conversation before it reads anything, so one whose
+      // first answer failed may hold neither.
+      final pictures = _Pictures(
+        (_) async => [TrokPicture(_jpeg, width: 800, height: 724)],
+      );
+      final client = clientWith([
+        () => streamed(sse(answer())),
+        () => streamed(sse(answer())),
+      ], pictures: pictures);
+      // Try again replaces the failed answer to the first question.
+      await client
+          .ask(
+            TrokRequest(
+              prompt: factCheck.prompt,
+              post: subject,
+              action: factCheck.action,
+              feed: factCheck.feed,
+              conversationId: 'c_1',
+              replaceAnswerId: 'a_1',
+            ),
+          )
+          .drain<void>();
+      // A question typed under the failed answer.
+      await client
+          .ask(
+            TrokRequest(
+              prompt: 'What does the picture show?',
+              post: subject,
+              feed: factCheck.feed,
+              history: askedOnce(TrokAnswerState.failed),
+              conversationId: 'c_1',
+            ),
+          )
+          .drain<void>();
+
+      for (final body in bodies) {
+        expect(body['conversation_id'], 'c_1');
+        expect((body['post'] as Map)['images'], hasLength(1));
+        expect(body['feed'], hasLength(2));
+      }
     });
 
     group('a post\'s video', () {
@@ -411,7 +479,12 @@ void main() {
         ], postFiles: files);
         await client
             .ask(
-              TrokRequest(prompt: 'Why?', post: subject, conversationId: 'c_1'),
+              TrokRequest(
+                prompt: 'Why?',
+                post: subject,
+                history: answered,
+                conversationId: 'c_1',
+              ),
             )
             .drain<void>();
 
@@ -525,6 +598,9 @@ void main() {
       final got = await client.ask(factCheck).toList();
 
       expect(bodies[0]['question_id'], bodies[1]['question_id']);
+      // Nothing has been answered yet, so the feed goes again too.
+      expect(bodies[1]['conversation_id'], 'c_1');
+      expect(bodies[1]['feed'], hasLength(2));
       expect(got.whereType<TrokStarted>(), hasLength(1));
       expect(got.whereType<TrokStep>(), hasLength(2));
       expect(got.whereType<TrokText>().last.text, 'Partly true. See the post.');
@@ -992,7 +1068,27 @@ void main() {
         size('y', 1280, 200000),
         size('w', 2560, 600000),
       ];
+      expect(TdlibTrokPictures.readableSize(sizes)?.type, 'y');
+    });
+
+    test('a busy picture alone goes at 800 px', () {
+      // t.me/DaveDumps/3602, whose 800 px size is 157,435 bytes.
+      final sizes = [
+        size('s', 90, 2000),
+        size('m', 320, 21000),
+        size('x', 800, 157435),
+      ];
       expect(TdlibTrokPictures.readableSize(sizes)?.type, 'x');
+    });
+
+    test('an album\'s pictures share the room, each smaller', () {
+      final sizes = [
+        size('m', 320, 20000),
+        size('x', 800, 90000),
+        size('y', 1280, 200000),
+      ];
+      const fourth = TdlibTrokPictures.totalBytes ~/ 4;
+      expect(TdlibTrokPictures.readableSize(sizes, budget: fourth)?.type, 'x');
     });
 
     test('prefers a readable size already on the phone', () {

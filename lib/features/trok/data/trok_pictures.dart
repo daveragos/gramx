@@ -39,12 +39,13 @@ class TdlibTrokPictures implements TrokPictures {
   /// The most pictures sent with one post.
   static const limit = 4;
 
-  /// The largest picture sent, in bytes. Telegram's 800-pixel size of a
-  /// photo is usually well under it.
-  static const maxBytes = 150 * 1024;
+  /// The largest picture sent, in bytes, when it is the post's only one.
+  /// Telegram's 800-pixel size of a busy picture, such as a meme or a
+  /// screenshot, can come to more than 150 KB.
+  static const maxBytes = 300 * 1024;
 
   /// The most all of a post's pictures come to, leaving room in the request
-  /// for the feed.
+  /// for the feed. Each picture of an album gets an equal share of it.
   static const totalBytes = 450 * 1024;
 
   /// Telegram's larger sizes add bytes and nothing Trok needs.
@@ -71,15 +72,25 @@ class TdlibTrokPictures implements TrokPictures {
   @override
   Future<List<TrokPicture>> of(Post post) async {
     if (post.media.isEmpty && post.linkPreviewUrl == null) return const [];
-    final files = [
+    final contents = [
       for (final message in await postMessages(_tdlib, post))
-        if (_sourcesOf(message.content) case final sources
+        if (_sourcesOf(message.content).isNotEmpty) message.content,
+    ].take(limit).toList();
+    if (contents.isEmpty) return const [];
+    // Shared out, so that all of an album's pictures go, each smaller.
+    final budget = min(maxBytes, totalBytes ~/ contents.length);
+    final files = [
+      for (final content in contents)
+        if (_sourcesOf(content, budget: budget) case final sources
             when sources.isNotEmpty)
           sources,
-    ].take(limit);
+    ];
     final pictures = <TrokPicture>[];
     var bytes = 0;
-    for (final picture in (await Future.wait(files.map(_picture))).nonNulls) {
+    final got = await Future.wait(
+      files.map((sources) => _picture(sources, budget: budget)),
+    );
+    for (final picture in got.nonNulls) {
       if (bytes + picture.jpeg.length > totalBytes) break;
       bytes += picture.jpeg.length;
       pictures.add(picture);
@@ -117,9 +128,12 @@ class TdlibTrokPictures implements TrokPictures {
     return album.values.toList()..sort((a, b) => a.id.compareTo(b.id));
   }
 
-  /// The files that could be sent for [content], best first, each with its
-  /// size in pixels.
-  static List<_Source> _sourcesOf(td.MessageContent content) {
+  /// The files that could be sent for [content] within [budget] bytes, best
+  /// first, each with its size in pixels.
+  static List<_Source> _sourcesOf(
+    td.MessageContent content, {
+    int budget = maxBytes,
+  }) {
     final (photo, isLinkPreview) = switch (content) {
       td.MessagePhoto(:final photo) => (photo, false),
       td.MessageText(:final linkPreview?) => (_photoOf(linkPreview.type), true),
@@ -132,8 +146,8 @@ class TdlibTrokPictures implements TrokPictures {
         height: size.height,
         isLinkPreview: isLinkPreview,
       );
-      final readable = readableSize(photo.sizes);
-      final held = heldSize(photo.sizes);
+      final readable = readableSize(photo.sizes, budget: budget);
+      final held = heldSize(photo.sizes, budget: budget);
       return [
         if (readable != null) source(readable),
         if (held != null && held.photo.id != readable?.photo.id) source(held),
@@ -170,16 +184,17 @@ class TdlibTrokPictures implements TrokPictures {
     _ => null,
   };
 
-  /// The size of a photo to send: the largest within [maxBytes] and
+  /// The size of a photo to send: the largest within [budget] bytes and
   /// [maxSide], or a smaller one already on the phone if it is big enough
   /// to read text in. TDLib lists sizes smallest first.
   @visibleForTesting
-  static td.PhotoSize? readableSize(List<td.PhotoSize> sizes) {
+  static td.PhotoSize? readableSize(
+    List<td.PhotoSize> sizes, {
+    int budget = maxBytes,
+  }) {
     final fitting = [
       for (final size in sizes)
-        if (_bytesOf(size.photo) <= maxBytes &&
-            max(size.width, size.height) <= maxSide)
-          size,
+        if (_fits(size, budget)) size,
     ];
     for (final size in fitting.reversed) {
       if (max(size.width, size.height) < _readableSide) break;
@@ -192,21 +207,28 @@ class TdlibTrokPictures implements TrokPictures {
   /// phone, such as the preview the feed showed, to send when the readable
   /// size is slow to arrive.
   @visibleForTesting
-  static td.PhotoSize? heldSize(List<td.PhotoSize> sizes) => sizes
+  static td.PhotoSize? heldSize(
+    List<td.PhotoSize> sizes, {
+    int budget = maxBytes,
+  }) => sizes
       .where(
         (size) =>
-            size.photo.local.isDownloadingCompleted &&
-            _bytesOf(size.photo) <= maxBytes &&
-            max(size.width, size.height) <= maxSide,
+            size.photo.local.isDownloadingCompleted && _fits(size, budget),
       )
       .lastOrNull;
+
+  static bool _fits(td.PhotoSize size, int budget) =>
+      _bytesOf(size.photo) <= budget && max(size.width, size.height) <= maxSide;
 
   static int _bytesOf(td.File file) =>
       file.size > 0 ? file.size : file.expectedSize;
 
-  /// The first of [sources] that can be had: the best within
-  /// [_downloadWait], or else one already on the phone.
-  Future<TrokPicture?> _picture(List<_Source> sources) async {
+  /// The first of [sources] that can be had within [budget] bytes: the best
+  /// within [_downloadWait], or else one already on the phone.
+  Future<TrokPicture?> _picture(
+    List<_Source> sources, {
+    required int budget,
+  }) async {
     for (final (i, source) in sources.indexed) {
       try {
         // Returns at once when the file is already on the phone. The reader
@@ -223,7 +245,7 @@ class TdlibTrokPictures implements TrokPictures {
         );
         if (file is! td.File || !file.local.isDownloadingCompleted) continue;
         final jpeg = await File(file.local.path).readAsBytes();
-        if (jpeg.isEmpty || jpeg.length > maxBytes) continue;
+        if (jpeg.isEmpty || jpeg.length > budget) continue;
         return TrokPicture(
           jpeg,
           width: source.width,

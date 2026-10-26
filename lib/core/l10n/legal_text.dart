@@ -34,7 +34,7 @@ abstract class LegalTexts {
   /// Contact address for questions about either document.
   static const String contactEmail = 'daveyeinde@gmail.com';
 
-  static const String lastUpdated = '21 October 2026';
+  static const String lastUpdated = '26 October 2026';
 
   static const privacyRoute = '/legal/privacy';
   static const termsRoute = '/legal/terms';
@@ -99,8 +99,9 @@ abstract class LegalTexts {
             'question and options (never your vote), the title and '
             'description of a link\'s preview, the words of the post it '
             'replies to, its view, comment and reaction counts, and its '
-            'channel. With the first question of each chat it also sends that '
-            'post\'s pictures, so Trok can see what they show: up to four of '
+            'channel. With the first question of each chat, and again if '
+            'Trok couldn\'t answer it, it also sends that post\'s pictures, '
+            'so Trok can see what they show: up to four of '
             'its photos and the covers of its videos, or the picture of its '
             'link\'s preview, at the smaller sizes Telegram keeps. It also '
             'sends up to two of the post\'s videos, GIFs, round videos up to '
@@ -108,7 +109,7 @@ abstract class LegalTexts {
             'to 20 MB, so Trok can hear and watch them; the app may download '
             'one first if it isn\'t on your phone yet. Longer videos go only '
             'as their cover, and other audio and files are never sent. '
-            'With that first question it also sends up to 120 recent posts '
+            'At those times it also sends up to 120 recent posts '
             'from your feed, unread first and muted channels left out, '
             'described the same way but without pictures or files, and with '
             'whether you have read each one. Opening Trok also asks how many '

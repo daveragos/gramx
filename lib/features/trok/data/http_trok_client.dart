@@ -380,6 +380,17 @@ class _Answer {
   late String? _conversationId = request.conversationId;
   late String? _replaceAnswerId = request.replaceAnswerId;
 
+  /// Whether one of the conversation's answers has come through. Trok
+  /// keeps the feed and the post's pictures and files once it has read
+  /// them; a conversation whose answers all failed may hold none of them.
+  late final bool _answered = request.history.any(
+    (turn) => turn is TrokAnswer && turn.state == TrokAnswerState.done,
+  );
+
+  /// Whether the feed and the post's pictures and files go with this
+  /// question: on a new conversation, and on trying again after a failure.
+  bool get _sendsContext => _conversationId == null || !_answered;
+
   /// The feed to send with a first question, without the post asked about.
   late List<Post> _feed = request.feed
       .where((p) => p.id != request.post?.id)
@@ -393,8 +404,8 @@ class _Answer {
         : client._refs.putIfAbsent(conversationId, TrokRefs.rebuilt);
     _pictures = await client._picturesOf(request.post);
     if (_cancelled) return;
-    // Like pictures, files go with a conversation's first question only.
-    if (_conversationId == null) {
+    // Like pictures, files go only until Trok has answered about them.
+    if (_sendsContext) {
       final abort = _filesAbort = Completer<void>();
       final timer = Timer(HttpTrokClient.filesTimeout, () {
         if (!abort.isCompleted) abort.complete();
@@ -614,8 +625,8 @@ class _Answer {
   /// The request body, with fewer feed posts if all of them won't fit.
   List<int> _body() {
     final post = request.post;
-    final firstQuestion = _conversationId == null;
-    // Like the feed, pictures go with the first question only, for Trok to
+    final sendsContext = _sendsContext;
+    // Like the feed, pictures go only until Trok has answered, for it to
     // keep with the conversation. Sending them again would cost the reader
     // the data on every follow-up.
     final sentPost = post == null
@@ -623,10 +634,10 @@ class _Answer {
         : TrokWire.post(
             post,
             _refs.refFor(post),
-            pictures: firstQuestion ? _pictures : const [],
-            files: firstQuestion ? _files : const [],
+            pictures: sendsContext ? _pictures : const [],
+            files: sendsContext ? _files : const [],
           );
-    var feed = firstQuestion ? _feed : const <Post>[];
+    var feed = sendsContext ? _feed : const <Post>[];
     while (true) {
       final body = utf8.encode(
         jsonEncode({
