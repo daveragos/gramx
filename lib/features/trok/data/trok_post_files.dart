@@ -73,6 +73,7 @@ class TdlibTrokPostFiles implements TrokPostFiles {
     'audio/ogg': 'ogg',
     'audio/mpeg': 'mp3',
     'audio/mp4': 'm4a',
+    'audio/x-m4a': 'm4a',
   };
 
   /// How long a download may take before the question goes without it.
