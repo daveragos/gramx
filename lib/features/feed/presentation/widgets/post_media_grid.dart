@@ -55,6 +55,9 @@ class PostMediaGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Paid media the reader hasn't unlocked has no file to show; the card
+    // offers to open it in Telegram instead. Keep it out of the grid.
+    final media = this.media.where((m) => !m.isPaid).toList();
     if (media.isEmpty) return const SizedBox.shrink();
 
     final docOrAudioItems = media

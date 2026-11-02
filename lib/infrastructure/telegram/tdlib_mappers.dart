@@ -181,6 +181,10 @@ class TdlibMappers {
     bool isBookmarked = false,
     Map<int, String>? knownChatTitles,
 
+    /// The @username of chats a post points at, keyed by chat id, for a link
+    /// to a replied-to post in a public channel.
+    Map<int, String>? knownChatUsernames,
+
     /// Excerpts for replied-to messages, keyed `chatId_messageId`. TDLib only
     /// fills `replyTo.content` for cross-chat replies and quotes.
     Map<String, String>? knownReplyExcerpts,
@@ -294,6 +298,10 @@ class TdlibMappers {
     int? replyToMediaHeight;
     DateTime? replyToDate;
     int? replyToChatId;
+    MediaType? replyToMediaType;
+    bool replyToIsPaid = false;
+    int replyToStarCount = 0;
+    String? replyToChannelUsername;
     final replyTo = message.replyTo;
     if (replyTo is td.MessageReplyToMessage) {
       replyToMessageId = replyTo.messageId;
@@ -306,6 +314,7 @@ class TdlibMappers {
       replyToChatId = replyTo.chatId != 0 && replyTo.chatId != chat.id
           ? replyTo.chatId
           : null;
+      replyToChannelUsername = knownChatUsernames?[replyToChatId ?? chat.id];
 
       // Each branch resolves a name or gives up. Only a reply within this chat
       // may fall back to this chat's title.
@@ -477,6 +486,34 @@ class TdlibMappers {
             : '🎵 ${content.audio.fileName}';
       }
 
+      // The kind of media the reply points at, so Trok knows what the
+      // replied-to post holds even when this app can't draw it.
+      replyToMediaType ??= switch (content) {
+        td.MessagePhoto() => MediaType.photo,
+        td.MessageVideo() => MediaType.video,
+        td.MessageAnimation() => MediaType.gif,
+        td.MessageSticker() => MediaType.sticker,
+        td.MessageDocument() => MediaType.document,
+        td.MessageVoiceNote() => MediaType.voice,
+        td.MessageAudio() => MediaType.audio,
+        _ => null,
+      };
+      if (content is td.MessagePaidMedia) {
+        replyToIsPaid = true;
+        replyToStarCount = content.starCount;
+        final first = content.media.firstOrNull;
+        replyToMediaType =
+            first is td.PaidMediaVideo ||
+                (first is td.PaidMediaPreview && first.duration > 0)
+            ? MediaType.video
+            : MediaType.photo;
+        if (first is td.PaidMediaPreview) {
+          if (first.width > 0) replyToMediaWidth = first.width;
+          if (first.height > 0) replyToMediaHeight = first.height;
+        }
+        replyToText ??= '🔒 Paid media';
+      }
+
       // A quoted span wins over the label chosen above.
       if (selectedQuote != null) replyToText = selectedQuote;
     }
@@ -525,6 +562,10 @@ class TdlibMappers {
       replyToAuthorTitle: replyToAuthorTitle,
       replyToMessageId: replyToMessageId,
       replyToChatId: replyToChatId,
+      replyToChannelUsername: replyToChannelUsername,
+      replyToMediaType: replyToMediaType,
+      replyToIsPaid: replyToIsPaid,
+      replyToStarCount: replyToStarCount,
       replyToThumbnailUrl: replyToThumbnailUrl,
       replyToThumbnailFileId: replyToThumbnailFileId,
       replyToMediaWidth: replyToMediaWidth,
@@ -870,6 +911,83 @@ class TdlibMappers {
               : null,
         ),
       );
+    } else if (content is td.MessagePaidMedia) {
+      // Media behind a Stars paywall. The reader usually hasn't bought it, so
+      // most items are blurred previews with no downloadable file; carry the
+      // price so Trok knows the post is paywalled.
+      final stars = content.starCount;
+      for (final item in content.media) {
+        if (item is td.PaidMediaPreview) {
+          list.add(
+            MediaItem(
+              id: 'paid_preview_${list.length}',
+              type: item.duration > 0 ? MediaType.video : MediaType.photo,
+              width: item.width,
+              height: item.height,
+              duration: item.duration,
+              minithumbnail: item.minithumbnail?.data,
+              isPaid: true,
+              starCount: stars,
+            ),
+          );
+        } else if (item is td.PaidMediaPhoto) {
+          final best = item.photo.sizes.last;
+          final f = best.photo;
+          final path =
+              f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+              ? f.local.path
+              : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
+          list.add(
+            MediaItem(
+              id: path,
+              type: MediaType.photo,
+              url: path,
+              width: best.width,
+              height: best.height,
+              minithumbnail: item.photo.minithumbnail?.data,
+              fileId: f.id,
+              localPath: f.local.isDownloadingCompleted ? f.local.path : null,
+              isPaid: true,
+              starCount: stars,
+            ),
+          );
+        } else if (item is td.PaidMediaVideo) {
+          final v = item.video;
+          final f = v.video;
+          final path =
+              f.local.isDownloadingCompleted && f.local.path.isNotEmpty
+              ? f.local.path
+              : (f.remote.id.isNotEmpty ? f.remote.id : f.id.toString());
+          list.add(
+            MediaItem(
+              id: path,
+              type: MediaType.video,
+              url: path,
+              width: v.width,
+              height: v.height,
+              duration: v.duration,
+              fileSize: f.expectedSize,
+              fileName: v.fileName,
+              mimeType: v.mimeType,
+              minithumbnail: v.minithumbnail?.data,
+              fileId: f.id,
+              localPath: f.local.isDownloadingCompleted ? f.local.path : null,
+              isPaid: true,
+              starCount: stars,
+            ),
+          );
+        } else {
+          // PaidMediaUnsupported: still flag the paywall for Trok.
+          list.add(
+            MediaItem(
+              id: 'paid_unsupported_${list.length}',
+              type: MediaType.photo,
+              isPaid: true,
+              starCount: stars,
+            ),
+          );
+        }
+      }
     }
 
     return list;
@@ -880,6 +998,7 @@ class TdlibMappers {
     td.Chat chat, {
     Set<String> bookmarkedKeys = const {},
     Map<int, String>? knownChatTitles,
+    Map<int, String>? knownChatUsernames,
     Map<String, String>? knownReplyExcerpts,
   }) {
     final grouped = <int, List<td.Message>>{};
@@ -897,6 +1016,7 @@ class TdlibMappers {
             chat,
             isBookmarked: bookmarkedKeys.contains('${chat.id}_${m.id}'),
             knownChatTitles: knownChatTitles,
+            knownChatUsernames: knownChatUsernames,
             knownReplyExcerpts: knownReplyExcerpts,
           ),
         );
@@ -914,6 +1034,7 @@ class TdlibMappers {
         chat,
         isBookmarked: bookmarkedKeys.contains('${chat.id}_${anchor.id}'),
         knownChatTitles: knownChatTitles,
+        knownChatUsernames: knownChatUsernames,
         knownReplyExcerpts: knownReplyExcerpts,
       );
 

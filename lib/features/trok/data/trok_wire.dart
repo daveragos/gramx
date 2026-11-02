@@ -145,6 +145,8 @@ abstract final class TrokWire {
             'type': _mediaTypes[m.type],
             if (_named.contains(m.type)) 'file_name': ?_string(m.fileName),
             if (m.duration > 0) 'duration': m.duration,
+            if (m.isPaid) 'paid': true,
+            if (m.isPaid && m.starCount > 0) 'stars': m.starCount,
           },
         if (post.poll != null) {'type': 'poll'},
       ],
@@ -155,12 +157,10 @@ abstract final class TrokWire {
           'title': _string(post.linkPreviewTitle),
           'description': _string(post.linkPreviewDescription),
         },
-      if (_string(post.replyToText) case final text?)
-        'reply_to': {
-          'text': text,
-          'quote': post.replyToIsQuote,
-          'author': _string(post.replyToAuthorTitle),
-        },
+      if (post.replyToMessageId != null ||
+          _string(post.replyToText) != null ||
+          _string(post.replyToAuthorTitle) != null)
+        'reply_to': _replyTo(post),
       if (pictures.isNotEmpty)
         'images': [
           for (final picture in pictures)
@@ -192,6 +192,37 @@ abstract final class TrokWire {
               },
             },
       'unread': !post.isRead,
+    };
+  }
+
+  /// The replied-to message as Trok reads it. Sent for every reply, including
+  /// cross-chat ones and replies with no text, so Trok knows a post answers
+  /// another and what that other post holds.
+  static Map<String, Object?> _replyTo(Post post) {
+    final username = _username(post.replyToChannelUsername);
+    final serverId = post.replyToMessageId == null
+        ? 0
+        : TelegramIds.serverMessageId(post.replyToMessageId!);
+    final title = _string(post.replyToAuthorTitle);
+    return {
+      'text': ?_string(post.replyToText),
+      'quote': post.replyToIsQuote,
+      'author': ?title,
+      if (serverId > 0) 'message_id': serverId,
+      'chat_id': ?post.replyToChatId,
+      if (username != null || post.replyToChatId != null)
+        'channel': {'title': title, 'username': username},
+      if (username != null && serverId > 0)
+        'link': 'https://t.me/$username/$serverId',
+      if (post.replyToMediaType case final type?)
+        'media': [
+          {
+            'type': _mediaTypes[type],
+            if (post.replyToIsPaid) 'paid': true,
+            if (post.replyToIsPaid && post.replyToStarCount > 0)
+              'stars': post.replyToStarCount,
+          },
+        ],
     };
   }
 

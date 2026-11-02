@@ -61,6 +61,15 @@ abstract class MediaItem with _$MediaItem {
 
     /// Telegram's spoiler flag: covered until tapped.
     @Default(false) bool hasSpoiler,
+
+    /// Behind a Telegram Stars paywall the reader hasn't unlocked. Its file
+    /// isn't downloadable until bought; only a blurred preview and the price
+    /// are known. See [starCount].
+    @Default(false) bool isPaid,
+
+    /// Telegram Stars that unlock the paid media in the message, 0 when free.
+    /// A message unlocks as a whole, so every paid item in it shares the count.
+    @Default(0) int starCount,
   }) = _MediaItem;
 
   factory MediaItem.fromJson(Map<String, dynamic> json) =>

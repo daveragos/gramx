@@ -70,6 +70,19 @@ abstract class Post with _$Post {
     /// When the replied-to message was sent. Telegram gives it only for a
     /// message from another chat.
     DateTime? replyToDate,
+
+    /// The replied-to channel's public @username, when known, for a link to
+    /// the replied-to post. Null for private channels or when unresolved.
+    String? replyToChannelUsername,
+
+    /// The kind of media on the replied-to message, when it has any.
+    MediaType? replyToMediaType,
+
+    /// Whether the replied-to media sits behind a Telegram Stars paywall.
+    @Default(false) bool replyToIsPaid,
+
+    /// Stars that unlock the replied-to media, 0 when free.
+    @Default(0) int replyToStarCount,
     @Default(false) bool hasDiscussionGroup,
     String? authorSignature,
 

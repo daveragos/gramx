@@ -518,6 +518,24 @@ class FeedRepository {
     knownChatTitles.addAll(await originTitlesFuture);
     final replyExcerpts = await replyExcerptsFuture;
 
+    // Public @usernames for the chats a post points at, so a reply to a post
+    // in another channel can carry a t.me link for Trok. Resolved from the
+    // cache, so unknown ones simply go without a link.
+    final knownChatUsernames = <int, String>{};
+    for (final id in knownChatTitles.keys) {
+      final cached = _chatCache.chat(id);
+      final username = cached == null
+          ? null
+          : _chatCache
+                .supergroupForChat(cached)
+                ?.usernames
+                ?.activeUsernames
+                .firstOrNull;
+      if (username != null && username.isNotEmpty) {
+        knownChatUsernames[id] = username;
+      }
+    }
+
     // Mapping is slow across many channels, so yield a frame periodically.
     final posts = <Post>[];
     var mappedSinceYield = 0;
@@ -530,6 +548,7 @@ class FeedRepository {
           chat,
           bookmarkedKeys: bookmarkKeys,
           knownChatTitles: knownChatTitles,
+          knownChatUsernames: knownChatUsernames,
           knownReplyExcerpts: replyExcerpts,
         ),
       );

@@ -62,6 +62,13 @@ _Post _$PostFromJson(Map<String, dynamic> json) => _Post(
   replyToDate: json['replyToDate'] == null
       ? null
       : DateTime.parse(json['replyToDate'] as String),
+  replyToChannelUsername: json['replyToChannelUsername'] as String?,
+  replyToMediaType: $enumDecodeNullable(
+    _$MediaTypeEnumMap,
+    json['replyToMediaType'],
+  ),
+  replyToIsPaid: json['replyToIsPaid'] as bool? ?? false,
+  replyToStarCount: (json['replyToStarCount'] as num?)?.toInt() ?? 0,
   hasDiscussionGroup: json['hasDiscussionGroup'] as bool? ?? false,
   authorSignature: json['authorSignature'] as String?,
   unsupportedKind: json['unsupportedKind'] as String?,
@@ -115,9 +122,23 @@ Map<String, dynamic> _$PostToJson(_Post instance) => <String, dynamic>{
   'replyToMediaWidth': instance.replyToMediaWidth,
   'replyToMediaHeight': instance.replyToMediaHeight,
   'replyToDate': instance.replyToDate?.toIso8601String(),
+  'replyToChannelUsername': instance.replyToChannelUsername,
+  'replyToMediaType': _$MediaTypeEnumMap[instance.replyToMediaType],
+  'replyToIsPaid': instance.replyToIsPaid,
+  'replyToStarCount': instance.replyToStarCount,
   'hasDiscussionGroup': instance.hasDiscussionGroup,
   'authorSignature': instance.authorSignature,
   'unsupportedKind': instance.unsupportedKind,
   'entities': instance.entities,
   'poll': _pollToJson(instance.poll),
+};
+
+const _$MediaTypeEnumMap = {
+  MediaType.photo: 'photo',
+  MediaType.video: 'video',
+  MediaType.gif: 'gif',
+  MediaType.document: 'document',
+  MediaType.audio: 'audio',
+  MediaType.voice: 'voice',
+  MediaType.sticker: 'sticker',
 };

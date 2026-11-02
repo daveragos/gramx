@@ -1248,6 +1248,68 @@ void main() {
       });
     });
 
+    test('a cross-channel reply to paid media carries channel and price', () {
+      final sent = TrokWire.post(
+        post(5).copyWith(
+          replyToText: '🔒 Paid media',
+          replyToAuthorTitle: 'Breaking News',
+          replyToChannelUsername: 'breaking',
+          replyToChatId: -1002222222222,
+          replyToMessageId: 777 << 20,
+          replyToMediaType: MediaType.photo,
+          replyToIsPaid: true,
+          replyToStarCount: 50,
+        ),
+        'p1',
+      );
+      expect(sent['reply_to'], {
+        'text': '🔒 Paid media',
+        'quote': false,
+        'author': 'Breaking News',
+        'message_id': 777,
+        'chat_id': -1002222222222,
+        'channel': {'title': 'Breaking News', 'username': 'breaking'},
+        'link': 'https://t.me/breaking/777',
+        'media': [
+          {'type': 'photo', 'paid': true, 'stars': 50},
+        ],
+      });
+    });
+
+    test('a reply with no text still goes, as a reply', () {
+      final sent = TrokWire.post(
+        post(5).copyWith(
+          replyToAuthorTitle: 'Durov',
+          replyToMessageId: 9 << 20,
+        ),
+        'p1',
+      );
+      expect(sent['reply_to'], {
+        'quote': false,
+        'author': 'Durov',
+        'message_id': 9,
+      });
+    });
+
+    test('paid media in a post carries the price', () {
+      final sent = TrokWire.post(
+        post(5).copyWith(
+          media: const [
+            MediaItem(
+              id: 'x',
+              type: MediaType.photo,
+              isPaid: true,
+              starCount: 50,
+            ),
+          ],
+        ),
+        'p1',
+      );
+      expect(sent['media'], [
+        {'type': 'photo', 'paid': true, 'stars': 50},
+      ]);
+    });
+
     test('a plain post has none of them', () {
       final sent = TrokWire.post(post(5), 'p1');
       for (final key in ['poll', 'link_preview', 'reply_to', 'images']) {

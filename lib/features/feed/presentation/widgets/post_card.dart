@@ -423,7 +423,7 @@ class PostCard extends ConsumerWidget {
                               ),
                             ],
 
-                            if (post.media.isNotEmpty) ...[
+                            if (post.media.any((m) => !m.isPaid)) ...[
                               const SizedBox(height: PostLayout.blockGap),
                               PostMediaGrid(
                                 media: post.media,

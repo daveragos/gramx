@@ -581,7 +581,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                                   messageId: post.messageId,
                                 ),
                               ],
-                              if (post.media.isNotEmpty) ...[
+                              if (post.media.any((m) => !m.isPaid)) ...[
                                 const SizedBox(height: _blockGap),
                                 PostMediaGrid(
                                   media: post.media,
@@ -1139,7 +1139,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       ),
                     ],
 
-                    if (comment.media.isNotEmpty) ...[
+                    if (comment.media.any((m) => !m.isPaid)) ...[
                       const SizedBox(height: 8),
                       PostMediaGrid(
                         media: comment.media,
