@@ -26,6 +26,12 @@ abstract interface class TrokClient {
 
   /// How many questions the reader has left today, and which features are on.
   Future<TrokAllowance> allowance();
+
+  /// Tells Trok's server the reader is about to send a message that mentions
+  /// Trok's guest bot in [chatId], so the bot answers that mention. Best
+  /// effort: a failure just means that one mention goes unanswered. [chatId]
+  /// is the Bot API id of the chat the message lands in.
+  Future<void> announceMention(int chatId);
 }
 
 /// The language the reader wants Trok's answers in: `en` or `am`.

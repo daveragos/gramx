@@ -11,6 +11,7 @@ import 'package:gramx/features/post_detail/domain/comment_threads.dart';
 import 'package:gramx/features/post_detail/presentation/widgets/comment_sender_button.dart';
 import 'package:gramx/core/l10n/app_strings.dart';
 import 'package:gramx/features/guest/presentation/guest_providers.dart';
+import 'package:gramx/features/trok/data/trok_client.dart';
 import 'package:gramx/features/trok/data/trok_mention.dart';
 import 'package:gramx/features/trok/presentation/trok_inline_translation.dart';
 import 'package:gramx/features/trok/presentation/widgets/trok_mark.dart';
@@ -224,6 +225,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
 
     // @Trok goes to the bot that calls Trok to answer under the post.
     final resolved = TrokMention.resolveComposed(text);
+    // When the comment calls Trok, tell Trok's server first so its guest bot
+    // answers; sendComment knows the discussion group the comment lands in.
+    final announce = TrokMention.mentionsGuestBot(resolved.text)
+        ? ref.read(trokClientProvider).announceMention
+        : null;
     try {
       await ref
           .read(feedRepositoryProvider)
@@ -235,6 +241,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
             replyToMessageId: targetReply?.messageId,
             attachments: attachments,
             remote: remote,
+            announceMention: announce,
           );
       if (mounted) {
         ref.invalidate(postCommentsFetchProvider(widget.postId));

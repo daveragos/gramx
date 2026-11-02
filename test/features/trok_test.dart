@@ -58,6 +58,9 @@ class _Client implements TrokClient {
   @override
   Future<TrokAllowance> allowance() async =>
       const TrokAllowance(questionsPerDay: 30, usedToday: 0);
+
+  @override
+  Future<void> announceMention(int chatId) async {}
 }
 
 void main() {

@@ -28,6 +28,9 @@ class _Client implements TrokClient {
   @override
   Future<TrokAllowance> allowance() async =>
       const TrokAllowance(questionsPerDay: 30, usedToday: 0);
+
+  @override
+  Future<void> announceMention(int chatId) async {}
 }
 
 TextEditingValue typed(String text, [int? cursor]) => TextEditingValue(
@@ -56,6 +59,31 @@ void main() {
         'no mention here',
       ]) {
         expect(TrokMention.resolve(text), text);
+      }
+    });
+  });
+
+  group('TrokMention.mentionsGuestBot', () {
+    test('sees the guest bot in a resolved message', () {
+      for (final text in [
+        '@trokkai is this true?',
+        'what do you think, @trokkai?',
+        TrokMention.resolve('@Trok hi'),
+      ]) {
+        expect(TrokMention.mentionsGuestBot(text), isTrue, reason: text);
+      }
+    });
+
+    test('ignores other bots, longer names and addresses', () {
+      for (final text in [
+        'before resolving @trok stays unseen',
+        '@trokagent and @tr0kbot are not the guest bot',
+        '@trokkaix is a different name',
+        'mail me at me@trokkai.et',
+        '@durov said so',
+        'no mention here',
+      ]) {
+        expect(TrokMention.mentionsGuestBot(text), isFalse, reason: text);
       }
     });
   });

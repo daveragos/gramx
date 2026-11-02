@@ -45,6 +45,8 @@ import 'package:gramx/features/compose/data/location_service.dart';
 import 'package:gramx/features/compose/domain/compose_attachment.dart';
 import 'package:gramx/features/compose/domain/compose_remote_media.dart';
 import 'package:gramx/features/compose/domain/poll_draft.dart';
+import 'package:gramx/features/trok/data/trok_client.dart';
+import 'package:gramx/features/trok/data/trok_mention.dart';
 import 'package:gramx/app/widgets/app_dialog.dart';
 import 'package:gramx/app/widgets/app_sheet.dart';
 import 'package:gramx/features/feed/presentation/media_seek.dart';
@@ -402,6 +404,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     List<ComposeAttachment> attachments,
     MessageSchedule schedule,
   ) async {
+    // In a group, @Trok is already resolved to the guest bot by the composer;
+    // announce the mention to Trok's server first so the bot answers it.
+    if (TrokMention.mentionsGuestBot(text.text)) {
+      await ref.read(trokClientProvider).announceMention(widget.chatId);
+    }
     final sent = await ref
         .read(conversationProvider(widget.chatId).notifier)
         .send(

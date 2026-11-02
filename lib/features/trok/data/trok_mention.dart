@@ -19,6 +19,17 @@ abstract final class TrokMention {
   /// The "@" word that ends at the cursor.
   static final _word = RegExp(r'(?<![\w@])@(\w*)$');
 
+  /// Whether [text], already [resolve]d for sending, mentions Trok's guest
+  /// bot — the one Telegram's guest mode lets answer in a chat it isn't in.
+  /// The mention must be announced to Trok's server before the message goes,
+  /// or the bot stays silent.
+  static bool mentionsGuestBot(String text) => _guestMention.hasMatch(text);
+
+  static final _guestMention = RegExp(
+    '(?<![\\w@])@${TrokBots.trok}(?!\\w)',
+    caseSensitive: false,
+  );
+
   /// [text] with each @Trok naming the bot that calls Trok, as it is sent.
   static String resolve(String text) =>
       text.replaceAll(_typed, '@${TrokBots.trok}');

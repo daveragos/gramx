@@ -120,6 +120,18 @@ class HttpTrokClient implements TrokClient {
   }
 
   @override
+  Future<void> announceMention(int chatId) async {
+    // Best effort: the message still sends if this fails, the bot just stays
+    // silent on that one mention. Awaited before the send so the window is
+    // open when the message arrives.
+    try {
+      await _json('POST', 'mentions', body: {'chat_id': chatId});
+    } on TrokFailure catch (e) {
+      debugPrint('[Trok] announce mention in $chatId failed: ${e.code}');
+    }
+  }
+
+  @override
   Future<TrokAllowance> allowance() async {
     final json = await _json('GET', 'me');
     if (json == null) throw TrokFailure('off', AppStrings.trokUnavailable);
@@ -131,12 +143,17 @@ class HttpTrokClient implements TrokClient {
     String method,
     String path, {
     Map<String, String>? query,
+    Object? body,
   }) async {
     for (var attempt = 0; ; attempt++) {
       final request = http.Request(
         method,
         _base.resolve(path).replace(queryParameters: query),
       )..headers.addAll(await _headers());
+      if (body != null) {
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode(body);
+      }
       final http.Response response;
       try {
         final streamed = await _http.send(request).timeout(_callTimeout);

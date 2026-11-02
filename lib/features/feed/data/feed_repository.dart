@@ -1702,6 +1702,12 @@ class FeedRepository {
     int? replyToMessageId,
     List<ComposeAttachment> attachments = const [],
     ComposeRemoteMedia? remote,
+
+    /// Called with the discussion group's chat id once it is known, when the
+    /// comment mentions Trok's guest bot, so the mention can be announced to
+    /// Trok's server before the comment is sent. Awaited; errors are the
+    /// caller's to swallow.
+    Future<void> Function(int chatId)? announceMention,
   }) async {
     try {
       int targetChatId = chatId;
@@ -1714,6 +1720,10 @@ class FeedRepository {
         targetChatId = threadInfo.chatId;
         targetThreadId = threadInfo.messageThreadId;
       }
+
+      // The comment lands in the discussion group, so the mention is
+      // announced against that chat, not the channel the post is in.
+      if (announceMention != null) await announceMention(targetChatId);
 
       final replyTo = td.InputMessageReplyToMessage(
         messageId: replyToMessageId ?? targetThreadId,
